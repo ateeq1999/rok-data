@@ -1,0 +1,5 @@
+# Prefer dependency versions that also build for our declared MSRV, so
+# `cargo update` cannot silently raise the real minimum Rust version beyond
+# `rust-version` in `Cargo.toml`.
+[resolver]
+incompatible-rust-versions = "fallback"

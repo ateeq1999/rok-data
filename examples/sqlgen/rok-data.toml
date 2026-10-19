@@ -1,0 +1,9 @@
+# rok settings for this example. Run from the repository root:
+#   cargo run -p rok-data-codegen -- generate --config examples/sqlgen/rok-data.toml
+[gen]
+input = "db"
+output = "db-gen"
+crate_name = "sqlgen-db"
+# Inside this repository the generated crate uses the local rok-data; a real
+# project would write `rok_data_version = "0.4"` instead.
+rok_data_path = "../../crates/rok-data"

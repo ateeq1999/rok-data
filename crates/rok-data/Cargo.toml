@@ -1,0 +1,49 @@
+[package]
+name = "rok-data"
+description = "An ergonomic, type-safe async ORM for PostgreSQL built on sqlx"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+homepage.workspace = true
+authors.workspace = true
+readme = "../../README.md"
+documentation = "https://docs.rs/rok-data"
+keywords = ["orm", "database", "postgres", "sqlx", "async"]
+categories = ["database"]
+
+[features]
+default = []
+chrono = ["rok-data-core/chrono"]
+uuid = ["rok-data-core/uuid"]
+decimal = ["rok-data-core/decimal"]
+json = ["rok-data-core/json"]
+migrate = ["rok-data-core/migrate"]
+testing = ["rok-data-core/testing"]
+serde = ["rok-data-core/serde"]
+axum = ["rok-data-core/axum"]
+metrics = ["rok-data-core/metrics"]
+full = ["chrono", "uuid", "decimal", "json", "migrate", "serde", "axum", "metrics"]
+
+[dependencies]
+rok-data-core = { workspace = true }
+rok-data-macros = { workspace = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+serde = { version = "1", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "std"] }
+serde_json = "1"
+axum-core = "0.5"
+http-body-util = "0.1"
+metrics = "0.24"
+metrics-util = { version = "0.20", default-features = false, features = ["debugging"] }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true

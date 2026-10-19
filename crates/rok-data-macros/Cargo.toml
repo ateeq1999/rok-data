@@ -1,0 +1,26 @@
+[package]
+name = "rok-data-macros"
+description = "Derive macros for rok-data"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+homepage.workspace = true
+authors.workspace = true
+readme = "../../README.md"
+documentation = "https://docs.rs/rok-data-macros"
+keywords = ["orm", "derive", "postgres", "sqlx"]
+categories = ["database", "development-tools::procedural-macro-helpers"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "3", features = ["full", "extra-traits"] }
+quote = "1"
+proc-macro2 = "1"
+proc-macro-crate = "3"
+
+[lints]
+workspace = true
