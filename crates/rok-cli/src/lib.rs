@@ -39,7 +39,7 @@ where
     }
 }
 
-/// What [`route_sqlc`] decided.
+/// What `route_sqlc` (the sqlc-token router below) decided.
 #[derive(Debug)]
 pub enum Outcome {
     /// The `sqlc` command handled everything (including clap errors), exit here.

@@ -41,9 +41,9 @@ Date: 2026-10-19 · Status: accepted
 
 - **CI** (`.github/workflows/ci.yml`): fmt, clippy `-D warnings`, and
   the full workspace tests on 1.94 + stable for Linux (with PostgreSQL
-  services enabling the DB-backed suites via
-  `ROK_DATA_TEST_DATABASE_URL` / `ROK_DATA_SQLC_TEST_DATABASE_URL`),
-  and build + test on macOS/Windows stable without a database.
+  services enabling the DB-backed suites via `DATABASE_URL` for the
+  rok-data-core suites and `ROK_DATA_SQLC_TEST_DATABASE_URL` for the
+  engine's), and build + test on macOS/Windows stable without a database.
 
 - **Stray-binary hygiene**: the engine's binary-driven integration
 

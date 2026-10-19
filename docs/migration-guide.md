@@ -23,11 +23,12 @@ errors now exit 2 (clap) where the old binary exited 1 for unknown
 commands; command failures still exit 1.
 
 **Journal:** `_rok_db_migrations` → `_rok_data_migrations`. Fresh
-databases get the new name automatically. Existing databases: rename the
-table once (`ALTER TABLE _rok_db_migrations RENAME TO
-_rok_data_migrations`), otherwise the first status run reports every row
-as `unknown` state plus a checksum-drift story that makes the situation
-obvious rather than silently starting over.
+databases get the new name automatically. Existing databases must rename
+the table once (`ALTER TABLE _rok_db_migrations RENAME TO
+_rok_data_migrations`): the engine hard-codes its journal, so an
+unrenamed database gets a fresh (`pending`-everything) journal and `up`
+would re-run already-applied SQL. The rename is the safe path;
+introspection deliberately ignores both journal names either way.
 
 **MSRV:** the workspace is `rust-version = 1.94` everywhere (it already
 matched the generated-code floor for SQLx 0.9).

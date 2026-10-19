@@ -2,7 +2,8 @@
 //!
 //! Everything except option merging lives in the reusable generator library
 //! (`rok-data-codegen::{generate, write, differences}`); this module only
-//! turns flags into [`Options`] and formats the report.
+//! turns flags into [`Options`](rok_data_codegen::Options) and formats the
+//! report.
 
 use std::process::ExitCode;
 

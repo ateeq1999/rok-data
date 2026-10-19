@@ -41,8 +41,8 @@ picking one format would strand the other side.
   the source format — one machine contract.
 
 - Journal table: `_rok_data_migrations` (renamed from rok-db's
-  `_rok_db_migrations`). Fresh projects get it on first `up`; rok-db
-  projects rename once; the status command reports `unknown` state for
-  rows whose checksum changed — which is also exactly what a raw,
-  pre-rename journal looks like to the new engine, so the rename is
-  discoverable via the status output.
+  `_rok_db_migrations`, which the engine hard-codes; rok-db projects
+  rename their table once, or `up` starts a fresh journal and re-runs
+  already-applied SQL until it fails on existing objects). The `unknown`
+  state remains the honest report for journal rows whose checksum has
+  drifted or whose file is gone.

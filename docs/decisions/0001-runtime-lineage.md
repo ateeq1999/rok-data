@@ -35,7 +35,12 @@ migration guide. No compatibility shims are provided.
 - The journal table is named `_rok_data_migrations`; fresh databases are
 
   created by the new name. Existing databases migrating from rok-db must
-  rename the journal table (or keep it via the documented override).
+  rename the journal table
+  (`ALTER TABLE _rok_db_migrations RENAME TO _rok_data_migrations`);
+  there is no override — the engine hard-codes its journal (schema
+  introspection lists neither journal name among user tables, so an
+  unrenamed installation dumps and inspects cleanly, but `rok migrate`
+  would begin a fresh journal rather than trust the old one).
 - Every rok-db test suite was ported and passes, except DB-gated suites
 
   that legitimately print skip notes without `DATABASE_URL` (as the
