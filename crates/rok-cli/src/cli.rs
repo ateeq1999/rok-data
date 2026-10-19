@@ -25,11 +25,24 @@ pub(crate) struct Cli {
 }
 
 /// Every `rok` command group.
+///
+// `large_enum_variant` is allowed on purpose: the `generate` variant carries
+// the generator's flag set inline (clap cannot flatten a `Box`), the enum is
+// built once per process run, and its work afterwards is I/O that dwarfs
+// a few hundred bytes.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Subcommand)]
 pub(crate) enum Command {
     /// Generate a rok-data crate (models, typed queries, migrations) from .sql files.
-    #[command(subcommand)]
-    Generate(GenerateAction),
+    Generate {
+        /// What and where to generate; the flags of the original generator.
+        #[command(flatten)]
+        options: GenerateOptions,
+        /// Optional action: the CI mode lives nested (as `rok generate check`) so
+        /// the write mode keeps its flat `rok generate [OPTIONS]` shape.
+        #[command(subcommand)]
+        action: Option<GenerateAction>,
+    },
     /// Run migration files against the database.
     #[command(subcommand)]
     Migrate(MigrateAction),
@@ -41,13 +54,16 @@ pub(crate) enum Command {
     Schema(SchemaAction),
 }
 
-/// `rok generate` and `rok generate check`.
+/// Nested actions of `rok generate`.
 #[derive(Debug, Subcommand)]
 pub(crate) enum GenerateAction {
-    /// Write the generated crate (from the .sql files) to the output directory.
-    Generate(GenerateOptions),
     /// Fail when the generated files are out of date with the .sql files (for CI).
-    Check(CheckOptions),
+    Check {
+        /// The subset of generation flags the check accepts. Provided leaf
+        /// values win over any value given to `rok generate` itself.
+        #[command(flatten)]
+        options: CheckOptions,
+    },
 }
 
 /// Options of `rok generate`.
@@ -203,6 +219,10 @@ pub(crate) enum SchemaAction {
 }
 
 /// How [`parse`] finished.
+/// What the root parser decided: run a command, print help/version, or
+/// report usage.
+// Carries [`Command`], whose size it inherits; see the allow note there.
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum ParseOutcome {
     /// A command to execute.
     Command(Command),

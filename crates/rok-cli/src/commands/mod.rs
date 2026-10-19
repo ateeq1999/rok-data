@@ -8,15 +8,15 @@ pub mod migrate;
 pub mod schema;
 pub mod sqlc;
 
-use crate::cli::{Command, DbAction, GenerateAction, MigrateAction, SchemaAction};
+use crate::cli::{Command, DbAction, MigrateAction, SchemaAction};
 
 /// Execute a parsed command; errors print `error: …` outside and exit 1.
 pub(crate) async fn execute(command: Command) -> Result<ExitCode, String> {
     match command {
-        Command::Generate(action) => match action {
-            GenerateAction::Generate(options) => generate::generate(options).await,
-            GenerateAction::Check(options) => generate::check(options).await,
-        },
+        Command::Generate {
+            options: generation,
+            action,
+        } => generate::run(generation, action).await,
         Command::Migrate(action) => match action {
             MigrateAction::Create { name, dir } => migrate::create(&name, &dir),
             MigrateAction::Status {
