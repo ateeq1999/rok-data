@@ -36,7 +36,8 @@ pub(crate) fn kind(sql: &str) -> &'static str {
 pub(crate) fn query(sql: &str, elapsed: Duration, rows: Option<u64>, slow: bool) {
     let kind = kind(sql);
     let outcome = if rows.is_some() { "ok" } else { "error" };
-    ::metrics::counter!("rok_data_queries_total", "kind" => kind, "outcome" => outcome).increment(1);
+    ::metrics::counter!("rok_data_queries_total", "kind" => kind, "outcome" => outcome)
+        .increment(1);
     ::metrics::histogram!("rok_data_query_duration_seconds", "kind" => kind)
         .record(elapsed.as_secs_f64());
     if let Some(rows) = rows {

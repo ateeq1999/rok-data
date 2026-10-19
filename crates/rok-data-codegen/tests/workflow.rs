@@ -24,7 +24,8 @@ fn project(schema: &str) -> Options {
     let mut options = Options::new();
     options.input = dir.join("db");
     options.output = dir.join("db-gen");
-    options.rok_data = Dependency::Path(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../rok-data"));
+    options.rok_data =
+        Dependency::Path(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../rok-data"));
     options
 }
 

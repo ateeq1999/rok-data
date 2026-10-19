@@ -107,8 +107,14 @@ async fn records_query_cache_and_pool_metrics(db: Db) {
     );
     assert_eq!(counter("rok_data_rows_total{kind=insert}"), Some(2));
     assert_eq!(counter("rok_data_slow_queries_total{kind=select}"), Some(1));
-    assert_eq!(counter("rok_data_cache_requests_total{result=hit}"), Some(1));
-    assert_eq!(counter("rok_data_cache_requests_total{result=miss}"), Some(1));
+    assert_eq!(
+        counter("rok_data_cache_requests_total{result=hit}"),
+        Some(1)
+    );
+    assert_eq!(
+        counter("rok_data_cache_requests_total{result=miss}"),
+        Some(1)
+    );
     assert!(
         metrics
             .iter()

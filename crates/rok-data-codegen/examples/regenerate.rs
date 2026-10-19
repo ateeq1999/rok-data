@@ -20,9 +20,7 @@ fn main() {
     options.output = PathBuf::from("examples/sqlgen/db-gen");
     options.crate_name = "sqlgen-db".to_owned();
     // Same settings as `examples/sqlgen/rok-data.toml`.
-    options.rok_data = Dependency::Path(PathBuf::from(
-        "examples/sqlgen/../../crates/rok-data",
-    ));
+    options.rok_data = Dependency::Path(PathBuf::from("examples/sqlgen/../../crates/rok-data"));
     options.strict = false;
     options.database_url = std::env::var("DATABASE_URL").ok().filter(|u| !u.is_empty());
 

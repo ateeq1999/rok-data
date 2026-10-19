@@ -1,0 +1,66 @@
+[package]
+name = "rok-data-sqlc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+# The standalone rok-sqlc crate supported 1.88; the consolidated workspace
+# standardizes every crate on the floor the generated SQLx 0.9 code needs
+# (workspace rust-version). Losing the older floor is documented as a
+# breaking change of the migration.
+rust-version.workspace = true
+homepage.workspace = true
+authors.workspace = true
+readme = "README.md"
+description = "Generate SQLx Rust database modules from SQL schema files"
+keywords = ["sqlx", "postgres", "codegen", "sql", "database"]
+categories = ["database", "development-tools", "command-line-utilities"]
+# Ship only what builds the library and binary. The integration tests need
+# the module corpus and the fixture crates, which stay in the repository.
+include = [
+    "/src/**/*.rs",
+    "/src/init/templates/*",
+    # `init --template`: `build.rs` embeds `templates/`, but not a build of a
+    # template made in place.
+    "/build.rs",
+    "/templates/**",
+    "!/templates/*/target/**",
+    "/Cargo.toml",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
+
+# The rok-sqlc engine predates the workspace lint set: `pub` items inside
+# private modules and undocumented internals are part of its style (its own
+# published crate never ran `unreachable_pub`/`missing_docs`). Mirror the
+# workspace lints minus those two rather than inheriting, which cargo does
+# not allow mixing with local overrides.
+[lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+missing_docs = "allow"
+
+[lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+
+[lib]
+name = "rok_data_sqlc"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+heck = "0.5"
+proc-macro2 = { version = "1", features = ["span-locations"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlparser = { version = "0.59", features = ["visitor"] }
+syn = { version = "2", features = ["full", "visit"] }
+toml = "1"
+
+[dev-dependencies]
+tempfile = "3"
+

@@ -5,8 +5,22 @@ members = [
     "crates/rok-data-macros",
     "crates/rok-data",
     "crates/rok-data-codegen",
+    "crates/rok-data-sqlc",
+    "crates/rok-cli",
+]
 
-
+# Fixture crates under the sqlc engine's tests/ and templates/ build with
+# their own Cargo.lock and dependency set; keep cargo from treating the
+# workspace as their root.
+exclude = [
+    "crates/rok-data-sqlc/tests/modules-app",
+    "crates/rok-data-sqlc/tests/api-app",
+    "crates/rok-data-sqlc/tests/fixture-app",
+    "crates/rok-data-sqlc/templates/actix-api",
+    "crates/rok-data-sqlc/docs/examples/api",
+    "crates/rok-data-sqlc/docs/examples/conventions",
+    "crates/rok-data-sqlc/docs/examples/quickstart",
+    "crates/rok-data-sqlc/docs/examples/validated-api",
 ]
 
 [workspace.package]
@@ -41,3 +55,8 @@ unreachable_pub = "warn"
 [workspace.lints.clippy]
 dbg_macro = "warn"
 todo = "warn"
+
+# Release binaries (GitHub releases and `cargo install`) ship without debug
+# symbols; they are several megabytes of the binary's size.
+[profile.release]
+strip = true

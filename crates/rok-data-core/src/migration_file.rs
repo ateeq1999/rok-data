@@ -94,15 +94,12 @@ pub fn status_rows(migrations: &[Migration], applied: &[AppliedMigration]) -> Ve
 /// The contents are exactly what the generated crate embeds with
 /// `include_str!`, so checksums match a generated crate's constants.
 pub fn load(dir: &Path) -> Result<Vec<Migration>, crate::Error> {
-    let entries = fs::read_dir(dir).map_err(|e| {
-        crate::Error::Config(format!("{}: {e}", dir.display()))
-    })?;
+    let entries =
+        fs::read_dir(dir).map_err(|e| crate::Error::Config(format!("{}: {e}", dir.display())))?;
     let mut ups = BTreeMap::new();
     let mut downs = BTreeMap::new();
     for entry in entries {
-        let entry = entry.map_err(|e| {
-            crate::Error::Config(format!("{}: {e}", dir.display()))
-        })?;
+        let entry = entry.map_err(|e| crate::Error::Config(format!("{}: {e}", dir.display())))?;
         let file = entry.file_name().to_string_lossy().into_owned();
         let (stem, map) = if let Some(stem) = file.strip_suffix(".up.sql") {
             (stem, &mut ups)
@@ -124,9 +121,8 @@ pub fn load(dir: &Path) -> Result<Vec<Migration>, crate::Error> {
                 entry.path().display()
             )));
         };
-        let sql = fs::read_to_string(entry.path()).map_err(|e| {
-            crate::Error::Config(format!("{}: {e}", entry.path().display()))
-        })?;
+        let sql = fs::read_to_string(entry.path())
+            .map_err(|e| crate::Error::Config(format!("{}: {e}", entry.path().display())))?;
         if map.insert(version, (name.to_owned(), sql)).is_some() {
             return Err(crate::Error::Config(format!(
                 "{}: two migrations have version {version}",
@@ -166,21 +162,29 @@ pub fn load(dir: &Path) -> Result<Vec<Migration>, crate::Error> {
         .collect())
 }
 
-/// The next free version number for `dir`: past-applied or on-disk files tell
-/// the CLI's `create` subcommand what to add on top of.
+/// The next free version number for `dir`: the highest numeric prefix on
+/// disk (`0003` → `4`), or `1` for an empty or unreadable directory.
+///
+/// Files without a `<version>_<name>.sql`-shaped suffix (notes and scratch
+/// files) are ignored, so `rok migrate create` keeps counting correctly.
 pub fn next_version_hint(dir: &Path) -> Option<i64> {
     let entries = fs::read_dir(dir).ok()?;
     let mut max = 0;
     for entry in entries.flatten() {
         let file = entry.file_name().to_string_lossy().into_owned();
-        let stem = file
-            .strip_suffix(".up.sql")
-            .or_else(|| file.strip_suffix(".down.sql"))
-            .or_else(|| file.strip_suffix(".sql"))?;
-        if let Some((v, _)) = stem.split_once('_') {
-            if let Ok(v) = v.parse::<i64>() {
-                max = max.max(v);
-            }
+        let stem = if file.ends_with(".up.sql") {
+            file.trim_end_matches(".up.sql")
+        } else if file.ends_with(".down.sql") {
+            file.trim_end_matches(".down.sql")
+        } else if file.ends_with(".sql") {
+            file.trim_end_matches(".sql")
+        } else {
+            continue;
+        };
+        if let Some((v, _)) = stem.split_once('_')
+            && let Ok(v) = v.parse::<i64>()
+        {
+            max = max.max(v);
         }
     }
     (max > 0).then_some(max)

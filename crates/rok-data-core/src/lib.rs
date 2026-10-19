@@ -14,6 +14,7 @@ mod db;
 mod error;
 mod exec;
 mod expr;
+pub mod introspect;
 pub mod join;
 mod key;
 pub mod metrics;
