@@ -92,9 +92,11 @@ guide, benchmarks, and the closing report (see the chat summary).
 
 ## What is deliberately out of scope (recorded as remaining issues)
 
-- A release/publish workflow for the consolidated workspace (the engine's
-  standalone `release.yml` with install scripts does not transfer; the
-  CLI distribution story is a design task of its own).
+- ~~A release/publish workflow for the consolidated workspace~~ — since
+  designed and implemented: see
+  [ADR 0008](decisions/0008-release-policy.md) and
+  `.github/workflows/release.yml` (tag-driven binary bundles with
+  checksums and install scripts, ordered crates.io publishing).
 - rok-fluent/rok-orm's APIs are documented as mappings only; no
   compatibility shims are provided.
 - The engine's `api-*` suites that need `DATABASE_URL` were ported and

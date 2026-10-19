@@ -78,6 +78,14 @@ DB-backed suites skip with a printed note when
 `DATABASE_URL` / `ROK_DATA_SQLC_TEST_DATABASE_URL` are unset — the
 skip is honest (printed, never silent).
 
+## Releasing
+
+Tag `vX.Y.Z` (must equal the workspace version) to run
+`.github/workflows/release.yml`: binary bundles with checksums,
+`install.sh`/`install.ps1`, then crates.io publishing in dependency
+order. Release notes live in root `CHANGELOG.md` under a `## [X.Y.Z]`
+heading — a tag without one fails the release. See ADR 0008.
+
 ## Docs discipline
 
 - ADRs under `docs/decisions/`: add one for any decision a reader
