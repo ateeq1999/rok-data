@@ -72,8 +72,9 @@ and let the generator emit a crate with models, typed queries and the
 migration journal wired in:
 
 ```console
-$ mkdir sql && /* write CREATE TABLE files into sql/ */
-$ rok generate --input sql --output db-gen --crate-name notes-db
+$ mkdir sql
+$ vi sql/decisions.sql    # your CREATE TABLE files, one or more
+$ rok generate --input sql --output db-gen --crate-name my-app-db
 ```
 
 Defaults come from `rok-data.toml` when it exists:

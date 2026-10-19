@@ -8,6 +8,28 @@ PostgreSQL data tooling for Rust, consolidated from the rok ecosystem:
   generator;
 - **one CLI** — `rok`, the single user-facing binary.
 
+## Install
+
+```sh
+cargo install rok-cli        # provides the `rok` binary
+```
+
+Or take a prebuilt `rok` binary: the GitHub releases carry checksummed
+archives for Linux (musl), macOS, and Windows, x86_64 and ARM64, and the
+repository's `install.sh` / `install.ps1` download, verify and install
+them:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ateeq1999/rok-data/main/install.sh | sh
+```
+
+```powershell
+irm https://raw.githubusercontent.com/ateeq1999/rok-data/main/install.ps1 | iex
+```
+
+(See [ADR 0008](docs/decisions/0008-release-policy.md) for the whole
+release story.) The crates need Rust 1.94 or newer.
+
 ## Quick start
 
 ```console

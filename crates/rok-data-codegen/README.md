@@ -7,10 +7,10 @@
 - migrations computed from schema changes.
 
 ```sh
-cargo install rok-data-codegen
+cargo install rok-cli
 rok generate                        # db/*.sql -> db-gen/
 rok generate --migration add_slug   # after changing the schema
-rok check                           # CI: fail when db-gen/ is stale
+rok generate check                  # CI: fail when db-gen/ is stale
 rok migrate status                  # which migrations DATABASE_URL has applied
 rok migrate up                      # apply pending migrations (a deploy step)
 rok migrate down --steps 1          # revert the latest one
@@ -39,7 +39,8 @@ let named = db_gen::user::User::filter(db_gen::user::User::NAME.is_not_null()).a
 Query types are checked by PostgreSQL. Set `DATABASE_URL` when queries change: a temporary
 database is created and dropped, and the results are cached in `db-gen/queries.json`.
 
-See the [design and full reference](https://github.com/ateeq1999/rok-data/blob/main/docs/v4.md)
-and the [example project](https://github.com/ateeq1999/rok-data/tree/main/examples/sqlgen).
+See the [workspace's CLI reference](https://github.com/ateeq1999/rok-data/blob/main/docs/cli-reference.md),
+the [getting-started guide](https://github.com/ateeq1999/rok-data/blob/main/docs/getting-started.md), and the
+[example project](https://github.com/ateeq1999/rok-data/tree/main/examples/sqlgen).
 
 License: MIT OR Apache-2.0.
