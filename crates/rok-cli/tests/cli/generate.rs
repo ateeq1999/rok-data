@@ -31,9 +31,7 @@ fn generates_resource_modules() -> Result<()> {
     assert!(models.contains("pub email: String,"));
 
     let read = fs::read_to_string(out.join("users/read.rs"))?;
-    assert!(read.contains(
-        "        SELECT\n            id,\n            email\n        FROM users\n        WHERE id = $1\n"
-    ));
+    assert!(read.contains("    User::query().filter(User::ID.eq(id)).first(executor).await\n"));
 
     let write = fs::read_to_string(out.join("users/write.rs"))?;
     assert!(write.contains("pub async fn create<'e, E>(executor: E, input: NewUser)"));
@@ -91,9 +89,9 @@ fn generates_composite_keys_arrays_and_time() -> Result<()> {
 
     let read = fs::read_to_string(out.join("line_items/read.rs"))?;
     assert!(read.contains("get_by_id<'e, E>(\n    executor: E,\n    key: LineItemKey,\n)"));
-    assert!(read.contains("WHERE order_id = $1 AND product_id = $2"));
-    assert!(read.contains(".bind(key.order_id)"));
-    assert!(read.contains(".bind(key.product_id)"));
+    assert!(read.contains("    LineItem::query()\n"));
+    assert!(read.contains("        .filter(LineItem::ORDER_ID.eq(key.order_id))\n"));
+    assert!(read.contains("        .filter(LineItem::PRODUCT_ID.eq(key.product_id))\n"));
     assert!(read.contains("    after: Option<LineItemKey>,\n"));
     Ok(())
 }
@@ -177,13 +175,12 @@ fn generates_write_helpers_with_defaults_and_serial() -> Result<()> {
 
     let write = fs::read_to_string(out.join("events/write.rs"))?;
     assert!(!write.contains("columns.push(\"id\")"));
-    assert!(write.contains("    columns.push(\"name\");\n"));
-    assert!(
-        write
-            .contains("    if input.is_active.is_some() {\n        columns.push(\"is_active\");\n")
-    );
+    assert!(write.contains("    insert = insert.set(Event::NAME, input.name);\n"));
     assert!(write.contains(
-        "    if let Some(value) = input.is_active {\n        values.push_bind(value);\n"
+        "    if let Some(value) = input.is_active {\n        insert = insert.set(Event::IS_ACTIVE, value);\n    }"
+    ));
+    assert!(write.contains(
+        "    if let Some(value) = input.is_active {\n        update = update.set(Event::IS_ACTIVE, value);\n    }"
     ));
     // `name` is required, so the column list is never empty.
     assert!(!write.contains("DEFAULT VALUES"));
@@ -262,9 +259,11 @@ fn generates_products_fixture_with_singular_names_and_schema_qualified_sql() -> 
     // foreign keys to them keep their raw types.
     assert!(models.contains(
         "/// A row of the `catalog.products` table.
-#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+#[derive(Debug, Clone, PartialEq, Model)]
+#[rok(table = \"catalog.products\")]
 pub struct Product {
     /// The `id` column.
+    #[rok(primary_key)]
     pub id: ProductId,
     /// The `sku` column.
     pub sku: String,
@@ -296,39 +295,19 @@ pub struct Product {
 
     let read = fs::read_to_string(out.join("products/read.rs"))?;
     assert!(read.contains(
-        "pub async fn get_by_id<'e, E>(executor: E, id: ProductId) -> Result<Option<Product>, sqlx::Error>
-where
-    E: sqlx::PgExecutor<'e>,
-{
-    sqlx::query_as::<_, Product>(
-        r#\"
-        SELECT
-            id,
-            sku,
-            name,
-            category_id,
-            supplier_id,
-            price_cents,
-            stock_on_hand,
-            reorder_level,
-            weight_kg,
-            discontinued,
-            released_on,
-            created_at
-        FROM catalog.products
-        WHERE id = $1
-        \"#,
-    )
-    .bind(id)
-    .fetch_optional(executor)
-    .await
-}
-"
+        "pub async fn get_by_id<'e, E>(\n    executor: E,\n    id: ProductId,\n) -> Result<Option<Product>, rok_data::Error>"
+    ));
+    assert!(read.contains(
+        "    Product::query()\n        .filter(Product::ID.eq(id))\n        .first(executor)\n        .await\n"
     ));
 
     let write = fs::read_to_string(out.join("products/write.rs"))?;
-    assert!(write.contains("new(\"UPDATE catalog.products SET \")"));
-    assert!(write.contains("DELETE FROM catalog.products"));
+    assert!(
+        write.contains("    let mut update = Product::update_all().filter(Product::ID.eq(id));")
+    );
+    assert!(write.contains(
+        "    Product::query()\n        .filter(Product::ID.eq(id))\n        .delete(executor)\n"
+    ));
     Ok(())
 }
 
@@ -463,7 +442,12 @@ fn generates_interval_bytea_and_time_with_time_zone_columns() -> Result<()> {
     assert!(models.contains("pub length: sqlx::postgres::types::PgInterval,"));
     assert!(models.contains("pub digest: Option<Vec<u8>>,"));
     let read = &spans[Path::new("spans/read.rs")];
-    assert!(read.contains("(executor: E, digest: &[u8])"), "{read}");
+    assert!(
+        read.contains(
+            "pub async fn get_by_digest<'e, E>(\n    executor: E,\n    digest: &[u8],\n)"
+        ),
+        "{read}"
+    );
     let filter = &spans[Path::new("spans/filter.rs")];
     assert!(filter.contains("pub length: Vec<Equality<sqlx::postgres::types::PgInterval>>,"));
     assert!(filter.contains("pub digest: Vec<Equality<Vec<u8>>>,"));

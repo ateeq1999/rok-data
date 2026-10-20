@@ -13,7 +13,10 @@ pub(super) async fn enum_keys_get_a_typed_id(pool: &PgPool) {
     use db::search::Limit;
     use db::types::TicketPriority;
 
-    for (priority, note) in [(TicketPriority::Low, "later"), (TicketPriority::High, "now")] {
+    for (priority, note) in [
+        (TicketPriority::Low, "later"),
+        (TicketPriority::High, "now"),
+    ] {
         db::priority_notes::write::create(
             pool,
             NewPriorityNote {
@@ -452,9 +455,9 @@ pub(super) async fn text_keys_are_borrowed(pool: &PgPool) {
 /// makes a UUID version 7 for an id the input leaves out, also over a
 /// database default, and keeps an id the input gives.
 pub(super) async fn generated_uuid_v7_keys(pool: &PgPool) {
-    use rok_data_sqlc_fixture_app::plain_db;
     use plain_db::defaulted_events::models::{DefaultedEventId, NewDefaultedEvent};
     use plain_db::ordered_events::models::{NewOrderedEvent, OrderedEventId};
+    use rok_data_sqlc_fixture_app::plain_db;
 
     let made = plain_db::ordered_events::write::create(
         pool,

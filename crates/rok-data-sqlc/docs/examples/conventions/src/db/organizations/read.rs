@@ -3,64 +3,43 @@
 use super::super::search::{Limit, Page, Sort};
 use super::filter::{OrganizationFilter, OrganizationSortKey};
 use super::models::{Organization, OrganizationId};
+use rok_data::Model;
 
 /// Fetches the row with the given primary key, or `None` if there is none.
 pub async fn get_by_id<'e, E>(
     executor: E,
     id: OrganizationId,
-) -> Result<Option<Organization>, sqlx::Error>
+) -> Result<Option<Organization>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, Organization>(
-        r#"
-        SELECT
-            id,
-            name
-        FROM organizations
-        WHERE id = $1
-        "#,
-    )
-    .bind(id)
-    .fetch_optional(executor)
-    .await
+    Organization::query()
+        .filter(Organization::ID.eq(id))
+        .first(executor)
+        .await
 }
 
 /// Returns whether a row with the given primary key exists.
-pub async fn exists_by_id<'e, E>(executor: E, id: OrganizationId) -> Result<bool, sqlx::Error>
+pub async fn exists_by_id<'e, E>(executor: E, id: OrganizationId) -> Result<bool, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, bool>(
-        r#"
-        SELECT EXISTS (
-            SELECT 1
-            FROM organizations
-            WHERE id = $1
-        )
-        "#,
-    )
-    .bind(id)
-    .fetch_one(executor)
-    .await
+    Organization::query()
+        .filter(Organization::ID.eq(id))
+        .count(executor)
+        .await
+        .map(|count| count > 0)
 }
 
 /// Fetches every row, ordered by primary key.
-pub async fn list<'e, E>(executor: E) -> Result<Vec<Organization>, sqlx::Error>
+pub async fn list<'e, E>(executor: E) -> Result<Vec<Organization>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, Organization>(
-        r#"
-        SELECT
-            id,
-            name
-        FROM organizations
-        ORDER BY id
-        "#,
-    )
-    .fetch_all(executor)
-    .await
+    Organization::query()
+        .order_by(Organization::ID)
+        .all(executor)
+        .await
 }
 
 /// Fetches at most `limit` rows after skipping `offset`, ordered by primary key so
@@ -69,39 +48,24 @@ pub async fn list_page<'e, E>(
     executor: E,
     limit: i64,
     offset: i64,
-) -> Result<Vec<Organization>, sqlx::Error>
+) -> Result<Vec<Organization>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, Organization>(
-        r#"
-        SELECT
-            id,
-            name
-        FROM organizations
-        ORDER BY id
-        LIMIT $1
-        OFFSET $2
-        "#,
-    )
-    .bind(limit)
-    .bind(offset)
-    .fetch_all(executor)
-    .await
+    Organization::query()
+        .order_by(Organization::ID)
+        .limit(limit as u64)
+        .offset(offset as u64)
+        .all(executor)
+        .await
 }
 
 /// Counts every row.
-pub async fn count<'e, E>(executor: E) -> Result<i64, sqlx::Error>
+pub async fn count<'e, E>(executor: E) -> Result<i64, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, i64>(
-        r#"
-        SELECT COUNT(*) FROM organizations
-        "#,
-    )
-    .fetch_one(executor)
-    .await
+    Organization::query().count(executor).await
 }
 
 /// Fetches one page of rows matching `filter`, ordered by `sort`.
@@ -113,7 +77,7 @@ pub async fn search<'e, E>(
     page: Page,
 ) -> Result<Vec<Organization>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
         r#"
@@ -148,7 +112,7 @@ pub async fn search_after<'e, E>(
     limit: Limit,
 ) -> Result<Vec<Organization>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
         r#"

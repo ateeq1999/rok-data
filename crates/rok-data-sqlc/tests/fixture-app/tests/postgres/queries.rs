@@ -159,17 +159,27 @@ pub(super) async fn partial_index_upserts_and_recursive_ctes(pool: &PgPool) {
     use db::org_units::models::NewOrgUnit;
     use db::queries::hierarchy::{org_subtree, upsert_live_soft_note};
 
-    let first = upsert_live_soft_note(pool, "UPSERT", "first").await.unwrap();
-    let second = upsert_live_soft_note(pool, "UPSERT", "second").await.unwrap();
+    let first = upsert_live_soft_note(pool, "UPSERT", "first")
+        .await
+        .unwrap();
+    let second = upsert_live_soft_note(pool, "UPSERT", "second")
+        .await
+        .unwrap();
     assert_eq!(second.id, first.id, "the live row is updated in place");
     assert_eq!(second.body, "second");
     // A soft-deleted row is outside the index, so the code is free again.
     assert!(db::soft_notes::write::delete(pool, first.id).await.unwrap());
-    let third = upsert_live_soft_note(pool, "UPSERT", "third").await.unwrap();
+    let third = upsert_live_soft_note(pool, "UPSERT", "third")
+        .await
+        .unwrap();
     assert_ne!(third.id, first.id);
     // Later scenarios count every `soft_notes` row.
     for id in [first.id, third.id] {
-        assert!(db::soft_notes::write::delete_permanently(pool, id).await.unwrap());
+        assert!(
+            db::soft_notes::write::delete_permanently(pool, id)
+                .await
+                .unwrap()
+        );
     }
 
     let unit = async |parent_id, name: &str| {

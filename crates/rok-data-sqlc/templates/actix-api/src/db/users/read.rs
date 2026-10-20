@@ -3,93 +3,37 @@
 use super::super::search::{Limit, Page, Sort};
 use super::filter::{UserFilter, UserSortKey};
 use super::models::{User, UserId};
+use rok_data::Model;
 
 /// Fetches the row with the given primary key, or `None` if there is none.
 /// Soft-deleted rows are left out.
-pub async fn get_by_id<'e, E>(executor: E, id: UserId) -> Result<Option<User>, sqlx::Error>
+pub async fn get_by_id<'e, E>(executor: E, id: UserId) -> Result<Option<User>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, User>(
-        r#"
-        SELECT
-            id,
-            email,
-            display_name,
-            password_hash,
-            has_password,
-            role,
-            is_active,
-            email_verified,
-            totp_secret,
-            totp_enabled,
-            avatar_key,
-            failed_logins,
-            locked_until,
-            created_at,
-            updated_at,
-            deleted_at
-        FROM users
-        WHERE id = $1 AND deleted_at IS NULL
-        "#,
-    )
-    .bind(id)
-    .fetch_optional(executor)
-    .await
+    User::query().filter(User::ID.eq(id)).first(executor).await
 }
 
 /// Returns whether a row with the given primary key exists.
 /// Soft-deleted rows are left out.
-pub async fn exists_by_id<'e, E>(executor: E, id: UserId) -> Result<bool, sqlx::Error>
+pub async fn exists_by_id<'e, E>(executor: E, id: UserId) -> Result<bool, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, bool>(
-        r#"
-        SELECT EXISTS (
-            SELECT 1
-            FROM users
-            WHERE id = $1 AND deleted_at IS NULL
-        )
-        "#,
-    )
-    .bind(id)
-    .fetch_one(executor)
-    .await
+    User::query()
+        .filter(User::ID.eq(id))
+        .count(executor)
+        .await
+        .map(|count| count > 0)
 }
 
 /// Fetches every row, ordered by primary key.
 /// Soft-deleted rows are left out.
-pub async fn list<'e, E>(executor: E) -> Result<Vec<User>, sqlx::Error>
+pub async fn list<'e, E>(executor: E) -> Result<Vec<User>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, User>(
-        r#"
-        SELECT
-            id,
-            email,
-            display_name,
-            password_hash,
-            has_password,
-            role,
-            is_active,
-            email_verified,
-            totp_secret,
-            totp_enabled,
-            avatar_key,
-            failed_logins,
-            locked_until,
-            created_at,
-            updated_at,
-            deleted_at
-        FROM users
-        WHERE deleted_at IS NULL
-        ORDER BY id
-        "#,
-    )
-    .fetch_all(executor)
-    .await
+    User::query().order_by(User::ID).all(executor).await
 }
 
 /// Fetches at most `limit` rows after skipping `offset`, ordered by primary key so
@@ -99,55 +43,25 @@ pub async fn list_page<'e, E>(
     executor: E,
     limit: i64,
     offset: i64,
-) -> Result<Vec<User>, sqlx::Error>
+) -> Result<Vec<User>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, User>(
-        r#"
-        SELECT
-            id,
-            email,
-            display_name,
-            password_hash,
-            has_password,
-            role,
-            is_active,
-            email_verified,
-            totp_secret,
-            totp_enabled,
-            avatar_key,
-            failed_logins,
-            locked_until,
-            created_at,
-            updated_at,
-            deleted_at
-        FROM users
-        WHERE deleted_at IS NULL
-        ORDER BY id
-        LIMIT $1
-        OFFSET $2
-        "#,
-    )
-    .bind(limit)
-    .bind(offset)
-    .fetch_all(executor)
-    .await
+    User::query()
+        .order_by(User::ID)
+        .limit(limit as u64)
+        .offset(offset as u64)
+        .all(executor)
+        .await
 }
 
 /// Counts every row.
 /// Soft-deleted rows are left out.
-pub async fn count<'e, E>(executor: E) -> Result<i64, sqlx::Error>
+pub async fn count<'e, E>(executor: E) -> Result<i64, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, i64>(
-        r#"
-        SELECT COUNT(*) FROM users WHERE deleted_at IS NULL
-        "#,
-    )
-    .fetch_one(executor)
-    .await
+    User::query().count(executor).await
 }
 
 /// Fetches one page of rows matching `filter`, ordered by `sort`.
@@ -160,7 +74,7 @@ pub async fn search<'e, E>(
     page: Page,
 ) -> Result<Vec<User>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
         r#"
@@ -207,7 +121,7 @@ pub async fn search_after<'e, E>(
     limit: Limit,
 ) -> Result<Vec<User>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
         r#"

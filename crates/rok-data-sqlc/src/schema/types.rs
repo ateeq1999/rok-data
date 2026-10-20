@@ -252,12 +252,21 @@ impl Table {
 pub struct Column {
     pub sql_name: String,
     pub rust_name: String,
+    /// The declared SQL type, as written (`UUID`, `VARCHAR(255)`,
+    /// `user_status`); the schema snapshot canonicalizes it (ADR 0010).
+    pub sql_type: String,
     pub rust_type: String,
     pub sqlx_type: String,
     pub nullable: bool,
     pub is_primary_key: bool,
     /// The database can supply a value (DEFAULT clause, serial, or identity).
     pub has_default: bool,
+    /// The `DEFAULT` expression as written; `None` without one.
+    pub default: Option<String>,
+    /// The `GENERATED ALWAYS AS (expr) STORED` expression; `None` otherwise.
+    pub generated: Option<String>,
+    /// `ALWAYS` or `BY DEFAULT` for an identity column; `None` otherwise.
+    pub identity: Option<String>,
     /// The database always owns the value (serial, identity, or GENERATED);
     /// the column is never inserted or updated by generated code.
     pub is_generated: bool,
@@ -460,6 +469,13 @@ impl Column {
 #[derive(Debug, Clone)]
 pub struct ForeignKey {
     pub column: String,
+    /// The declared constraint name, or the one PostgreSQL gives an unnamed
+    /// inline reference (`<table>_<column>_fkey`).
+    pub name: String,
+    /// `ON DELETE`, as written (`CASCADE`, `SET NULL`).
+    pub on_delete: Option<String>,
+    /// `ON UPDATE`, as written.
+    pub on_update: Option<String>,
     /// The referenced table's schema qualifier as written; `None` when the
     /// reference is unqualified.
     pub referenced_schema: Option<String>,

@@ -155,3 +155,23 @@ impl From<sqlx::Error> for AppError {
         AppError::Internal(Box::new(error))
     }
 }
+
+/// The generated data layer's error: rows map into `NotFound`, concurrent
+/// writes into `VersionConflict`, and everything else reuses the
+/// `sqlx::Error` mapping where a driver error wrapped it.
+impl From<rok_data::Error> for AppError {
+    fn from(error: rok_data::Error) -> Self {
+        match error {
+            rok_data::Error::NotFound { .. } => AppError::NotFound("no such row".to_owned()),
+            rok_data::Error::Conflict { .. } => {
+                AppError::VersionConflict("the record changed before the write".to_owned())
+            }
+            rok_data::Error::Validation(_) => AppError::Validation {
+                message: error.to_string(),
+                details: None,
+            },
+            rok_data::Error::Database(sqlx_error) => AppError::from(sqlx_error),
+            other => AppError::Internal(Box::new(other)),
+        }
+    }
+}

@@ -2,7 +2,9 @@
 
 use std::collections::HashSet;
 
-use sqlparser::ast::{AlterColumnOperation, AlterTableOperation, ColumnDef, ObjectName};
+use sqlparser::ast::{
+    AlterColumnOperation, AlterTableOperation, ColumnDef, GeneratedAs, ObjectName,
+};
 
 use super::checks::apply_range_check;
 use super::constraints::{add_constraint, add_key_constraint};
@@ -145,6 +147,7 @@ fn alter_column(
             }
             let (base_type, sqlx_type) = map_type_in(data_type, enums).map_err(column_fail)?;
             column.rust_type = rust_type(&base_type, column.nullable);
+            column.sql_type = data_type.to_string();
             // The value range was fitted to the old type (`> 0` on an integer
             // is `>= 1`), so it holds only while the Rust type is the same.
             // Dropping it loosens the rule; the database keeps the check.
@@ -169,15 +172,17 @@ fn alter_column(
             }
             set_nullable(column, true);
         }
-        AlterColumnOperation::SetDefault { .. } => {
+        AlterColumnOperation::SetDefault { value } => {
             column.has_default = true;
             column.is_generated = false;
+            column.default = Some(value.to_string());
         }
         AlterColumnOperation::DropDefault => {
             column.has_default = false;
             column.is_generated = false;
+            column.default = None;
         }
-        AlterColumnOperation::AddGenerated { .. } => {
+        AlterColumnOperation::AddGenerated { generated_as, .. } => {
             if column.nullable {
                 return Err(format!(
                     "ALTER COLUMN: column `{name}` must be NOT NULL before it can become an identity column"
@@ -185,6 +190,13 @@ fn alter_column(
             }
             column.has_default = true;
             column.is_generated = true;
+            column.identity = Some(
+                match generated_as {
+                    Some(GeneratedAs::Always) => "ALWAYS",
+                    _ => "BY DEFAULT",
+                }
+                .to_owned(),
+            );
         }
     }
     Ok(())
@@ -250,7 +262,12 @@ fn add_column(
         table.unique_keys.push(UniqueKey::new(vec![name.clone()]));
         add_key_constraint(table, constraint.clone(), vec![name.clone()], false, taken);
     }
-    table.foreign_keys.extend(built.foreign_key);
+    if let Some(mut key) = built.foreign_key {
+        if key.name.is_empty() {
+            key.name = format!("{}_{}_fkey", table.sql_name, key.column);
+        }
+        table.foreign_keys.push(key);
+    }
     table
         .columns
         .push(built.raw.into_column(built.primary_key.is_some()));

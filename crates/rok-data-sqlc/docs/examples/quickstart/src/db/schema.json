@@ -1,0 +1,128 @@
+{
+  "enums": [
+    {
+      "name": "product_status",
+      "values": [
+        "draft",
+        "active",
+        "archived"
+      ],
+      "module": ""
+    }
+  ],
+  "tables": [
+    {
+      "name": "categories",
+      "module": "categories",
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "BIGSERIAL",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "uniques": [
+        {
+          "name": "categories_name_key",
+          "columns": [
+            "name"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "products",
+      "module": "products",
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        {
+          "name": "category_id",
+          "sql_type": "BIGINT",
+          "nullable": false
+        },
+        {
+          "name": "sku",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "price",
+          "sql_type": "NUMERIC(12,2)",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "sql_type": "product_status",
+          "nullable": false,
+          "default": "'draft'"
+        },
+        {
+          "name": "tags",
+          "sql_type": "TEXT[]",
+          "nullable": false,
+          "default": "'{}'"
+        },
+        {
+          "name": "created_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "description",
+          "sql_type": "TEXT",
+          "nullable": true
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "uniques": [
+        {
+          "name": "products_sku_key",
+          "columns": [
+            "sku"
+          ]
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "products_category_id_fkey",
+          "columns": [
+            "category_id"
+          ],
+          "ref_table": "categories",
+          "ref_columns": [
+            "id"
+          ]
+        }
+      ]
+    }
+  ],
+  "indexes": [],
+  "extras": []
+}

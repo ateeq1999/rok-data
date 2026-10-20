@@ -24,7 +24,7 @@ impl Feature {
 
 /// Canonical spelling of a column type, so `int4`, `INT` and `integer`
 /// compare equal. Unknown types (enums, domains) keep their name, lower case.
-pub(crate) fn canonical(sql_type: &str) -> String {
+pub fn canonical(sql_type: &str) -> String {
     let trimmed = sql_type.trim();
     let (base, dims) = strip_array(trimmed);
     let (name, args) = match base.find('(') {

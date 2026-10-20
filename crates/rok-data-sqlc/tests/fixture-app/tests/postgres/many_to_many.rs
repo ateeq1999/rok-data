@@ -79,7 +79,9 @@ pub(super) async fn many_to_many_attach_detach_and_sync(pool: &PgPool) {
     assert!(attach(pool, tenant, admin.id, &write.code).await.unwrap());
     assert!(attach(pool, tenant, clerk.id, &read.code).await.unwrap());
     assert_eq!(
-        db::role_permissions::read::count(pool, tenant).await.unwrap(),
+        db::role_permissions::read::count(pool, tenant)
+            .await
+            .unwrap(),
         3,
         "attaching twice keeps one row"
     );
@@ -123,7 +125,11 @@ pub(super) async fn many_to_many_attach_detach_and_sync(pool: &PgPool) {
     sync(pool, tenant, admin.id, &codes).await.unwrap();
     let loaded = load_permissions(pool, tenant, &roles).await.unwrap();
     assert_eq!(loaded[&admin.id], vec![refund.clone(), write.clone()]);
-    assert_eq!(loaded[&clerk.id], vec![read.clone()], "other roles keep theirs");
+    assert_eq!(
+        loaded[&clerk.id],
+        vec![read.clone()],
+        "other roles keep theirs"
+    );
 
     sync(pool, tenant, admin.id, &[]).await.unwrap();
     let loaded = load_permissions(pool, tenant, &roles).await.unwrap();
@@ -144,7 +150,9 @@ pub(super) async fn soft_delete_join_rows_are_restored_not_duplicated(pool: &PgP
     let role = &roles[0];
     let [read, refund, write] = [&permissions[0], &permissions[1], &permissions[2]];
     let pairing = async |code: &PermissionId| {
-        let rows = db::role_permissions::read::list(pool, tenant).await.unwrap();
+        let rows = db::role_permissions::read::list(pool, tenant)
+            .await
+            .unwrap();
         rows.into_iter()
             .filter(|row| row.role_id == role.id && row.permission_code == *code)
             .collect::<Vec<_>>()
@@ -161,7 +169,10 @@ pub(super) async fn soft_delete_join_rows_are_restored_not_duplicated(pool: &PgP
     assert!(attach(pool, tenant, role.id, &read.code).await.unwrap());
     let restored = pairing(&read.code).await;
     assert_eq!(restored.len(), 1);
-    assert_eq!(restored[0].id, original[0].id, "the original row is restored");
+    assert_eq!(
+        restored[0].id, original[0].id,
+        "the original row is restored"
+    );
     assert_eq!(restored[0].granted_at, original[0].granted_at);
     assert_eq!(restored[0].deleted_at, None);
 
@@ -201,7 +212,11 @@ pub(super) async fn plain_join_table_deletes_detached_pairs(pool: &PgPool) {
     .await
     .unwrap();
     let mut users = Vec::new();
-    for email in ["ann@groups.example", "bo@groups.example", "cy@groups.example"] {
+    for email in [
+        "ann@groups.example",
+        "bo@groups.example",
+        "cy@groups.example",
+    ] {
         let user = db::users::write::create(
             pool,
             NewUser {
@@ -252,7 +267,11 @@ pub(super) async fn many_to_many_filters_go_through_the_join_table(pool: &PgPool
     assert!(attach(pool, tenant, admin.id, &refund.code).await.unwrap());
     assert!(attach(pool, tenant, clerk.id, &read.code).await.unwrap());
     // Paired in another tenant only, or no longer paired: neither matches.
-    assert!(attach(pool, other_tenant, clerk.id, &refund.code).await.unwrap());
+    assert!(
+        attach(pool, other_tenant, clerk.id, &refund.code)
+            .await
+            .unwrap()
+    );
     assert!(attach(pool, tenant, clerk.id, &refund.code).await.unwrap());
     assert!(
         db::role_permissions::write::detach(pool, tenant, clerk.id, &refund.code)

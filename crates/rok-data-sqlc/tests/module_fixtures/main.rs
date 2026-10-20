@@ -159,9 +159,16 @@ fn module_fixtures_are_rustfmt_clean() -> Result<()> {
             "fixture `{}` generated no files",
             outcome.fixture.id
         );
+        // Only Rust files reach rustfmt; `schema.json` is an artifact, not
+        // code.
+        let rust_files: Vec<&PathBuf> = outcome
+            .files
+            .iter()
+            .filter(|file| file.extension().is_some_and(|ext| ext == "rs"))
+            .collect();
         let output = Command::new("rustfmt")
             .args(["--edition", "2024", "--check"])
-            .args(&outcome.files)
+            .args(&rust_files)
             .output()
             .context("failed to run rustfmt (install it with `rustup component add rustfmt`)")?;
         if !output.status.success() {

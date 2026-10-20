@@ -3,101 +3,51 @@
 use super::super::search::{Limit, Page, Sort};
 use super::filter::{ProductFilter, ProductSortKey};
 use super::models::{Product, ProductId};
+use rok_data::Model;
 
 /// Fetches the row with the given primary key, or `None` if there is none.
-pub async fn get_by_id<'e, E>(executor: E, id: ProductId) -> Result<Option<Product>, sqlx::Error>
+pub async fn get_by_id<'e, E>(
+    executor: E,
+    id: ProductId,
+) -> Result<Option<Product>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, Product>(
-        r#"
-        SELECT
-            id,
-            category_id,
-            sku,
-            name,
-            price,
-            status,
-            tags,
-            created_at,
-            description
-        FROM products
-        WHERE id = $1
-        "#,
-    )
-    .bind(id)
-    .fetch_optional(executor)
-    .await
+    Product::query()
+        .filter(Product::ID.eq(id))
+        .first(executor)
+        .await
 }
 
 /// Returns whether a row with the given primary key exists.
-pub async fn exists_by_id<'e, E>(executor: E, id: ProductId) -> Result<bool, sqlx::Error>
+pub async fn exists_by_id<'e, E>(executor: E, id: ProductId) -> Result<bool, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, bool>(
-        r#"
-        SELECT EXISTS (
-            SELECT 1
-            FROM products
-            WHERE id = $1
-        )
-        "#,
-    )
-    .bind(id)
-    .fetch_one(executor)
-    .await
+    Product::query()
+        .filter(Product::ID.eq(id))
+        .count(executor)
+        .await
+        .map(|count| count > 0)
 }
 
 /// Fetches the row with the given `sku`, or `None` if there is none.
-pub async fn get_by_sku<'e, E>(executor: E, sku: &str) -> Result<Option<Product>, sqlx::Error>
+pub async fn get_by_sku<'e, E>(executor: E, sku: &str) -> Result<Option<Product>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, Product>(
-        r#"
-        SELECT
-            id,
-            category_id,
-            sku,
-            name,
-            price,
-            status,
-            tags,
-            created_at,
-            description
-        FROM products
-        WHERE sku = $1
-        "#,
-    )
-    .bind(sku)
-    .fetch_optional(executor)
-    .await
+    Product::query()
+        .filter(Product::SKU.eq(sku))
+        .first(executor)
+        .await
 }
 
 /// Fetches every row, ordered by primary key.
-pub async fn list<'e, E>(executor: E) -> Result<Vec<Product>, sqlx::Error>
+pub async fn list<'e, E>(executor: E) -> Result<Vec<Product>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, Product>(
-        r#"
-        SELECT
-            id,
-            category_id,
-            sku,
-            name,
-            price,
-            status,
-            tags,
-            created_at,
-            description
-        FROM products
-        ORDER BY id
-        "#,
-    )
-    .fetch_all(executor)
-    .await
+    Product::query().order_by(Product::ID).all(executor).await
 }
 
 /// Fetches at most `limit` rows after skipping `offset`, ordered by primary key so
@@ -106,46 +56,24 @@ pub async fn list_page<'e, E>(
     executor: E,
     limit: i64,
     offset: i64,
-) -> Result<Vec<Product>, sqlx::Error>
+) -> Result<Vec<Product>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, Product>(
-        r#"
-        SELECT
-            id,
-            category_id,
-            sku,
-            name,
-            price,
-            status,
-            tags,
-            created_at,
-            description
-        FROM products
-        ORDER BY id
-        LIMIT $1
-        OFFSET $2
-        "#,
-    )
-    .bind(limit)
-    .bind(offset)
-    .fetch_all(executor)
-    .await
+    Product::query()
+        .order_by(Product::ID)
+        .limit(limit as u64)
+        .offset(offset as u64)
+        .all(executor)
+        .await
 }
 
 /// Counts every row.
-pub async fn count<'e, E>(executor: E) -> Result<i64, sqlx::Error>
+pub async fn count<'e, E>(executor: E) -> Result<i64, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, i64>(
-        r#"
-        SELECT COUNT(*) FROM products
-        "#,
-    )
-    .fetch_one(executor)
-    .await
+    Product::query().count(executor).await
 }
 
 /// Fetches one page of rows matching `filter`, ordered by `sort`.
@@ -157,7 +85,7 @@ pub async fn search<'e, E>(
     page: Page,
 ) -> Result<Vec<Product>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
         r#"
@@ -196,7 +124,7 @@ pub async fn search_after<'e, E>(
     limit: Limit,
 ) -> Result<Vec<Product>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
         r#"

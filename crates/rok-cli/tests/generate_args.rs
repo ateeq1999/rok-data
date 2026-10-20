@@ -120,3 +120,69 @@ fn help_shows_the_nested_check() {
         assert!(stdout.contains(needle), "help lists {needle}: {stdout}");
     }
 }
+
+/// `rok.toml` is the canonical settings file; the legacy `rok-data.toml`
+/// keeps working with a printed note, and the canonical name wins when
+/// both exist.
+#[test]
+fn canonical_rok_toml_with_legacy_alias() -> Result<(), Box<dyn std::error::Error>> {
+    let dir = TempDir::new()?;
+    let project = dir.path();
+    fs::create_dir_all(project.join("sql"))?;
+    fs::write(project.join("sql/decisions.sql"), DECISIONS)?;
+
+    // Canonical only: quiet run, no legacy notes.
+    fs::write(
+        project.join("rok.toml"),
+        "[generate]\ninput = \"sql\"\noutput = \"gen\"\n",
+    )?;
+    let output = rok().current_dir(project).args(["generate"]).output()?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success() && project.join("gen/src/lib.rs").is_file(),
+        "canonical file run failed: {stdout}{stderr}"
+    );
+    assert!(
+        !stderr.contains("rok-data.toml"),
+        "canonical run must not print legacy notes: {stderr}"
+    );
+
+    // Legacy only: same behavior, plus the note.
+    fs::remove_file(project.join("rok.toml"))?;
+    fs::remove_dir_all(project.join("gen"))?;
+    fs::write(
+        project.join("rok-data.toml"),
+        "[gen]\ninput = \"sql\"\noutput = \"gen\"\n",
+    )?;
+    let output = rok().current_dir(project).args(["generate"]).output()?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success() && project.join("gen/src/lib.rs").is_file(),
+        "legacy file run failed: {stdout}{stderr}"
+    );
+    assert!(
+        stderr.contains("`rok-data.toml` is a legacy name"),
+        "expected the legacy note: {stderr}"
+    );
+
+    // Both present: the canonical name wins and the ignored file gets
+    // its note.
+    fs::write(
+        project.join("rok.toml"),
+        "[generate]\ninput = \"sql\"\noutput = \"gen2\"\n",
+    )?;
+    let output = rok().current_dir(project).args(["generate"]).output()?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success() && project.join("gen2/src/lib.rs").is_file(),
+        "both-files run failed: {stdout}{stderr}"
+    );
+    assert!(
+        stderr.contains("ignoring `rok-data.toml`"),
+        "expected the ignored-file note: {stderr}"
+    );
+    Ok(())
+}

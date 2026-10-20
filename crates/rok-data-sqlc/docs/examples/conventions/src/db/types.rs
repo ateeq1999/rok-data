@@ -76,3 +76,5 @@ impl<'r> sqlx::Decode<'r, sqlx::Postgres> for InvoiceStatus {
         Ok(<&str as sqlx::Decode<'r, sqlx::Postgres>>::decode(value)?.parse()?)
     }
 }
+
+rok_data::impl_value!(InvoiceStatus);

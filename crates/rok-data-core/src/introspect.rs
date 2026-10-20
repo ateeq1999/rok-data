@@ -128,11 +128,20 @@ pub async fn indexes(db: &Db, table: &str) -> Result<Vec<IndexInfo>, Error> {
     struct RawIdx {
         indexname: String,
         indexdef: String,
+        isprimary: bool,
     }
 
+    // From `pg_index` rather than `pg_indexes`: a primary key's backing
+    // index shows up in `pg_indexes` as a plain `CREATE UNIQUE INDEX`, so
+    // only `indisprimary` knows what backs the primary key.
     let raw: Vec<RawIdx> = sqlx::query_as(
-        "SELECT indexname, indexdef FROM pg_indexes \
-         WHERE tablename = $1 AND schemaname = 'public' \
+        "SELECT ic.relname AS indexname, \
+         pg_get_indexdef(ic.oid) AS indexdef, \
+         i.indisprimary AS isprimary \
+         FROM pg_index i \
+         JOIN pg_class tc ON tc.oid = i.indrelid \
+         JOIN pg_class ic ON ic.oid = i.indexrelid \
+         WHERE tc.relname = $1 AND tc.relnamespace = 'public'::regnamespace \
          ORDER BY indexname",
     )
     .bind(table)
@@ -143,7 +152,7 @@ pub async fn indexes(db: &Db, table: &str) -> Result<Vec<IndexInfo>, Error> {
         .into_iter()
         .map(|r| {
             let unique = r.indexdef.contains(" UNIQUE ");
-            let primary = r.indexdef.contains(" PRIMARY KEY ");
+            let primary = r.isprimary;
             let cols = parse_index_columns(&r.indexdef);
             IndexInfo {
                 name: r.indexname,

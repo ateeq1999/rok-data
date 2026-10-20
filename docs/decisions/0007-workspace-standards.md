@@ -49,3 +49,40 @@ Date: 2026-10-19 · Status: accepted
 
   tests compile the `rok` binary through `CARGO_BIN_EXE_rok` in
   `rok-cli/tests`, never a hand-built path.
+
+## Amendment 2026-10-19 (adoption round, toasty study)
+
+- **Deterministic expansion**: `rok-data-macros` carries a
+
+  `clippy.toml` denying `HashMap`/`HashSet` — the `style` lint
+  `disallowed_types` is warn-ranked, fires only when configured in
+  `clippy.toml`, and is enforced by the existing `-D warnings`
+  gate. Expansions must never depend on hash iteration order; use
+  `BTreeMap`/`BTreeSet` (or `indexmap` when insertion order
+  matters). No code changes were needed: the crate already used
+  none.
+
+- **Error model target**: new `rok-data-core` error-surface work
+
+  follows the one-wrapper shape — pointer-sized, non-exhaustive
+  `Error`, one module per kind with a constructor, an `is_*()`
+  predicate, and `.context()` chaining — with `Result<T, E = Error>`
+  as the alias. This is a design target recorded in
+  `docs/unified-pipeline-plan.md`'s backlog (item 13), not a rewrite
+  of existing surfaces.
+
+- **Docs pipeline** (guide pages doctested from a build script,
+
+  "Runnable example" pointers per page, CI running examples by
+  glob): adopted as the plan's docs phase (backlog item 14).
+
+- **Release tooling**: ADR 0008's tag == version, checksummed
+
+  bundles, and CHANGELOG-heading gate stay; `release-plz` is a
+  deliberate no for 0.2.0 (backlog note).
+
+- Already in force before this amendment (verified, not adopted):
+
+  MSRV discipline (`rust-version = "1.94"`, CI matrix
+  `["1.94", "stable"]`, asserted by the `release_metadata` suite)
+  and `unsafe_code = "forbid"`.

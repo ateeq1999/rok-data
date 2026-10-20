@@ -2,6 +2,7 @@
 
 use super::super::types;
 use super::super::users::models::UserId;
+use rok_data::Model;
 
 /// The primary key of the `api_keys` table, as a distinct type so it
 /// cannot be mixed up with another table's key.
@@ -49,10 +50,13 @@ impl ApiKeyId {
     }
 }
 
+rok_data::impl_value!(ApiKeyId);
 /// A row of the `api_keys` table.
-#[derive(Debug, Clone, PartialEq, sqlx::FromRow, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Model, serde::Serialize, serde::Deserialize)]
+#[rok(table = "api_keys")]
 pub struct ApiKey {
     /// The `id` column.
+    #[rok(primary_key)]
     pub id: ApiKeyId,
     /// The `user_id` column.
     pub user_id: UserId,

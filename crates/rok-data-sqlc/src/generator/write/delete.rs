@@ -2,81 +2,83 @@
 
 use crate::schema::{Column, Table};
 
-use crate::generator::sql::{ident, scoped_key_predicate, table_ref};
-use crate::generator::{StaticQuery, keys, push_doc, push_fn_head};
+use crate::generator::{
+    filter_call, keys, push_doc, push_fn_head, push_wide_chain, tenant_filter_call,
+};
 
-pub(super) fn render_delete(output: &mut String, table: &Table, key_columns: &[&Column]) {
-    let Some(column) = table.soft_delete_column.as_deref() else {
-        render_key_statement(
-            output,
-            table,
-            "delete",
-            &["Deletes the row with the given primary key and returns whether one existed."],
-            vec![
-                format!("DELETE FROM {}", table_ref(table)),
-                format!("WHERE {}", scoped_key_predicate(table, key_columns)),
-            ],
-        );
-        return;
-    };
-    let column = ident(column);
-    let soft = |value: &str, condition: &str| {
-        vec![
-            format!("UPDATE {}", table_ref(table)),
-            format!("SET {column} = {value}"),
-            format!(
-                "WHERE {} AND {column} {condition}",
-                scoped_key_predicate(table, key_columns)
-            ),
-        ]
-    };
-    render_key_statement(
-        output,
-        table,
-        "delete",
-        &[
-            &format!("Soft-deletes the row with the given primary key by setting `{column}` to"),
-            "the current time, and returns whether a row changed: `false` when there is no",
-            "such row or it is already deleted.",
-        ],
-        soft("now()", "IS NULL"),
-    );
-    render_key_statement(
-        output,
-        table,
-        "restore",
-        &[
-            &format!(
-                "Restores the soft-deleted row with the given primary key by clearing `{column}`,"
-            ),
-            "and returns whether a row changed: `false` when there is no such row or it is",
-            "not deleted.",
-        ],
-        soft("NULL", "IS NOT NULL"),
-    );
-    render_key_statement(
-        output,
-        table,
-        "delete_permanently",
-        &[
-            "Removes the row with the given primary key from the table, deleted or not, and",
-            "returns whether one existed.",
-        ],
-        vec![
-            format!("DELETE FROM {}", table_ref(table)),
-            format!("WHERE {}", scoped_key_predicate(table, key_columns)),
-        ],
-    );
+pub(super) fn render_delete(output: &mut String, table: &Table, _key_columns: &[&Column]) {
+    match table.soft_delete_column.as_deref() {
+        Some(column) => {
+            let column = crate::generator::sql::ident(column);
+            render_key_statement(
+                output,
+                table,
+                "delete",
+                &[
+                    &format!(
+                        "Soft-deletes the row with the given primary key by setting `{column}` to"
+                    ),
+                    "the current time, and returns whether a row changed: `false` when there is no",
+                    "such row or it is already deleted.",
+                ],
+                |calls| push_delete_terminal(calls, ".delete(executor)"),
+            );
+            render_key_statement(
+                output,
+                table,
+                "restore",
+                &[
+                    &format!(
+                        "Restores the soft-deleted row with the given primary key by clearing `{column}`,"
+                    ),
+                    "and returns whether a row changed: `false` when there is no such row or it is",
+                    "not deleted.",
+                ],
+                |calls| push_delete_terminal(calls, ".restore(executor)"),
+            );
+            render_key_statement(
+                output,
+                table,
+                "delete_permanently",
+                &[
+                    "Removes the row with the given primary key from the table, deleted or not, and",
+                    "returns whether one existed.",
+                ],
+                |calls| push_delete_terminal(calls, ".force_delete(executor)"),
+            );
+        }
+        None => {
+            render_key_statement(
+                output,
+                table,
+                "delete",
+                &["Deletes the row with the given primary key and returns whether one existed."],
+                |calls| push_delete_terminal(calls, ".delete(executor)"),
+            );
+        }
+    }
 }
 
-/// A function taking the primary key that runs `sql` and returns whether it
-/// affected a row.
+/// The statement-specific terminal: plain and soft `delete` go through the
+/// model's `DELETE`/`UPDATE deleted_at = now()`; `restore` targets only
+/// deleted rows; `delete_permanently` lifts the live-only scope first.
+fn push_delete_terminal(calls: &mut Vec<String>, terminal: &str) {
+    if terminal == ".force_delete(executor)" {
+        calls.push(".with_trashed()".to_owned());
+    }
+    calls.push(terminal.to_owned());
+    calls.push(".await".to_owned());
+    calls.push(".map(|count| count > 0)".to_owned());
+}
+
+/// A function taking the primary key that runs the model chain and returns
+/// whether a row was affected.
 fn render_key_statement(
     output: &mut String,
     table: &Table,
     name: &str,
     doc: &[&str],
-    sql: Vec<String>,
+    push_calls: impl FnOnce(&mut Vec<String>),
 ) {
     output.push('\n');
     push_doc(output, 0, doc);
@@ -84,15 +86,24 @@ fn render_key_statement(
         output,
         name,
         &keys::key_params(table),
-        "Result<bool, sqlx::Error>",
+        "Result<bool, rok_data::Error>",
     );
-    StaticQuery {
-        call: "sqlx::query",
-        sql,
-        binds: keys::scoped_key_binds(table),
-        execute: "execute(executor)",
+    let mut calls = Vec::new();
+    if let Some(call) = tenant_filter_call(table) {
+        calls.push(call);
     }
-    .push(output, 4, "let result = ", "?;");
-    output.push_str("    Ok(result.rows_affected() > 0)\n");
+    let binds = keys::key_binds(table);
+    for (column, bind) in table.key_columns().into_iter().zip(&binds) {
+        calls.push(filter_call(table, column, bind));
+    }
+    push_calls(&mut calls);
+    push_wide_chain(
+        output,
+        4,
+        "",
+        &format!("{}::query()", table.struct_name),
+        &calls,
+        "",
+    );
     output.push_str("}\n");
 }

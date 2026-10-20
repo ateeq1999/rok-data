@@ -1,0 +1,55 @@
+{
+  "enums": [],
+  "tables": [
+    {
+      "name": "members",
+      "module": "members",
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "BIGSERIAL",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "sql_type": "VARCHAR(80)",
+          "nullable": false
+        },
+        {
+          "name": "handle",
+          "sql_type": "VARCHAR(30)",
+          "nullable": false
+        },
+        {
+          "name": "age",
+          "sql_type": "INTEGER",
+          "nullable": true
+        },
+        {
+          "name": "balance",
+          "sql_type": "NUMERIC(12,2)",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "bio",
+          "sql_type": "TEXT",
+          "nullable": true
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "uniques": [
+        {
+          "name": "members_handle_key",
+          "columns": [
+            "handle"
+          ]
+        }
+      ]
+    }
+  ],
+  "indexes": [],
+  "extras": []
+}

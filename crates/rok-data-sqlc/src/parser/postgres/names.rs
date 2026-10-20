@@ -20,9 +20,24 @@ pub(super) fn normalize_schema(schema: Option<String>) -> Option<String> {
 pub(super) fn find_table(tables: &[Table], name: &ObjectName) -> Option<usize> {
     let leaf = object_leaf_name(name);
     let schema = object_schema_name(name);
-    tables.iter().position(|table| {
-        table.sql_name == leaf && same_schema(table.schema.as_deref(), schema.as_deref())
-    })
+    tables
+        .iter()
+        .position(|table| {
+            table.sql_name == leaf && same_schema(table.schema.as_deref(), schema.as_deref())
+        })
+        // An unqualified name in a migration also reaches a table created
+        // under a schema, as the default search path does (`ALTER TABLE
+        // products` finds `catalog.products` when it is the only `products`
+        // there is); a name several schemas share stays with the unqualified
+        // (that is, `public`) table.
+        .or_else(|| {
+            if schema.is_none() && tables.iter().filter(|table| table.sql_name == leaf).count() == 1
+            {
+                tables.iter().position(|table| table.sql_name == leaf)
+            } else {
+                None
+            }
+        })
 }
 
 /// Whether two schema names are one schema: no schema is `public`.

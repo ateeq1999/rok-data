@@ -34,6 +34,164 @@ pub fn push_chain(output: &mut String, indent: usize, lead: &str, head: &str, ca
     }
 }
 
+/// A chain framed the way rustfmt frames a statement: a two-link chain
+/// (`head` and one call) fits the line width alone; three or more links
+/// must also fit [`CHAIN_WIDTH`]. Otherwise the head goes on the first
+/// line, one call per line, with `trail` (such as `;`) on the last call.
+pub fn push_wide_chain(
+    output: &mut String,
+    indent: usize,
+    lead: &str,
+    head: &str,
+    calls: &[String],
+    trail: &str,
+) {
+    let pad = " ".repeat(indent);
+    let chain = format!("{head}{}", calls.concat());
+    let line_fits = pad.len() + lead.len() + chain.len() + trail.len() <= MAX_WIDTH;
+    // The chain's width budget covers the whole expression, `.await`
+    // included; the statement's lead and trail punctuation do not count.
+    let wide = calls.len() <= 1;
+    let one_line = line_fits && (wide || chain.len() <= CHAIN_WIDTH);
+    if one_line {
+        output.push_str(&format!("{pad}{lead}{chain}{trail}\n"));
+        return;
+    }
+    if one_line {
+        output.push_str(&format!("{pad}{lead}{chain}{trail}\n"));
+        return;
+    }
+    // Overfull two-linked statement: rustfmt breaks after the assignment
+    // and keeps the chain intact on the continuation line.
+    if wide && lead.ends_with("= ") {
+        let continuation = indent + 4;
+        if continuation + chain.len() + trail.len() <= MAX_WIDTH {
+            output.push_str(&format!("{pad}{}\n", lead.trim_end()));
+            output.push_str(&format!("{}{chain}{trail}\n", " ".repeat(continuation)));
+            return;
+        }
+    }
+    // Vertical: one call per line. A call is framed with its arguments one
+    // per line when the arguments, as written inside its parentheses,
+    // exceed the chain width; a framed argument that would still overflow
+    // breaks as its own chain (head, then one link per line).
+    let link_pad = indent + 4;
+    output.push_str(&format!("{pad}{lead}{head}\n"));
+    for (index, call) in calls.iter().enumerate() {
+        let suffix = if index + 1 == calls.len() { trail } else { "" };
+        push_chain_call(output, link_pad, call, suffix);
+    }
+}
+
+/// The arguments of `name(arg, ...)` as written, split on top-level
+/// commas; `None` for calls without a parenthesized list (`.await`).
+fn call_args(call: &str) -> Option<Vec<&str>> {
+    let open = call.find('(')?;
+    let inner = call.strip_suffix(')')?;
+    let body = &inner[open + 1..];
+    let mut args = Vec::new();
+    if body.trim().is_empty() {
+        return Some(args);
+    }
+    let mut rest = body;
+    loop {
+        let (mut depth, mut split_at) = (0isize, usize::MAX);
+        for (index, byte) in rest.bytes().enumerate() {
+            match byte {
+                b'(' => depth += 1,
+                b')' => depth -= 1,
+                b',' if depth == 0 => {
+                    split_at = index;
+                    break;
+                }
+                _ => {}
+            }
+        }
+        if split_at == usize::MAX {
+            args.push(rest.trim());
+            return Some(args);
+        }
+        args.push(rest[..split_at].trim());
+        rest = &rest[split_at + 1..];
+    }
+}
+
+/// One chain call at `pad` with `suffix` after it. A call with several
+/// arguments frames them one per line when their written form exceeds the
+/// function-call width; a one-argument call stays on its line while the
+/// line fits [`MAX_WIDTH`] (rustfmt frames it only when the element itself
+/// overflows the line).
+fn push_chain_call(output: &mut String, pad: usize, call: &str, suffix: &str) {
+    let pad = " ".repeat(pad);
+    let args = match call_args(call) {
+        Some(args) if !args.is_empty() => args,
+        // `.await` and other calls without a parenthesized list stay on
+        // their line.
+        _ => {
+            output.push_str(&format!("{pad}{call}{suffix}\n"));
+            return;
+        }
+    };
+    let framed = if args.len() > 1 {
+        call_argument_width(call) > FN_CALL_WIDTH
+    } else {
+        pad.len() + call.len() + suffix.len() > MAX_WIDTH
+    };
+    if !framed {
+        output.push_str(&format!("{pad}{call}{suffix}\n"));
+        return;
+    }
+    let open = call.find('(').expect("a chain call has arguments");
+    output.push_str(&format!("{pad}{}(\n", &call[..open]));
+    for arg in &args {
+        push_chain_argument(output, &pad, arg);
+    }
+    output.push_str(&format!("{pad}){suffix}\n"));
+}
+
+/// The written width of a call's arguments: everything inside its
+/// parentheses, verbatim.
+fn call_argument_width(call: &str) -> usize {
+    match (call.find('('), call.rfind(')')) {
+        (Some(open), Some(close)) => close - open - 1,
+        _ => 0,
+    }
+}
+
+/// One framed argument at `pad`: its own line with a trailing comma, or,
+/// when that line would overflow, its head followed by one `.link` per
+/// line.
+fn push_chain_argument(output: &mut String, pad: &str, arg: &str) {
+    if pad.len() + 4 + arg.len() <= MAX_WIDTH {
+        output.push_str(&format!("{pad}    {arg},\n"));
+        return;
+    }
+    // A chain argument breaks after its leader: the first `.name(` in it
+    // opens the argument's own chain.
+    let bytes = arg.as_bytes();
+    let mut link = None;
+    for at in 0..bytes.len() {
+        if bytes[at] != b'.' {
+            continue;
+        }
+        let mut end = at + 1;
+        while end < bytes.len() && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_') {
+            end += 1;
+        }
+        if end > at + 1 && bytes.get(end) == Some(&b'(') {
+            link = Some(at);
+            break;
+        }
+    }
+    match link {
+        Some(at) => {
+            output.push_str(&format!("{pad}    {},\n", arg[..at].trim_end()));
+            output.push_str(&format!("{pad}        {},\n", &arg[at..]));
+        }
+        None => output.push_str(&format!("{pad}    {arg},\n")),
+    }
+}
+
 /// The derives `derive = ["serde"]` adds (ADR 0013), for [`push_derives`]:
 /// none without `serde`.
 pub fn serde_derives(serde: bool) -> &'static [&'static str] {
@@ -238,7 +396,7 @@ pub fn push_fn_head(output: &mut String, name: &str, params: &[String], returns:
         output.push_str(&close);
         output.push('\n');
     }
-    output.push_str("where\n    E: sqlx::PgExecutor<'e>,\n{\n");
+    output.push_str("where\n    E: rok_data::Executor<'e>,\n{\n");
 }
 
 /// Renders `a && b && c` at `indent`, wrapped the way rustfmt wraps it.
@@ -376,7 +534,7 @@ mod tests {
         push_fn_head(&mut output, "list", &[], "Result<(), sqlx::Error>");
         assert_eq!(
             output,
-            "pub async fn list<'e, E>(executor: E) -> Result<(), sqlx::Error>\nwhere\n    E: sqlx::PgExecutor<'e>,\n{\n"
+            "pub async fn list<'e, E>(executor: E) -> Result<(), sqlx::Error>\nwhere\n    E: rok_data::Executor<'e>,\n{\n"
         );
     }
 

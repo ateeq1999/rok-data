@@ -286,22 +286,28 @@ fn unique_keys_get_lookups_but_expression_and_partial_indexes_do_not() -> Result
     let read = fs::read_to_string(out.join("products/read.rs"))?;
     assert!(
         read.contains(
-            "pub async fn get_by_sku<'e, E>(executor: E, sku: &str) -> Result<Option<Product>, sqlx::Error>"
+            "pub async fn get_by_sku<'e, E>(executor: E, sku: &str) -> Result<Option<Product>, rok_data::Error>"
         ),
         "{read}"
     );
-    assert!(read.contains("        WHERE sku = $1\n"), "{read}");
     assert!(
         read.contains(
-            "pub async fn get_by_organization_id_and_code<'e, E>(\n    executor: E,\n    organization_id: uuid::Uuid,\n    code: &str,\n) -> Result<Option<Product>, sqlx::Error>"
+            "    Product::query()\n        .filter(Product::SKU.eq(sku))\n        .first(executor)\n        .await\n"
         ),
         "{read}"
     );
     assert!(
-        read.contains("        WHERE organization_id = $1 AND code = $2\n"),
+        read.contains(
+            "pub async fn get_by_organization_id_and_code<'e, E>(\n    executor: E,\n    organization_id: uuid::Uuid,\n    code: &str,\n) -> Result<Option<Product>, rok_data::Error>"
+        ),
         "{read}"
     );
-    assert!(read.contains("    .bind(organization_id)\n    .bind(code)\n"));
+    assert!(
+        read.contains(
+            "    Product::query()\n        .filter(Product::ORGANIZATION_ID.eq(organization_id))\n        .filter(Product::CODE.eq(code))\n        .first(executor)\n        .await\n"
+        ),
+        "{read}"
+    );
     assert!(!read.contains("get_by_name"), "expression index: {read}");
     assert!(!read.contains("get_by_barcode"), "partial index: {read}");
     Ok(())

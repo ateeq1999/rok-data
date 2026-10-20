@@ -7,6 +7,23 @@ Versioning](https://semver.org/spec/v2.0.0.html). Release notes for a
 tag are this file's `## [X.Y.Z]` section (the release workflow checks
 that it exists and won't ship a tag without it).
 
+## [0.2.0] — the unified ORM chains through the generated data layer
+
+The generated per-table data layer (`models`, `read`, `write` and the
+relationship loaders) now rides the `rok-data` model chains instead of
+built SQL, with `sqlx::Error` traded for `rok_data::Error` across the
+generated surface. Joins, search/listing/filter and `m2m` pair loaders
+stay on the Query builder for this slice. The actix template's
+skeleton gains the `rok-data` dependency and an `AppError` conversion.
+
+Also in 0.2.0: an unqualified `ALTER TABLE <name>` in a later
+migration now reaches a table created under a schema
+(`catalog.products`) when that SQL name is unique in the schema, and
+diagnostics name the resolved table; the `Model` derive accepts
+no-primary-key tables; composite types (money, ranges, timetz,
+inet/cidr, macaddr, bytea arrays) ride the new `ipnetwork` and
+`mac_address` facade features.
+
 ## [0.1.0] — initial consolidation
 
 First release of the consolidated workspace. `rok-data` combines the

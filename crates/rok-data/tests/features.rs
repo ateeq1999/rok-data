@@ -6,7 +6,7 @@
 use std::time::Duration;
 
 use rok_data::prelude::*;
-use rok_data::raw;
+use rok_data::{Include, raw};
 
 #[derive(Debug, Clone, PartialEq, Model)]
 #[rok(has_many(posts = Post::AUTHOR_ID), has_one(profile = Profile::USER_ID))]
@@ -309,6 +309,102 @@ async fn relations_lazy_and_eager() {
 
     // Empty input runs no query.
     assert!(User::POSTS.load(&db, &[]).await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn with_loads_relations_beside_the_rows() {
+    let Some(db) = setup().await else { return };
+    let (users, _posts) = seed(&db).await;
+
+    // Rows plus two relations: two batched follow-ups, one view.
+    let view = User::query()
+        .with(User::POSTS)
+        .with(User::PROFILE)
+        .all(&db)
+        .await
+        .unwrap();
+    assert_eq!(view.rows().len(), 3);
+    assert!(
+        view.rows()
+            .iter()
+            .all(|u| ["ann", "bob", "cid"].contains(&u.name.as_str())),
+        "the rows are still plain users"
+    );
+
+    // The loaded state, typed and keyed, read like the loaders' maps.
+    let posts_by_author = view.loaded(User::POSTS).unwrap();
+    assert_eq!(
+        users
+            .iter()
+            .map(|u| posts_by_author.get(u).len())
+            .sum::<usize>(),
+        6
+    );
+
+    // The fused read for one owner.
+    let ann_posts = view.try_get(User::POSTS, &users[0]).unwrap();
+    assert_eq!(ann_posts.len(), 3);
+    assert_eq!(
+        ann_posts
+            .iter()
+            .map(|p| p.title.as_str())
+            .collect::<Vec<_>>(),
+        ["a1", "a2", "a3"]
+    );
+
+    // `One` reads `Option<Option<..>>`: the outer `Some` says the include
+    // ran; the inner says whether the owner has the record.
+    assert_eq!(
+        view.try_get(User::PROFILE, &users[0]).unwrap().unwrap().bio,
+        "hi"
+    );
+    assert!(view.try_get(User::PROFILE, &users[1]).unwrap().is_none());
+
+    // A relation never asked for reads `None` — never panics.
+    let slim = User::query().with(User::POSTS).all(&db).await.unwrap();
+    assert_eq!(slim.rows().len(), 3);
+    assert!(slim.loaded(User::PROFILE).is_none());
+
+    // Shaped include: filters and ordering act on the batched load.
+    let shaped = User::query()
+        .with(
+            Include::new(User::POSTS)
+                .filter(Post::VIEWS.gte(15))
+                .order_by(Post::VIEWS.desc()),
+        )
+        .all(&db)
+        .await
+        .unwrap();
+    assert_eq!(shaped.try_get(User::POSTS, &users[0]).unwrap().len(), 2);
+    assert_eq!(shaped.try_get(User::POSTS, &users[1]).unwrap().len(), 1);
+    assert_eq!(shaped.try_get(User::POSTS, &users[2]).unwrap().len(), 1);
+
+    // Rows and loads share one connection — inside a transaction too.
+    db.transaction(|tx| {
+        Box::pin(async move {
+            let review = User::query()
+                .order_by(User::NAME)
+                .with(User::POSTS)
+                .all(&mut *tx)
+                .await
+                .unwrap();
+            assert_eq!(review.rows().len(), 3);
+            assert_eq!(
+                review
+                    .try_get(User::POSTS, &review.rows()[0])
+                    .unwrap()
+                    .len(),
+                3
+            );
+            Ok::<(), rok_data::Error>(())
+        })
+    })
+    .await
+    .unwrap();
+
+    // Include-free queries keep their old shape (no view, no extra query).
+    let plain = User::query().limit(1).all(&db).await.unwrap();
+    assert_eq!(plain.len(), 1);
 }
 
 #[tokio::test]

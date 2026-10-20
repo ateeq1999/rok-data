@@ -173,12 +173,20 @@ pub(super) fn key_columns(
 pub(super) fn constraint_foreign_key(constraint: &TableConstraint) -> Option<ForeignKey> {
     match constraint {
         TableConstraint::ForeignKey {
+            name,
             columns,
             foreign_table,
             referred_columns,
+            on_delete,
+            on_update,
             ..
         } if columns.len() == 1 && referred_columns.len() == 1 => Some(ForeignKey {
             column: ident_name(&columns[0]),
+            // Unnamed constraints are named by the table they belong to;
+            // `build_table` fills the default in.
+            name: name.as_ref().map(ident_name).unwrap_or_default(),
+            on_delete: on_delete.as_ref().map(ToString::to_string),
+            on_update: on_update.as_ref().map(ToString::to_string),
             referenced_schema: object_schema_name(foreign_table),
             referenced_table: object_leaf_name(foreign_table),
             referenced_column: ident_name(&referred_columns[0]),

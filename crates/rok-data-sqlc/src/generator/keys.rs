@@ -389,6 +389,7 @@ fn render_typed_id(
         "impl From<{name}> for {inner} {{\n    fn from(id: {name}) -> Self {{\n        id.0\n    }}\n}}\n\n"
     ));
     if is_enum {
+        push_impl_value(output, name);
         return;
     }
     output.push_str(&format!(
@@ -413,6 +414,13 @@ fn render_typed_id(
             "    #[must_use]\n    pub fn generate() -> Self {{\n        Self({expr})\n    }}\n}}\n\n"
         ));
     }
+    push_impl_value(output, name);
+}
+
+/// Makes an id usable as a rok-data column value (filters, `set`, chains)
+/// beside its hand-written conversions.
+fn push_impl_value(output: &mut String, name: &str) {
+    output.push_str(&format!("rok_data::impl_value!({name});\n"));
 }
 
 fn render_key_struct(output: &mut String, table: &Table, keys: &[&Column], serde: bool) {

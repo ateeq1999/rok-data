@@ -3,6 +3,7 @@
 use super::super::UpdateOutcome;
 use super::super::organizations::models::OrganizationId;
 use super::models::{Invoice, InvoiceId, NewInvoice, UpdateInvoice};
+use rok_data::Model;
 
 /// Inserts one row and returns it as stored. Defaulted columns left as `None`
 /// are omitted from the `INSERT` so the database default applies.
@@ -10,47 +11,21 @@ pub async fn create<'e, E>(
     executor: E,
     organization_id: OrganizationId,
     input: NewInvoice,
-) -> Result<Invoice, sqlx::Error>
+) -> Result<Invoice, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new("INSERT INTO invoices (");
-    let mut columns = query.separated(", ");
-    columns.push("organization_id");
-    if input.id.is_some() {
-        columns.push("id");
-    }
-    columns.push("number");
-    columns.push("total");
-    if input.status.is_some() {
-        columns.push("status");
-    }
-    query.push(") VALUES (");
-    let mut values = query.separated(", ");
-    values.push_bind(organization_id);
+    let mut insert = Invoice::create().set(Invoice::ORGANIZATION_ID, organization_id);
     if let Some(value) = input.id {
-        values.push_bind(value);
+        insert = insert.set(Invoice::ID, value);
     }
-    values.push_bind(input.number);
-    values.push_bind(input.total);
+    insert = insert.set(Invoice::NUMBER, input.number);
+    insert = insert.set(Invoice::TOTAL, input.total);
     if let Some(value) = input.status {
-        values.push_bind(value);
+        insert = insert.set(Invoice::STATUS, value);
     }
-    query.push(")");
-    query.push(
-        r#"
-        RETURNING
-            id,
-            organization_id,
-            number,
-            total,
-            status,
-            updated_at,
-            row_version,
-            deleted_at
-        "#,
-    );
-    query.build_query_as::<Invoice>().fetch_one(executor).await
+
+    insert.exec(executor).await
 }
 
 /// Applies a partial update if the row's `row_version` is still `expected_version`.
@@ -66,9 +41,9 @@ pub async fn update<'e, E>(
     id: InvoiceId,
     expected_version: i64,
     input: UpdateInvoice,
-) -> Result<UpdateOutcome<Invoice>, sqlx::Error>
+) -> Result<UpdateOutcome<Invoice>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     if input.is_empty() {
         let Some(row) = super::read::get_by_id(executor, organization_id, id).await? else {
@@ -138,22 +113,16 @@ pub async fn delete<'e, E>(
     executor: E,
     organization_id: OrganizationId,
     id: InvoiceId,
-) -> Result<bool, sqlx::Error>
+) -> Result<bool, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    let result = sqlx::query(
-        r#"
-        UPDATE invoices
-        SET deleted_at = now()
-        WHERE organization_id = $1 AND id = $2 AND deleted_at IS NULL
-        "#,
-    )
-    .bind(organization_id)
-    .bind(id)
-    .execute(executor)
-    .await?;
-    Ok(result.rows_affected() > 0)
+    Invoice::query()
+        .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
+        .filter(Invoice::ID.eq(id))
+        .delete(executor)
+        .await
+        .map(|count| count > 0)
 }
 
 /// Restores the soft-deleted row with the given primary key by clearing `deleted_at`,
@@ -163,22 +132,16 @@ pub async fn restore<'e, E>(
     executor: E,
     organization_id: OrganizationId,
     id: InvoiceId,
-) -> Result<bool, sqlx::Error>
+) -> Result<bool, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    let result = sqlx::query(
-        r#"
-        UPDATE invoices
-        SET deleted_at = NULL
-        WHERE organization_id = $1 AND id = $2 AND deleted_at IS NOT NULL
-        "#,
-    )
-    .bind(organization_id)
-    .bind(id)
-    .execute(executor)
-    .await?;
-    Ok(result.rows_affected() > 0)
+    Invoice::query()
+        .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
+        .filter(Invoice::ID.eq(id))
+        .restore(executor)
+        .await
+        .map(|count| count > 0)
 }
 
 /// Removes the row with the given primary key from the table, deleted or not, and
@@ -187,19 +150,15 @@ pub async fn delete_permanently<'e, E>(
     executor: E,
     organization_id: OrganizationId,
     id: InvoiceId,
-) -> Result<bool, sqlx::Error>
+) -> Result<bool, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    let result = sqlx::query(
-        r#"
-        DELETE FROM invoices
-        WHERE organization_id = $1 AND id = $2
-        "#,
-    )
-    .bind(organization_id)
-    .bind(id)
-    .execute(executor)
-    .await?;
-    Ok(result.rows_affected() > 0)
+    Invoice::query()
+        .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
+        .filter(Invoice::ID.eq(id))
+        .with_trashed()
+        .force_delete(executor)
+        .await
+        .map(|count| count > 0)
 }

@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use super::super::tasks::models::Task;
 use super::models::{Project, ProjectId};
+use rok_data::Model;
 
 /// Loads the `tasks` of each of `rows`: the `tasks` rows whose
 /// `project_id` references it, keyed by `id`, in one query.
@@ -14,9 +15,9 @@ use super::models::{Project, ProjectId};
 pub async fn load_tasks<'e, E>(
     executor: E,
     rows: &[Project],
-) -> Result<HashMap<ProjectId, Vec<Task>>, sqlx::Error>
+) -> Result<HashMap<ProjectId, Vec<Task>>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut loaded = HashMap::new();
     let mut keys = Vec::new();
@@ -27,23 +28,11 @@ where
     if keys.is_empty() {
         return Ok(loaded);
     }
-    let related = sqlx::query_as::<_, Task>(
-        r#"
-        SELECT
-            id,
-            owner_id,
-            project_id,
-            title,
-            done,
-            created_at
-        FROM tasks
-        WHERE project_id = ANY($1)
-        ORDER BY id
-        "#,
-    )
-    .bind(keys)
-    .fetch_all(executor)
-    .await?;
+    let related = Task::query()
+        .filter(Task::PROJECT_ID.is_in(keys))
+        .order_by(Task::ID)
+        .all(executor)
+        .await?;
     for row in related {
         if let Some(list) = loaded.get_mut(&row.project_id) {
             list.push(row);

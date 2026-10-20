@@ -42,6 +42,7 @@ The template's `Cargo.toml` has them. Starting from a package of your own
 actix-web = "4"
 chrono = { version = "0.4", features = ["serde"] }
 jsonwebtoken = { version = "11", features = ["rust_crypto"] }
+rok-data = { version = "0.2", features = ["chrono", "json", "uuid"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sqlx = { version = "0.9", features = ["runtime-tokio", "postgres", "derive", "uuid", "chrono", "json"] }

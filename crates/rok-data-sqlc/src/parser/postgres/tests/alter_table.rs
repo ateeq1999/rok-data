@@ -47,6 +47,20 @@ fn records_constraints_added_by_alter_table_like_inline_ones() {
 }
 
 #[test]
+fn an_unqualified_alter_reaches_the_only_schema_qualified_table_with_that_name() {
+    // `products` was created under `catalog`, and the later migration adds
+    // to it without repeating the schema, as the default search path does.
+    let parsed = parse(
+        "CREATE TABLE catalog.products (id UUID NOT NULL, sku TEXT NOT NULL);
+             ALTER TABLE products ADD CONSTRAINT products_sku_key UNIQUE (sku);",
+    );
+    assert!(parsed.failures.is_empty(), "{:?}", parsed.failures);
+    let table = &parsed.schema.tables[0];
+    assert!(table.schema.as_deref() == Some("catalog"));
+    assert_eq!(table.unique_keys, [UniqueKey::new(vec!["sku".to_owned()])]);
+}
+
+#[test]
 fn primary_key_added_later_makes_its_column_required() {
     let table = one_table(
         "CREATE TABLE tags (code TEXT, label TEXT);

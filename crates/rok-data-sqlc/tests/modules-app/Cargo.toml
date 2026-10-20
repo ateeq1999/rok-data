@@ -9,6 +9,7 @@ publish = false
 # generates every module fixture into `src/db/` and checks this crate.
 
 [dependencies]
+rok-data = { path = "../../../rok-data", features = ["chrono", "decimal", "json", "uuid"] }
 sqlx = { version = "0.9", features = ["runtime-tokio", "postgres", "derive", "uuid", "chrono", "json", "rust_decimal"] }
 uuid = "1"
 chrono = "0.4"

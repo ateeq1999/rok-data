@@ -10,12 +10,16 @@ publish = false
 # and generates `migrations/` into `src/db/`, `src/shared/` and
 # `src/features/`, then checks and tests this crate.
 
+# Standalone fixture crate: not part of the rok-data workspace.
 [dependencies]
 # What the skeleton and the generated API need (`init`'s hints in
 # `rok-data-sqlc.toml`, and the generated `src/db/mod.rs`'s).
 actix-web = { version = "4", default-features = false, features = ["macros"] }
 chrono = { version = "0.4", features = ["serde"] }
 jsonwebtoken = { version = "11", features = ["rust_crypto"] }
+# The generated data layer resolves the workspace crate while the release
+# pins the published one, so the fixture keeps both the path and the range.
+rok-data = { path = "../../../rok-data", version = "0.2", features = ["chrono", "decimal", "ipnetwork", "json", "uuid"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ipnetwork = { version = "0.21", features = ["serde"] }

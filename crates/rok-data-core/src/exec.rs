@@ -7,12 +7,12 @@ use std::time::{Duration, Instant};
 
 use futures_core::stream::BoxStream;
 use futures_util::TryStreamExt;
-use sqlx::postgres::{PgPool, PgRow};
+use sqlx::postgres::{PgConnection, PgPool, PgRow};
 use sqlx::{Decode, FromRow, Postgres, Type};
 
 use crate::context::{Context, DEFAULT_SLOW_QUERY};
 use crate::sql::Sql;
-use crate::{Executor, Result};
+use crate::{Db, Executor, Result, Tx};
 
 /// Tables a statement writes to, invalidated in the query cache.
 pub(crate) type Writes<'a> = &'a [&'static str];
@@ -297,5 +297,51 @@ where
                 yield row;
             }
         }),
+    }
+}
+
+/// The connection path the legs of one `with`-loaded query share: a
+/// pool-bound handle, or a transaction's borrowed connection. Every leg
+/// re-borrows the path, so a query's rows and each of its batched relation
+/// loads run on the one pool — or inside the one transaction.
+///
+/// Built from the four executor shapes that carry rok's executor context
+/// ([`Executor`](crate::Executor)): `&Db`, `&mut Tx`, `&PgPool` and
+/// `&mut PgConnection`. A generic executor of other shapes can't share
+/// its borrow across a query's legs; such queries simply don't use
+/// `.with()`.
+#[derive(Debug)]
+pub enum Journey<'c> {
+    /// A pool-bound rok handle: its primary pool and its context.
+    Database(&'c Db),
+    /// A transaction running on a borrowed connection.
+    Transaction(&'c mut Tx),
+    /// A plain sqlx pool.
+    Pool(&'c PgPool),
+    /// A plain borrowed Postgres connection.
+    Connection(&'c mut PgConnection),
+}
+
+impl<'c> From<&'c Db> for Journey<'c> {
+    fn from(db: &'c Db) -> Self {
+        Self::Database(db)
+    }
+}
+
+impl<'c> From<&'c mut Tx> for Journey<'c> {
+    fn from(tx: &'c mut Tx) -> Self {
+        Self::Transaction(tx)
+    }
+}
+
+impl<'c> From<&'c PgPool> for Journey<'c> {
+    fn from(pool: &'c PgPool) -> Self {
+        Self::Pool(pool)
+    }
+}
+
+impl<'c> From<&'c mut PgConnection> for Journey<'c> {
+    fn from(connection: &'c mut PgConnection) -> Self {
+        Self::Connection(connection)
     }
 }

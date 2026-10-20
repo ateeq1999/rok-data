@@ -290,11 +290,17 @@ impl<'a, 'c> Analysis<'a, 'c> {
             columns.push(Column {
                 rust_name: naming::rust_identifier(&sql_name)?,
                 sql_name,
+                // CTE columns exist only within their query; no SQL type is
+                // declared for them.
+                sql_type: String::new(),
                 rust_type,
                 sqlx_type,
                 nullable,
                 is_primary_key: false,
                 has_default: false,
+                default: None,
+                generated: None,
+                identity: None,
                 is_generated: false,
                 value_list: None,
                 declared_length: None,

@@ -255,8 +255,10 @@ pub(super) async fn row_level_security_sees_the_session_tenant(pool: &PgPool) {
     assert_eq!(user, "user-18");
     tx.rollback().await.unwrap();
 
-    sqlx::raw_sql("DROP OWNED BY rok_data_sqlc_fixture_tenant; DROP ROLE rok_data_sqlc_fixture_tenant;")
-        .execute(pool)
-        .await
-        .unwrap();
+    sqlx::raw_sql(
+        "DROP OWNED BY rok_data_sqlc_fixture_tenant; DROP ROLE rok_data_sqlc_fixture_tenant;",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
 }

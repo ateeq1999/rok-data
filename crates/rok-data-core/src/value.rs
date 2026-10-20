@@ -357,6 +357,26 @@ macro_rules! impl_array {
     )*};
 }
 
+/// Every array whose elements are [`CustomType`] (schema enums, key
+/// newtypes, SQLx composites) works as a column value through one blanket.
+impl<T> CustomType for Vec<T> where T: CustomType + sqlx::postgres::types::PgHasArrayType {}
+impl<T> From<Vec<T>> for Value
+where
+    T: CustomType + sqlx::postgres::types::PgHasArrayType,
+{
+    fn from(v: Vec<T>) -> Self {
+        Value::custom(Some(v))
+    }
+}
+impl<T> From<&Vec<T>> for Value
+where
+    T: CustomType + sqlx::postgres::types::PgHasArrayType,
+{
+    fn from(v: &Vec<T>) -> Self {
+        Value::custom(Some(v.clone()))
+    }
+}
+
 impl_array!(String, bool, i16, i32, i64, f32, f64);
 
 #[cfg(feature = "uuid")]
@@ -419,6 +439,46 @@ impl_array!(sqlx::types::Decimal);
 impl_from! { Interval => sqlx::postgres::types::PgInterval }
 
 impl_array!(sqlx::postgres::types::PgInterval);
+
+// SQLx's own composite column types without a `Value` variant of their
+// own: they go through [`Value::custom`]. Ranges need their element type's
+// feature to exist.
+impl_value!(sqlx::postgres::types::PgMoney);
+impl_value!(
+    sqlx::postgres::types::PgRange<i32>,
+    sqlx::postgres::types::PgRange<i64>
+);
+#[cfg(feature = "chrono")]
+impl_value!(sqlx::postgres::types::PgTimeTz);
+#[cfg(feature = "chrono")]
+impl_value!(
+    sqlx::postgres::types::PgRange<sqlx::types::chrono::NaiveDate>,
+    sqlx::postgres::types::PgRange<sqlx::types::chrono::NaiveDateTime>,
+    sqlx::postgres::types::PgRange<sqlx::types::chrono::DateTime<sqlx::types::chrono::Utc>>
+);
+#[cfg(feature = "decimal")]
+impl_value!(sqlx::postgres::types::PgRange<sqlx::types::Decimal>);
+#[cfg(feature = "ipnetwork")]
+impl_value!(ipnetwork::IpNetwork);
+#[cfg(feature = "mac_address")]
+impl_value!(mac_address::MacAddress);
+
+// `BYTEA[]`: the element is `Vec<u8>`, which `Value::Bytes` covers, so a
+// concrete impl rather than [`CustomType`] wiring (which needs a free
+// `From<Option<Vec<u8>>>`).
+impl CustomType for Vec<Vec<u8>> {}
+
+impl From<Vec<Vec<u8>>> for Value {
+    fn from(v: Vec<Vec<u8>>) -> Self {
+        Value::custom(Some(v))
+    }
+}
+
+impl From<&Vec<Vec<u8>>> for Value {
+    fn from(v: &Vec<Vec<u8>>) -> Self {
+        Value::custom(Some(v.clone()))
+    }
+}
 
 #[cfg(feature = "json")]
 impl<T: serde::Serialize> From<sqlx::types::Json<T>> for Value {

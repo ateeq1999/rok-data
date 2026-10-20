@@ -12,6 +12,7 @@ use std::collections::HashMap;
 
 use super::super::users::models::{User, UserId};
 use super::models::{ApiKey, ApiKeyId};
+use rok_data::Model;
 
 /// Loads the `user` of each of `rows`: the `users` row its `user_id`
 /// references, keyed by `id`, in one query.
@@ -19,9 +20,9 @@ use super::models::{ApiKey, ApiKeyId};
 pub async fn load_user<'e, E>(
     executor: E,
     rows: &[ApiKey],
-) -> Result<HashMap<UserId, User>, sqlx::Error>
+) -> Result<HashMap<UserId, User>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut keys = Vec::new();
     for row in rows {
@@ -30,32 +31,10 @@ where
     if keys.is_empty() {
         return Ok(HashMap::new());
     }
-    let related = sqlx::query_as::<_, User>(
-        r#"
-        SELECT
-            id,
-            email,
-            display_name,
-            password_hash,
-            has_password,
-            role,
-            is_active,
-            email_verified,
-            totp_secret,
-            totp_enabled,
-            avatar_key,
-            failed_logins,
-            locked_until,
-            created_at,
-            updated_at,
-            deleted_at
-        FROM users
-        WHERE id = ANY($1) AND deleted_at IS NULL
-        "#,
-    )
-    .bind(keys)
-    .fetch_all(executor)
-    .await?;
+    let related = User::query()
+        .filter(User::ID.is_in(keys))
+        .all(executor)
+        .await?;
     let mut loaded = HashMap::new();
     for row in related {
         loaded.insert(row.id, row);
@@ -125,7 +104,7 @@ pub async fn get_with_user<'e, E>(
     id: ApiKeyId,
 ) -> Result<Option<ApiKeyWithUser>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     sqlx::query_as::<_, ApiKeyWithUser>(
         r#"

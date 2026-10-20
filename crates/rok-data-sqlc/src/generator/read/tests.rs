@@ -13,10 +13,7 @@ fn renders_get_by_id_with_explicit_columns() {
         &["id"],
     ));
     assert!(rendered.contains(
-            "pub async fn get_by_id<'e, E>(executor: E, id: i64) -> Result<Option<User>, sqlx::Error>\nwhere\n    E: sqlx::PgExecutor<'e>,\n{\n"
-        ));
-    assert!(rendered.contains(
-            "    sqlx::query_as::<_, User>(\n        r#\"\n        SELECT\n            id,\n            email\n        FROM users\n        WHERE id = $1\n        \"#,\n    )\n    .bind(id)\n    .fetch_optional(executor)\n    .await\n}\n"
+            "pub async fn get_by_id<'e, E>(executor: E, id: i64) -> Result<Option<User>, rok_data::Error>\nwhere\n    E: rok_data::Executor<'e>,\n{\n    User::query().filter(User::ID.eq(id)).first(executor).await\n}\n"
         ));
 }
 
@@ -27,16 +24,16 @@ fn renders_exists_list_page_and_count() {
         &["id"],
     ));
     assert!(rendered.contains(
-        "pub async fn exists_by_id<'e, E>(executor: E, id: i64) -> Result<bool, sqlx::Error>"
+        "pub async fn exists_by_id<'e, E>(executor: E, id: i64) -> Result<bool, rok_data::Error>"
     ));
-    assert!(rendered.contains("sqlx::query_scalar::<_, bool>("));
-    assert!(rendered.contains("        SELECT EXISTS (\n            SELECT 1\n            FROM users\n            WHERE id = $1\n        )\n"));
     assert!(rendered.contains(
-        "        FROM users\n        ORDER BY id\n        \"#,\n    )\n    .fetch_all(executor)"
+        "    User::query()\n        .filter(User::ID.eq(id))\n        .count(executor)\n        .await\n        .map(|count| count > 0)\n"
     ));
-    assert!(rendered.contains("        ORDER BY id\n        LIMIT $1\n        OFFSET $2\n"));
-    assert!(rendered.contains("    .bind(limit)\n    .bind(offset)\n"));
-    assert!(rendered.contains("        SELECT COUNT(*) FROM users\n"));
+    assert!(rendered.contains("    User::query().order_by(User::ID).all(executor).await\n"));
+    assert!(rendered.contains(
+        "    User::query()\n        .order_by(User::ID)\n        .limit(limit as u64)\n        .offset(offset as u64)\n        .all(executor)\n        .await\n"
+    ));
+    assert!(rendered.contains("    User::query().count(executor).await\n"));
 }
 
 #[test]
@@ -50,11 +47,24 @@ fn composite_key_parameters_follow_key_order() {
         &["order_id", "product_id"],
     ));
     assert!(rendered.contains(
-            "pub async fn get_by_id<'e, E>(executor: E, key: UserKey) -> Result<Option<User>, sqlx::Error>"
+            "pub async fn get_by_id<'e, E>(executor: E, key: UserKey) -> Result<Option<User>, rok_data::Error>"
         ));
-    assert!(rendered.contains("WHERE order_id = $1 AND product_id = $2"));
-    assert!(rendered.contains("    .bind(key.order_id)\n    .bind(key.product_id)\n"));
-    assert!(rendered.contains("ORDER BY order_id, product_id"));
+    let filters: Vec<usize> = ["ORDER_ID", "PRODUCT_ID"]
+        .iter()
+        .map(|name| {
+            rendered
+                .find(&format!(".filter(User::{name}.eq(key."))
+                .unwrap()
+        })
+        .collect();
+    assert!(
+        filters.windows(2).all(|pair| pair[0] < pair[1]),
+        "filters follow key order: {rendered}"
+    );
+    assert!(rendered.contains(".filter(User::ORDER_ID.eq(key.order_id))"));
+    assert!(rendered.contains(".filter(User::PRODUCT_ID.eq(key.product_id))"));
+    assert!(rendered.contains(".order_by(User::ORDER_ID)"));
+    assert!(rendered.contains(".order_by(User::PRODUCT_ID)"));
 }
 
 #[test]
@@ -65,15 +75,17 @@ fn quotes_reserved_and_mixed_case_identifiers_and_keeps_schema() {
     );
     users.schema = Some("Auth".to_owned());
     let rendered = render_alone(&users);
-    assert!(rendered.contains("            \"select\",\n            \"Email\"\n        FROM \"Auth\".users\n        WHERE \"select\" = $1\n"));
+    // The chains name columns by Rust field name; the reserved or
+    // mixed-case SQL name is quoted in the row's model derive.
+    assert!(rendered.contains(".filter(User::SELECT.eq(select))"));
+    assert!(rendered.contains("FROM \"Auth\".users"));
 }
 
 #[test]
 fn key_params_avoid_local_name_collisions() {
     let rendered = render_alone(&table(vec![column("limit", "i64")], &["limit"]));
     assert!(rendered.contains("get_by_id<'e, E>(executor: E, limit_key: i64)"));
-    assert!(rendered.contains("WHERE \"limit\" = $1"));
-    assert!(rendered.contains(".bind(limit_key)"));
+    assert!(rendered.contains("        .filter(User::LIMIT.eq(limit_key))"));
 }
 
 #[test]
@@ -86,7 +98,7 @@ fn without_primary_key_only_unordered_list_and_count() {
     let list = rendered.split("pub async fn list<").nth(1).unwrap();
     let list = list.split("pub async fn").next().unwrap();
     assert!(
-        !list.contains("ORDER BY"),
+        !list.contains(".order_by("),
         "list has no stable order to offer"
     );
     assert!(
@@ -110,6 +122,7 @@ fn text_keys_are_borrowed() {
     let rendered = render_alone(&table(vec![code, column("email", "String")], &["code"]));
     assert!(rendered.contains("get_by_id<'e, E>(executor: E, code: &UserId)"));
     assert!(rendered.contains("exists_by_id<'e, E>(executor: E, code: &UserId)"));
+    assert!(rendered.contains(".filter(User::CODE.eq(code))"));
     assert!(
         rendered.contains("    after: Option<&UserId>,\n"),
         "{rendered}"
@@ -123,7 +136,6 @@ fn text_keys_are_borrowed() {
         rendered.contains("(executor: E, key: &UserKey)"),
         "{rendered}"
     );
-    assert!(rendered.contains("    .bind(key.order_id)\n    .bind(&key.sku)\n"));
     assert!(rendered.contains("    after: Option<&UserKey>,\n"));
 }
 
@@ -139,7 +151,7 @@ fn byte_keys_are_borrowed_as_slices() {
         rendered.contains("    after: Option<&[u8]>,\n"),
         "{rendered}"
     );
-    assert!(rendered.contains(".bind(digest)"));
+    assert!(rendered.contains(".filter(User::DIGEST.eq(digest))"));
 }
 
 #[test]

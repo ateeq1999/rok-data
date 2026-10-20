@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use sqlparser::ast::{ColumnDef, ColumnOption, CreateTable, TableConstraint};
+use sqlparser::ast::{ColumnDef, ColumnOption, CreateTable, GeneratedAs, TableConstraint};
 
 use super::checks::{RangeCheck, apply_range_check, range_check};
 use super::constraints::{add_key_constraint, constraint_foreign_key, key_columns};
@@ -129,6 +129,14 @@ pub(super) fn build_table(
     let module_name = naming::rust_identifier(&sql_name).map_err(fail)?;
     let struct_name = naming::struct_name(&module_name);
 
+    // Like PostgreSQL, an inline `REFERENCES ...` with no declared name is
+    // named `<table>_<column>_fkey`.
+    for key in &mut foreign_keys {
+        if key.name.is_empty() {
+            key.name = format!("{}_{}_fkey", sql_name, key.column);
+        }
+    }
+
     let mut table = Table {
         schema: object_schema_name(&create.name),
         sql_name,
@@ -196,6 +204,9 @@ pub(super) fn build_column(
     // primary key.
     let mut is_generated = is_serial_type(&column_def.data_type);
     let mut has_default = is_generated;
+    let mut default = None;
+    let mut generated = None;
+    let mut identity = None;
     let mut nullable = !is_generated;
     let mut primary_key = None;
     let mut unique = None;
@@ -216,21 +227,51 @@ pub(super) fn build_column(
             ColumnOption::ForeignKey {
                 foreign_table,
                 referred_columns,
+                on_delete,
+                on_update,
                 ..
             } if referred_columns.len() == 1 => {
+                // An inline reference has no declared name; `build_table`
+                // names it PostgreSQL's way, with the table's name.
                 foreign_key = Some(ForeignKey {
                     column: column_name.clone(),
+                    name: String::new(),
+                    on_delete: on_delete.as_ref().map(ToString::to_string),
+                    on_update: on_update.as_ref().map(ToString::to_string),
                     referenced_schema: object_schema_name(foreign_table),
                     referenced_table: object_leaf_name(foreign_table),
                     referenced_column: ident_name(&referred_columns[0]),
                 });
             }
-            ColumnOption::Default(_) => has_default = true,
+            ColumnOption::Default(expr) => {
+                has_default = true;
+                default = Some(expr.to_string());
+            }
             ColumnOption::Check(expr) => {
                 value_lists.extend(value_list_check(expr));
                 range_checks.extend(range_check(expr));
             }
-            ColumnOption::Generated { .. } | ColumnOption::Identity(_) => {
+            ColumnOption::Generated {
+                generated_as,
+                generation_expr,
+                ..
+            } => {
+                has_default = true;
+                is_generated = true;
+                match generation_expr {
+                    Some(expr) => generated = Some(expr.to_string()),
+                    None => {
+                        identity = Some(
+                            match generated_as {
+                                GeneratedAs::Always => "ALWAYS",
+                                _ => "BY DEFAULT",
+                            }
+                            .to_owned(),
+                        );
+                    }
+                }
+            }
+            ColumnOption::Identity(_) => {
                 has_default = true;
                 is_generated = true;
             }
@@ -244,12 +285,16 @@ pub(super) fn build_column(
     Ok(BuiltColumn {
         raw: RawColumn {
             sql_name: column_name,
+            sql_type: column_def.data_type.to_string(),
             rust_name,
             base_type,
             sqlx_type,
             declared_length: declared_length(&column_def.data_type),
             nullable,
             has_default,
+            default,
+            generated,
+            identity,
             is_generated,
         },
         primary_key,
@@ -280,12 +325,16 @@ pub(super) fn table_failure(table: &str, reason: String) -> TableFailure {
 
 pub(super) struct RawColumn {
     sql_name: String,
+    pub(super) sql_type: String,
     pub(super) rust_name: String,
     base_type: String,
     sqlx_type: String,
     declared_length: Option<u32>,
     nullable: bool,
     has_default: bool,
+    default: Option<String>,
+    generated: Option<String>,
+    identity: Option<String>,
     is_generated: bool,
 }
 
@@ -297,11 +346,15 @@ impl RawColumn {
         Column {
             rust_type: rust_type(&self.base_type, self.nullable),
             sql_name: self.sql_name,
+            sql_type: self.sql_type,
             rust_name: self.rust_name,
             sqlx_type: self.sqlx_type,
             nullable: self.nullable,
             is_primary_key,
             has_default: self.has_default,
+            default: self.default,
+            generated: self.generated,
+            identity: self.identity,
             is_generated: self.is_generated,
             value_list: None,
             declared_length: self.declared_length,

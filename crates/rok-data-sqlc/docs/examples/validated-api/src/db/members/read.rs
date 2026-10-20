@@ -3,92 +3,51 @@
 use super::super::search::{Limit, Page, Sort};
 use super::filter::{MemberFilter, MemberSortKey};
 use super::models::{Member, MemberId};
+use rok_data::Model;
 
 /// Fetches the row with the given primary key, or `None` if there is none.
-pub async fn get_by_id<'e, E>(executor: E, id: MemberId) -> Result<Option<Member>, sqlx::Error>
+pub async fn get_by_id<'e, E>(executor: E, id: MemberId) -> Result<Option<Member>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, Member>(
-        r#"
-        SELECT
-            id,
-            name,
-            handle,
-            age,
-            balance,
-            bio
-        FROM members
-        WHERE id = $1
-        "#,
-    )
-    .bind(id)
-    .fetch_optional(executor)
-    .await
+    Member::query()
+        .filter(Member::ID.eq(id))
+        .first(executor)
+        .await
 }
 
 /// Returns whether a row with the given primary key exists.
-pub async fn exists_by_id<'e, E>(executor: E, id: MemberId) -> Result<bool, sqlx::Error>
+pub async fn exists_by_id<'e, E>(executor: E, id: MemberId) -> Result<bool, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, bool>(
-        r#"
-        SELECT EXISTS (
-            SELECT 1
-            FROM members
-            WHERE id = $1
-        )
-        "#,
-    )
-    .bind(id)
-    .fetch_one(executor)
-    .await
+    Member::query()
+        .filter(Member::ID.eq(id))
+        .count(executor)
+        .await
+        .map(|count| count > 0)
 }
 
 /// Fetches the row with the given `handle`, or `None` if there is none.
-pub async fn get_by_handle<'e, E>(executor: E, handle: &str) -> Result<Option<Member>, sqlx::Error>
+pub async fn get_by_handle<'e, E>(
+    executor: E,
+    handle: &str,
+) -> Result<Option<Member>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, Member>(
-        r#"
-        SELECT
-            id,
-            name,
-            handle,
-            age,
-            balance,
-            bio
-        FROM members
-        WHERE handle = $1
-        "#,
-    )
-    .bind(handle)
-    .fetch_optional(executor)
-    .await
+    Member::query()
+        .filter(Member::HANDLE.eq(handle))
+        .first(executor)
+        .await
 }
 
 /// Fetches every row, ordered by primary key.
-pub async fn list<'e, E>(executor: E) -> Result<Vec<Member>, sqlx::Error>
+pub async fn list<'e, E>(executor: E) -> Result<Vec<Member>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, Member>(
-        r#"
-        SELECT
-            id,
-            name,
-            handle,
-            age,
-            balance,
-            bio
-        FROM members
-        ORDER BY id
-        "#,
-    )
-    .fetch_all(executor)
-    .await
+    Member::query().order_by(Member::ID).all(executor).await
 }
 
 /// Fetches at most `limit` rows after skipping `offset`, ordered by primary key so
@@ -97,43 +56,24 @@ pub async fn list_page<'e, E>(
     executor: E,
     limit: i64,
     offset: i64,
-) -> Result<Vec<Member>, sqlx::Error>
+) -> Result<Vec<Member>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, Member>(
-        r#"
-        SELECT
-            id,
-            name,
-            handle,
-            age,
-            balance,
-            bio
-        FROM members
-        ORDER BY id
-        LIMIT $1
-        OFFSET $2
-        "#,
-    )
-    .bind(limit)
-    .bind(offset)
-    .fetch_all(executor)
-    .await
+    Member::query()
+        .order_by(Member::ID)
+        .limit(limit as u64)
+        .offset(offset as u64)
+        .all(executor)
+        .await
 }
 
 /// Counts every row.
-pub async fn count<'e, E>(executor: E) -> Result<i64, sqlx::Error>
+pub async fn count<'e, E>(executor: E) -> Result<i64, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, i64>(
-        r#"
-        SELECT COUNT(*) FROM members
-        "#,
-    )
-    .fetch_one(executor)
-    .await
+    Member::query().count(executor).await
 }
 
 /// Fetches one page of rows matching `filter`, ordered by `sort`.
@@ -145,7 +85,7 @@ pub async fn search<'e, E>(
     page: Page,
 ) -> Result<Vec<Member>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
         r#"
@@ -181,7 +121,7 @@ pub async fn search_after<'e, E>(
     limit: Limit,
 ) -> Result<Vec<Member>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
         r#"

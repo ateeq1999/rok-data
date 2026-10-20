@@ -274,8 +274,10 @@ fn generated_code_is_rustfmt_clean() -> Result<()> {
     // Relative to the fixture crate, so the command line stays short on
     // Windows.
     let app = app_dir();
+    // Only Rust files reach rustfmt; `schema.json` is an artifact, not code.
     let files: Vec<&std::path::Path> = files
         .iter()
+        .filter(|file| file.extension().is_some_and(|ext| ext == "rs"))
         .map(|file| file.strip_prefix(&app).unwrap_or(file))
         .collect();
 

@@ -245,14 +245,13 @@ fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     let columns: Vec<&Field> = fields.iter().filter(|f| !f.skip).collect();
     let mut pks: Vec<&Field> = columns.iter().filter(|f| f.primary_key).copied().collect();
     if pks.is_empty() {
-        pks.push(*columns.iter().find(|f| f.ident == "id").ok_or_else(|| {
-            syn::Error::new(
-                name.span(),
-                "no primary key: add a field named `id` or mark one or more fields with `#[rok(primary_key)]`",
-            )
-        })?);
+        // Tables without a primary key are legal: the key constants and
+        // `primary_key` then carry an empty key, and generated code for
+        // such tables never looks records up by id.
+        if let Some(id) = columns.iter().find(|f| f.ident == "id") {
+            pks.push(id);
+        }
     }
-    let pk = pks[0];
     let pk_columns = pks.iter().map(|f| &f.column);
 
     let find_ts = |flag: fn(&Field) -> bool,
@@ -410,8 +409,26 @@ fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     });
     let hooks_impl = (!hooks).then(|| quote!(impl #krate::Hooks for #name {}));
 
-    let pk_column = &pk.column;
-    let pk_ident = &pk.ident;
+    let pk_column = match pks.first() {
+        Some(f) => {
+            let column = &f.column;
+            quote!(#column)
+        }
+        None => quote!(""),
+    };
+    let pk_ident = pks.first().map(|f| &f.ident);
+    let primary_key_fn = match pk_ident {
+        Some(ident) => quote! {
+            fn primary_key(&self) -> #krate::Value {
+                #krate::Value::from(&self.#ident)
+            }
+        },
+        None => quote! {
+            fn primary_key(&self) -> #krate::Value {
+                #krate::Value::I64(None)
+            }
+        },
+    };
     let column_names = columns.iter().map(|f| &f.column);
     let generated = columns.iter().filter(|f| f.generated).map(|f| &f.column);
     let values = columns.iter().map(|f| {
@@ -475,9 +492,7 @@ fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
             const VERSION_COLUMN: ::core::option::Option<&'static str> = #version;
             const TENANT_COLUMN: ::core::option::Option<&'static str> = #tenant;
 
-            fn primary_key(&self) -> #krate::Value {
-                #krate::Value::from(&self.#pk_ident)
-            }
+            #primary_key_fn
 
             fn values(&self) -> ::std::vec::Vec<(&'static str, #krate::Value)> {
                 ::std::vec![#(#values),*]

@@ -134,12 +134,18 @@ async fn post_titles(
     use db::posts::filter::PostSortKey;
     use db::search::{Page, Sort};
 
-    db::posts::read::search(pool, tenant, filter, Sort::asc(PostSortKey::Id), Page::first(100))
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|post| post.title)
-        .collect()
+    db::posts::read::search(
+        pool,
+        tenant,
+        filter,
+        Sort::asc(PostSortKey::Id),
+        Page::first(100),
+    )
+    .await
+    .unwrap()
+    .into_iter()
+    .map(|post| post.title)
+    .collect()
 }
 
 /// Posts with at least one comment by an author: each post once, however
@@ -173,7 +179,10 @@ pub(super) async fn has_many_filter_matches_each_parent_once(pool: &PgPool) {
         })),
         ..Default::default()
     };
-    assert_eq!(post_titles(pool, tenant, by("alice@rel.example")).await, ["busy"]);
+    assert_eq!(
+        post_titles(pool, tenant, by("alice@rel.example")).await,
+        ["busy"]
+    );
     assert_eq!(
         post_titles(pool, tenant, by("bob@rel.example")).await,
         ["busy", "single"]
@@ -221,7 +230,11 @@ pub(super) async fn relationship_filters_skip_deleted_and_other_tenant_rows(pool
     let anonymous = create_comment(pool, tenant, &live, None).await;
     let signed = create_comment(pool, tenant, &live, Some(&author)).await;
     let orphaned = create_comment(pool, tenant, &gone, Some(&author)).await;
-    assert!(db::posts::write::delete(pool, tenant, gone.id).await.unwrap());
+    assert!(
+        db::posts::write::delete(pool, tenant, gone.id)
+            .await
+            .unwrap()
+    );
 
     let commented = PostFilter {
         comments: Some(Box::default()),

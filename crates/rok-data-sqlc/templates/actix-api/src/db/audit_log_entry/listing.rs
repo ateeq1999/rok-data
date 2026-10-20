@@ -39,7 +39,7 @@ pub async fn list_matching<'e, E>(
     page: Page,
 ) -> Result<Vec<AuditLogEntry>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
         r#"
@@ -74,7 +74,7 @@ where
 /// Counts the rows: every page's rows together.
 pub async fn count_matching<'e, E>(executor: E) -> Result<i64, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut query =
         sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT COUNT(*) FROM audit_log WHERE TRUE");

@@ -58,7 +58,8 @@ functions; sqlx is depended on only by `rok-data-core`.
 - Journal table `_rok_data_migrations`; states `applied|pending|edited|
   unknown`; checksum drift is fatal except with `--json` consumers
   reading `drift`.
-- Codegen config `rok-data.toml` under `[gen]`, keys
+- Codegen config: canonical `rok.toml` under `[generate]` (ADR 0011;
+  legacy `rok-data.toml` under `[gen]` stays readable), keys
   `rok_data_version` (semver pin of the facade crate) and
   `rok_data_path` (path dep) are mutually exclusive; flags beat the
   file.
@@ -69,7 +70,7 @@ functions; sqlx is depended on only by `rok-data-core`.
 
 ```console
 $ cargo test --workspace --all-targets        # everything, ~2-3 min
-$ cargo test -p rok-data-sqlc --lib           # engine unit suite (236)
+$ cargo test -p rok-data-sqlc --lib           # engine unit suite (240)
 $ cargo test -p rok-cli --test cli            # sqlc CLI suites via the rok binary
 $ cargo test -p rok-data-sqlc --test module_fixtures   # corpus (needs rustc ≥ fixture MSRV)
 ```
@@ -77,6 +78,14 @@ $ cargo test -p rok-data-sqlc --test module_fixtures   # corpus (needs rustc ≥
 DB-backed suites skip with a printed note when
 `DATABASE_URL` / `ROK_DATA_SQLC_TEST_DATABASE_URL` are unset — the
 skip is honest (printed, never silent).
+
+### Large-file gate (working rule, not yet CI)
+
+Source files grow until a natural seam appears, never past ~600
+lines. Some 2b-era files are already over (e.g.
+`rok-data-core/src/query.rs`); splitting them is queued for after
+the 0.2.0 release — do not stack new kinds of behavior on top of an
+oversized file when a split is available.
 
 ## Releasing
 

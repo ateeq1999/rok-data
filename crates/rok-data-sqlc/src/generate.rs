@@ -11,7 +11,7 @@ use crate::config::{Config, Derive, Extractor};
 use crate::output::is_generated_file;
 use crate::queries::AnalyzedQuery;
 use crate::report::{Error, QueryFailure, RefusedFile, Report, Result, TableFailure, display_path};
-use crate::schema::{BaseType, EnumType, Shape, Table};
+use crate::schema::{self, BaseType, EnumType, Shape, Table};
 use crate::{api_config, generator, output, parser, queries};
 
 pub(crate) fn generate(config: &Config) -> Result<Report> {
@@ -189,7 +189,7 @@ fn run(config: &Config, report: &mut Report) -> anyhow::Result<()> {
         modules => generator::QueriesModule::GenerateModules(modules),
     };
 
-    let files = generator::plan_files_with_queries(
+    let mut files = generator::plan_files_with_queries(
         config,
         &sql,
         &selected,
@@ -198,6 +198,12 @@ fn run(config: &Config, report: &mut Report) -> anyhow::Result<()> {
         &kept,
     )
     .map_err(anyhow::Error::msg)?;
+    // The schema artifact (ADR 0010): the parsed schema in the codegen
+    // shape, so the two engines hold and check one round-trip truth.
+    files.push((
+        output_dir.join("schema.json"),
+        schema::snapshot::json(&parsed.schema)?,
+    ));
 
     // Any generated file under the output directory that this run does not
     // produce is stale. A kept queries module protects both layouts

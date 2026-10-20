@@ -12,15 +12,16 @@ use std::collections::HashMap;
 
 use super::super::categories::models::{Category, CategoryId};
 use super::models::{Product, ProductId};
+use rok_data::Model;
 
 /// Loads the `category` of each of `rows`: the `categories` row its `category_id`
 /// references, keyed by `id`, in one query.
 pub async fn load_category<'e, E>(
     executor: E,
     rows: &[Product],
-) -> Result<HashMap<CategoryId, Category>, sqlx::Error>
+) -> Result<HashMap<CategoryId, Category>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut keys = Vec::new();
     for row in rows {
@@ -29,19 +30,10 @@ where
     if keys.is_empty() {
         return Ok(HashMap::new());
     }
-    let related = sqlx::query_as::<_, Category>(
-        r#"
-        SELECT
-            id,
-            name,
-            created_at
-        FROM categories
-        WHERE id = ANY($1)
-        "#,
-    )
-    .bind(keys)
-    .fetch_all(executor)
-    .await?;
+    let related = Category::query()
+        .filter(Category::ID.is_in(keys))
+        .all(executor)
+        .await?;
     let mut loaded = HashMap::new();
     for row in related {
         loaded.insert(row.id, row);
@@ -90,7 +82,7 @@ pub async fn get_with_category<'e, E>(
     id: ProductId,
 ) -> Result<Option<ProductWithCategory>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     sqlx::query_as::<_, ProductWithCategory>(
         r#"

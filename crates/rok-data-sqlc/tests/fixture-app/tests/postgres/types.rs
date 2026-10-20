@@ -8,11 +8,11 @@ use super::*;
 /// to them bind and decode the mapped types.
 pub(super) async fn interval_bytea_and_timetz_round_trip(pool: &PgPool) {
     use chrono::{FixedOffset, NaiveTime};
-    use rok_data_sqlc_fixture_app::plain_db;
     use plain_db::search::{Equality, Page, Sort};
     use plain_db::timed_badges::filter::{TimedBadgeFilter, TimedBadgeSortKey};
     use plain_db::timed_badges::models::{NewTimedBadge, UpdateTimedBadge};
     use plain_db::timed_badges::{read, write};
+    use rok_data_sqlc_fixture_app::plain_db;
     use sqlx::postgres::types::{PgInterval, PgTimeTz};
 
     let interval = |days, microseconds| PgInterval {
@@ -88,12 +88,17 @@ pub(super) async fn interval_bytea_and_timetz_round_trip(pool: &PgPool) {
     assert_eq!(updated.breaks, created.breaks);
 
     let found = |filter| async move {
-        read::search(pool, filter, Sort::asc(TimedBadgeSortKey::Span), Page::first(10))
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| row.id)
-            .collect::<Vec<_>>()
+        read::search(
+            pool,
+            filter,
+            Sort::asc(TimedBadgeSortKey::Span),
+            Page::first(10),
+        )
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| row.id)
+        .collect::<Vec<_>>()
     };
     assert_eq!(
         found(TimedBadgeFilter {
@@ -544,12 +549,17 @@ pub(super) async fn money_range_and_network_types_round_trip(pool: &PgPool) {
     assert_eq!(updated.client, created.client);
 
     let found = |filter| async move {
-        read::search(pool, filter, Sort::asc(LedgerEntrySortKey::Id), Page::first(10))
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| row.id)
-            .collect::<Vec<_>>()
+        read::search(
+            pool,
+            filter,
+            Sort::asc(LedgerEntrySortKey::Id),
+            Page::first(10),
+        )
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| row.id)
+        .collect::<Vec<_>>()
     };
     assert_eq!(
         found(LedgerEntryFilter {

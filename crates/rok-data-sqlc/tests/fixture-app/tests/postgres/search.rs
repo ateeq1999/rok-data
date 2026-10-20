@@ -144,8 +144,7 @@ async fn filters_round_trip_through_json(pool: &PgPool, category: CategoryId) {
     );
 
     // Fields left out of the JSON keep their defaults.
-    let sparse: ProductFilter =
-        serde_json::from_str(r#"{"price_cents": [{"ge": 400}]}"#).unwrap();
+    let sparse: ProductFilter = serde_json::from_str(r#"{"price_cents": [{"ge": 400}]}"#).unwrap();
     assert_eq!(
         sparse,
         ProductFilter {

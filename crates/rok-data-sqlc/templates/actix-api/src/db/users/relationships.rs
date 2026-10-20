@@ -9,6 +9,7 @@ use super::super::api_keys::models::ApiKey;
 use super::super::audit_log_entry::models::AuditLogEntry;
 use super::super::media::models::Media;
 use super::models::{User, UserId};
+use rok_data::Model;
 
 /// Loads the `audit_log_entry_by_actor_user` of each of `rows`: the `audit_log` rows whose
 /// `actor_user_id` references it, keyed by `id`, in one query.
@@ -16,9 +17,9 @@ use super::models::{User, UserId};
 pub async fn load_audit_log_entry_by_actor_user<'e, E>(
     executor: E,
     rows: &[User],
-) -> Result<HashMap<UserId, Vec<AuditLogEntry>>, sqlx::Error>
+) -> Result<HashMap<UserId, Vec<AuditLogEntry>>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut loaded = HashMap::new();
     let mut keys = Vec::new();
@@ -29,23 +30,11 @@ where
     if keys.is_empty() {
         return Ok(loaded);
     }
-    let related = sqlx::query_as::<_, AuditLogEntry>(
-        r#"
-        SELECT
-            id,
-            actor_user_id,
-            target_user_id,
-            action,
-            details,
-            created_at
-        FROM audit_log
-        WHERE actor_user_id = ANY($1)
-        ORDER BY id
-        "#,
-    )
-    .bind(keys)
-    .fetch_all(executor)
-    .await?;
+    let related = AuditLogEntry::query()
+        .filter(AuditLogEntry::ACTOR_USER_ID.is_in(keys))
+        .order_by(AuditLogEntry::ID)
+        .all(executor)
+        .await?;
     for row in related {
         if let Some(list) = loaded.get_mut(&row.actor_user_id) {
             list.push(row);
@@ -60,9 +49,9 @@ where
 pub async fn load_audit_log_entry_by_target_user<'e, E>(
     executor: E,
     rows: &[User],
-) -> Result<HashMap<UserId, Vec<AuditLogEntry>>, sqlx::Error>
+) -> Result<HashMap<UserId, Vec<AuditLogEntry>>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut loaded = HashMap::new();
     let mut keys = Vec::new();
@@ -73,23 +62,11 @@ where
     if keys.is_empty() {
         return Ok(loaded);
     }
-    let related = sqlx::query_as::<_, AuditLogEntry>(
-        r#"
-        SELECT
-            id,
-            actor_user_id,
-            target_user_id,
-            action,
-            details,
-            created_at
-        FROM audit_log
-        WHERE target_user_id = ANY($1)
-        ORDER BY id
-        "#,
-    )
-    .bind(keys)
-    .fetch_all(executor)
-    .await?;
+    let related = AuditLogEntry::query()
+        .filter(AuditLogEntry::TARGET_USER_ID.is_in(keys))
+        .order_by(AuditLogEntry::ID)
+        .all(executor)
+        .await?;
     for row in related {
         let Some(key) = &row.target_user_id else {
             continue;
@@ -107,9 +84,9 @@ where
 pub async fn load_media<'e, E>(
     executor: E,
     rows: &[User],
-) -> Result<HashMap<UserId, Vec<Media>>, sqlx::Error>
+) -> Result<HashMap<UserId, Vec<Media>>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut loaded = HashMap::new();
     let mut keys = Vec::new();
@@ -120,24 +97,11 @@ where
     if keys.is_empty() {
         return Ok(loaded);
     }
-    let related = sqlx::query_as::<_, Media>(
-        r#"
-        SELECT
-            id,
-            owner_id,
-            content_type,
-            size_bytes,
-            original_filename,
-            storage_key,
-            created_at
-        FROM media
-        WHERE owner_id = ANY($1)
-        ORDER BY id
-        "#,
-    )
-    .bind(keys)
-    .fetch_all(executor)
-    .await?;
+    let related = Media::query()
+        .filter(Media::OWNER_ID.is_in(keys))
+        .order_by(Media::ID)
+        .all(executor)
+        .await?;
     for row in related {
         if let Some(list) = loaded.get_mut(&row.owner_id) {
             list.push(row);
@@ -152,9 +116,9 @@ where
 pub async fn load_api_keys<'e, E>(
     executor: E,
     rows: &[User],
-) -> Result<HashMap<UserId, Vec<ApiKey>>, sqlx::Error>
+) -> Result<HashMap<UserId, Vec<ApiKey>>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut loaded = HashMap::new();
     let mut keys = Vec::new();
@@ -165,27 +129,11 @@ where
     if keys.is_empty() {
         return Ok(loaded);
     }
-    let related = sqlx::query_as::<_, ApiKey>(
-        r#"
-        SELECT
-            id,
-            user_id,
-            name,
-            key_prefix,
-            key_hash,
-            scope,
-            expires_at,
-            last_used_at,
-            revoked_at,
-            created_at
-        FROM api_keys
-        WHERE user_id = ANY($1)
-        ORDER BY id
-        "#,
-    )
-    .bind(keys)
-    .fetch_all(executor)
-    .await?;
+    let related = ApiKey::query()
+        .filter(ApiKey::USER_ID.is_in(keys))
+        .order_by(ApiKey::ID)
+        .all(executor)
+        .await?;
     for row in related {
         if let Some(list) = loaded.get_mut(&row.user_id) {
             list.push(row);

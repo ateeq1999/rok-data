@@ -1,7 +1,12 @@
-//! `rok-data.toml` ([gen]) loading and merging with command-line flags — the
-//! same precedence rules the original `rok-db-gen` used: flags beat the file,
-//! the file beats defaults.
+//! Project config file loading and merging with command-line flags — the
+//! same precedence rules the original `rok-db-gen` used: flags beat the
+//! file, the file beats defaults.
+//!
+//! The canonical name is `rok.toml` (ADR 0011); the legacy
+//! `rok-data.toml` stays readable as an alias and prints a note when
+//! read.
 
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 use rok_data_codegen::{Dependency, Options, Rename};
@@ -18,16 +23,35 @@ pub(crate) struct GenConfig {
     strict: Option<bool>,
 }
 
-/// The full config file: one [gen] section.
+/// The full config file. Each section's schema belongs to the reader of
+/// that section: the generator validates only `[generate]` (legacy
+/// spelling `[gen]`); the other four sections exist here as file-level
+/// schema names so a typo'd section is an error — their owning engine's
+/// config reader applies them directly from the file.
 #[derive(Debug, Default, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct ConfigFile {
-    #[serde(default, rename = "gen")]
-    pub generate: GenConfig,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub project: Option<toml::Table>,
+    #[serde(default, rename = "gen", alias = "generate")]
+    pub generate: Option<GenConfig>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub api: Option<toml::Table>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub conventions: Option<toml::Table>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub scaffold: Option<toml::Table>,
 }
 
-/// The constant name CLI users reach for.
-pub(crate) const FILE: &str = "rok-data.toml";
+/// The canonical config file name.
+pub(crate) const FILE: &str = "rok.toml";
+
+/// The legacy config file name; readable forever, with a note when read.
+pub(crate) const LEGACY_FILE: &str = "rok-data.toml";
 
 /// Merge flags with an optional config file into generator options.
 ///
@@ -46,20 +70,32 @@ pub(crate) fn options(
     strict: bool,
     database_url: Option<String>,
 ) -> Result<Options, String> {
+    let none = config_flag.is_none();
+    let canonical_used = none && Path::new(FILE).is_file();
     let config_path = config_flag
         .map(Path::to_path_buf)
-        .unwrap_or_else(|| PathBuf::from(FILE));
+        .unwrap_or_else(|| PathBuf::from(if canonical_used { FILE } else { LEGACY_FILE }));
+    let reading_legacy = config_path
+        .file_name()
+        .and_then(OsStr::to_str)
+        .is_some_and(|name| name == LEGACY_FILE);
+    if none && canonical_used && Path::new(LEGACY_FILE).is_file() {
+        eprintln!("note: ignoring `{LEGACY_FILE}`; `{FILE}` is the canonical name");
+    }
     let (config, base) = match std::fs::read_to_string(&config_path) {
         Ok(text) => {
-            let config: ConfigFile =
+            if reading_legacy {
+                eprintln!("note: `{LEGACY_FILE}` is a legacy name; move settings to `{FILE}`");
+            }
+            let file: ConfigFile =
                 toml::from_str(&text).map_err(|e| format!("{}: {e}", config_path.display()))?;
             let base = config_path
                 .parent()
                 .map(Path::to_path_buf)
                 .unwrap_or_default();
-            (config.generate, base)
+            (file.generate.unwrap_or_default(), base)
         }
-        Err(_) if config_flag.is_none() => (GenConfig::default(), PathBuf::new()),
+        Err(_) if none => (GenConfig::default(), PathBuf::new()),
         Err(e) => return Err(format!("{}: {e}", config_path.display())),
     };
     if config.rok_data_version.is_some() && config.rok_data_path.is_some() {

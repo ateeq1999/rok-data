@@ -300,8 +300,7 @@ pub(super) async fn patches_from_json_tell_absent_from_null(pool: &PgPool) {
         .expect("row exists");
     assert_eq!(row, before, "an empty patch changes nothing");
 
-    let cleared: UpdatePatchTarget =
-        serde_json::from_str(r#"{"note": null, "score": 9}"#).unwrap();
+    let cleared: UpdatePatchTarget = serde_json::from_str(r#"{"note": null, "score": 9}"#).unwrap();
     assert_eq!(cleared.note, Some(None));
     assert_eq!(cleared.tag, None);
     assert_eq!(

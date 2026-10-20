@@ -224,6 +224,11 @@ fn api_app_generated_code_is_rustfmt_clean() -> Result<()> {
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     let files = generate_api_app()?;
+    // Only Rust files reach rustfmt; `schema.json` is an artifact, not code.
+    let files: Vec<&PathBuf> = files
+        .iter()
+        .filter(|file| file.extension().is_some_and(|ext| ext == "rs"))
+        .collect();
     ensure!(!files.is_empty(), "the API fixture generated no files");
 
     let output = Command::new("rustfmt")

@@ -2,7 +2,7 @@
 //! to: `DATABASE_URL=postgres://localhost/catalog cargo run`.
 
 #[tokio::main]
-async fn main() -> Result<(), sqlx::Error> {
+async fn main() -> Result<(), rok_data::Error> {
     let url = std::env::var("DATABASE_URL").expect("set DATABASE_URL");
     let pool = sqlx::PgPool::connect(&url).await?;
     rok_data_sqlc_quickstart::quickstart(&pool).await

@@ -12,7 +12,7 @@ pub async fn open_task<'e, E>(
     owner_id: uuid::Uuid,
 ) -> Result<u64, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let result = sqlx::query(
         r#"
@@ -43,7 +43,7 @@ pub async fn project_stats<'e, E>(
     owner_id: uuid::Uuid,
 ) -> Result<ProjectStatsRow, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     sqlx::query_as::<_, ProjectStatsRow>(
         r#"

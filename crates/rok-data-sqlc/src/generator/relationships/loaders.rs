@@ -8,10 +8,11 @@ use crate::schema::{Column, Relationship, RelationshipKind, Table};
 use super::find_column;
 use crate::generator::joins::{self, Join};
 use crate::generator::sql::{
-    column_clause, first_placeholder, ident, key_order, live_condition, table_ref, tenant_condition,
+    first_placeholder, ident, live_condition, table_ref, tenant_condition,
 };
 use crate::generator::{
-    HEADER, StaticQuery, doc_name, keys, push_doc, push_fn_head, types_import, use_list,
+    HEADER, StaticQuery, doc_name, keys, push_doc, push_fn_head, push_wide_chain, types_import,
+    use_list,
 };
 
 /// Renders `table`'s `relationships.rs`, or `None` when it has no
@@ -209,7 +210,7 @@ impl<'a> Loader<'a> {
             &self.function_name(),
             &params,
             &format!(
-                "Result<HashMap<{}, {returns}>, sqlx::Error>",
+                "Result<HashMap<{}, {returns}>, rok_data::Error>",
                 self.key_type()
             ),
         );
@@ -364,32 +365,31 @@ impl<'a> Loader<'a> {
     }
 
     /// The query loading the related rows whose joining column is among
-    /// `keys`, bound after the tenant.
+    /// `keys`: the model chain filters by the tenant and the joining
+    /// column, set-trashed scopes apply by default, and a to-many's rows
+    /// come ordered by the target's primary key.
     fn query(&self, lead: &str, output: &mut String) {
-        let target = self.target;
-        let tenant = keys::tenant_bind(target);
-        let placeholder = first_placeholder(target);
-        let mut conditions: Vec<String> = tenant_condition(target, None).into_iter().collect();
-        conditions.push(format!(
-            "{} = ANY(${placeholder})",
-            ident(&self.target_column.sql_name)
+        let row = &self.target.struct_name;
+        let mut calls = Vec::new();
+        if let Some(tenant_call) = super::super::tenant_filter_call(self.target) {
+            calls.push(tenant_call);
+        }
+        calls.push(format!(
+            ".filter({}::{}.is_in(keys))",
+            row,
+            self.target_column.rust_name.to_uppercase()
         ));
-        conditions.extend(live_condition(target, None));
-
-        let mut sql = column_clause("SELECT", target);
-        sql.push(format!("FROM {}", table_ref(target)));
-        sql.push(format!("WHERE {}", conditions.join(" AND ")));
-        let order = target.primary_key_columns();
-        if self.relationship.kind.is_to_many() && !order.is_empty() {
-            sql.push(format!("ORDER BY {}", key_order(&order)));
+        if self.relationship.kind.is_to_many() {
+            for column in self.target.primary_key_columns() {
+                calls.push(format!(
+                    ".order_by({row}::{})",
+                    column.rust_name.to_uppercase()
+                ));
+            }
         }
-        StaticQuery {
-            call: &format!("sqlx::query_as::<_, {}>", target.struct_name),
-            sql,
-            binds: tenant.into_iter().chain(["keys".to_owned()]).collect(),
-            execute: "fetch_all(executor)",
-        }
-        .push(output, 4, lead, "?;");
+        calls.push(".all(executor)".to_owned());
+        calls.push(".await".to_owned());
+        push_wide_chain(output, 4, lead, &format!("{row}::query()"), &calls, "?;");
     }
 
     fn render_to_one(&self, output: &mut String) {
@@ -534,5 +534,9 @@ fn imports(table: &Table, loaders: &[Loader<'_>], joins: &[Join<'_>]) -> String 
         ));
     }
     lines.sort();
-    lines.into_iter().map(|(_, line)| line).collect()
+    let mut output: String = lines.into_iter().map(|(_, line)| line).collect();
+    // rok chains need the Model trait statics in scope; after the super
+    // paths, so rustfmt's order stays stable across regeneration.
+    output.push_str("use rok_data::Model;\n");
+    output
 }

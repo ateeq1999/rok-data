@@ -1,4 +1,5 @@
 pub mod rust_type;
+pub(crate) mod snapshot;
 pub mod types;
 
 pub use rust_type::{BaseType, Shape, lacks_serde, mentions_generated_type};

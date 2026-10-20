@@ -3,77 +3,37 @@
 use super::super::search::{Limit, Page, Sort};
 use super::filter::{ApiKeyFilter, ApiKeySortKey};
 use super::models::{ApiKey, ApiKeyId};
+use rok_data::Model;
 
 /// Fetches the row with the given primary key, or `None` if there is none.
-pub async fn get_by_id<'e, E>(executor: E, id: ApiKeyId) -> Result<Option<ApiKey>, sqlx::Error>
+pub async fn get_by_id<'e, E>(executor: E, id: ApiKeyId) -> Result<Option<ApiKey>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, ApiKey>(
-        r#"
-        SELECT
-            id,
-            user_id,
-            name,
-            key_prefix,
-            key_hash,
-            scope,
-            expires_at,
-            last_used_at,
-            revoked_at,
-            created_at
-        FROM api_keys
-        WHERE id = $1
-        "#,
-    )
-    .bind(id)
-    .fetch_optional(executor)
-    .await
+    ApiKey::query()
+        .filter(ApiKey::ID.eq(id))
+        .first(executor)
+        .await
 }
 
 /// Returns whether a row with the given primary key exists.
-pub async fn exists_by_id<'e, E>(executor: E, id: ApiKeyId) -> Result<bool, sqlx::Error>
+pub async fn exists_by_id<'e, E>(executor: E, id: ApiKeyId) -> Result<bool, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, bool>(
-        r#"
-        SELECT EXISTS (
-            SELECT 1
-            FROM api_keys
-            WHERE id = $1
-        )
-        "#,
-    )
-    .bind(id)
-    .fetch_one(executor)
-    .await
+    ApiKey::query()
+        .filter(ApiKey::ID.eq(id))
+        .count(executor)
+        .await
+        .map(|count| count > 0)
 }
 
 /// Fetches every row, ordered by primary key.
-pub async fn list<'e, E>(executor: E) -> Result<Vec<ApiKey>, sqlx::Error>
+pub async fn list<'e, E>(executor: E) -> Result<Vec<ApiKey>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, ApiKey>(
-        r#"
-        SELECT
-            id,
-            user_id,
-            name,
-            key_prefix,
-            key_hash,
-            scope,
-            expires_at,
-            last_used_at,
-            revoked_at,
-            created_at
-        FROM api_keys
-        ORDER BY id
-        "#,
-    )
-    .fetch_all(executor)
-    .await
+    ApiKey::query().order_by(ApiKey::ID).all(executor).await
 }
 
 /// Fetches at most `limit` rows after skipping `offset`, ordered by primary key so
@@ -82,47 +42,24 @@ pub async fn list_page<'e, E>(
     executor: E,
     limit: i64,
     offset: i64,
-) -> Result<Vec<ApiKey>, sqlx::Error>
+) -> Result<Vec<ApiKey>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, ApiKey>(
-        r#"
-        SELECT
-            id,
-            user_id,
-            name,
-            key_prefix,
-            key_hash,
-            scope,
-            expires_at,
-            last_used_at,
-            revoked_at,
-            created_at
-        FROM api_keys
-        ORDER BY id
-        LIMIT $1
-        OFFSET $2
-        "#,
-    )
-    .bind(limit)
-    .bind(offset)
-    .fetch_all(executor)
-    .await
+    ApiKey::query()
+        .order_by(ApiKey::ID)
+        .limit(limit as u64)
+        .offset(offset as u64)
+        .all(executor)
+        .await
 }
 
 /// Counts every row.
-pub async fn count<'e, E>(executor: E) -> Result<i64, sqlx::Error>
+pub async fn count<'e, E>(executor: E) -> Result<i64, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, i64>(
-        r#"
-        SELECT COUNT(*) FROM api_keys
-        "#,
-    )
-    .fetch_one(executor)
-    .await
+    ApiKey::query().count(executor).await
 }
 
 /// Fetches one page of rows matching `filter`, ordered by `sort`.
@@ -134,7 +71,7 @@ pub async fn search<'e, E>(
     page: Page,
 ) -> Result<Vec<ApiKey>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
         r#"
@@ -174,7 +111,7 @@ pub async fn search_after<'e, E>(
     limit: Limit,
 ) -> Result<Vec<ApiKey>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
         r#"

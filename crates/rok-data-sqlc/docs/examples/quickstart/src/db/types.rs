@@ -17,3 +17,5 @@ pub enum ProductStatus {
     #[sqlx(rename = "archived")]
     Archived,
 }
+
+rok_data::impl_value!(ProductStatus);

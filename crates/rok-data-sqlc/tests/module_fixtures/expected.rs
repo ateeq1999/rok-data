@@ -49,7 +49,7 @@ pub(super) const EXPECTED: &[Expected] = &[
         // fail at runtime.
         queries: &[(
             "UpsertProduct",
-            "ON CONFLICT (sku) matches no unique key; unique keys of `products`: (id)",
+            "ON CONFLICT (sku) matches no unique key; unique keys of `catalog.products`: (id)",
         )],
         functions: &[
             "create_product",

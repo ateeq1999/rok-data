@@ -170,7 +170,41 @@ fn dependency_hints(
         .map(|(_, feature)| feature)
         .collect();
     let crate_hint = |name: &str, version: &str| crate_hint_with(name, version, serde, &[]);
+    // The generated code runs the chains through `rok-data`, whose type
+    // features follow the schema's Rust types.
+    let rok_version = format!(
+        "{}.{}",
+        env!("CARGO_PKG_VERSION_MAJOR"),
+        env!("CARGO_PKG_VERSION_MINOR")
+    );
+    let rok_features: Vec<&str> = [
+        (uses_uuid, "uuid"),
+        (uses_chrono, "chrono"),
+        (uses_rust_decimal, "decimal"),
+        (uses_serde_json, "json"),
+        (uses_ipnetwork, "ipnetwork"),
+        (uses_mac_address, "mac_address"),
+    ]
+    .into_iter()
+    .filter(|(uses, _)| *uses)
+    .map(|(_, feature)| feature)
+    .collect();
+    let rok_hint = if rok_features.is_empty() {
+        format!("//   rok-data = \"{rok_version}\"\n")
+    } else {
+        format!(
+            "//   rok-data = {{ version = \"{rok_version}\", features = [{}] }}\n",
+            {
+                rok_features
+                    .iter()
+                    .map(|feature| format!("\"{feature}\""))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            }
+        )
+    };
     let mut hints = format!("//   sqlx = {{ version = \"0.9\", features = [{features}] }}\n");
+    hints.push_str(&rok_hint);
     if serde {
         hints.push_str("//   serde = { version = \"1\", features = [\"derive\"] }\n");
     }

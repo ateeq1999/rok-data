@@ -77,10 +77,11 @@ $ vi sql/decisions.sql    # your CREATE TABLE files, one or more
 $ rok generate --input sql --output db-gen --crate-name my-app-db
 ```
 
-Defaults come from `rok-data.toml` when it exists:
+Defaults come from `rok.toml` when it exists (the legacy `rok-data.toml`
+name still works, with a note):
 
 ```toml
-[gen]
+[generate]
 input = "sql"          # .sql sources
 output = "db-gen"      # generated crate directory
 crate_name = "notes-db"

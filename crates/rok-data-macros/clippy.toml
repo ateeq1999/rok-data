@@ -1,0 +1,11 @@
+# Generated code must not depend on hash iteration order: a differently
+# ordered expansion would invalidate rustc incremental results and change
+# emitted code between runs. Iterate deterministic collections instead
+# (`BTreeMap`/`BTreeSet`, or `indexmap` when insertion order matters).
+#
+# `disallowed_types` is warn-ranked and fires only when configured here,
+# which is what makes the workspace `-D warnings` gate enforce this file.
+disallowed-types = [
+    { path = "std::collections::HashMap", reason = "hash iteration order must not shape generated code; use `BTreeMap` (or `indexmap::IndexMap` when insertion order matters)" },
+    { path = "std::collections::HashSet", reason = "hash iteration order must not shape generated code; use `BTreeSet` (or `indexmap::IndexSet` when insertion order matters)" },
+]

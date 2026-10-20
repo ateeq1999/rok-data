@@ -12,6 +12,12 @@ use crate::schema::EnumType;
 use super::sql::{ident, str_literal};
 use super::{DeriveOptions, HEADER, MAX_WIDTH, doc_name, push_derives, push_doc};
 
+/// Makes an enum usable as a rok-data column value (in models, filters and
+/// the generated chains), given its sqlx `Type` and `Encode` impls.
+fn push_impl_value(output: &mut String, name: &str) {
+    output.push_str(&format!("rok_data::impl_value!({name});\n"));
+}
+
 /// With `serde`, every enum also serializes each variant as its exact
 /// database value.
 pub fn render(enums: &[EnumType], derives: DeriveOptions) -> String {
@@ -58,7 +64,8 @@ fn render_enum_type(output: &mut String, enum_type: &EnumType, derives: DeriveOp
             variant.rust_name
         ));
     }
-    output.push_str("}\n");
+    output.push_str("}\n\n");
+    push_impl_value(output, &enum_type.rust_name);
 }
 
 /// A text enum: variants, `as_str`, `FromStr`, and SQLx impls that delegate
@@ -159,6 +166,9 @@ impl<'r> sqlx::Decode<'r, sqlx::Postgres> for {name} {{
 }}
 "
     ));
+
+    output.push('\n');
+    push_impl_value(output, name);
 }
 
 /// Appends a match arm at the depth of a method body's `match`, wrapping

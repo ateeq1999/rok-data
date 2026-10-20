@@ -3,72 +3,43 @@
 use super::super::search::{Limit, Page, Sort};
 use super::filter::{AuditLogEntryFilter, AuditLogEntrySortKey};
 use super::models::{AuditLogEntry, AuditLogEntryId};
+use rok_data::Model;
 
 /// Fetches the row with the given primary key, or `None` if there is none.
 pub async fn get_by_id<'e, E>(
     executor: E,
     id: AuditLogEntryId,
-) -> Result<Option<AuditLogEntry>, sqlx::Error>
+) -> Result<Option<AuditLogEntry>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, AuditLogEntry>(
-        r#"
-        SELECT
-            id,
-            actor_user_id,
-            target_user_id,
-            action,
-            details,
-            created_at
-        FROM audit_log
-        WHERE id = $1
-        "#,
-    )
-    .bind(id)
-    .fetch_optional(executor)
-    .await
+    AuditLogEntry::query()
+        .filter(AuditLogEntry::ID.eq(id))
+        .first(executor)
+        .await
 }
 
 /// Returns whether a row with the given primary key exists.
-pub async fn exists_by_id<'e, E>(executor: E, id: AuditLogEntryId) -> Result<bool, sqlx::Error>
+pub async fn exists_by_id<'e, E>(executor: E, id: AuditLogEntryId) -> Result<bool, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, bool>(
-        r#"
-        SELECT EXISTS (
-            SELECT 1
-            FROM audit_log
-            WHERE id = $1
-        )
-        "#,
-    )
-    .bind(id)
-    .fetch_one(executor)
-    .await
+    AuditLogEntry::query()
+        .filter(AuditLogEntry::ID.eq(id))
+        .count(executor)
+        .await
+        .map(|count| count > 0)
 }
 
 /// Fetches every row, ordered by primary key.
-pub async fn list<'e, E>(executor: E) -> Result<Vec<AuditLogEntry>, sqlx::Error>
+pub async fn list<'e, E>(executor: E) -> Result<Vec<AuditLogEntry>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, AuditLogEntry>(
-        r#"
-        SELECT
-            id,
-            actor_user_id,
-            target_user_id,
-            action,
-            details,
-            created_at
-        FROM audit_log
-        ORDER BY id
-        "#,
-    )
-    .fetch_all(executor)
-    .await
+    AuditLogEntry::query()
+        .order_by(AuditLogEntry::ID)
+        .all(executor)
+        .await
 }
 
 /// Fetches at most `limit` rows after skipping `offset`, ordered by primary key so
@@ -77,43 +48,24 @@ pub async fn list_page<'e, E>(
     executor: E,
     limit: i64,
     offset: i64,
-) -> Result<Vec<AuditLogEntry>, sqlx::Error>
+) -> Result<Vec<AuditLogEntry>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, AuditLogEntry>(
-        r#"
-        SELECT
-            id,
-            actor_user_id,
-            target_user_id,
-            action,
-            details,
-            created_at
-        FROM audit_log
-        ORDER BY id
-        LIMIT $1
-        OFFSET $2
-        "#,
-    )
-    .bind(limit)
-    .bind(offset)
-    .fetch_all(executor)
-    .await
+    AuditLogEntry::query()
+        .order_by(AuditLogEntry::ID)
+        .limit(limit as u64)
+        .offset(offset as u64)
+        .all(executor)
+        .await
 }
 
 /// Counts every row.
-pub async fn count<'e, E>(executor: E) -> Result<i64, sqlx::Error>
+pub async fn count<'e, E>(executor: E) -> Result<i64, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, i64>(
-        r#"
-        SELECT COUNT(*) FROM audit_log
-        "#,
-    )
-    .fetch_one(executor)
-    .await
+    AuditLogEntry::query().count(executor).await
 }
 
 /// Fetches one page of rows matching `filter`, ordered by `sort`.
@@ -125,7 +77,7 @@ pub async fn search<'e, E>(
     page: Page,
 ) -> Result<Vec<AuditLogEntry>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
         r#"
@@ -164,7 +116,7 @@ pub async fn search_after<'e, E>(
     limit: Limit,
 ) -> Result<Vec<AuditLogEntry>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
         r#"

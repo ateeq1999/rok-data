@@ -24,7 +24,7 @@ pub async fn active_products_in_category<'e, E>(
     category_id: CategoryId,
 ) -> Result<Vec<ActiveProductsInCategoryRow>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     sqlx::query_as::<_, ActiveProductsInCategoryRow>(
         r#"
@@ -53,7 +53,7 @@ pub async fn product_counts_by_category<'e, E>(
     executor: E,
 ) -> Result<Vec<ProductCountsByCategoryRow>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     sqlx::query_as::<_, ProductCountsByCategoryRow>(
         r#"
@@ -88,7 +88,7 @@ pub async fn upsert_product_price<'e, E>(
     params: UpsertProductPriceParams,
 ) -> Result<super::products::models::Product, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     sqlx::query_as::<_, super::products::models::Product>(
         r#"
@@ -121,7 +121,7 @@ pub async fn search_product_names<'e, E>(
     pattern: &str,
 ) -> Result<Vec<SearchProductNamesRow>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     sqlx::query_as::<_, SearchProductNamesRow>(
         r#"
@@ -143,7 +143,7 @@ pub async fn archive_category<'e, E>(
     category_id: CategoryId,
 ) -> Result<u64, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let result = sqlx::query(
         r#"

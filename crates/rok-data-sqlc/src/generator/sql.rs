@@ -109,16 +109,6 @@ pub fn live_key_predicate(table: &Table, keys: &[&Column]) -> String {
     }
 }
 
-/// The condition selecting every row a whole-table read sees: the tenant's
-/// rows (`$1`) that are live, or `None` when every row is visible.
-pub fn scope_condition(table: &Table) -> Option<String> {
-    let conditions: Vec<String> = tenant_condition(table, None)
-        .into_iter()
-        .chain(live_condition(table, None))
-        .collect();
-    (!conditions.is_empty()).then(|| conditions.join(" AND "))
-}
-
 /// `a, b` over the given key columns, for `ORDER BY`.
 pub fn key_order(keys: &[&Column]) -> String {
     keys.iter()

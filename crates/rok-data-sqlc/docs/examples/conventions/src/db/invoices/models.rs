@@ -2,6 +2,7 @@
 
 use super::super::organizations::models::OrganizationId;
 use super::super::types;
+use rok_data::Model;
 
 /// The primary key of the `invoices` table, as a distinct type so it
 /// cannot be mixed up with another table's key.
@@ -27,10 +28,13 @@ impl std::fmt::Display for InvoiceId {
     }
 }
 
+rok_data::impl_value!(InvoiceId);
 /// A row of the `invoices` table.
-#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+#[derive(Debug, Clone, PartialEq, Model)]
+#[rok(table = "invoices", soft_delete)]
 pub struct Invoice {
     /// The `id` column.
+    #[rok(primary_key)]
     pub id: InvoiceId,
     /// The `organization_id` column.
     pub organization_id: OrganizationId,
@@ -45,6 +49,7 @@ pub struct Invoice {
     /// The `row_version` column.
     pub row_version: i64,
     /// The `deleted_at` column.
+    #[rok(deleted_at)]
     pub deleted_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 

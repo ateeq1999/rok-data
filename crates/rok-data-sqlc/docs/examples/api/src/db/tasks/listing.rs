@@ -48,7 +48,7 @@ pub async fn list_matching<'e, E>(
     page: Page,
 ) -> Result<Vec<Task>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
         r#"
@@ -89,7 +89,7 @@ pub async fn count_matching<'e, E>(
     q: Option<&str>,
 ) -> Result<i64, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut query =
         sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT COUNT(*) FROM tasks WHERE TRUE");
@@ -109,7 +109,7 @@ pub async fn get_owned<'e, E>(
     owner: uuid::Uuid,
 ) -> Result<Option<Task>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     sqlx::query_as::<_, Task>(
         r#"
@@ -139,7 +139,7 @@ pub async fn lock_owned<'e, E>(
     owner: uuid::Uuid,
 ) -> Result<bool, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let row = sqlx::query_scalar::<_, i32>(
         r#"

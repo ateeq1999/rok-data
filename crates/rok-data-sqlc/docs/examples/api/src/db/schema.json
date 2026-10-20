@@ -1,0 +1,96 @@
+{
+  "enums": [],
+  "tables": [
+    {
+      "name": "projects",
+      "module": "projects",
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "owner_id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "sql_type": "VARCHAR(80)",
+          "nullable": false
+        },
+        {
+          "name": "open_tasks",
+          "sql_type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "created_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "primary_key": [
+        "id"
+      ]
+    },
+    {
+      "name": "tasks",
+      "module": "tasks",
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "owner_id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "project_id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "sql_type": "VARCHAR(200)",
+          "nullable": false
+        },
+        {
+          "name": "done",
+          "sql_type": "BOOLEAN",
+          "nullable": false,
+          "default": "false"
+        },
+        {
+          "name": "created_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "name": "tasks_project_id_fkey",
+          "columns": [
+            "project_id"
+          ],
+          "ref_table": "projects",
+          "ref_columns": [
+            "id"
+          ]
+        }
+      ]
+    }
+  ],
+  "indexes": [],
+  "extras": []
+}

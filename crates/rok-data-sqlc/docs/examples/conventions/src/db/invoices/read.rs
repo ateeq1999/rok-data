@@ -4,6 +4,7 @@ use super::super::organizations::models::OrganizationId;
 use super::super::search::{Limit, Page, Sort};
 use super::filter::{InvoiceFilter, InvoiceSortKey};
 use super::models::{Invoice, InvoiceId};
+use rok_data::Model;
 
 /// Fetches the row with the given primary key, or `None` if there is none.
 /// Soft-deleted rows are left out.
@@ -11,29 +12,15 @@ pub async fn get_by_id<'e, E>(
     executor: E,
     organization_id: OrganizationId,
     id: InvoiceId,
-) -> Result<Option<Invoice>, sqlx::Error>
+) -> Result<Option<Invoice>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, Invoice>(
-        r#"
-        SELECT
-            id,
-            organization_id,
-            number,
-            total,
-            status,
-            updated_at,
-            row_version,
-            deleted_at
-        FROM invoices
-        WHERE organization_id = $1 AND id = $2 AND deleted_at IS NULL
-        "#,
-    )
-    .bind(organization_id)
-    .bind(id)
-    .fetch_optional(executor)
-    .await
+    Invoice::query()
+        .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
+        .filter(Invoice::ID.eq(id))
+        .first(executor)
+        .await
 }
 
 /// Returns whether a row with the given primary key exists.
@@ -42,23 +29,16 @@ pub async fn exists_by_id<'e, E>(
     executor: E,
     organization_id: OrganizationId,
     id: InvoiceId,
-) -> Result<bool, sqlx::Error>
+) -> Result<bool, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, bool>(
-        r#"
-        SELECT EXISTS (
-            SELECT 1
-            FROM invoices
-            WHERE organization_id = $1 AND id = $2 AND deleted_at IS NULL
-        )
-        "#,
-    )
-    .bind(organization_id)
-    .bind(id)
-    .fetch_one(executor)
-    .await
+    Invoice::query()
+        .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
+        .filter(Invoice::ID.eq(id))
+        .count(executor)
+        .await
+        .map(|count| count > 0)
 }
 
 /// Fetches the row with the given `number`, or `None` if there is none.
@@ -67,29 +47,15 @@ pub async fn get_by_number<'e, E>(
     executor: E,
     organization_id: OrganizationId,
     number: &str,
-) -> Result<Option<Invoice>, sqlx::Error>
+) -> Result<Option<Invoice>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, Invoice>(
-        r#"
-        SELECT
-            id,
-            organization_id,
-            number,
-            total,
-            status,
-            updated_at,
-            row_version,
-            deleted_at
-        FROM invoices
-        WHERE organization_id = $1 AND number = $2 AND deleted_at IS NULL
-        "#,
-    )
-    .bind(organization_id)
-    .bind(number)
-    .fetch_optional(executor)
-    .await
+    Invoice::query()
+        .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
+        .filter(Invoice::NUMBER.eq(number))
+        .first(executor)
+        .await
 }
 
 /// Fetches every row, ordered by primary key.
@@ -97,29 +63,15 @@ where
 pub async fn list<'e, E>(
     executor: E,
     organization_id: OrganizationId,
-) -> Result<Vec<Invoice>, sqlx::Error>
+) -> Result<Vec<Invoice>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, Invoice>(
-        r#"
-        SELECT
-            id,
-            organization_id,
-            number,
-            total,
-            status,
-            updated_at,
-            row_version,
-            deleted_at
-        FROM invoices
-        WHERE organization_id = $1 AND deleted_at IS NULL
-        ORDER BY id
-        "#,
-    )
-    .bind(organization_id)
-    .fetch_all(executor)
-    .await
+    Invoice::query()
+        .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
+        .order_by(Invoice::ID)
+        .all(executor)
+        .await
 }
 
 /// Fetches at most `limit` rows after skipping `offset`, ordered by primary key so
@@ -130,49 +82,32 @@ pub async fn list_page<'e, E>(
     organization_id: OrganizationId,
     limit: i64,
     offset: i64,
-) -> Result<Vec<Invoice>, sqlx::Error>
+) -> Result<Vec<Invoice>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, Invoice>(
-        r#"
-        SELECT
-            id,
-            organization_id,
-            number,
-            total,
-            status,
-            updated_at,
-            row_version,
-            deleted_at
-        FROM invoices
-        WHERE organization_id = $1 AND deleted_at IS NULL
-        ORDER BY id
-        LIMIT $2
-        OFFSET $3
-        "#,
-    )
-    .bind(organization_id)
-    .bind(limit)
-    .bind(offset)
-    .fetch_all(executor)
-    .await
+    Invoice::query()
+        .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
+        .order_by(Invoice::ID)
+        .limit(limit as u64)
+        .offset(offset as u64)
+        .all(executor)
+        .await
 }
 
 /// Counts every row.
 /// Soft-deleted rows are left out.
-pub async fn count<'e, E>(executor: E, organization_id: OrganizationId) -> Result<i64, sqlx::Error>
+pub async fn count<'e, E>(
+    executor: E,
+    organization_id: OrganizationId,
+) -> Result<i64, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, i64>(
-        r#"
-        SELECT COUNT(*) FROM invoices WHERE organization_id = $1 AND deleted_at IS NULL
-        "#,
-    )
-    .bind(organization_id)
-    .fetch_one(executor)
-    .await
+    Invoice::query()
+        .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
+        .count(executor)
+        .await
 }
 
 /// Fetches one page of rows matching `filter`, ordered by `sort`.
@@ -186,7 +121,7 @@ pub async fn search<'e, E>(
     page: Page,
 ) -> Result<Vec<Invoice>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
         r#"
@@ -228,7 +163,7 @@ pub async fn search_after<'e, E>(
     limit: Limit,
 ) -> Result<Vec<Invoice>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
         r#"

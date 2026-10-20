@@ -3,10 +3,9 @@
 
 use crate::schema::{Column, Table};
 
-use super::{push_returning, returning_clause};
-use crate::generator::sql::{self, ident, live_condition, str_literal, table_ref};
+use crate::generator::sql::{self, column_clause, ident, live_condition, str_literal, table_ref};
 use crate::generator::{
-    MAX_WIDTH, keys, push_build_and_fetch, push_doc, push_fn_head, push_let_call,
+    FN_CALL_WIDTH, MAX_WIDTH, keys, push_doc, push_fn_head, push_let_call, push_wide_chain,
 };
 
 pub(super) fn render_update(output: &mut String, table: &Table, columns: &[&Column]) {
@@ -27,24 +26,16 @@ pub(super) fn render_update(output: &mut String, table: &Table, columns: &[&Colu
         output,
         "update",
         &params,
-        &format!("Result<Option<{}>, sqlx::Error>", table.struct_name),
+        &format!("Result<Option<{}>, rok_data::Error>", table.struct_name),
     );
 
     output.push_str("    if input.is_empty() {\n");
     push_get_by_id(output, table, "return ", ";", None);
     output.push_str("    }\n\n");
 
-    push_let_call(
-        output,
-        4,
-        "let mut query",
-        "sqlx::QueryBuilder::<sqlx::Postgres>::new",
-        &str_literal(&format!("UPDATE {} SET ", table_ref(table))),
-    );
-    push_assignments(output, columns);
-    push_key_condition(output, table);
-    push_returning(output, table);
-    push_build_and_fetch(output, table, "fetch_optional");
+    push_update_builder(output, table);
+    push_patch_sets(output, table, columns);
+    output.push_str("    update.returning_one(executor).await\n");
     output.push_str("}\n");
 }
 
@@ -78,7 +69,8 @@ fn target_key_alias(index: usize) -> String {
 /// `update` for a table with a version column (ADR 0006): the version check
 /// is part of the `UPDATE`'s condition, and the same statement reports
 /// whether the row was updated, is at another version, or does not exist, so
-/// the generic executor is used once.
+/// the generic executor is used once (the model chains carry one statement
+/// per call; this one stays on the query builder).
 pub(super) fn render_versioned_update(
     output: &mut String,
     table: &Table,
@@ -113,7 +105,10 @@ pub(super) fn render_versioned_update(
         output,
         "update",
         &params,
-        &format!("Result<UpdateOutcome<{}>, sqlx::Error>", table.struct_name),
+        &format!(
+            "Result<UpdateOutcome<{}>, rok_data::Error>",
+            table.struct_name
+        ),
     );
 
     output.push_str("    if input.is_empty() {\n");
@@ -178,7 +173,7 @@ pub(super) fn render_versioned_update(
         ),
     );
     output.push_str(&format!("    query.push_bind({VERSION_PARAM});\n"));
-    let mut tail = returning_clause(table);
+    let mut tail = column_clause("RETURNING", table);
     tail.push(")".to_owned());
     tail.push(
         "SELECT rok_data_sqlc_updated.*, EXISTS (SELECT 1 FROM rok_data_sqlc_updated) AS rok_data_sqlc_applied"
@@ -202,54 +197,40 @@ pub(super) fn render_versioned_update(
     output.push_str("}\n");
 }
 
-/// `{lead}super::read::get_by_id(executor, <key args>).await{trail}` at an
-/// indent of 8, with `else_open` (` else {`) after it for a `let`-`else`,
-/// laid out as rustfmt lays it out: on one line when it fits; for a `let`,
-/// with `else {` on its own line, then with the call moved below the `=`;
-/// otherwise with one argument per line.
-fn push_get_by_id(
-    output: &mut String,
-    table: &Table,
-    lead: &str,
-    trail: &str,
-    else_open: Option<&str>,
-) {
-    let mut args = vec!["executor".to_owned()];
-    args.extend(keys::key_args(table));
-    let call = format!("super::read::get_by_id({}).await{trail}", args.join(", "));
-    let else_open = else_open.unwrap_or("");
-    let fits = |line: &str| line.len() <= MAX_WIDTH;
-
-    let one_line = format!("        {lead}{call}{else_open}");
-    if fits(&one_line) {
-        output.push_str(&format!("{one_line}\n"));
-        return;
-    }
-    let else_line = if else_open.is_empty() {
-        String::new()
-    } else {
-        format!("        {}\n", else_open.trim_start())
-    };
-    if !else_open.is_empty() {
-        let head = format!("        {lead}{call}");
-        if fits(&head) {
-            output.push_str(&format!("{head}\n{else_line}"));
-            return;
+/// One `if let Some(value)` set per patch field, in column order, laid out
+/// as rustfmt lays it out (one line while the call's arguments fit).
+fn push_patch_sets(output: &mut String, table: &Table, columns: &[&Column]) {
+    for column in columns {
+        output.push_str(&format!(
+            "    if let Some(value) = input.{} {{\n",
+            column.rust_name
+        ));
+        let args = format!(
+            "{}::{}, value",
+            table.struct_name,
+            column.rust_name.to_uppercase()
+        );
+        let one_line = format!("        update = update.set({args});");
+        if args.len() <= FN_CALL_WIDTH && one_line.len() <= MAX_WIDTH {
+            output.push_str(&one_line);
+            output.push('\n');
+        } else {
+            for line in [
+                "        update = update.set(".to_owned(),
+                format!(
+                    "            {}::{},",
+                    table.struct_name,
+                    column.rust_name.to_uppercase()
+                ),
+                "            value,".to_owned(),
+                "        );".to_owned(),
+            ] {
+                output.push_str(&line);
+                output.push('\n');
+            }
         }
-        let below = format!("            {call}");
-        if fits(&below) {
-            output.push_str(&format!(
-                "        {}\n{below}\n{else_line}",
-                lead.trim_end()
-            ));
-            return;
-        }
+        output.push_str("    }\n");
     }
-    output.push_str(&format!("        {lead}super::read::get_by_id(\n"));
-    for arg in &args {
-        output.push_str(&format!("            {arg},\n"));
-    }
-    output.push_str(&format!("        )\n        .await{trail}\n{else_line}"));
 }
 
 /// One `if let Some(value)` assignment per patch field, in column order.
@@ -303,4 +284,74 @@ fn push_query_push(output: &mut String, text: &str) {
     } else {
         output.push_str(&format!("    query.push(\n        {literal},\n    );\n"));
     }
+}
+
+/// `let mut update = <model>::update_all()` with the tenant and key filters.
+fn push_update_builder(output: &mut String, table: &Table) {
+    let mut calls = Vec::new();
+    super::super::tenant_filter_call(table)
+        .into_iter()
+        .for_each(|call| calls.push(call));
+    let binds = keys::key_binds(table);
+    for (column, bind) in table.key_columns().into_iter().zip(&binds) {
+        calls.push(super::super::filter_call(table, column, bind));
+    }
+    push_wide_chain(
+        output,
+        4,
+        "let mut update = ",
+        &format!("{}::update_all()", table.struct_name),
+        &calls,
+        ";",
+    );
+}
+
+/// `{lead}super::read::get_by_id(executor, <key args>).await{trail}` at an
+/// indent of 8, with `else_open` (` else {`) after it for a `let`-`else`,
+/// laid out as rustfmt lays it out: on one line when it fits; for a `let`,
+/// with `else {` on its own line, then with the call moved below the `=`;
+/// otherwise with one argument per line.
+fn push_get_by_id(
+    output: &mut String,
+    table: &Table,
+    lead: &str,
+    trail: &str,
+    else_open: Option<&str>,
+) {
+    let mut args = vec!["executor".to_owned()];
+    args.extend(keys::key_args(table));
+    let call = format!("super::read::get_by_id({}).await{trail}", args.join(", "));
+    let else_open = else_open.unwrap_or("");
+    let fits = |line: &str| line.len() <= MAX_WIDTH;
+
+    let one_line = format!("        {lead}{call}{else_open}");
+    if fits(&one_line) {
+        output.push_str(&format!("{one_line}\n"));
+        return;
+    }
+    let else_line = if else_open.is_empty() {
+        String::new()
+    } else {
+        format!("        {}\n", else_open.trim_start())
+    };
+    if !else_open.is_empty() {
+        let head = format!("        {lead}{call}");
+        if fits(&head) {
+            output.push_str(&format!("{head}\n{else_line}"));
+            return;
+        }
+        let below = format!("            {call}");
+        if fits(&below) {
+            output.push_str(&format!(
+                "        {}\n{below}\n{else_line}",
+                lead.trim_end()
+            ));
+            return;
+        }
+    }
+    output.push_str(&format!("        {lead}super::read::get_by_id(\n"));
+    for arg in &args {
+        output.push_str(&format!("            {arg},\n"));
+    }
+    output.push_str(&format!("        )\n        .await{trail}\n{else_line}"));
 }

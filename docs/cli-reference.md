@@ -43,7 +43,7 @@ nests as `rok generate check`.
 
 | Flag                       | Meaning                                                            |
 | -------------------------- | ------------------------------------------------------------------ |
-| `-c, --config FILE`        | settings file (`rok-data.toml`, `[gen]` table); optional           |
+| `-c, --config FILE`        | settings file (`rok.toml` `[generate]` table; legacy `rok-data.toml` `[gen]` accepted) |
 | `-i, --input DIR`          | directory holding the `.sql` sources (default `db`)                |
 | `-o, --output DIR`         | directory of the generated crate (default `db-gen`)                |
 | `--crate-name NAME`        | package name of the generated crate (default `db-gen`)             |
@@ -51,6 +51,10 @@ nests as `rok generate check`.
 | `--rename OLD=NEW`         | `users=accounts` (table) or `users.name=full_name` (column); repeat|
 | `--allow-destructive`      | with `--migration`: permit DROP/data-losing steps                   |
 | `--strict`                 | fail on generator warnings (queries missing tenant/soft-delete)     |
+
+Discovery: `rok.toml` is the canonical name and only its `generate`
+section is read here; the legacy `rok-data.toml` stays readable and
+prints a note, and the legacy name loses when both files exist.
 
 `--migration` needs a database connection (DATABASE_URL). `--strict`
 requires an explicit `strict` value in the config file or no default.

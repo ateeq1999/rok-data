@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use super::super::products::models::Product;
 use super::models::{Category, CategoryId};
+use rok_data::Model;
 
 /// Loads the `products` of each of `rows`: the `products` rows whose
 /// `category_id` references it, keyed by `id`, in one query.
@@ -14,9 +15,9 @@ use super::models::{Category, CategoryId};
 pub async fn load_products<'e, E>(
     executor: E,
     rows: &[Category],
-) -> Result<HashMap<CategoryId, Vec<Product>>, sqlx::Error>
+) -> Result<HashMap<CategoryId, Vec<Product>>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut loaded = HashMap::new();
     let mut keys = Vec::new();
@@ -27,26 +28,11 @@ where
     if keys.is_empty() {
         return Ok(loaded);
     }
-    let related = sqlx::query_as::<_, Product>(
-        r#"
-        SELECT
-            id,
-            category_id,
-            sku,
-            name,
-            price,
-            status,
-            tags,
-            created_at,
-            description
-        FROM products
-        WHERE category_id = ANY($1)
-        ORDER BY id
-        "#,
-    )
-    .bind(keys)
-    .fetch_all(executor)
-    .await?;
+    let related = Product::query()
+        .filter(Product::CATEGORY_ID.is_in(keys))
+        .order_by(Product::ID)
+        .all(executor)
+        .await?;
     for row in related {
         if let Some(list) = loaded.get_mut(&row.category_id) {
             list.push(row);

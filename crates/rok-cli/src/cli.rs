@@ -69,7 +69,7 @@ pub(crate) enum GenerateAction {
 /// Options of `rok generate`.
 #[derive(Debug, Args)]
 pub(crate) struct GenerateOptions {
-    /// Settings file (default: rok-data.toml, when it exists).
+    /// Settings file (default: rok.toml, when it exists; legacy rok-data.toml accepted).
     #[arg(short, long, value_name = "FILE")]
     pub config: Option<PathBuf>,
     /// Directory holding the .sql files (default: db).
@@ -99,7 +99,7 @@ pub(crate) struct GenerateOptions {
 /// deliberately absent, matching the original `rok-db-gen check` behavior.
 #[derive(Debug, Args)]
 pub(crate) struct CheckOptions {
-    /// Settings file (default: rok-data.toml, when it exists).
+    /// Settings file (default: rok.toml, when it exists; legacy rok-data.toml accepted).
     #[arg(short, long, value_name = "FILE")]
     pub config: Option<PathBuf>,
     /// Directory holding the .sql files (default: db).

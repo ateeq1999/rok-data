@@ -13,12 +13,15 @@ mod naming;
 mod parse;
 mod queries;
 mod split;
+mod truth;
 mod types;
 
 pub use ddl::Rename;
 pub use generate::{Dependency, Generated, Options, differences, generate, write};
-pub use ir::{Column, EnumType, Extra, ForeignKey, Index, Query, QueryKind, Schema, Table};
+pub use ir::{Column, EnumType, Extra, ForeignKey, Index, Query, QueryKind, Schema, Table, Unique};
 pub use parse::{Parsed, SourceFile, parse};
+pub use truth::{MigrationFile, MigrationPair, existing_migrations, migration, schema};
+pub use types::canonical as canonical_sql_type;
 
 use std::fmt;
 

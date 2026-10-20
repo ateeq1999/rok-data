@@ -29,7 +29,7 @@ fn committed_example_is_up_to_date() {
     let stale = differences(&options, &generated);
     assert!(
         stale.is_empty(),
-        "out of date: {stale:?}; run `cargo run -p rok-data-codegen -- generate --config examples/sqlgen/rok-data.toml`"
+        "out of date: {stale:?}; run `cargo run -p rok-data-codegen -- generate --config examples/sqlgen/rok.toml`"
     );
 }
 

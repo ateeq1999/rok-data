@@ -18,7 +18,7 @@ CREATE TABLE warehouses (
     region TEXT
 );
 
-CREATE TABLE products (
+CREATE TABLE catalog.products (
     id UUID PRIMARY KEY,
     sku TEXT NOT NULL,
     name TEXT NOT NULL,

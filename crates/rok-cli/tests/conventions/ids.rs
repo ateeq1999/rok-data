@@ -36,7 +36,7 @@ fn uuid_strategies_make_uuid_keys_optional_on_create() -> Result<()> {
         assert!(events.contains("    pub id: Option<EventId>,"), "{events}");
         let write = resource_file(&dir, "events", "write.rs")?;
         assert!(
-            write.contains(".bind(input.id.unwrap_or_else(EventId::generate))"),
+            write.contains("input.id.unwrap_or_else(EventId::generate)"),
             "{write}"
         );
         let db_mod = fs::read_to_string(dir.path().join("out/mod.rs"))?;
@@ -73,7 +73,7 @@ fn ulid_makes_uuid_and_text_keys() -> Result<()> {
     assert!(slugs.contains("    pub id: Option<SlugId>,"), "{slugs}");
     let write = resource_file(&dir, "slugs", "write.rs")?;
     assert!(
-        write.contains(".bind(input.id.unwrap_or_else(SlugId::generate))"),
+        write.contains("input.id.unwrap_or_else(SlugId::generate)"),
         "{write}"
     );
     let db_mod = fs::read_to_string(dir.path().join("out/mod.rs"))?;
@@ -95,7 +95,7 @@ fn cuid2_makes_text_keys_and_leaves_uuid_keys_alone() -> Result<()> {
     assert!(slugs.contains("    pub id: Option<SlugId>,"), "{slugs}");
     let write = resource_file(&dir, "slugs", "write.rs")?;
     assert!(
-        write.contains(".bind(input.id.unwrap_or_else(SlugId::generate))"),
+        write.contains("input.id.unwrap_or_else(SlugId::generate)"),
         "{write}"
     );
     let db_mod = fs::read_to_string(dir.path().join("out/mod.rs"))?;

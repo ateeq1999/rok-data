@@ -4,12 +4,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::ddl::{self, Rename};
+use crate::ddl::Rename;
 use crate::describe::{self, Cache};
 use crate::emit;
 use crate::ir::Schema;
 use crate::parse::{self, SourceFile};
 use crate::queries;
+use crate::truth::{self, MigrationFile};
 use crate::types::Feature;
 use crate::{Error, naming};
 
@@ -95,7 +96,7 @@ const HEADER: &str =
 
 /// Generate everything in memory. Nothing is written.
 pub fn generate(options: &Options) -> Result<Generated, Error> {
-    let sources = read_sources(&options.input)?;
+    let sources = truth::read_sources(&options.input)?;
     let parsed = parse::parse(&sources)?;
     let output = &options.output;
     let mut generated = Generated::default();
@@ -107,7 +108,7 @@ pub fn generate(options: &Options) -> Result<Generated, Error> {
             .map_err(|e| Error::new(format!("{}: {e}", snapshot_path.display())))?,
         Err(_) => Schema::default(),
     };
-    let mut migrations = existing_migrations(&output.join("migrations"))?;
+    let mut migrations = truth::existing_migrations(&output.join("migrations"))?;
     if migrations.is_empty() && snapshot != Schema::default() {
         return Err(Error::new(format!(
             "{} exists but {} has no migrations; restore them or delete the snapshot",
@@ -115,8 +116,8 @@ pub fn generate(options: &Options) -> Result<Generated, Error> {
             output.join("migrations").display()
         )));
     }
-    let ops = ddl::diff(&snapshot, &parsed.schema, &options.renames).map_err(Error::new)?;
-    let name = match (&options.migration, ops.is_empty()) {
+    let pair = truth::migration(&snapshot, &parsed.schema, &options.renames)?;
+    let name = match (&options.migration, pair.is_empty()) {
         (Some(_), true) if options.renames.is_empty() => {
             return Err(Error::new(
                 "the schema hasn't changed since the last migration; nothing to migrate",
@@ -125,32 +126,30 @@ pub fn generate(options: &Options) -> Result<Generated, Error> {
         (Some(name), _) => Some(naming::snake_ident(name)),
         (None, false) if migrations.is_empty() => Some("init".to_owned()),
         (None, false) => {
-            let preview: Vec<String> = ops
+            let preview: Vec<String> = pair
+                .steps
                 .iter()
                 .take(5)
-                .map(|op| format!("  {}", first_line(&op.up)))
+                .map(|line| format!("  {line}"))
                 .collect();
             return Err(Error::new(format!(
                 "the .sql files changed since the last migration:\n{}{}\nrun `rok generate --migration <name>` to add a migration",
                 preview.join("\n"),
-                if ops.len() > 5 { "\n  ..." } else { "" }
+                if pair.steps.len() > 5 { "\n  ..." } else { "" }
             )));
         }
         (None, true) => None,
     };
     if let Some(name) = name {
-        let reasons: Vec<&str> = ops
-            .iter()
-            .filter_map(|op| op.destructive.as_deref())
-            .collect();
-        if !reasons.is_empty() && !options.allow_destructive {
+        if !pair.destructive.is_empty() && !options.allow_destructive {
             return Err(Error::new(format!(
                 "migration `{name}` would:\n  - {}\nre-run with --allow-destructive if that is intended, or use --rename for renames",
-                reasons.join("\n  - ")
+                pair.destructive.join("\n  - ")
             )));
         }
         let version = migrations.last().map_or(1, |m| m.version + 1);
-        let (up, down) = ddl::scripts(&ops);
+        let up = pair.up;
+        let down = pair.down;
         let stem = format!("{version:04}_{name}");
         generated.files.insert(
             PathBuf::from(format!("migrations/{stem}.up.sql")),
@@ -186,6 +185,19 @@ pub fn generate(options: &Options) -> Result<Generated, Error> {
         Err(_) => Cache::default(),
     };
     let up_scripts: Vec<String> = migrations.iter().map(|m| m.up.clone()).collect();
+    // The database word (ADR 0010): the parse is offline and first, but with
+    // a URL at hand the migrations are applied to a temporary database and
+    // the catalog is compared with `parsed.schema`; without one, the run
+    // stays parser-only.
+    if let Some(url) = options.database_url.as_deref() {
+        let drift = describe::verify_schema(&parsed.schema, &up_scripts, url)?;
+        if !drift.is_empty() {
+            if options.strict {
+                return Err(Error::new(format!("--strict: {}", drift.join("\n"))));
+            }
+            generated.warnings.extend(drift);
+        }
+    }
     let (descriptions, cache) = describe::describe_all(
         &parsed.queries,
         &up_scripts,
@@ -303,46 +315,6 @@ pub fn differences(options: &Options, generated: &Generated) -> Vec<PathBuf> {
     out
 }
 
-fn read_sources(dir: &Path) -> Result<Vec<SourceFile>, Error> {
-    let entries = fs::read_dir(dir).map_err(|e| Error::new(format!("{}: {e}", dir.display())))?;
-    let mut paths: Vec<PathBuf> = entries
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| p.extension().is_some_and(|x| x == "sql"))
-        .collect();
-    paths.sort();
-    if paths.is_empty() {
-        return Err(Error::new(format!("no .sql files in {}", dir.display())));
-    }
-    paths
-        .into_iter()
-        .map(|path| {
-            let text = fs::read_to_string(&path)
-                .map_err(|e| Error::new(format!("{}: {e}", path.display())))?;
-            let stem = path
-                .file_stem()
-                .map(|s| s.to_string_lossy().into_owned())
-                .unwrap_or_default();
-            let module = if stem.starts_with('_') {
-                format!("_{}", naming::snake_ident(&stem))
-            } else {
-                naming::snake_ident(&stem)
-            };
-            // Relative to the input directory's parent, so the generated
-            // files don't depend on where the command runs.
-            let shown = match (dir.file_name(), path.file_name()) {
-                (Some(d), Some(f)) => format!("{}/{}", d.to_string_lossy(), f.to_string_lossy()),
-                _ => path.display().to_string(),
-            };
-            Ok(SourceFile {
-                path: shown,
-                module,
-                text,
-            })
-        })
-        .collect()
-}
-
 fn parsed_source(sources: &[SourceFile], module: &str) -> String {
     let paths: Vec<&str> = sources
         .iter()
@@ -350,45 +322,6 @@ fn parsed_source(sources: &[SourceFile], module: &str) -> String {
         .map(|s| s.path.as_str())
         .collect();
     paths.join("`, `")
-}
-
-/// A migration on disk: `migrations/<version>_<name>.up.sql`.
-struct MigrationFile {
-    version: i64,
-    name: String,
-    stem: String,
-    up: String,
-    reversible: bool,
-}
-
-fn existing_migrations(dir: &Path) -> Result<Vec<MigrationFile>, Error> {
-    let Ok(entries) = fs::read_dir(dir) else {
-        return Ok(Vec::new());
-    };
-    let mut out = Vec::new();
-    for entry in entries.flatten() {
-        let file = entry.file_name().to_string_lossy().into_owned();
-        let Some(stem) = file.strip_suffix(".up.sql") else {
-            continue;
-        };
-        let Some((version, name)) = stem.split_once('_') else {
-            continue;
-        };
-        let Ok(version) = version.parse::<i64>() else {
-            continue;
-        };
-        let up =
-            fs::read_to_string(entry.path()).map_err(|e| Error::new(format!("{file}: {e}")))?;
-        out.push(MigrationFile {
-            version,
-            name: name.to_owned(),
-            stem: stem.to_owned(),
-            up,
-            reversible: dir.join(format!("{stem}.down.sql")).exists(),
-        });
-    }
-    out.sort_by_key(|m| m.version);
-    Ok(out)
 }
 
 /// Resolve `.` and `..` without touching the file system.
@@ -429,10 +362,6 @@ fn relative_path(from: &Path, to: &Path) -> PathBuf {
         out.push(c);
     }
     out
-}
-
-fn first_line(sql: &str) -> &str {
-    sql.lines().next().unwrap_or_default()
 }
 
 fn json<T: serde::Serialize>(value: &T) -> Result<String, Error> {
@@ -520,7 +449,7 @@ fn cargo_toml(options: &Options, features: &BTreeSet<Feature>) -> String {
         }
     };
     format!(
-        "# @generated by rok. Do not edit: settings live in rok-data.toml.\n\
+        "# @generated by rok. Do not edit: settings live in rok.toml.\n\
          [package]\n\
          name = {:?}\n\
          version = \"0.1.0\"\n\

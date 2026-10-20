@@ -28,6 +28,8 @@ pub enum Role {
     Admin,
 }
 
+rok_data::impl_value!(Role);
+
 /// The `api_key_scope` enum type.
 #[derive(
     Debug,
@@ -52,3 +54,5 @@ pub enum ApiKeyScope {
     #[sqlx(rename = "write")]
     Write,
 }
+
+rok_data::impl_value!(ApiKeyScope);

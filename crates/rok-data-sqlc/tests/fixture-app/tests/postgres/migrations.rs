@@ -72,15 +72,22 @@ pub(super) async fn altered_columns_round_trip_in_their_final_shape(pool: &PgPoo
         views: 0,
     };
     assert_eq!(created, expected);
-    assert_eq!(read::get_by_id(pool, id).await.unwrap(), Some(expected.clone()));
-    assert_eq!(read::get_by_code(pool, "M-1").await.unwrap(), Some(expected));
+    assert_eq!(
+        read::get_by_id(pool, id).await.unwrap(),
+        Some(expected.clone())
+    );
+    assert_eq!(
+        read::get_by_code(pool, "M-1").await.unwrap(),
+        Some(expected)
+    );
 
     // `label` lost its default, so the database now requires it, as the
     // generated `NewMeterReading` does.
-    let missing_label = sqlx::query("INSERT INTO meter_readings (id, amount, views) VALUES (1, 1, 1)")
-        .execute(pool)
-        .await
-        .unwrap_err();
+    let missing_label =
+        sqlx::query("INSERT INTO meter_readings (id, amount, views) VALUES (1, 1, 1)")
+            .execute(pool)
+            .await
+            .unwrap_err();
     assert!(
         missing_label.to_string().contains("label"),
         "{missing_label}"

@@ -8,11 +8,16 @@ pub fn column(sql_name: &str, rust_type: &str) -> Column {
     Column {
         sql_name: sql_name.to_owned(),
         rust_name: sql_name.to_owned(),
+        // Test columns are synthesized; no SQL type is declared for them.
+        sql_type: String::new(),
         rust_type: rust_type.to_owned(),
         sqlx_type: rust_type.to_owned(),
         nullable: false,
         is_primary_key: false,
         has_default: false,
+        default: None,
+        generated: None,
+        identity: None,
         is_generated: false,
         value_list: None,
         declared_length: None,

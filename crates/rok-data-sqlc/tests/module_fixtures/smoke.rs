@@ -97,7 +97,10 @@ pub(super) fn render_smoke(outcomes: &[Outcome]) -> Result<String> {
     }
     text.push_str("    failures\n}\n\n");
     text.push_str(
-        "fn record<T>(failures: &mut Vec<String>, call: &str, result: Result<T, sqlx::Error>) {\n\
+        "fn record<T, E>(failures: &mut Vec<String>, call: &str, result: Result<T, E>)\n\
+         \x20where\n\
+         \x20    E: std::fmt::Display,\n\
+         {\n\
          \x20   if let Err(err) = result {\n\
          \x20       failures.push(format!(\"{call}: {err}\"));\n\
          \x20   }\n\

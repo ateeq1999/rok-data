@@ -19,12 +19,10 @@ use crate::schema::{Column, Table};
 use self::create::{render_dynamic_create, render_static_create};
 use self::delete::render_delete;
 use self::join::render_join_writes;
+pub use self::update::{has_versioned_update, version_column};
 use self::update::{render_update, render_versioned_update};
 use super::relationships::join_pair;
-use super::sql::column_clause;
 use super::{HEADER, types_import, use_list};
-
-pub use self::update::{has_versioned_update, version_column};
 
 pub fn render(table: &Table) -> String {
     let insert_columns = table.insert_columns();
@@ -72,7 +70,11 @@ pub fn render(table: &Table) -> String {
     } else {
         ""
     };
-    let mut output = format!("{HEADER}\n{outcome}{types}{ids}{}", use_models(&imports));
+    let models = use_models(&imports);
+    let mut output = format!("{HEADER}\n{outcome}{types}{ids}{models}");
+    // rok chains need the Model trait statics in scope. After the models
+    // use-list, so rustfmt's order — super-paths first — stays stable.
+    output.push_str("use rok_data::Model;\n");
 
     if insert_columns.is_empty() {
         output.push_str(
@@ -129,14 +131,4 @@ fn render_key_writes(
 /// use list that does not fit on one line.
 fn use_models(names: &[String]) -> String {
     use_list("super::models", names)
-}
-
-fn returning_clause(table: &Table) -> Vec<String> {
-    column_clause("RETURNING", table)
-}
-
-fn push_returning(output: &mut String, table: &Table) {
-    output.push_str("    query.push(\n");
-    output.push_str(&super::sql::raw_block(&returning_clause(table), 8));
-    output.push_str(",\n    );\n");
 }

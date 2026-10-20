@@ -17,7 +17,7 @@ use sqlx::PgPool;
 /// # Errors
 ///
 /// Any database error.
-pub async fn invoices(pool: &PgPool, user: uuid::Uuid) -> Result<(), sqlx::Error> {
+pub async fn invoices(pool: &PgPool, user: uuid::Uuid) -> Result<(), rok_data::Error> {
     let org = db::organizations::write::create(
         pool,
         NewOrganization {
@@ -33,7 +33,7 @@ async fn pay_first_invoice(
     pool: &PgPool,
     org: OrganizationId,
     user: uuid::Uuid,
-) -> Result<(), sqlx::Error> {
+) -> Result<(), rok_data::Error> {
     let mut tx = pool.begin().await?;
     // For row-level security policies and audit triggers.
     db::session::set_tenant(&mut tx, org).await?;
@@ -70,5 +70,6 @@ async fn pay_first_invoice(
     let hidden = db::invoices::read::get_by_number(&mut *tx, org, "INV-001").await?;
     assert!(hidden.is_none());
     db::invoices::write::restore(&mut *tx, org, invoice.id).await?;
-    tx.commit().await
+    tx.commit().await?;
+    Ok(())
 }

@@ -1,0 +1,111 @@
+{
+  "enums": [
+    {
+      "name": "status",
+      "values": [
+        "open",
+        "paid",
+        "void"
+      ],
+      "module": ""
+    }
+  ],
+  "tables": [
+    {
+      "name": "organizations",
+      "module": "organizations",
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        {
+          "name": "name",
+          "sql_type": "TEXT",
+          "nullable": false
+        }
+      ],
+      "primary_key": [
+        "id"
+      ]
+    },
+    {
+      "name": "invoices",
+      "module": "invoices",
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "UUID",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        {
+          "name": "organization_id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "number",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "total",
+          "sql_type": "NUMERIC(12,2)",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "sql_type": "TEXT",
+          "nullable": false,
+          "default": "'open'"
+        },
+        {
+          "name": "updated_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "row_version",
+          "sql_type": "BIGINT",
+          "nullable": false,
+          "default": "1"
+        },
+        {
+          "name": "deleted_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": true
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "uniques": [
+        {
+          "name": "invoices_organization_id_number_key",
+          "columns": [
+            "organization_id",
+            "number"
+          ]
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "invoices_organization_id_fkey",
+          "columns": [
+            "organization_id"
+          ],
+          "ref_table": "organizations",
+          "ref_columns": [
+            "id"
+          ]
+        }
+      ]
+    }
+  ],
+  "indexes": [],
+  "extras": []
+}

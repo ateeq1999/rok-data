@@ -42,6 +42,10 @@ fn scaffold(name: &str) -> Result<tempfile::TempDir> {
         format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n"),
     )?;
     rok_data_sqlc(dir, &["init"])?;
+    // Inside the repository the `rok-data = "0.2"` the hints name resolves
+    // to the workspace crate (the release publishes it afterwards); cargo
+    // substitutes it for crates.io while the tests run.
+    common::rok_data_patch_shim(dir)?;
     std::fs::write(dir.join("migrations/0001_init.sql"), MIGRATION)?;
     let config = dir.join("rok-data-sqlc.toml");
     let toml = std::fs::read_to_string(&config)?;

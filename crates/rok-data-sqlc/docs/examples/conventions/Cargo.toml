@@ -8,6 +8,7 @@ publish = false
 # The dependencies the generated `src/db/mod.rs` lists, plus tokio to run.
 [dependencies]
 sqlx = { version = "0.9", features = ["runtime-tokio", "postgres", "derive", "uuid", "chrono", "rust_decimal"] }
+rok-data = { version = "0.2", features = ["uuid", "chrono", "decimal"] }
 uuid = "1"
 chrono = "0.4"
 rust_decimal = "1"
@@ -15,3 +16,8 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 # Standalone example crate: not part of the rok-data workspace.
 [workspace]
+
+# Until rok-data 0.2 is published, the generated code resolves the
+# workspace crate instead of the registry.
+[patch.crates-io]
+rok-data = { path = "../../../../../crates/rok-data" }

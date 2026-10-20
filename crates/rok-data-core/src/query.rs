@@ -7,12 +7,39 @@ use sqlx::postgres::PgRow;
 use sqlx::{Decode, FromRow, Postgres, Row, Type};
 
 use crate::cursor::{Cursor, CursorPage};
-use crate::exec;
+use crate::exec::{self, Journey};
 use crate::expr::Direction;
 use crate::expr::{Cond, IntoProjections, Projection};
 use crate::model::{push_columns, push_returning};
+use crate::relation::{IntoInclude, Loaded, PackedInclude};
 use crate::sql::Sql;
 use crate::{Column, Error, Executor, Expr, Model, Order, Page, Result, Value};
+
+/// One leg of a `with`-loaded query on the session's [`Journey`]: every
+/// arm re-borrows the path, so the rows and each include's batched load
+/// share one pool — or run inside one transaction.
+macro_rules! on_journey {
+    ($journey:expr, |$e:ident| $run:expr) => {
+        match &mut $journey {
+            $crate::exec::Journey::Database(db) => {
+                let $e = &**db;
+                $run
+            }
+            $crate::exec::Journey::Transaction(transaction) => {
+                let $e = &mut **transaction;
+                $run
+            }
+            $crate::exec::Journey::Pool(pool) => {
+                let $e = &**pool;
+                $run
+            }
+            $crate::exec::Journey::Connection(connection) => {
+                let $e = &mut **connection;
+                $run
+            }
+        }
+    };
+}
 
 fn push_where<'a>(sql: &mut Sql, keyword: &str, filters: impl IntoIterator<Item = &'a Cond>) {
     let mut filters = filters.into_iter().peekable();
@@ -495,6 +522,31 @@ impl<M: Model> Select<M> {
         projection.write(&mut sql);
         self.write_from_where(&mut sql);
         sql
+    }
+
+    /// Loads a relation beside the rows: the batched follow-up query runs
+    /// once for the whole match (defeating N+1), and terminals return a
+    /// [`Loaded`](crate::relation::Loaded) carrying the rows and their
+    /// loaded relations.
+    ///
+    /// Accepted as the include: a relation constant (`User::POSTS`), or
+    /// an [`Include`](crate::relation::Include) with filters, ordering,
+    /// limit and offset on the batch.
+    ///
+    /// ```ignore
+    /// let view = User::filter(User::ACTIVE.eq(true))
+    ///     .with(User::POSTS)
+    ///     .all(&db)
+    ///     .await?;
+    /// for user in view.rows() {
+    ///     let posts = view.try_get(User::POSTS, user);
+    /// }
+    /// ```
+    pub fn with<I: IntoInclude<M>>(self, include: I) -> WithSelect<M> {
+        WithSelect {
+            select: self,
+            includes: vec![include.into_packed()],
+        }
     }
 
     /// Fetch every matching row.
@@ -1035,6 +1087,82 @@ impl<M: Model> fmt::Debug for Select<M> {
     }
 }
 
+/// A query with relations requested by [`.with()`](Select::with): the main
+/// rows plus one batched load per include, fetched on one shared
+/// connection ([`Journey`](crate::exec::Journey)). Included rows ride out
+/// in the [`Loaded`](crate::relation::Loaded) map of `all`.
+///
+/// Chaining keeps the includes: `filter`, `order_by`, `limit` and `offset`
+/// act on the main rows, and `.with()` adds relations one after another.
+pub struct WithSelect<M: Model> {
+    select: Select<M>,
+    includes: Vec<PackedInclude<M>>,
+}
+
+impl<M: Model> fmt::Debug for WithSelect<M> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("WithSelect")
+            .field("select", &self.select.to_sql())
+            .field("includes", &self.includes.len())
+            .finish()
+    }
+}
+
+impl<M: Model> WithSelect<M> {
+    /// Restricts the main rows; the includes keep their own shaping.
+    pub fn filter(mut self, expr: Expr<M>) -> Self {
+        self.select = self.select.filter(expr);
+        self
+    }
+
+    /// Orders the main rows.
+    pub fn order_by(mut self, order: impl Into<Order<M>>) -> Self {
+        self.select = self.select.order_by(order);
+        self
+    }
+
+    /// Caps the main rows.
+    pub fn limit(mut self, limit: u64) -> Self {
+        self.select = self.select.limit(limit);
+        self
+    }
+
+    /// Skips that many matching main rows.
+    pub fn offset(mut self, offset: u64) -> Self {
+        self.select = self.select.offset(offset);
+        self
+    }
+
+    /// Adds one more relation to load beside the rows.
+    pub fn with<I: IntoInclude<M>>(mut self, include: I) -> Self {
+        self.includes.push(include.into_packed());
+        self
+    }
+
+    /// Fetches the rows and every requested relation: the main query,
+    /// then one batched query per include, in the order the includes were
+    /// added.
+    pub async fn all<'c, J>(self, session: J) -> Result<Loaded<M>>
+    where
+        J: Into<Journey<'c>>,
+    {
+        let mut journey = session.into();
+        let replica = self.select.use_replica();
+        let sql = self.select.to_sql();
+        let rows: Vec<M> = on_journey!(journey, |e| exec::fetch_all(e, &sql, &[], replica).await)?;
+        let mut view = Loaded::new(rows);
+        for include in self.includes {
+            // The SQL is rendered here, once the owners' key values are known.
+            let include_sql = (include.children_sql)(view.rows())?;
+            let children: Vec<PgRow> =
+                on_journey!(journey, |e| exec::fetch_rows(e, &include_sql, &[], replica)
+                    .await)?;
+            view.park(include.identity, (include.assemble)(children)?);
+        }
+        Ok(view)
+    }
+}
+
 /// A `SELECT` of specific columns or aggregates, created with
 /// [`Select::select`]. Decode rows into tuples or any `sqlx::FromRow` type.
 pub struct Projected<M> {
@@ -1418,7 +1546,10 @@ impl<M: Model> Update<M> {
         exec::fetch_all(executor, &sql, &[M::TABLE], false).await
     }
 
-    pub(crate) async fn returning_one<'e, E: Executor<'e>>(self, executor: E) -> Result<Option<M>> {
+    /// Run the update and return the stored first row, or `None` when the
+    /// `WHERE` matched nothing: no row had that key (with a version filter,
+    /// also when its version no longer matches).
+    pub async fn returning_one<'e, E: Executor<'e>>(self, executor: E) -> Result<Option<M>> {
         let mut sql = self.to_sql();
         push_returning::<M>(&mut sql);
         exec::fetch_optional(executor, &sql, &[M::TABLE], false).await

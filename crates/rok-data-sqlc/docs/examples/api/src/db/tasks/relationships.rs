@@ -12,15 +12,16 @@ use std::collections::HashMap;
 
 use super::super::projects::models::{Project, ProjectId};
 use super::models::{Task, TaskId};
+use rok_data::Model;
 
 /// Loads the `project` of each of `rows`: the `projects` row its `project_id`
 /// references, keyed by `id`, in one query.
 pub async fn load_project<'e, E>(
     executor: E,
     rows: &[Task],
-) -> Result<HashMap<ProjectId, Project>, sqlx::Error>
+) -> Result<HashMap<ProjectId, Project>, rok_data::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     let mut keys = Vec::new();
     for row in rows {
@@ -29,21 +30,10 @@ where
     if keys.is_empty() {
         return Ok(HashMap::new());
     }
-    let related = sqlx::query_as::<_, Project>(
-        r#"
-        SELECT
-            id,
-            owner_id,
-            name,
-            open_tasks,
-            created_at
-        FROM projects
-        WHERE id = ANY($1)
-        "#,
-    )
-    .bind(keys)
-    .fetch_all(executor)
-    .await?;
+    let related = Project::query()
+        .filter(Project::ID.is_in(keys))
+        .all(executor)
+        .await?;
     let mut loaded = HashMap::new();
     for row in related {
         loaded.insert(row.id, row);
@@ -91,7 +81,7 @@ pub async fn get_with_project<'e, E>(
     id: TaskId,
 ) -> Result<Option<TaskWithProject>, sqlx::Error>
 where
-    E: sqlx::PgExecutor<'e>,
+    E: rok_data::Executor<'e>,
 {
     sqlx::query_as::<_, TaskWithProject>(
         r#"

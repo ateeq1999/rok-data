@@ -185,8 +185,12 @@ Paging by "rows after this primary key" (`search_after`) instead of by offset, s
 _Avoid_: cursor (when it means an offset)
 
 **Executor**:
-The generic `sqlx::PgExecutor` a generated CRUD function runs against; a caller passes `&pool` or `&mut *tx`, keeping the transaction boundary theirs.
+The generic `rok_data::Executor<'e>` (implements `sqlx::PgExecutor`) a generated CRUD function runs against; a caller passes `&pool` or `&mut *tx`, keeping the transaction boundary theirs.
 _Avoid_: pool (when it may be a transaction), connection
+
+**Query chain**:
+The fluent data-layer chain a generated function runs on: entry points on the row type (`Xxx::query()` for reads and deletes, `Xxx::create()` for inserts, `Xxx::update_all()` for partial updates) with `.filter()`, `.set()`, `.order_by()`, and terminal calls — `first`, `all`, `count`, `returning_one`, `exec`, `delete` — each executed against an executor. The chains mirror the runtime facade's builders (`Select`, `Insert`, `Patch`); the engine only assembles them.
+_Avoid_: raw SQL (for the chains), query builder (that is the filter surface)
 
 ## Relationships
 

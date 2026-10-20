@@ -269,6 +269,7 @@ fn validate_makes_text_typed_ids_measurable() {
     }
 }
 
+rok_data::impl_value!(UserId);
 impl validator::ValidateLength<u64> for UserId {
     fn length(&self) -> Option<u64> {
         validator::ValidateLength::length(&self.0)

@@ -2,6 +2,7 @@
 
 use super::super::categories::models::CategoryId;
 use super::super::types;
+use rok_data::Model;
 
 /// The primary key of the `products` table, as a distinct type so it
 /// cannot be mixed up with another table's key.
@@ -27,10 +28,13 @@ impl std::fmt::Display for ProductId {
     }
 }
 
+rok_data::impl_value!(ProductId);
 /// A row of the `products` table.
-#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+#[derive(Debug, Clone, PartialEq, Model)]
+#[rok(table = "products")]
 pub struct Product {
     /// The `id` column.
+    #[rok(primary_key)]
     pub id: ProductId,
     /// The `category_id` column.
     pub category_id: CategoryId,

@@ -18,7 +18,7 @@ use sqlx::PgPool;
 /// # Errors
 ///
 /// Any database error.
-pub async fn quickstart(pool: &PgPool) -> Result<(), sqlx::Error> {
+pub async fn quickstart(pool: &PgPool) -> Result<(), rok_data::Error> {
     // Every generated function takes an executor first: here, the pool.
     let tools = db::categories::write::create(
         pool,

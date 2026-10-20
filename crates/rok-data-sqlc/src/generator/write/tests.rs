@@ -13,15 +13,12 @@ fn static_create_when_no_column_has_a_default() {
     ));
     assert!(rendered.contains("use super::models::{NewUser, UpdateUser, User};"));
     assert!(rendered.contains(
-        "pub async fn create<'e, E>(executor: E, input: NewUser) -> Result<User, sqlx::Error>"
+        "pub async fn create<'e, E>(executor: E, input: NewUser) -> Result<User, rok_data::Error>"
     ));
     assert!(rendered.contains(
-            "        INSERT INTO users (id, email, note)\n        VALUES ($1, $2, $3)\n        RETURNING\n            id,\n            email,\n            note\n"
-        ));
-    assert!(rendered.contains(
-            "    .bind(input.id)\n    .bind(input.email)\n    .bind(input.note)\n    .fetch_one(executor)\n"
-        ));
-    assert!(!rendered.contains("QueryBuilder::<sqlx::Postgres>::new(\"INSERT"));
+        "    User::create()\n        .set(User::ID, input.id)\n        .set(User::EMAIL, input.email)\n        .set(User::NOTE, input.note)\n        .exec(executor)\n        .await\n"
+    ));
+    assert!(!rendered.contains("INSERT"));
 }
 
 #[test]
@@ -35,17 +32,16 @@ fn dynamic_create_omits_defaulted_columns_from_columns_and_binds_alike() {
         ],
         &["id"],
     ));
-    assert!(rendered.contains(
-        "    let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(\"INSERT INTO users (\");\n"
-    ));
-    assert!(rendered.contains("    columns.push(\"email\");\n    if input.created_at.is_some() {\n        columns.push(\"created_at\");\n    }\n    if input.tag.is_some() {\n        columns.push(\"tag\");\n    }\n"));
-    assert!(rendered.contains("    values.push_bind(input.email);\n    if let Some(value) = input.created_at {\n        values.push_bind(value);\n    }\n    if let Some(value) = input.tag {\n        values.push_bind(value);\n    }\n"));
-    assert!(!rendered.contains("columns.push(\"id\")"));
+    assert!(rendered.contains("    let mut insert = User::create();\n"));
+    assert!(rendered.contains("    insert = insert.set(User::EMAIL, input.email);\n"));
+    assert!(rendered.contains("    if let Some(value) = input.created_at {\n        insert = insert.set(User::CREATED_AT, value);\n    }\n"));
+    assert!(rendered.contains("    if let Some(value) = input.tag {\n        insert = insert.set(User::TAG, value);\n    }\n"));
+    assert!(!rendered.contains("columns.push"));
     assert!(
         !rendered.contains("DEFAULT VALUES"),
         "a required column means the list is never empty"
     );
-    assert!(rendered.contains("    query.build_query_as::<User>().fetch_one(executor).await\n"));
+    assert!(rendered.contains("    insert.exec(executor).await\n"));
 }
 
 #[test]
@@ -58,8 +54,13 @@ fn dynamic_create_falls_back_to_default_values() {
         ],
         &["id"],
     ));
-    assert!(rendered.contains("    if input.hits.is_none() && input.created_at.is_none() {\n        return sqlx::query_as::<_, User>(\n            r#\"\n            INSERT INTO users\n            DEFAULT VALUES\n            RETURNING\n"));
-    assert!(rendered.contains("        .fetch_one(executor)\n        .await;\n    }\n"));
+    // Every column has a default, so the emitted chain may end up set-less
+    // (`INSERT ... DEFAULT VALUES`, which the core emits for an empty
+    // insert); the conditional sets stand in for it.
+    assert!(rendered.contains("    let mut insert = User::create();\n"));
+    assert!(rendered.contains("    if let Some(value) = input.hits {\n        insert = insert.set(User::HITS, value);\n    }\n"));
+    assert!(rendered.contains("    if let Some(value) = input.created_at {\n        insert = insert.set(User::CREATED_AT, value);\n    }\n"));
+    assert!(rendered.contains("    insert.exec(executor).await\n"));
 }
 
 #[test]
@@ -74,16 +75,18 @@ fn update_uses_query_builder_binds_and_guards_empty_patch() {
         &["order_id", "product_id"],
     ));
     assert!(rendered.contains(
-            "pub async fn update<'e, E>(\n    executor: E,\n    key: UserKey,\n    input: UpdateUser,\n) -> Result<Option<User>, sqlx::Error>"
-        ));
+        "pub async fn update<'e, E>(\n    executor: E,\n    key: UserKey,\n    input: UpdateUser,\n) -> Result<Option<User>, rok_data::Error>"
+    ));
     assert!(rendered.contains("    if input.is_empty() {\n        return super::read::get_by_id(executor, key).await;\n    }\n"));
-    assert!(rendered.contains("    if let Some(value) = input.quantity {\n        assignments.push(\"quantity = \");\n        assignments.push_bind_unseparated(value);\n    }\n"));
-    assert!(rendered.contains("    query.push(\" WHERE order_id = \");\n    query.push_bind(key.order_id);\n    query.push(\" AND product_id = \");\n    query.push_bind(key.product_id);\n"));
+    assert!(rendered.contains(
+        "    let mut update = User::update_all()\n        .filter(User::ORDER_ID.eq(key.order_id))\n        .filter(User::PRODUCT_ID.eq(key.product_id));\n"
+    ));
+    assert!(rendered.contains("    if let Some(value) = input.quantity {\n        update = update.set(User::QUANTITY, value);\n    }\n"));
     assert!(
-        !rendered.contains("sets.len()"),
-        "placeholders come from QueryBuilder, not arithmetic"
+        !rendered.contains("assignments"),
+        "the chains carry no query builder"
     );
-    assert!(rendered.contains("fetch_optional(executor)"));
+    assert!(rendered.contains("update.returning_one(executor).await"));
 }
 
 #[test]
@@ -101,7 +104,10 @@ fn update_assignments_follow_column_order() {
         .iter()
         .map(|name| {
             rendered
-                .find(&format!("assignments.push(\"{name} = \")"))
+                .find(&format!(
+                    "update = update.set(User::{}, value)",
+                    name.to_uppercase()
+                ))
                 .unwrap()
         })
         .collect();
@@ -118,9 +124,14 @@ fn quotes_reserved_identifiers_in_dynamic_sql() {
         ],
         &["select"],
     ));
-    assert!(rendered.contains("columns.push(r#\"\"from\"\"#);"));
-    assert!(rendered.contains("assignments.push(r#\"\"user\" = \"#);"));
-    assert!(rendered.contains("query.push(r#\" WHERE \"select\" = \"#);"));
+    // The chains name every column by its Rust field, so the reserved SQL
+    // names no longer appear unquoted anywhere in the module.
+    assert!(!rendered.contains("\"from\""));
+    assert!(!rendered.contains("\"user\" = "));
+    assert!(rendered.contains("insert = insert.set(User::FROM, value);"));
+    assert!(rendered.contains("insert = insert.set(User::USER, input.user);"));
+    assert!(rendered.contains("update = update.set(User::USER, value);"));
+    assert!(rendered.contains(".filter(User::SELECT.eq(select))"));
 }
 
 #[test]
@@ -129,14 +140,12 @@ fn delete_reports_whether_a_row_was_removed() {
         vec![column("id", "i64"), column("email", "String")],
         &["id"],
     ));
-    assert!(
-        rendered.contains(
-            "pub async fn delete<'e, E>(executor: E, id: i64) -> Result<bool, sqlx::Error>"
-        )
-    );
     assert!(rendered.contains(
-            "    let result = sqlx::query(\n        r#\"\n        DELETE FROM users\n        WHERE id = $1\n        \"#,\n    )\n    .bind(id)\n    .execute(executor)\n    .await?;\n    Ok(result.rows_affected() > 0)\n"
-        ));
+        "pub async fn delete<'e, E>(executor: E, id: i64) -> Result<bool, rok_data::Error>"
+    ));
+    assert!(rendered.contains(
+        "    User::query()\n        .filter(User::ID.eq(id))\n        .delete(executor)\n        .await\n        .map(|count| count > 0)\n"
+    ));
 }
 
 #[test]

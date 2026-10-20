@@ -6,7 +6,7 @@
 //! cargo run -p rok-data-codegen --example regenerate
 //! ```
 //!
-//! The user-facing path is `rok generate --config examples/sqlgen/rok-data.toml`
+//! The user-facing path is `rok generate --config examples/sqlgen/rok.toml`
 //! (which reads the settings file); this example hard-codes the same settings
 //! so the committed example can be refreshed without the CLI installed.
 
@@ -19,7 +19,7 @@ fn main() {
     options.input = PathBuf::from("examples/sqlgen/db");
     options.output = PathBuf::from("examples/sqlgen/db-gen");
     options.crate_name = "sqlgen-db".to_owned();
-    // Same settings as `examples/sqlgen/rok-data.toml`.
+    // Same settings as `examples/sqlgen/rok.toml`.
     options.rok_data = Dependency::Path(PathBuf::from("examples/sqlgen/../../crates/rok-data"));
     options.strict = false;
     options.database_url = std::env::var("DATABASE_URL").ok().filter(|u| !u.is_empty());

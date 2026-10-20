@@ -1,14 +1,46 @@
-//! `create`: a static insert, or one built at runtime when columns have
-//! defaults.
+//! `create`: an insert built column by column on the model chain.
 
 use crate::schema::{Column, Table};
 
-use super::{push_returning, returning_clause};
-use crate::generator::sql::{ident, str_literal, table_ref};
 use crate::generator::{
-    StaticQuery, insert_bind, keys, push_and_chain, push_build_and_fetch, push_doc, push_fn_head,
-    push_let_call,
+    FN_CALL_WIDTH, MAX_WIDTH, insert_bind, keys, param_name, push_doc, push_fn_head,
+    push_wide_chain,
 };
+
+/// Sets `column` to `value` on `builder`, laid out as rustfmt lays it out:
+/// on one line while the call's arguments fit the call width and the
+/// statement fits the line width, otherwise with one argument per line.
+fn push_set_line(
+    output: &mut String,
+    table: &Table,
+    column: &Column,
+    value: &str,
+    builder: &str,
+    indent: usize,
+) {
+    let pad = " ".repeat(indent);
+    let args = format!("{}::{}, {value}", table.struct_name, const_name(column));
+    let one_line = format!("{pad}{builder} = {builder}.set({args});");
+    if args.len() <= FN_CALL_WIDTH && one_line.len() <= MAX_WIDTH {
+        output.push_str(&one_line);
+        output.push('\n');
+    } else {
+        for line in [
+            format!("{pad}{builder} = {builder}.set("),
+            format!("{pad}    {}::{},", table.struct_name, const_name(column)),
+            format!("{pad}    {value},"),
+            format!("{pad});"),
+        ] {
+            output.push_str(&line);
+            output.push('\n');
+        }
+    }
+}
+
+/// The column's `Model` const: the field name in upper case.
+fn const_name(column: &Column) -> String {
+    column.rust_name.to_uppercase()
+}
 
 fn push_create_head(output: &mut String, table: &Table, doc: &[&str]) {
     output.push('\n');
@@ -17,39 +49,44 @@ fn push_create_head(output: &mut String, table: &Table, doc: &[&str]) {
         output,
         "create",
         &keys::scoped_params(table, &[format!("input: New{}", table.struct_name)]),
-        &format!("Result<{}, sqlx::Error>", table.struct_name),
+        &format!("Result<{}, rok_data::Error>", table.struct_name),
     );
 }
 
 pub(super) fn render_static_create(output: &mut String, table: &Table, columns: &[&Column]) {
-    let names: Vec<String> = table
-        .tenant()
-        .into_iter()
-        .chain(columns.iter().copied())
-        .map(|column| ident(&column.sql_name))
-        .collect();
-    let placeholders: Vec<String> = (1..=names.len()).map(|index| format!("${index}")).collect();
-    let mut sql = vec![
-        format!("INSERT INTO {} ({})", table_ref(table), names.join(", ")),
-        format!("VALUES ({})", placeholders.join(", ")),
-    ];
-    sql.extend(returning_clause(table));
-
     push_create_head(
         output,
         table,
         &["Inserts one row and returns it as stored."],
     );
-    StaticQuery {
-        call: &format!("sqlx::query_as::<_, {}>", table.struct_name),
-        sql,
-        binds: keys::tenant_bind(table)
-            .into_iter()
-            .chain(columns.iter().map(|column| insert_bind(column)))
-            .collect(),
-        execute: "fetch_one(executor)",
+
+    let mut calls = Vec::new();
+    if let Some(tenant) = table.tenant() {
+        calls.push(format!(
+            ".set({}::{}, {})",
+            table.struct_name,
+            const_name(tenant),
+            param_name(tenant)
+        ));
     }
-    .push(output, 4, "", "");
+    for column in columns {
+        calls.push(format!(
+            ".set({}::{}, {})",
+            table.struct_name,
+            const_name(column),
+            insert_bind(column)
+        ));
+    }
+    calls.push(".exec(executor)".to_owned());
+    calls.push(".await".to_owned());
+    push_wide_chain(
+        output,
+        4,
+        "",
+        &format!("{}::create()", table.struct_name),
+        &calls,
+        "",
+    );
     output.push_str("}\n");
 }
 
@@ -63,73 +100,45 @@ pub(super) fn render_dynamic_create(output: &mut String, table: &Table, columns:
         ],
     );
 
-    // When every insertable column is defaulted, an all-`None` input lists no
-    // columns at all, which only `DEFAULT VALUES` can express. A tenant table
-    // always lists its tenant column.
-    if table.tenant().is_none() && columns.iter().all(|column| column.is_omittable_on_insert()) {
-        let terms: Vec<String> = columns
-            .iter()
-            .map(|column| format!("input.{}.is_none()", column.rust_name))
-            .collect();
-        push_and_chain(output, 4, "if ", &terms, " {");
-        let mut sql = vec![
-            format!("INSERT INTO {}", table_ref(table)),
-            "DEFAULT VALUES".to_owned(),
-        ];
-        sql.extend(returning_clause(table));
-        StaticQuery {
-            call: &format!("sqlx::query_as::<_, {}>", table.struct_name),
-            sql,
-            binds: Vec::new(),
-            execute: "fetch_one(executor)",
-        }
-        .push(output, 8, "return ", ";");
-        output.push_str("    }\n\n");
-    }
-
-    push_let_call(
-        output,
-        4,
-        "let mut query",
-        "sqlx::QueryBuilder::<sqlx::Postgres>::new",
-        &str_literal(&format!("INSERT INTO {} (", table_ref(table))),
-    );
-    output.push_str("    let mut columns = query.separated(\", \");\n");
+    // Columns left unset are left out of the `INSERT` (so the database
+    // default applies); an all-`None` input without a tenant column renders
+    // `INSERT … DEFAULT VALUES`. The model chain does both natively.
+    let mut calls = Vec::new();
     if let Some(tenant) = table.tenant() {
-        output.push_str(&format!(
-            "    columns.push({});\n",
-            str_literal(&ident(&tenant.sql_name))
+        calls.push(format!(
+            ".set({}::{}, {})",
+            table.struct_name,
+            const_name(tenant),
+            param_name(tenant)
         ));
     }
-    for column in columns {
-        let name = str_literal(&ident(&column.sql_name));
-        if column.is_omittable_on_insert() {
-            output.push_str(&format!("    if input.{}.is_some() {{\n", column.rust_name));
-            output.push_str(&format!("        columns.push({name});\n"));
-            output.push_str("    }\n");
-        } else {
-            output.push_str(&format!("    columns.push({name});\n"));
-        }
-    }
-    output.push_str("    query.push(\") VALUES (\");\n");
-    output.push_str("    let mut values = query.separated(\", \");\n");
-    if let Some(tenant) = keys::tenant_bind(table) {
-        output.push_str(&format!("    values.push_bind({tenant});\n"));
-    }
+    push_wide_chain(
+        output,
+        4,
+        "let mut insert = ",
+        &format!("{}::create()", table.struct_name),
+        &calls,
+        ";",
+    );
     for column in columns {
         if column.is_omittable_on_insert() {
             output.push_str(&format!(
                 "    if let Some(value) = input.{} {{\n",
                 column.rust_name
             ));
-            output.push_str("        values.push_bind(value);\n");
+            push_set_line(output, table, column, "value", "insert", 8);
             output.push_str("    }\n");
         } else {
-            output.push_str(&format!("    values.push_bind({});\n", insert_bind(column)));
+            push_set_line(
+                output,
+                table,
+                column,
+                insert_bind(column).as_str(),
+                "insert",
+                4,
+            );
         }
     }
-    output.push_str("    query.push(\")\");\n");
-    push_returning(output, table);
-    push_build_and_fetch(output, table, "fetch_one");
+    output.push_str("\n    insert.exec(executor).await\n");
     output.push_str("}\n");
 }

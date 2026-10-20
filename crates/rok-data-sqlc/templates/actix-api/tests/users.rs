@@ -12,7 +12,11 @@ use sqlx::PgPool;
 use support::{Database, TestResult, admin, call, user};
 
 /// Inserts a user with `email` and `display_name`.
-async fn seed(pool: &PgPool, email: &str, display_name: Option<&str>) -> Result<User, sqlx::Error> {
+async fn seed(
+    pool: &PgPool,
+    email: &str,
+    display_name: Option<&str>,
+) -> Result<User, rok_data::Error> {
     write::create(
         pool,
         NewUser {

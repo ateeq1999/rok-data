@@ -12,7 +12,7 @@ use crate::schema::{Column, Table, mentions_generated_type};
 
 use self::inputs::{render_insert_input, render_update_patch};
 use super::{
-    DeriveOptions, HEADER, doc_name, keys, push_derives, push_doc, serde_derives, use_paths,
+    DeriveOptions, HEADER, doc_name, keys, push_derives, push_doc, serde_derives, sql, use_paths,
 };
 
 pub use self::nullable::render_nullable;
@@ -25,6 +25,7 @@ fn column_doc(column: &Column) -> String {
 pub fn render(table: &Table, derives: DeriveOptions) -> String {
     let mut output = format!("{HEADER}\n");
     let mut imports = keys::id_imports(table, &table.columns, true);
+    imports.push("rok_data::Model".to_owned());
     // A column typed by another module's id (one wrapping an enum) does not
     // name the enum here; this module's own id does, in its definition.
     if table.columns.iter().any(|column| {
@@ -66,17 +67,13 @@ pub fn render(table: &Table, derives: DeriveOptions) -> String {
 fn render_row(output: &mut String, table: &Table, serde: bool) {
     let doc = format!("A row of the `{}` table.", table.display_name());
     push_doc(output, 0, &[&doc]);
-    output.push_str("#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]\n");
+    output.push_str("#[derive(Debug, Clone, PartialEq, Model)]\n");
     push_derives(output, serde_derives(serde));
+    push_container_attrs(output, table);
     output.push_str(&format!("pub struct {} {{\n", table.struct_name));
     for column in &table.columns {
         push_doc(output, 4, &[&column_doc(column)]);
-        if column.rust_name != column.sql_name {
-            output.push_str(&format!(
-                "    #[sqlx(rename = {})]\n",
-                super::sql::str_literal(&column.sql_name)
-            ));
-        }
+        push_field_attrs(output, table, column);
         output.push_str(&format!(
             "    pub {}: {},\n",
             column.rust_name,
@@ -84,4 +81,52 @@ fn render_row(output: &mut String, table: &Table, serde: bool) {
         ));
     }
     output.push_str("}\n");
+}
+
+/// The `#[rok(...)]` container attributes of a row's derive: the table (with
+/// its schema), and `soft_delete` when a soft-delete column exists (its own
+/// attribute names the column below).
+fn push_container_attrs(output: &mut String, table: &Table) {
+    let mut attrs = vec![format!(
+        "table = {}",
+        sql::str_literal(&qualified_table(table))
+    )];
+    if table
+        .columns
+        .iter()
+        .any(|column| table.is_soft_delete_column(column))
+    {
+        attrs.push("soft_delete".to_owned());
+    }
+    output.push_str(&format!("#[rok({})]\n", attrs.join(", ")));
+}
+
+/// The `#[rok(...)]` attributes of one row field: the column's name when it
+/// differs from the field, the primary key, generated-only columns ("read
+/// but never written"), and the soft-delete column's marker.
+fn push_field_attrs(output: &mut String, table: &Table, column: &Column) {
+    if column.rust_name != column.sql_name {
+        output.push_str(&format!(
+            "    #[rok(column = {})]\n",
+            sql::str_literal(&column.sql_name)
+        ));
+    }
+    if column.is_primary_key {
+        output.push_str("    #[rok(primary_key)]\n");
+    }
+    if column.is_generated {
+        output.push_str("    #[rok(generated)]\n");
+    }
+    if table.is_soft_delete_column(column) {
+        output.push_str("    #[rok(deleted_at)]\n");
+    }
+}
+
+/// The table as rok-data's `#[rok(table = …)]` takes it: `schema.name`, or
+/// just `name`, unquoted (rok-data quotes identifiers itself).
+fn qualified_table(table: &Table) -> String {
+    match &table.schema {
+        Some(schema) => format!("{schema}.{}", table.sql_name),
+        None => table.sql_name.clone(),
+    }
 }

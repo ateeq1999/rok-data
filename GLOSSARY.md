@@ -1,0 +1,62 @@
+# rok-data
+
+PostgreSQL data tooling built around one pipeline: a developer writes SQL,
+`rok` generates a fluent, chainable data layer, migrations, and a running
+API from it.
+
+## Language
+
+### Pipeline
+
+**Unified data layer**:
+The single fluent, chainable ORM style that every generator emits.
+_Avoid_: ORM layer, sqlx layer, "the codegen style"
+
+**Schema dir**:
+The folder of `.sql` files a developer writes and edits; the project's
+only writable source of truth. Models, migrations, and API code derive
+from it.
+_Avoid_: schema files (when the folder is meant)
+
+**SQL-first**:
+The direction of truth: schema dir in, everything else derived; no
+generated artifact writes DDL except the diff engine.
+_Avoid_: bidirectional sync, two-way schema sync
+
+**Drift check**:
+Verification that generated files on disk still match what the current
+schema dir would generate; a failing check exits non-zero for CI.
+_Avoid_: stale check, codegen lint
+
+**Legacy alias**:
+An old command name kept working after the command surface is rebuilt,
+forwarding verbatim into the same implementation.
+_Avoid_: deprecated command, shim
+
+**With-loading**:
+Fetching related rows as part of the query chain itself (`.with(relation)`
+on a Select), so the returned rows already carry their relations. Each
+include runs one batched follow-up query on the same connection (or
+transaction), never a query per row.
+_Avoid_: eager loading (generic), lazy loading, N+1 fix
+
+**Include**:
+One relation requested for loading in a `with()` chain — either a bare
+relation constant (`User::POSTS`) or an `Include` with its own shaping
+(filters, ordering, limit, offset that act on the batch, not the rows).
+_Avoid_: eager clause, nested with
+
+**Loaded**:
+The view a `with()` query returns: the fetched rows plus every include's
+state. Typed reads go through the same relation constant that asked
+(`view.loaded(User::POSTS)`, `view.try_get(..)`); a relation never
+requested reads as `None`, never a panic.
+_Avoid_: result map, joined rows
+
+### Pipeline pieces (deferred from the engine context)
+
+The terms **Table**, **Resource**, **API feature**, **Template**,
+**Scaffolded file**, **Drift**, **Convention**, **Preset**, and the
+relationship vocabulary are owned by the engine context's glossary at
+`crates/rok-data-sqlc/GLOSSARY.md`; this context reuses them with the
+same meaning rather than redefining them.
