@@ -197,7 +197,7 @@ warning.
 Error: generated code is out of date: 9 file(s) drifted; run `rok sqlc generate` to update them
 ```
 
-`rok-data-sqlc g --check` found committed generated code that doesn't match the
+`rok sqlc g --check` found committed generated code that doesn't match the
 schema and configuration (the lines above it list the files). Run
 `rok sqlc generate` and commit the result. If you didn't change the schema, check
 that CI runs the same rok-data-sqlc version as you, and that nobody edited a
@@ -218,10 +218,10 @@ document's wiring from the files `init` scaffolded:
 
 ```text
 error: invalid value 'nope' for '--template <NAME>'
-  [possible values: actix]
+  [possible values: actix, axum]
 ```
 
-`rok sqlc init --template` takes `actix`, the only template so far.
+`rok sqlc init --template` takes `actix` and `axum`, the two templates so far.
 
 ## Building
 

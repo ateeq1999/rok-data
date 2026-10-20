@@ -3,7 +3,9 @@
 use std::process::ExitCode;
 
 pub mod db;
+pub mod r#gen;
 pub mod generate;
+pub mod init;
 pub mod migrate;
 pub mod schema;
 pub mod sqlc;
@@ -13,10 +15,19 @@ use crate::cli::{Command, DbAction, MigrateAction, SchemaAction};
 /// Execute a parsed command; errors print `error: …` outside and exit 1.
 pub(crate) async fn execute(command: Command) -> Result<ExitCode, String> {
     match command {
+        Command::Init {
+            name,
+            template,
+            schema,
+        } => init::run(name, template, schema),
         Command::Generate {
             options: generation,
             action,
         } => generate::run(generation, action).await,
+        Command::Gen {
+            options: generation,
+            action,
+        } => r#gen::run(generation, action),
         Command::Migrate(action) => match action {
             MigrateAction::Create { name, dir } => migrate::create(&name, &dir),
             MigrateAction::Status {

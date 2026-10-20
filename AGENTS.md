@@ -26,6 +26,7 @@ functions; sqlx is depended on only by `rok-data-core`.
 | CLI wiring / output formats / new root commands | `crates/rok-cli/src/{cli,commands,context,output,config}.rs`       |
 | Migration file format change                    | `crates/rok-data-core/src/{migration,migration_file}.rs` both      |
 | Fixtures (compile crates)                       | `crates/rok-data-sqlc/tests/{api-app,fixture-app,modules-app}` — excluded from the workspace; they manage own deps |
+| The vertical-slice example                      | `examples/api` — excluded from the workspace too; its gate is `crates/rok-cli/tests/fixture_compile/example_api.rs` |
 
 ## Invariants (break them and something is wrong; fix the thing you broke)
 
@@ -96,6 +97,14 @@ Tag `vX.Y.Z` (must equal the workspace version) to run
 `install.sh`/`install.ps1`, then crates.io publishing in dependency
 order. Release notes live in root `CHANGELOG.md` under a `## [X.Y.Z]`
 heading — a tag without one fails the release. See ADR 0008.
+
+Before the tag, check that the crates.io names are free: a name that is
+taken cannot be published, and the workflow's publish step fails on it.
+For 0.2.0, `rok-data`, `rok-data-core`, `rok-data-macros`,
+`rok-data-codegen` and `rok-data-sqlc` are free, but `rok-cli` is taken
+by another crate (the CLI of `axum-rok-http`, 0.6.1) — so the CLI needs
+another name, or that name freed; `rok-data-cli` is free. Which of the
+two is the user's call.
 
 ## Docs discipline
 

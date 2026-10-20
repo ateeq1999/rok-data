@@ -1,6 +1,27 @@
 //! Terminal output helpers and the small pieces of the JSON contract.
 
+use std::path::Path;
+
 use serde_json::{Value, json};
+
+/// A path the way the CLI prints it: relative to the current directory when
+/// it is below it, with `/` as the separator on every platform.
+pub(crate) fn display_path(path: &Path) -> String {
+    let current = std::env::current_dir().ok();
+    let shown = current
+        .as_deref()
+        .and_then(|current| path.strip_prefix(current).ok())
+        .filter(|relative| !relative.as_os_str().is_empty())
+        .unwrap_or(path);
+    let mut text = shown.display().to_string();
+    if std::path::MAIN_SEPARATOR == '\\' {
+        text = text.replace('\\', "/");
+    }
+    while let Some(rest) = text.strip_prefix("./") {
+        text = rest.to_owned();
+    }
+    text
+}
 
 /// Turns `StatusRow` rows into the JSON body of `rok migrate status --json`.
 pub(crate) fn status_json(rows: &[rok_data::migration_file::StatusRow]) -> Value {

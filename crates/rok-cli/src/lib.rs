@@ -6,13 +6,20 @@
 //! call them without a shell.
 //!
 //! ```text
-//! rok generate                  # model crate from .sql files
+//! rok init [NAME]                # scaffold a project (skeleton or template)
+//! rok gen [OPTIONS] [check]      # data layer and API features from the schema dir
+//! rok generate                  # legacy: model crate from .sql files
 //! rok generate check            # CI: are the generated files up to date?
 //! rok migrate create|status|up|down
 //! rok db check|inspect
 //! rok schema dump|diff
-//! rok sqlc generate|init|check-arch
+//! rok sqlc generate|init|check-arch   # legacy: forwarded to the engine
 //! ```
+//!
+//! `rok generate` and `rok sqlc …` are the legacy surfaces (ADR 0012): they
+//! keep working exactly as they do now — `rok sqlc …` forwards its tokens
+//! verbatim to the engine — and the root help marks them as superseded by
+//! the front door, their removal deferred to 1.0.
 
 use std::process::ExitCode;
 

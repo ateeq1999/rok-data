@@ -121,6 +121,20 @@ legacy engines keep working as forwarded aliases until 1.0.
 - API features: new axum + utoipa generator under the same compile bar
   as the actix fixtures (`deny(missing_docs)`:
   pedantic clippy); actix continues from the current templates.
+  - **Done (T4a)**: the engine's API generator has two backends. The
+    `[api] framework` key (or `-w/--api-framework`) picks one: `actix_web`
+    (the default, byte-identical output) or `axum`. The per-framework
+    emission sits in `generator/api/actix.rs` and `generator/api/axum.rs`
+    (and the shared tools' templates in `generator/api/shared/`), chosen in
+    one place (`generator/api/framework.rs`); the bodies, the service, the
+    listing and the OpenAPI document are shared. The axum fixture
+    (`tests/axum-app`, listed in the workspace `exclude`) proves it under
+    the same bar as the actix one: `deny(missing_docs)`, the selected
+    pedantic lints, `-D warnings`, `check-arch` and rustfmt.
+    - **Open (Phase 4, still open)**: `check-arch`'s rule 1 names
+      `actix_web` only; an axum project passes it trivially. The rule
+      should name the configured framework (and the scaffolded
+      `AGENTS.md` and the architecture guide with it).
 - Acceptance: the engine unit suite (240) passes; generated data
   layers no longer contain raw sqlx function modules (query files
   and joined reads keep their explicit sqlx bodies).
@@ -131,12 +145,63 @@ legacy engines keep working as forwarded aliases until 1.0.
   scaffolds a Template (complete app incl. `main`/`app`/`config`
   `/error`/OpenAPI wiring), with the scaffolded-file policy (written
   once, never rewritten).
+  - **Done (T4b)**: the second template, `axum`
+    (`templates/axum-api/`, in the workspace `exclude`): the actix
+    template's twin, with the same `users` and `audit-log` features, the
+    same wire standard, the same contract test against the axum starter's
+    document, and its own README, `AGENTS.md` and migration. Its
+    configuration selects the backend (`extractors = ["axum"]`, `[api]
+    framework = "axum"`), and the engine's template table knows it, so
+    `rok init --template axum` copies it and the `--template` error lists
+    both. CI checks it in like the actix one: regenerated with no drift
+    (`ROK_DATA_SQLC_UPDATE_EXPECTED=1` writes it), rustfmt-clean,
+    `cargo clippy --all-targets -- -D warnings` under the template's
+    strict lints (`deny(missing_docs)`, the selected pedantic lints, no
+    `unwrap`/`expect`/`panic`), `check-arch`, and its own tests.
 - `rok gen` / `rok gen check`: flags `--config --schema --migration
   NAME --allow-destructive --rename OLD=NEW --strict --json`.
+  - **Done (T2)**: the root `rok gen` is the unified front door: the
+    engine's generator writes the data layer (`src/db/**`), the shared
+    tools and the API features (`src/features/**`) from the project's
+    schema dir, and `--migration NAME` stages a `NNNN_name.up.sql` /
+    `.down.sql` pair into that dir with the codegen crate's new narrow
+    staging API (`rok_data_codegen::staging`, the diff engine without a
+    whole crate). The schema dir holds the truth (plain `*.sql` files)
+    and the history (the staged pairs); the generator reads the truth
+    only, so a staged migration is never applied twice. The staged
+    migration's base is the snapshot `.rok-schema.json` in the schema
+    dir — hidden, not a `*.sql` file, and not the engine's registry
+    (`src/db/schema.json`, which holds the schema as it is *now*).
+    `rok gen check` is the CI mode: nothing is written, the drift is
+    reported, exit 1 on drift. The settings file is the unified
+    `rok.toml` (`[generate]`, ADR 0011); the engine's
+    `rok-data-sqlc.toml` stays readable. The legacy `rok generate` and
+    `rok sqlc …` are untouched.
+  - **Open (Phase 0)**: the unified `rok.toml`'s `[generate]` section
+    and the legacy whole-crate generator's `[generate]`/`[gen]` section
+    share a name and an `output` key with two meanings; the legacy
+    reader must be reconciled with the unified one, and `rok init`
+    should write `rok.toml` (it still writes the engine's file, so the
+    "legacy name" notice of ADR 0011 is not printed yet).
+  - **Open (Phase 4, still open)**: the runtime's migration loader
+    (`rok-data-core::migration_file`) accepts only
+    `NNNN_name.up.sql`/`.down.sql` files, so a schema dir that also
+    holds the truth's plain `*.sql` files is refused by `rok migrate`.
+    Either the loader skips the truth files (as ADR 0004's "the loader
+    now skips non-SQL neighbors instead" describes) or the truth and the
+    history get separate directories.
 - Legacy aliases stay verbatim-forwarding (`rok sqlc` →
   `run_from`); root help marks both `rok generate` and `rok sqlc` as
   superseded, removal deferred to 1.0; `docs/cli-reference.md`
   updated in the same change.
+  - **Done (T3)**: the root help marks `rok generate` and `rok sqlc` as the
+    legacy surface — still supported, still forwarded verbatim to
+    `rok_data_sqlc::cli::run_from` — superseded by the front door (`rok init`
+    scaffolds, `rok gen` generates), with the removal deferred to 1.0. The
+    per-command descriptions carry the same marker, and
+    `docs/cli-reference.md` (the contract), the READMEs,
+    `docs/architecture.md` and `docs/feature-matrix.md` say the same. No
+    flag, alias, output or exit code changed.
 
 ## Phase 4 — vertical slice: `examples/api/`
 
@@ -144,8 +209,45 @@ legacy engines keep working as forwarded aliases until 1.0.
   exclude, per AGENTS.md invariant 7) demonstrating the full chain:
   `schema/` with two small `.sql` files → Template + `rok gen` →
   ORM models, migration pairs, axum features; CI compile-checked.
+  - **Done (T5)**: `examples/api` — the axum template's hand-written half
+    (copied and adapted, never linked), a schema dir `schema/` with two
+    truth files (`library.sql`, `loans.sql`) and the staged migration
+    pairs beside them (`0001_init`, `0002_add_loans`), the generated
+    `src/db/**` (the ORM chains) and `src/features/**` (the axum
+    features), and the unified `rok.toml` (`[generate] schema = "schema"`,
+    `[api] framework = "axum"`). The crate is workspace-excluded (its own
+    `[workspace]` table, and an entry in the root `Cargo.toml`'s
+    `exclude`), and the repository's gate
+    (`crates/rok-cli/tests/fixture_compile/example_api.rs`) proves it:
+    `rok gen check` finds no drift, the staged pairs are the ones
+    `rok gen --migration` writes, and the crate passes rustfmt, the lint
+    gate and its tests (the API tests against PostgreSQL when a database
+    is configured; they skip otherwise).
+  - **Open**: a truth file cannot carry an `ALTER TABLE` yet. The
+    staging's diff works on the parsed tables (`CREATE TABLE`), and the
+    undo it asks for (`-- rok:down`) is a statement the generator would
+    apply as well — so the truth stays at `CREATE TABLE`s, and what a
+    second truth file carries shows up in the staged pair (the
+    `ALTER TABLE ... ADD CONSTRAINT` of its foreign key) instead.
+    Teaching the generator to skip the `-- rok:down` statements (the
+    staging's own vocabulary) is the fix.
+  - **Open**: the runtime's migration loader
+    (`rok-data-core::migration_file`) reads a directory of migration pairs
+    and refuses the truth files beside them, so `rok migrate up --dir
+    schema` does not work on a schema dir yet (the Phase 3 item). The
+    example applies its pairs with `psql` for now.
+  - **Open**: `check-arch`'s rule 1 names `actix_web` only (the Phase 2
+    item), so an axum project passes it trivially. The rule should name
+    the configured framework, with the scaffolded `AGENTS.md` and the
+    architecture guide — a change the templates' bytes depend on, so it
+    waits for a release that may write them again.
 - Docs: `README.md`, `docs/getting-started.md`,
   `docs/feature-matrix.md` updated to sell the new front door.
+  - **Done (T5)**: the root README's quick start leads with `rok init …
+    --schema …` and `rok gen` (and points at the example);
+    `docs/getting-started.md` walks the front door before the two legacy
+    paths; `docs/feature-matrix.md` lists the front door's steps, the two
+    API frameworks and the example.
 
 ## Phase 5 — 0.2.0 release hardening
 

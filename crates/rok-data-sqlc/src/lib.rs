@@ -26,8 +26,8 @@ mod config;
 mod config_file;
 mod generate;
 mod generator;
-mod init;
 mod output;
+mod project;
 mod report;
 mod schema;
 
@@ -36,13 +36,19 @@ mod schema;
 // may change in any release.
 #[doc(hidden)]
 pub mod cli;
+// The scaffolding library behind `rok sqlc init` and the root `rok init`
+// (ADR 0012): the skeleton and the ready-made Templates, each file written
+// once and never rewritten.
+#[doc(hidden)]
+pub mod init;
 #[doc(hidden)]
 pub mod parser;
 #[doc(hidden)]
 pub mod queries;
 
-pub use api_config::{ApiAccess, ApiConfig, ApiEndpoint};
+pub use api_config::{ApiAccess, ApiConfig, ApiEndpoint, ApiFramework};
 pub use config::{Config, Conventions, Derive, Extractor, IdGeneration, RelationshipChange};
+pub use project::{discover_config, load_config};
 pub use report::{Error, QueryFailure, RefusedFile, Report, Result, TableFailure};
 
 /// Generates database modules as described by `config`.

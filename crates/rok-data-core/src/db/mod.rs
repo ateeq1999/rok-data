@@ -10,7 +10,6 @@ use sqlx::postgres::PgPool;
 use crate::context::Context;
 use crate::{Error, QueryCache, Result};
 
-/// A pooled PostgreSQL connection handle — the entry point of rok-data.
 mod builder;
 mod options;
 mod retry;
@@ -23,6 +22,7 @@ pub use retry::Retryable;
 pub use stats::PoolStats;
 pub use tx::Tx;
 
+/// A pooled PostgreSQL connection handle — the entry point of rok-data.
 ///
 /// `Db` is cheap to clone (it wraps an `Arc`'d pool) and can be passed
 /// wherever an [`Executor`](crate::Executor) is expected:

@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
-use crate::{ApiAccess, ApiConfig, ApiEndpoint};
+use crate::{ApiAccess, ApiConfig, ApiEndpoint, ApiFramework};
 
 /// The `[api]` keys one source sets. Single keys merge one by one across
 /// sources; a list replaces the lower list; table-keyed sections merge by
@@ -16,6 +16,7 @@ pub(crate) struct ApiKeys {
     output: Option<PathBuf>,
     db_path: Option<String>,
     prefix: Option<String>,
+    framework: Option<FrameworkName>,
     search_endpoint: Option<bool>,
     openapi: Option<bool>,
     exclude: Option<Vec<String>>,
@@ -35,6 +36,24 @@ pub(crate) struct ApiKeys {
     search: BTreeMap<String, Vec<String>>,
     #[serde(default)]
     sort: BTreeMap<String, Vec<String>>,
+}
+
+/// The `[api] framework` value. Deserializing an unknown name fails with the
+/// list of known ones.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum FrameworkName {
+    ActixWeb,
+    Axum,
+}
+
+impl FrameworkName {
+    fn framework(self) -> ApiFramework {
+        match self {
+            FrameworkName::ActixWeb => ApiFramework::ActixWeb,
+            FrameworkName::Axum => ApiFramework::Axum,
+        }
+    }
 }
 
 /// An `[api.access]` value. Deserializing an unknown name fails with the
@@ -90,10 +109,14 @@ impl EndpointName {
 }
 
 impl ApiKeys {
-    /// The keys `-a/--api-output` sets: `output`, or none.
-    pub(crate) fn output(output: Option<PathBuf>) -> ApiKeys {
+    /// The keys the flags set: `output` and the framework.
+    pub(crate) fn flags(output: Option<PathBuf>, framework: Option<ApiFramework>) -> ApiKeys {
         ApiKeys {
             output,
+            framework: framework.map(|framework| match framework {
+                ApiFramework::ActixWeb => FrameworkName::ActixWeb,
+                ApiFramework::Axum => FrameworkName::Axum,
+            }),
             ..ApiKeys::default()
         }
     }
@@ -120,6 +143,7 @@ impl ApiKeys {
             output: self.output.or(lower.output),
             db_path: self.db_path.or(lower.db_path),
             prefix: self.prefix.or(lower.prefix),
+            framework: self.framework.or(lower.framework),
             search_endpoint: self.search_endpoint.or(lower.search_endpoint),
             openapi: self.openapi.or(lower.openapi),
             exclude: self.exclude.or(lower.exclude),
@@ -144,6 +168,9 @@ impl ApiKeys {
         }
         if let Some(prefix) = self.prefix {
             api.prefix = prefix;
+        }
+        if let Some(framework) = self.framework {
+            api.framework = framework.framework();
         }
         api.search_endpoint = self.search_endpoint.unwrap_or_default();
         api.openapi = self.openapi.unwrap_or(api.openapi);

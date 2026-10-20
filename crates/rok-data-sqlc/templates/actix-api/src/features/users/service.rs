@@ -1,4 +1,4 @@
-// Scaffolded once by rok-sqlc; this file is yours. It is never regenerated. See docs/guide/architecture.md.
+// Scaffolded once by rok-data-sqlc; this file is yours. It is never regenerated. See docs/guide/architecture.md.
 
 //! `UsersService`: the `users` feature's business rules. Override any
 //! [`UsersServiceApi`] method here; the others keep their generated defaults.

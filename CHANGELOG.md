@@ -9,12 +9,55 @@ that it exists and won't ship a tag without it).
 
 ## [0.2.0] — the unified ORM chains through the generated data layer
 
+The front door grows two root commands: `rok init [NAME] [--template
+<NAME>] [--schema <PATH>]` scaffolds a project — the application skeleton,
+or a ready-made template — and seeds the project's schema directory with
+the schema file it is given. Every file it writes is a scaffolded file:
+written once, never rewritten.
+
+`rok gen [OPTIONS] [check]` is the unified front door's generator: it
+turns the project's schema directory into the data layer (`src/db/**`),
+the shared tools and the API features (`src/features/**`), and — with
+`--migration NAME` — stages the difference between the schema and the
+last staged migration as a `NNNN_name.up.sql` / `.down.sql` pair in that
+same directory. `rok gen check` is the CI mode: it writes nothing,
+reports the missing, changed and stale files, and fails on drift. The
+settings file is the unified `rok.toml` (ADR 0011), whose `[generate]`
+section holds the generation settings; the engine's
+`rok-data-sqlc.toml` stays readable. The legacy `rok generate` and
+`rok sqlc …` keep working unchanged — the `sqlc` tokens are still forwarded
+verbatim to the engine — and the root help now marks them as superseded by
+the front door; their removal is deferred to 1.0.
+
 The generated per-table data layer (`models`, `read`, `write` and the
 relationship loaders) now rides the `rok-data` model chains instead of
 built SQL, with `sqlx::Error` traded for `rok_data::Error` across the
 generated surface. Joins, search/listing/filter and `m2m` pair loaders
 stay on the Query builder for this slice. The actix template's
 skeleton gains the `rok-data` dependency and an `AppError` conversion.
+
+The generated API features have a second backend: `[api] framework =
+"axum"` (or `-w/--api-framework axum`) generates them for axum instead of
+actix-web. The routes are a `Router`'s, the handlers take axum's
+extractors, and the shared tools (health, the tenant, the validated
+bodies) are axum's. The bodies, the service and the OpenAPI document are
+the same either way, and actix-web stays the default: every existing
+project generates exactly what it did before.
+
+`rok init --template axum` scaffolds the starter that matches it: the
+`actix` template's twin, with the same `users` and `audit-log` features,
+the same wire standard and the same contract test, written for axum. The
+two templates differ only in the framework's edge — the routes, the
+handlers, the extractors and the server setup — and both are checked in
+CI: regenerated, linted, `check-arch`ed and tested.
+
+The vertical slice of the pipeline is checked in as an example:
+[`examples/api`](examples/api) holds a schema of two files, the generated
+data layer and axum API features beside it, and the staged migration
+pairs — one crate, from `rok init` and `rok gen` to a running API. It is a
+crate of its own (workspace-excluded, like the templates and the
+fixtures), and the repository's gates compile it: the drift check, the
+staged pairs, rustfmt, the lint gate and its tests.
 
 Also in 0.2.0: an unqualified `ALTER TABLE <name>` in a later
 migration now reaches a table created under a schema
@@ -23,6 +66,13 @@ diagnostics name the resolved table; the `Model` derive accepts
 no-primary-key tables; composite types (money, ranges, timetz,
 inet/cidr, macaddr, bytea arrays) ride the new `ipnetwork` and
 `mac_address` facade features.
+
+The release is a tag: `vX.Y.Z` must equal the workspace's version, and
+the tag publishes the `rok` binary for Linux (musl), macOS and Windows
+(x86_64 and ARM64) as checksummed archives, then the six crates to
+crates.io in dependency order (ADR 0008). The repository's `install.sh`
+and `install.ps1` fetch and verify those archives, so a release installs
+with one line.
 
 ## [0.1.0] — initial consolidation
 

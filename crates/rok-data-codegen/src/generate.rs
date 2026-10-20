@@ -364,7 +364,9 @@ fn relative_path(from: &Path, to: &Path) -> PathBuf {
     out
 }
 
-fn json<T: serde::Serialize>(value: &T) -> Result<String, Error> {
+/// A value as the generator's JSON files hold it: pretty, with a trailing
+/// newline.
+pub(crate) fn json<T: serde::Serialize>(value: &T) -> Result<String, Error> {
     serde_json::to_string_pretty(value)
         .map(|s| s + "\n")
         .map_err(|e| Error::new(e.to_string()))

@@ -1,0 +1,39 @@
+# The example's settings: the unified project file (ADR 0011). `rok gen`
+# reads it; the flags beat it. See README.md.
+
+[generate]
+# The schema dir: the truth (the plain `*.sql` files) and the history (the
+# staged migration pairs). The generator reads the truth only.
+schema = "schema"
+# Where the data layer is written.
+output = "src/db"
+# The generated rows carry serde's derives, and the API features take
+# validated bodies through the axum extractor.
+derive = ["serde", "validate"]
+extractors = ["axum"]
+
+[conventions]
+# Every table's id is a UUIDv7 the database fills in.
+primary_key_ids = "uuid_v7"
+# The columns the database sets, so no request body takes them.
+managed_columns = ["created_at", "lent_at"]
+
+[api]
+# Where the API features are written.
+output = "src/features"
+# The features are generated for axum.
+framework = "axum"
+
+[api.skip]
+# A loan is returned, not deleted.
+loans = ["remove"]
+
+[api.search]
+# The list endpoints' `q` matches these columns.
+authors = ["name", "email"]
+books = ["title"]
+
+[api.sort]
+# The list endpoints' `sort` takes these columns.
+authors = ["created_at", "email"]
+books = ["title"]

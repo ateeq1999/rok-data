@@ -9,8 +9,8 @@ use heck::ToKebabCase;
 use crate::Conventions;
 use crate::schema::{BaseType, Column, FilterKind, Table};
 
-/// Generated API features for actix-web (ADR 0016), set by the config file's
-/// `[api]` section ([`Config::api`](crate::Config::api)).
+/// Generated API features (ADR 0016), set by the config file's `[api]`
+/// section ([`Config::api`](crate::Config::api)).
 ///
 /// Every map is keyed by table: its SQL name, schema-qualified name, or
 /// module name. Every table named must be generated, and every column named
@@ -35,6 +35,11 @@ pub struct ApiConfig {
     /// The URL prefix every feature's routes sit under. Defaults to
     /// `/api/v1`.
     pub prefix: String,
+    /// The web framework the features are generated for: actix-web (the
+    /// default) or axum. The framework decides the routes, the handlers and
+    /// the shared tools the API generates; the bodies, the service and the
+    /// OpenAPI document are the same either way.
+    pub framework: ApiFramework,
     /// Generate `POST /search` with per-field filters. Off by default.
     pub search_endpoint: bool,
     /// Describe the API for its OpenAPI document: utoipa's `ToSchema` or
@@ -80,6 +85,7 @@ impl ApiConfig {
             output: output.into(),
             db_path: Self::DEFAULT_DB_PATH.to_owned(),
             prefix: Self::DEFAULT_PREFIX.to_owned(),
+            framework: ApiFramework::default(),
             search_endpoint: false,
             openapi: true,
             exclude: Vec::new(),
@@ -91,6 +97,42 @@ impl ApiConfig {
             immutable: BTreeMap::new(),
             search: BTreeMap::new(),
             sort: BTreeMap::new(),
+        }
+    }
+}
+
+/// The web framework the API features are generated for
+/// ([`ApiConfig::framework`]).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ApiFramework {
+    /// actix-web: the routes are a `web::ServiceConfig`'s scopes, the
+    /// handlers take `web::Data`, `web::Path` and `web::Query`, and the
+    /// shared tools' extractors are actix-web's. The consuming crate needs
+    /// `actix-web`.
+    #[default]
+    ActixWeb,
+    /// axum: the routes are a `Router`'s, the handlers take `Extension`,
+    /// `Path` and `Query`, and the shared tools' extractors are axum's. The
+    /// consuming crate needs `axum`.
+    Axum,
+}
+
+impl ApiFramework {
+    /// The name the config file and the JSON payload use.
+    pub fn name(self) -> &'static str {
+        match self {
+            ApiFramework::ActixWeb => "actix_web",
+            ApiFramework::Axum => "axum",
+        }
+    }
+
+    /// The extractor the data layer needs for this framework's validated
+    /// bodies.
+    pub fn extractor(self) -> crate::Extractor {
+        match self {
+            ApiFramework::ActixWeb => crate::Extractor::ActixWeb,
+            ApiFramework::Axum => crate::Extractor::Axum,
         }
     }
 }

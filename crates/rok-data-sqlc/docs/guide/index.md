@@ -15,8 +15,8 @@ The guide's code samples come from projects that compile, mostly
 Start here:
 
 - [Getting started](getting-started.md): from `rok sqlc init` (or
-  `init --template actix`) to a running API, its first requests and
-  Swagger UI.
+  `init --template actix` / `--template axum`) to a running API, its first
+  requests and Swagger UI.
 - [Configuring API features](configuring.md): every `[api]` key (access,
   owners, hidden columns, search, sort, skipped endpoints, routes) and the
   conventions and key generation that shape the API.

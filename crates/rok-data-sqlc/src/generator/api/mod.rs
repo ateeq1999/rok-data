@@ -5,12 +5,18 @@
 //! go through.
 //!
 //! [`Feature`] is the model the renderers share: its endpoints, lookups and
-//! relations decide the routes, handlers, and service methods.
+//! relations decide the routes, handlers, and service methods. The web
+//! framework the features are generated for is the [`framework`]'s: each
+//! framework has its own module, and the renderers ask it for the parts
+//! that differ.
 
+mod actix;
 mod api_doc;
+mod axum;
 mod dto;
 mod feature;
 mod files;
+mod framework;
 mod handlers;
 mod layout;
 pub mod listing;
@@ -30,6 +36,7 @@ use std::path::PathBuf;
 
 use self::feature::Endpoint;
 pub use self::feature::Feature;
+use self::framework::Framework;
 use crate::ApiConfig;
 use crate::schema::Table;
 
@@ -64,14 +71,18 @@ pub fn has_listing(feature: &Feature<'_>) -> bool {
 /// The files under `api.output`: each feature's, then `generated.rs` and
 /// `README.md`.
 pub fn render(features: &[Feature<'_>], api: &ApiConfig) -> Vec<(PathBuf, String)> {
+    let framework = Framework::of(api);
     let root = api.output.as_path();
     let mut files = Vec::new();
     for feature in features {
         let dir = root.join(feature.module());
         files.extend([
             (dir.join("mod.rs"), files::render_mod(feature)),
-            (dir.join("routes.rs"), handlers::render_routes(feature)),
-            (dir.join("handlers.rs"), handlers::render_handlers(feature)),
+            (dir.join("routes.rs"), framework.routes(feature)),
+            (
+                dir.join("handlers.rs"),
+                handlers::render_handlers(feature, framework),
+            ),
             (dir.join("dto.rs"), dto::render(feature)),
             (dir.join("model.rs"), files::render_model(feature)),
             (dir.join("repo.rs"), files::render_repo(feature)),
@@ -81,9 +92,12 @@ pub fn render(features: &[Feature<'_>], api: &ApiConfig) -> Vec<(PathBuf, String
     }
     files.push((
         root.join("generated.rs"),
-        root::render_generated(features, api),
+        framework.generated(features, api),
     ));
-    files.push((root.join("README.md"), root::render_readme(features)));
+    files.push((
+        root.join("README.md"),
+        root::render_readme(features, framework),
+    ));
     files
 }
 

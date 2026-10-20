@@ -43,10 +43,16 @@ struct Template {
 }
 
 /// The templates `--template` names.
-const TEMPLATES: &[Template] = &[Template {
-    name: "actix",
-    dir: "actix-api",
-}];
+const TEMPLATES: &[Template] = &[
+    Template {
+        name: "actix",
+        dir: "actix-api",
+    },
+    Template {
+        name: "axum",
+        dir: "axum-api",
+    },
+];
 
 /// The names `--template` takes.
 pub fn names() -> impl Iterator<Item = &'static str> {
@@ -185,6 +191,36 @@ mod tests {
         }
     }
 
+    /// Every template's configuration selects the backend its code is
+    /// written for: the axum template extracts and generates for axum.
+    #[test]
+    fn every_template_selects_its_own_backend() -> Result<()> {
+        for (name, framework) in [("actix", "actix_web"), ("axum", "axum")] {
+            let files = files(name)?;
+            let config = files
+                .iter()
+                .find(|file| file.path == "rok-data-sqlc.toml")
+                .map(|file| String::from_utf8_lossy(file.bytes).into_owned())
+                .ok_or_else(|| anyhow::anyhow!("template `{name}` has no configuration"))?;
+            assert!(
+                config.contains(&format!("extractors = [\"{framework}\"]")),
+                "template `{name}` does not extract for {framework}:\n{config}"
+            );
+        }
+        // actix-web is the default backend; the axum template names it.
+        let files = files("axum")?;
+        let config = files
+            .iter()
+            .find(|file| file.path == "rok-data-sqlc.toml")
+            .map(|file| String::from_utf8_lossy(file.bytes).into_owned())
+            .unwrap_or_default();
+        assert!(
+            config.contains("framework = \"axum\""),
+            "the axum template does not generate for axum:\n{config}"
+        );
+        Ok(())
+    }
+
     /// rok-data-sqlc's generated files are left out; cargo's `Cargo.lock`, also
     /// `@generated`, is the template's pinned lock and is copied.
     #[test]
@@ -268,10 +304,10 @@ mod tests {
 
     #[test]
     fn an_unknown_template_lists_the_valid_ones() {
-        let err = files("axum").err().map(|err| err.to_string());
+        let err = files("rocket").err().map(|err| err.to_string());
         assert_eq!(
             err.as_deref(),
-            Some("unknown template `axum`; the templates are: actix")
+            Some("unknown template `rocket`; the templates are: actix, axum")
         );
     }
 }

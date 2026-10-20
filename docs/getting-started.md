@@ -1,10 +1,80 @@
 # Getting started with rok-data
 
-This walks through the two typical projects: a rok-db-style application
-(runtime + whole-crate generation) and a resource-module application
-(engine generation). Prerequisites: Rust ≥ 1.94, PostgreSQL 12+.
+This walks through the front door (`rok init` and `rok gen`) and the two
+older paths behind it: a rok-db-style application (runtime + whole-crate
+generation) and a resource-module application (engine generation).
+Prerequisites: Rust ≥ 1.94, PostgreSQL 12+.
 
-## 1. The runtime, by hand
+## 1. The front door (`rok init` and `rok gen`)
+
+One command scaffolds a project, one generates it. The project's schema
+directory is its only source of truth (ADR 0010): the plain `*.sql` files
+in it are the schema as it is now, and the staged migration pairs beside
+them are the history — how the schema got there.
+
+Start from a schema file:
+
+```console
+$ rok init my-api --schema schema.sql
+$ cd my-api
+```
+
+`rok init` writes the application skeleton (`src/main.rs`, `src/lib.rs`,
+`src/app.rs`, `src/config.rs`, `src/error.rs`, `src/openapi.rs`,
+`src/shared/`), the settings file, `AGENTS.md`, and the schema directory
+`migrations/`, seeded with the schema file you named. Every file it
+writes is written once and never rewritten.
+
+The settings file is the unified `rok.toml` (ADR 0011), whose `[generate]`
+section holds the generation settings; the engine's own
+`rok-data-sqlc.toml` stays readable, and `rok init` writes that one for
+now. `rok gen` reads either.
+
+Then generate:
+
+```console
+$ rok gen
+```
+
+`rok gen` reads the schema directory and writes the data layer
+(`src/db/**`), the shared tools and the API features (`src/features/**`),
+printing every file it wrote.
+
+Change the schema, and stage the change as a migration:
+
+```console
+$ rok gen --migration add_posts
+```
+
+That writes `migrations/0002_add_posts.up.sql` and its `.down.sql`: the
+difference between the schema and the last staged migration. The generator
+reads the truth only, so a staged migration is never applied twice.
+
+In CI, the drift check:
+
+```console
+$ rok gen check
+```
+
+It writes nothing, reports the missing, changed and stale files, and exits
+1 when the generated code is out of date.
+
+A whole API in one step:
+
+```console
+$ rok init my-api --template axum
+$ cd my-api && rok gen
+```
+
+The `axum` template is a complete axum application — the app, its `users`
+and `audit-log` features, the OpenAPI document and the tests — and the
+`actix` template is its actix-web twin.
+
+The whole chain in one crate: [`examples/api`](../examples/api) holds a
+schema of two files, the generated data layer and API features beside it,
+and the staged migration pairs. The repository's own gates compile it.
+
+## 2. The runtime, by hand
 
 ```console
 $ cargo new notes && cd notes && cargo add rok-data
@@ -65,7 +135,12 @@ Tests that touch the database use `#[rok_data::test]` (attribute; it
 creates a schema-scoped `Db` for the test, like the original
 `#[rok_db::test]`).
 
-## 2. Whole-crate generation (`rok generate`)
+## 3. The legacy whole-crate generator (`rok generate`)
+
+This is the superseded path: `rok gen` is the front door's generator, and
+`rok generate` keeps working exactly as it did, with its flags unchanged.
+It is kept for the projects that still use it; its removal is deferred to
+1.0 (ADR 0012).
 
 Instead of hand-writing models, describe tables as `.sql` under `sql/`
 and let the generator emit a crate with models, typed queries and the
@@ -85,7 +160,7 @@ name still works, with a note):
 input = "sql"          # .sql sources
 output = "db-gen"      # generated crate directory
 crate_name = "notes-db"
-rok_data_version = "0.1"   # or rok_data_path = "../../crates/rok-data"
+rok_data_version = "0.2"   # or rok_data_path = "../../crates/rok-data"
 ```
 
 Flags beat the file; `--strict` fails on generator warnings (queries
@@ -97,7 +172,11 @@ require `--allow-destructive`). CI asserts freshness with:
 $ rok generate check --strict
 ```
 
-## 3. Resource modules (`rok sqlc generate`)
+## 4. The legacy resource-module generator (`rok sqlc generate`)
+
+The engine's own generator, behind the legacy `rok sqlc …` subtree: the
+tokens are forwarded verbatim, the commands keep working exactly as they
+did, and their removal is deferred to 1.0 (ADR 0012).
 
 The rok-data-sqlc engine generates modules from a schema file — without
 a database connection — into an existing crate:
@@ -115,7 +194,7 @@ its own `docs/guide/`). Its ADR-0016 architecture check:
 $ rok sqlc check-arch
 ```
 
-## 4. Where to read further
+## 5. Where to read further
 
 - Command contract: `docs/cli-reference.md`
 - Coming from rok-db/rok-sqlc/rok-fluent/rok-orm:

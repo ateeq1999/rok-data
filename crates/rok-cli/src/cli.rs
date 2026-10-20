@@ -3,6 +3,11 @@
 //! `rok sqlc …` is defined by the `rok-data-sqlc` engine (see
 //! [`crate::commands::sqlc`]) so its grammar and its tests share one source;
 //! everything below owns the mapping into library calls.
+//!
+//! `rok generate` and `rok sqlc …` are the legacy surfaces (ADR 0012): they
+//! keep working exactly as they do now — `rok sqlc …` is forwarded verbatim
+//! to the engine — and the root help marks them as superseded by the front
+//! door (`rok init`, `rok gen`), their removal deferred to 1.0.
 
 use clap::{Args, CommandFactory, FromArgMatches, Parser, Subcommand};
 use std::path::PathBuf;
@@ -16,7 +21,11 @@ use std::path::PathBuf;
     arg_required_else_help = true,
     disable_help_subcommand = true,
     after_help = "Most commands accept --json for machine-readable output; \
-                  `rok sqlc --help` is the SQLx module generator (generate|init|check-arch)."
+                  `rok init --help` scaffolds a project; \
+                  `rok gen --help` generates the data layer from the schema dir; \
+                  `rok generate` and `rok sqlc` are the legacy surfaces: still \
+                  supported and forwarded verbatim, superseded by `rok init`/`rok gen`, \
+                  removal deferred to 1.0."
 )]
 pub(crate) struct Cli {
     /// Selected command.
@@ -33,7 +42,27 @@ pub(crate) struct Cli {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Subcommand)]
 pub(crate) enum Command {
-    /// Generate a rok-data crate (models, typed queries, migrations) from .sql files.
+    /// Scaffold a project: the application skeleton, or a ready-made template.
+    Init {
+        /// The project directory (default: the current directory).
+        #[arg(value_name = "NAME")]
+        name: Option<PathBuf>,
+        /// Copy this ready-made template instead of the skeleton.
+        #[arg(
+            short,
+            long,
+            value_name = "NAME",
+            value_parser = clap::builder::PossibleValuesParser::new(
+                rok_data_sqlc::init::template_names()
+            )
+        )]
+        template: Option<String>,
+        /// Seed the schema directory (migrations/) with this file's content.
+        #[arg(short, long, value_name = "PATH")]
+        schema: Option<PathBuf>,
+    },
+    /// Legacy: generate a rok-data crate (models, typed queries,
+    /// migrations) from .sql files; superseded by `rok gen`.
     Generate {
         /// What and where to generate; the flags of the original generator.
         #[command(flatten)]
@@ -42,6 +71,16 @@ pub(crate) enum Command {
         /// the write mode keeps its flat `rok generate [OPTIONS]` shape.
         #[command(subcommand)]
         action: Option<GenerateAction>,
+    },
+    /// Generate the data layer and the API features from the schema dir.
+    Gen {
+        /// What and where to generate; the flags of the front door.
+        #[command(flatten)]
+        options: GenOptions,
+        /// Optional action: the CI mode lives nested (as `rok gen check`) so
+        /// the write mode keeps its flat `rok gen [OPTIONS]` shape.
+        #[command(subcommand)]
+        action: Option<GenAction>,
     },
     /// Run migration files against the database.
     #[command(subcommand)]
@@ -63,6 +102,18 @@ pub(crate) enum GenerateAction {
         /// values win over any value given to `rok generate` itself.
         #[command(flatten)]
         options: CheckOptions,
+    },
+}
+
+/// Nested actions of `rok gen`.
+#[derive(Debug, Subcommand)]
+pub(crate) enum GenAction {
+    /// Fail when the generated files are out of date with the schema (for CI).
+    Check {
+        /// The subset of generation flags the check accepts. Provided leaf
+        /// values win over any value given to `rok gen` itself.
+        #[command(flatten)]
+        options: GenCheckOptions,
     },
 }
 
@@ -117,6 +168,83 @@ pub(crate) struct CheckOptions {
     /// Fail on warnings (queries without tenant or soft-delete filters).
     #[arg(long)]
     pub strict: bool,
+}
+
+/// Options of `rok gen`: the front door's flags.
+#[derive(Debug, Args)]
+pub(crate) struct GenOptions {
+    /// Settings file (rok.toml, or the engine's rok-data-sqlc.toml).
+    #[arg(short, long, value_name = "FILE")]
+    pub config: Option<PathBuf>,
+    /// The schema dir: the truth the generator reads (default: migrations).
+    #[arg(short, long, value_name = "DIR")]
+    pub schema: Option<PathBuf>,
+    /// Where the modules are written (default: src/db).
+    #[arg(short, long, value_name = "DIR")]
+    pub output: Option<PathBuf>,
+    /// Generate this table and the resources already generated.
+    #[arg(short, long, value_name = "TABLE")]
+    pub resource: Option<String>,
+    /// Annotated query file or directory; repeatable.
+    #[arg(short, long, value_name = "PATH")]
+    pub queries: Vec<PathBuf>,
+    /// Stage a migration pair for the schema changes since the last one.
+    #[arg(long, value_name = "NAME")]
+    pub migration: Option<String>,
+    /// Allow the steps that lose data or fail on existing rows.
+    #[arg(long)]
+    pub allow_destructive: bool,
+    /// A renamed table (`users=accounts`) or column (`users.name=full_name`); repeatable.
+    #[arg(long = "rename", value_name = "OLD=NEW")]
+    pub renames: Vec<String>,
+    /// Fail on warnings (a skipped table or query).
+    #[arg(long)]
+    pub strict: bool,
+    /// Print a machine-readable JSON report.
+    #[arg(long)]
+    pub json: bool,
+    /// Plan the run; write nothing.
+    #[arg(short = 'n', long)]
+    pub dry_run: bool,
+    /// Overwrite files that the generator did not write.
+    #[arg(short, long)]
+    pub force: bool,
+}
+
+/// Options of `rok gen check`: the same set minus `--migration` and
+/// `--rename`, which belong to the generate run.
+#[derive(Debug, Args)]
+pub(crate) struct GenCheckOptions {
+    /// Settings file (rok.toml, or the engine's rok-data-sqlc.toml).
+    #[arg(short, long, value_name = "FILE")]
+    pub config: Option<PathBuf>,
+    /// The schema dir: the truth the generator reads (default: migrations).
+    #[arg(short, long, value_name = "DIR")]
+    pub schema: Option<PathBuf>,
+    /// Where the modules are written (default: src/db).
+    #[arg(short, long, value_name = "DIR")]
+    pub output: Option<PathBuf>,
+    /// Generate this table and the resources already generated.
+    #[arg(short, long, value_name = "TABLE")]
+    pub resource: Option<String>,
+    /// Annotated query file or directory; repeatable.
+    #[arg(short, long, value_name = "PATH")]
+    pub queries: Vec<PathBuf>,
+    /// Allow the steps that lose data or fail on existing rows.
+    #[arg(long)]
+    pub allow_destructive: bool,
+    /// Fail on warnings (a skipped table or query).
+    #[arg(long)]
+    pub strict: bool,
+    /// Print a machine-readable JSON report.
+    #[arg(long)]
+    pub json: bool,
+    /// Plan the run; write nothing.
+    #[arg(short = 'n', long)]
+    pub dry_run: bool,
+    /// Overwrite files that the generator did not write.
+    #[arg(short, long)]
+    pub force: bool,
 }
 
 /// `rok migrate create|status|up|down`.
@@ -240,11 +368,10 @@ pub(crate) enum ParseOutcome {
 pub(crate) fn parse(args: &[String]) -> ParseOutcome {
     // The `sqlc` subtree (defined by the engine) is only injected so the root
     // help lists it; `rok sqlc …` tokens are routed before this parser runs.
-    let command = Cli::command().subcommand(
-        rok_data_sqlc::cli::command()
-            .name("sqlc")
-            .about("Generate SQLx Rust modules from SQL schema files (generate|init|check-arch)"),
-    );
+    let command = Cli::command().subcommand(rok_data_sqlc::cli::command().name("sqlc").about(
+        "Legacy: generate SQLx Rust modules from SQL schema files \
+                 (generate|init|check-arch); superseded by `rok gen`",
+    ));
     match command.try_get_matches_from(inputs(args)) {
         Ok(matches) => match Command::from_arg_matches(&matches) {
             Ok(command) => ParseOutcome::Command(command),

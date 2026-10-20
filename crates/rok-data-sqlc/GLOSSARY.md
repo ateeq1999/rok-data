@@ -16,6 +16,10 @@ _Avoid_: table (when referring to generated output)
 The HTTP slice for one table: its routes, handlers, and service. Sits on top of the table's resource and is the only part of an API a caller sees.
 _Avoid_: resource (that is the generated database module), controller, endpoint group
 
+**API backend**:
+The web framework the API features are generated for — actix-web (the default) or axum — chosen by the `[api] framework` key. It decides the routes, the handlers and the shared tools; the bodies, the service and the API document are the same either way.
+_Avoid_: framework (that is the application's own), extractor (that is one of the backend's pieces)
+
 **Route base**:
 The URL path under which an API feature's routes are mounted, such as `/users`.
 _Avoid_: resource path, prefix

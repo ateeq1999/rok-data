@@ -148,7 +148,7 @@ fn sort_schema<S: utoipa::ToSchema>() -> utoipa::openapi::RefOr<utoipa::openapi:
 
 #[cfg(test)]
 mod tests {
-    use super::super::shared::{HEALTH, PAGINATION, RESPONSE, VALIDATION};
+    use super::super::shared::{PAGINATION, RESPONSE, actix, axum};
     use super::*;
 
     #[test]
@@ -167,15 +167,19 @@ mod tests {
 
     #[test]
     fn health_routes_are_documented() {
-        let text = describe("health.rs", HEALTH);
-        for route in &HEALTH_ROUTES {
-            let mount = format!("\"{}\", web::get().to({}))", route.path, route.handler);
-            assert!(HEALTH.contains(&mount), "{mount}");
-            let documented = format!(
-                "    operation_id = \"{}\",\n    {}\n)]\npub async fn {}(",
-                route.handler, route.responses, route.handler
-            );
-            assert!(text.contains(&documented), "{text}");
+        for (health, mount) in [
+            (actix::HEALTH, "\"/health/live\", web::get().to(liveness)"),
+            (axum::HEALTH, "\"/health/live\", get(liveness)"),
+        ] {
+            let text = describe("health.rs", health);
+            for route in &HEALTH_ROUTES {
+                assert!(health.contains(mount), "{mount}");
+                let documented = format!(
+                    "    operation_id = \"{}\",\n    {}\n)]\npub async fn {}(",
+                    route.handler, route.responses, route.handler
+                );
+                assert!(text.contains(&documented), "{text}");
+            }
         }
     }
 
@@ -206,8 +210,10 @@ mod tests {
         let text = describe("response.rs", RESPONSE);
         let page = "utoipa::ToSchema)]\npub struct PaginatedResponse<T> {";
         assert!(text.contains(page), "{text}");
-        let text = describe("validation.rs", VALIDATION);
-        let id_list = "validator::Validate, utoipa::ToSchema,\n)]\npub struct IdList<T> {";
-        assert!(text.contains(id_list), "{text}");
+        for validation in [actix::VALIDATION, axum::VALIDATION] {
+            let text = describe("validation.rs", validation);
+            let id_list = "validator::Validate, utoipa::ToSchema,\n)]\npub struct IdList<T> {";
+            assert!(text.contains(id_list), "{id_list}\n{text}");
+        }
     }
 }

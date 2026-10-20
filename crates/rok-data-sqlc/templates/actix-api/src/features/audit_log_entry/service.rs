@@ -1,4 +1,4 @@
-// Scaffolded once by rok-sqlc; this file is yours. It is never regenerated. See docs/guide/architecture.md.
+// Scaffolded once by rok-data-sqlc; this file is yours. It is never regenerated. See docs/guide/architecture.md.
 
 //! `AuditLogEntryService`: the `audit_log` feature's business rules. Override any
 //! [`AuditLogEntryServiceApi`] method here; the others keep their generated defaults.

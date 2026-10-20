@@ -91,7 +91,7 @@ stay until you delete them.
 
 **A deleted scaffolded file** is written again: `rok sqlc generate` restores a
 feature's `service.rs`, and `rok sqlc init` restores the skeleton's files.
-`rok-data-sqlc g --check` reports a missing scaffolded file, but never its
+`rok sqlc g --check` reports a missing scaffolded file, but never its
 contents, so your changes never count as drift.
 
 ## Building a binary

@@ -277,7 +277,7 @@ refers to goes there.
 ## What you can't customize in place
 
 Generated files are rewritten on every run, so an edit to one is lost, and
-`rok-data-sqlc g --check` reports it as drift. To change a route, a body, a
+`rok sqlc g --check` reports it as drift. To change a route, a body, a
 response or a validation rule, change its source instead:
 
 | To change | Change |

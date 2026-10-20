@@ -10,6 +10,11 @@ fn actix_template() -> PathBuf {
     common::manifest_dir().join("templates/actix-api")
 }
 
+/// The template `axum`'s directory in the repository.
+fn axum_template() -> PathBuf {
+    common::manifest_dir().join("templates/axum-api")
+}
+
 /// The template's files as `init` copies them: every one but
 /// rok-data-sqlc's generated ones and a build's `target/`, with `\n` line endings, and
 /// `<path>.template` (its `Cargo.toml`) as `<path>`.
@@ -63,6 +68,25 @@ fn init_template_copies_the_templates_files_but_the_generated_ones() -> Result<(
     Ok(())
 }
 
+/// The axum template is copied the same way: its files but the generated
+/// ones, and its pinned `Cargo.lock`.
+#[test]
+fn init_template_copies_the_axum_templates_files_but_the_generated_ones() -> Result<()> {
+    let dir = TempDir::new()?;
+    let project = dir.path().join("app");
+    let output = run_binary(&["init", "-t", "axum", project.to_str().unwrap_or_default()]);
+    assert_success(&output);
+
+    let expected = copied_files(&axum_template())?;
+    assert!(
+        expected.contains_key(Path::new("rok-data-sqlc.toml"))
+            && expected.contains_key(Path::new("Cargo.lock")),
+        "{expected:?}"
+    );
+    assert_eq!(read_tree(&project)?, expected);
+    Ok(())
+}
+
 #[test]
 fn init_template_keeps_existing_files() -> Result<()> {
     let dir = TempDir::new()?;
@@ -88,11 +112,11 @@ fn init_template_keeps_existing_files() -> Result<()> {
 #[test]
 fn init_template_rejects_an_unknown_name_listing_the_valid_ones() -> Result<()> {
     let dir = TempDir::new()?;
-    let output = run_binary_in(dir.path(), &["init", "-t", "axum"]);
+    let output = run_binary_in(dir.path(), &["init", "-t", "rocket"]);
     assert!(!output.status.success(), "an unknown template must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("axum") && stderr.contains("actix"),
+        stderr.contains("rocket") && stderr.contains("actix") && stderr.contains("axum"),
         "{stderr}"
     );
     assert!(read_tree(dir.path())?.is_empty(), "nothing written");

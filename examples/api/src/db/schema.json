@@ -1,0 +1,146 @@
+{
+  "enums": [],
+  "tables": [
+    {
+      "name": "authors",
+      "module": "authors",
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "uniques": [
+        {
+          "name": "authors_email_key",
+          "columns": [
+            "email"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "books",
+      "module": "books",
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "author_id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "isbn",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "published_at",
+          "sql_type": "DATE",
+          "nullable": true
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "uniques": [
+        {
+          "name": "books_isbn_key",
+          "columns": [
+            "isbn"
+          ]
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "books_author_id_fkey",
+          "columns": [
+            "author_id"
+          ],
+          "ref_table": "authors",
+          "ref_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "loans",
+      "module": "loans",
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "book_id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "borrower",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "lent_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "returned_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": true
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "name": "loans_book_id_fkey",
+          "columns": [
+            "book_id"
+          ],
+          "ref_table": "books",
+          "ref_columns": [
+            "id"
+          ]
+        }
+      ]
+    }
+  ],
+  "indexes": [],
+  "extras": []
+}

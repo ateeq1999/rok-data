@@ -7,6 +7,15 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+### Added
+
+- The `axum` template (`templates/axum-api/`): the `actix` template's
+  twin, generated for axum (`[api] framework = "axum"`), with the same
+  `users` and `audit-log` features, the same wire standard, the same
+  contract test against the axum starter's document, and a README. CI
+  regenerates it and fails on drift, and runs its lint gate, `check-arch`
+  and tests. `rok sqlc init --template axum` copies it.
+
 ## [0.4.0] - 2026-10-19
 
 ### Breaking changes to the generated API

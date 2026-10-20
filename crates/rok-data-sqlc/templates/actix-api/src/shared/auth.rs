@@ -1,4 +1,4 @@
-// Scaffolded once by rok-sqlc; this file is yours. It is never regenerated. See docs/guide/architecture.md.
+// Scaffolded once by rok-data-sqlc; this file is yours. It is never regenerated. See docs/guide/architecture.md.
 
 //! Who is calling: the [`AuthUser`] and [`AdminUser`] extractors. Each
 //! verifies an HS256 JWT from `Authorization: Bearer <token>` against the

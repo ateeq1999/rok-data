@@ -1,4 +1,4 @@
-// Scaffolded once by rok-sqlc; this file is yours. It is never regenerated. See docs/guide/architecture.md.
+// Scaffolded once by rok-data-sqlc; this file is yours. It is never regenerated. See docs/guide/architecture.md.
 
 //! [`AppError`]: every error a handler or service returns, answered with
 //! the wire standard's body, `{"error": {"code", "message", "details"?}}`.

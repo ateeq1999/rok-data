@@ -1,0 +1,165 @@
+{
+  "enums": [],
+  "tables": [
+    {
+      "name": "accounts",
+      "module": "accounts",
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "password_hash",
+          "sql_type": "TEXT",
+          "nullable": false
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "uniques": [
+        {
+          "name": "accounts_email_key",
+          "columns": [
+            "email"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "notes",
+      "module": "notes",
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "owner_id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "body",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "revision",
+          "sql_type": "BIGINT",
+          "nullable": false,
+          "default": "1"
+        },
+        {
+          "name": "deleted_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": true
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "name": "notes_owner_id_fkey",
+          "columns": [
+            "owner_id"
+          ],
+          "ref_table": "accounts",
+          "ref_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "labels",
+      "module": "labels",
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "BIGSERIAL",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "sql_type": "TEXT",
+          "nullable": false
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "uniques": [
+        {
+          "name": "labels_name_key",
+          "columns": [
+            "name"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "note_labels",
+      "module": "note_labels",
+      "columns": [
+        {
+          "name": "note_id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "label_id",
+          "sql_type": "BIGINT",
+          "nullable": false
+        }
+      ],
+      "primary_key": [
+        "note_id",
+        "label_id"
+      ],
+      "foreign_keys": [
+        {
+          "name": "note_labels_note_id_fkey",
+          "columns": [
+            "note_id"
+          ],
+          "ref_table": "notes",
+          "ref_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "note_labels_label_id_fkey",
+          "columns": [
+            "label_id"
+          ],
+          "ref_table": "labels",
+          "ref_columns": [
+            "id"
+          ]
+        }
+      ]
+    }
+  ],
+  "indexes": [],
+  "extras": []
+}

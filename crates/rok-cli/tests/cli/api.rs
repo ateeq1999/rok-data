@@ -193,6 +193,53 @@ fn the_api_output_flag_needs_serde_validate_and_actix_web() -> Result<()> {
     Ok(())
 }
 
+/// The `[api] framework` key (and `--api-framework`) choose the backend:
+/// the axum routes and handlers, with the axum extractor.
+#[test]
+fn the_api_framework_chooses_the_backend() -> Result<()> {
+    let dir = TempDir::new()?;
+    fs::write(dir.path().join("schema.sql"), API_SCHEMA)?;
+    let config = |framework: &str| {
+        format!(
+            "schema = \"schema.sql\"\noutput = \"out\"\nderive = [\"serde\", \"validate\"]\nextractors = [\"{framework}\"]\n\n[api]\noutput = \"src/features\"\nframework = \"axum\"\n"
+        )
+    };
+
+    // The axum features need the axum extractor.
+    fs::write(
+        dir.path().join("rok-data-sqlc.toml"),
+        "schema = \"schema.sql\"\noutput = \"out\"\nderive = [\"serde\", \"validate\"]\nextractors = [\"actix_web\"]\n\n[api]\noutput = \"src/features\"\nframework = \"axum\"\n",
+    )?;
+    let failed = run_binary_in(dir.path(), &["g"]);
+    assert!(!failed.status.success());
+    assert!(
+        stderr(&failed).contains("`axum` in `extractors`"),
+        "{}",
+        stderr(&failed)
+    );
+
+    fs::write(dir.path().join("rok-data-sqlc.toml"), config("axum"))?;
+    assert_success(&run_binary_in(dir.path(), &["g"]));
+    let routes = fs::read_to_string(dir.path().join("src/features/users/routes.rs"))?;
+    assert!(routes.contains("axum::Router"), "{routes}");
+    let handlers = fs::read_to_string(dir.path().join("src/features/users/handlers.rs"))?;
+    assert!(
+        handlers.contains("use axum::response::{IntoResponse, Response};"),
+        "{handlers}"
+    );
+
+    // The flag beats the file.
+    fs::write(dir.path().join("rok-data-sqlc.toml"), config("axum"))?;
+    let output = run_binary_in(dir.path(), &["g", "--api-framework", "actix_web"]);
+    assert!(!output.status.success(), "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("`actix_web` in `extractors`"),
+        "{}",
+        stderr(&output)
+    );
+    Ok(())
+}
+
 /// Each `[api]` entry is checked against the schema, and a bad one fails the
 /// run naming the key, the table and the column.
 #[test]

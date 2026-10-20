@@ -16,8 +16,8 @@ You need:
 
 There are two ways to start. `rok sqlc init` scaffolds an empty skeleton
 that you fill with your own tables, which is what this page does.
-`rok sqlc init --template actix` copies a complete project instead (see
-[Starting from the template](#starting-from-the-template)).
+`rok sqlc init --template actix` (or `--template axum`) copies a complete
+project instead (see [Starting from the template](#starting-from-the-template)).
 
 ## 1. Scaffold the skeleton
 
@@ -143,7 +143,7 @@ tasks = ["title"]
 Then generate:
 
 ```sh
-rok-data-sqlc g
+rok sqlc g
 ```
 
 It prints one line per file: `generated` for the data layer, the shared
@@ -268,20 +268,23 @@ in the document and how to add your own routes to it.
 ```sh
 rok sqlc init --template actix myapi
 cd myapi
-rok-data-sqlc g
+rok sqlc g
 ```
 
 `--template actix` copies [`templates/actix-api/`](../../templates/actix-api)
 into the directory instead of the bare skeleton: its `Cargo.toml` and
 pinned `Cargo.lock`, its configuration, its migration, the scaffolded
-files, its tests and its README. rok-data-sqlc's generated files are not
-copied; `rok sqlc generate` generates them, as the printed next steps say.
+files, its tests and its README. `--template axum` copies its twin,
+[`templates/axum-api/`](../../templates/axum-api): the same application,
+written for axum (`[api] framework = "axum"`). rok-data-sqlc's generated
+files are not copied; `rok sqlc generate` generates them, as the printed
+next steps say.
 
 Each file is written only where none exists, so the directory can be a new
 one or an existing cargo project (after `cargo new myapi`, say). In an
 existing project your `Cargo.toml` stays, cargo's hello-world
 `src/main.rs` is replaced, and the template's Rust files are rewritten to
-name your library crate instead of the template's `actix_api` (`use
+name your library crate instead of the template's own (`use
 myapi::{app, config};`). Add the template's dependencies and lints to your
 `Cargo.toml` then, as the first printed step says; the template's
 [README](../../templates/actix-api/README.md) lists them and describes the

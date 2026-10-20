@@ -1,4 +1,4 @@
-# The actix template's configuration; this file is yours. `rok-sqlc g` reads
+# The actix template's configuration; this file is yours. `rok sqlc g` reads
 # it: `migrations/` becomes the data layer in `src/db/`, and `users` and
 # `audit_log` API features in `src/features/`. See README.md.
 

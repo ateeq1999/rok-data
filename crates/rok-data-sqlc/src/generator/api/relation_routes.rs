@@ -5,7 +5,8 @@
 use heck::ToSnakeCase;
 
 use super::feature::Feature;
-use super::handlers::{own_scope, push_answer};
+use super::framework::{Framework, Place, Status};
+use super::handlers::own_scope;
 use super::layout::{Uses, push_call, push_signature};
 use super::paths;
 use super::relations::{Action, Kind, Relation};
@@ -45,20 +46,20 @@ fn indented(text: &str) -> String {
 
 /// The arguments a relation's service method takes before the key, given
 /// the handler's own scope: the tenant and the caller, each extracted from
-/// `req` when the handler's own scope lacks it (`extract` gets the
+/// the request when the handler's own scope lacks it (`extract` gets the
 /// statements doing that, the caller's first).
 fn relation_args(
     feature: &Feature<'_>,
     uses: &mut Uses,
     relation: &Relation<'_>,
     extract: &mut String,
+    framework: Framework,
 ) -> Vec<String> {
     let mut args = Vec::new();
     if let Some(tenant) = relation.tenant {
         args.push("tenant.into_inner()".to_owned());
         if feature.tenant.is_none() {
             uses.add("crate::shared::tenant::Tenant");
-            uses.add("actix_web::FromRequest");
             scope::import_type(feature, uses, tenant);
         }
     }
@@ -71,30 +72,38 @@ fn relation_args(
     {
         // The handler's own extractor already hands over this caller.
         if caller != feature.caller() {
-            uses.add("actix_web::FromRequest");
             uses.add(&format!("crate::shared::auth::{extractor}"));
+            let read = framework.read_caller(uses, extractor);
             if arg.is_some() {
-                extract.push_str(&format!(
-                    "    let {binding} = {extractor}::extract(&req).await?;\n"
-                ));
+                extract.push_str(&format!("    let {binding} = {read};\n"));
             } else {
-                extract.push_str(&format!("    {extractor}::extract(&req).await?;\n"));
+                extract.push_str(&format!("    {read};\n"));
             }
         }
         args.extend(arg.map(str::to_owned));
     }
     if let Some(tenant) = relation.tenant.filter(|_| feature.tenant.is_none()) {
-        extract.push_str(&format!(
-            "    let tenant = Tenant::<{}>::extract(&req).await?;\n",
-            tenant.value_type()
-        ));
+        let read = framework.read_tenant(uses, tenant.value_type());
+        extract.push_str(&format!("    let tenant = {read};\n"));
+    }
+    // The frameworks that read the callers from the request's parts open
+    // them first.
+    if !extract.is_empty()
+        && let Some(open) = framework.open_parts()
+    {
+        extract.insert_str(0, &open);
     }
     args
 }
 
 /// `GET /{key}` with `?include=`: the row alone, or with one to-one
 /// relationship embedded, after the related table's access.
-pub fn render_get_one(output: &mut String, uses: &mut Uses, feature: &Feature<'_>) {
+pub fn render_get_one(
+    output: &mut String,
+    uses: &mut Uses,
+    feature: &Feature<'_>,
+    framework: Framework,
+) {
     let key = feature.key_type().unwrap_or_default();
     uses.add(&format!("super::model::{key}"));
     uses.add(&format!("super::dto::{}", feature.get_query()));
@@ -105,7 +114,7 @@ pub fn render_get_one(output: &mut String, uses: &mut Uses, feature: &Feature<'_
     for relation in feature.includes() {
         let mut arm = String::new();
         let mut extract = String::new();
-        let mut args = relation_args(feature, uses, relation, &mut extract);
+        let mut args = relation_args(feature, uses, relation, &mut extract, framework);
         extracts |= !extract.is_empty();
         arm.push_str(&extract);
         args.push("key".to_owned());
@@ -125,7 +134,7 @@ pub fn render_get_one(output: &mut String, uses: &mut Uses, feature: &Feature<'_
                 "    let etag = etag(&row.{});\n",
                 version.rust_name
             ));
-            headers.push("(header::ETAG, etag)");
+            headers.push(("ETAG", "etag"));
         }
         let response = relation.response();
         if relation.target.module_name != feature.module() {
@@ -138,27 +147,41 @@ pub fn render_get_one(output: &mut String, uses: &mut Uses, feature: &Feature<'_
             relation.name
         ));
         uses.add(&format!("super::dto::{}", relation.with_response(feature)));
-        push_answer(&mut arm, uses, "Ok", &headers, "response");
+        framework.answer(&mut arm, uses, Status::Ok, &headers, "response");
         arms.push((relation.variant(), arm));
     }
     let mut params = Vec::new();
-    if extracts {
-        uses.add("actix_web::HttpRequest");
-        params.push("req: HttpRequest".to_owned());
+    let request = if extracts {
+        framework.request_param(uses)
+    } else {
+        None
+    };
+    if let Some(request) = &request
+        && request.place == Place::First
+    {
+        params.push(request.param.clone());
     }
-    params.push(format!("service: web::Data<{}>", feature.service()));
+    params.push(framework.service_param(uses, &feature.service()));
     params.extend(own.params);
-    params.push(format!("path: web::Path<{key}>"));
-    params.push(format!("query: web::Query<{}>", feature.get_query()));
+    params.push(framework.path_param(uses, &key));
+    params.push(framework.query_param(uses, &feature.get_query()));
+    if let Some(request) = &request
+        && request.place == Place::Last
+    {
+        params.push(request.param.clone());
+    }
     push_signature(
         output,
         0,
         "pub async fn get_one",
         &params,
-        "Result<HttpResponse, AppError>",
+        framework.result(),
     );
-    output.push_str("    let key = path.into_inner();\n");
-    output.push_str("    let Some(include) = query.into_inner().include else {\n");
+    output.push_str(&format!("    let key = {};\n", framework.read_path("path")));
+    output.push_str(&format!(
+        "    let Some(include) = {}.include else {{\n",
+        framework.read_query("query")
+    ));
     let mut args = own.args;
     args.push("key".to_owned());
     let mut plain = String::new();
@@ -177,14 +200,15 @@ pub fn render_get_one(output: &mut String, uses: &mut Uses, feature: &Feature<'_
             "    let etag = etag(&row.{});\n",
             version.rust_name
         ));
-        headers.push("(header::ETAG, etag)");
+        headers.push(("ETAG", "etag"));
     }
     plain.push_str(&format!(
         "    let response = {}::from(row);\n",
         feature.response()
     ));
-    push_answer(&mut plain, uses, "Ok", &headers, "response");
-    let plain = plain.replacen("    Ok(HttpResponse", "    return Ok(HttpResponse", 1);
+    framework.answer(&mut plain, uses, Status::Ok, &headers, "response");
+    let lead = framework.answer_lead();
+    let plain = plain.replacen(&format!("    {lead}"), &format!("    return {lead}"), 1);
     let plain = match plain.rfind('\n') {
         Some(end) if plain[..end].ends_with(')') => format!("{};\n", &plain[..end]),
         _ => plain,
@@ -204,7 +228,12 @@ pub fn render_get_one(output: &mut String, uses: &mut Uses, feature: &Feature<'_
 }
 
 /// The handlers of the to-many relations.
-pub fn render_handlers(output: &mut String, uses: &mut Uses, feature: &Feature<'_>) {
+pub fn render_handlers(
+    output: &mut String,
+    uses: &mut Uses,
+    feature: &Feature<'_>,
+    framework: Framework,
+) {
     let key = feature.key_type().unwrap_or_default();
     for relation in &feature.relations {
         let Kind::ToMany { .. } = relation.kind else {
@@ -217,8 +246,9 @@ pub fn render_handlers(output: &mut String, uses: &mut Uses, feature: &Feature<'
             uses.add(&format!("super::super::{response}"));
         }
         let path = format!("{}{}", feature.url, relation.path(feature, Action::List));
+        let service = framework.service_param(uses, &feature.service());
         let base = |action: Action| {
-            let mut params = vec![format!("service: web::Data<{}>", feature.service())];
+            let mut params = vec![service.clone()];
             params.extend(scope.params.iter().cloned());
             (format!("pub async fn {}", relation.handler(action)), params)
         };
@@ -234,10 +264,10 @@ pub fn render_handlers(output: &mut String, uses: &mut Uses, feature: &Feature<'
         );
         paths::push_relation(output, uses, feature, relation, Action::List);
         let (head, mut params) = base(Action::List);
-        params.push(format!("path: web::Path<{key}>"));
-        push_signature(output, 0, &head, &params, "Result<HttpResponse, AppError>");
+        params.push(framework.path_param(uses, &key));
+        push_signature(output, 0, &head, &params, framework.result());
         let mut args = scope.args.clone();
-        args.push("path.into_inner()".to_owned());
+        args.push(framework.read_path("path"));
         let callee = format!("service.list_{}", relation.name);
         push_call(output, 4, "let rows = ", &callee, &args, ".await?;");
         // A bare JSON array; the right-hand side moves to its own line when
@@ -249,7 +279,8 @@ pub fn render_handlers(output: &mut String, uses: &mut Uses, feature: &Feature<'
         } else {
             output.push_str(&format!("{head}\n        {rows}\n"));
         }
-        output.push_str("    Ok(HttpResponse::Ok().json(response))\n}\n");
+        framework.answer(output, uses, Status::Ok, &[], "response");
+        output.push_str("}\n");
 
         let Some(writes) = relation.writes() else {
             continue;
@@ -281,16 +312,16 @@ pub fn render_handlers(output: &mut String, uses: &mut Uses, feature: &Feature<'
             paths::push_relation(output, uses, feature, relation, Action::Sync);
             let (head, mut params) = base(Action::Sync);
             uses.add("crate::shared::validation::IdList");
-            uses.add("crate::shared::validation::ValidatedJson");
-            params.push(format!("path: web::Path<{key}>"));
-            params.push(format!("body: ValidatedJson<IdList<{other}>>"));
-            push_signature(output, 0, &head, &params, "Result<HttpResponse, AppError>");
+            params.push(framework.path_param(uses, &key));
+            params.push(framework.body_param(uses, &format!("IdList<{other}>")));
+            push_signature(output, 0, &head, &params, framework.result());
             output.push_str("    let ids = body.into_inner().ids;\n");
             let mut args = scope.args.clone();
-            args.extend(["path.into_inner()".to_owned(), "ids".to_owned()]);
+            args.extend([framework.read_path("path"), "ids".to_owned()]);
             let callee = format!("service.sync_{}", relation.name);
             push_call(output, 4, "", &callee, &args, ".await?;");
-            output.push_str("    Ok(HttpResponse::NoContent().finish())\n}\n");
+            framework.answer_empty(output, uses, Status::NoContent);
+            output.push_str("}\n");
         }
         let pairings = [
             (Action::Attach, "pairs the row with the"),
@@ -313,14 +344,18 @@ pub fn render_handlers(output: &mut String, uses: &mut Uses, feature: &Feature<'
             );
             paths::push_relation(output, uses, feature, relation, action);
             let (head, mut params) = base(action);
-            params.push(pair_path(&key, &other));
-            push_signature(output, 0, &head, &params, "Result<HttpResponse, AppError>");
-            output.push_str("    let (key, other) = path.into_inner();\n");
+            params.push(framework.pair_path_param(uses, &key, &other));
+            push_signature(output, 0, &head, &params, framework.result());
+            output.push_str(&format!(
+                "    let (key, other) = {};\n",
+                framework.read_path("path")
+            ));
             let mut args = scope.args.clone();
             args.extend(["key".to_owned(), "other".to_owned()]);
             let callee = format!("service.{}", relation.handler(action));
             push_call(output, 4, "", &callee, &args, ".await?;");
-            output.push_str("    Ok(HttpResponse::NoContent().finish())\n}\n");
+            framework.answer_empty(output, uses, Status::NoContent);
+            output.push_str("}\n");
         }
     }
 }
@@ -403,17 +438,5 @@ pub fn render_dto(output: &mut String, uses: &mut Uses, feature: &Feature<'_>) {
             "    pub {}: Option<{response}>,\n}}\n",
             relation.name
         ));
-    }
-}
-
-/// The `path` parameter of an attach or detach: the row's key and the
-/// related row's, the tuple broken over lines as rustfmt breaks it when the
-/// parameter is too long.
-fn pair_path(key: &str, other: &str) -> String {
-    let pair = format!("{key}, {other}");
-    if pair.len() <= crate::generator::FN_CALL_WIDTH {
-        format!("path: web::Path<({pair})>")
-    } else {
-        format!("path: web::Path<(\n        {key},\n        {other},\n    )>")
     }
 }

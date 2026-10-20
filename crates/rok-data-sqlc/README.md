@@ -57,6 +57,12 @@ sync.
 > [rok-data workspace](https://github.com/ateeq1999/rok-data).
 > See [Limitations and roadmap](#limitations-and-roadmap).
 
+> **The `rok sqlc …` commands are legacy.** They keep working exactly as
+> they do now — the tokens are forwarded verbatim to this engine — but they
+> are superseded by the root front door: `rok init` scaffolds a project and
+> `rok gen` generates from the schema dir (ADR 0012). Their removal is
+> deferred to 1.0.
+
 ## Contents
 
 - [Install](#install)
@@ -79,7 +85,7 @@ sync.
 ## Install
 
 The generator ships inside the workspace's single CLI binary, `rok`
-(this engine is its `rok sqlc …` subtree and also a library — see
+(this engine is its legacy `rok sqlc …` subtree and also a library — see
 [Using it from `build.rs`](#using-it-from-buildrs)).
 
 **From crates.io** with Cargo:
@@ -203,7 +209,7 @@ output  = "src/db"
 **4. Generate:**
 
 ```sh
-rok-data-sqlc g
+rok sqlc g
 ```
 
 That is the same as
@@ -960,10 +966,11 @@ approved_by_user = false     # opt out, together with the other side
 [modules]                    # by table: generate it as another module
 "audit.users" = "audit_users"  # db::audit_users, with AuditUser and AuditUserId
 
-[api]                        # generated actix-web API features (ADR 0016); off without `output`
-output          = "src/features"  # needs derive = ["serde", "validate"] and extractors with "actix_web"
+[api]                        # generated API features (ADR 0016); off without `output`
+output          = "src/features"  # needs derive = ["serde", "validate"] and the framework's extractor
 db_path         = "crate::db"     # the default: where the generated data layer is
 prefix          = "/api/v1"       # the default URL prefix
+framework       = "actix_web"     # the default: actix-web or "axum"
 search_endpoint = true            # POST /search with per-field filters; off by default
 openapi         = true            # the default: utoipa schemas for the OpenAPI document
 exclude         = ["audit_log"]   # tables with no API feature
@@ -1002,6 +1009,10 @@ products = ["name", "price", "created_at"]
 table. A table key is the table's SQL, schema-qualified or module name. Each
 table it names must be generated and each column must exist, or the run
 fails naming the key, the table and the column (`api.owner.invoices`).
+`framework` picks the web framework the features are generated for:
+`actix_web` (the default) or `axum`. It decides the routes, the handlers and
+the shared tools; the bodies, the service and the OpenAPI document are the
+same either way. It needs the framework's extractor in `extractors`.
 With `output`, a run also generates `db/pool.rs` in the data layer
 (`PoolSettings`, `init_pool`, `check_health`) and the shared tools in
 `shared/`, the directory beside `output`: `response.rs`, `pagination.rs`,
@@ -1083,7 +1094,8 @@ only `-c` and `-l`.
 | `-j`, `--json <PAYLOAD>` | The JSON payload: inline, `@FILE`, or `-` for stdin. |
 | `-d`, `--derive <NAME>` | Add a derive to generated types (`serde`, or `validate`, which needs `serde`). Repeatable. |
 | `-e`, `--extractor <FRAMEWORK>` | Generate a validated-body extractor for `axum` or `actix_web` (needs `validate`). Repeatable. |
-| `-a`, `--api-output <DIR>` | Generate actix-web API features into this directory (`api.output`; needs `-d serde -d validate -e actix_web`). |
+| `-a`, `--api-output <DIR>` | Generate API features into this directory (`api.output`; needs `-d serde -d validate` and the framework's extractor). |
+| `-w`, `--api-framework <FRAMEWORK>` | The web framework the API features are generated for: `actix_web` (the default) or `axum` (`api.framework`). |
 | `-n`, `--dry-run` | Print what would be written, removed or refused, and touch nothing. |
 | `-k`, `--check` | Write nothing. List missing, changed and stale files, and exit 1 if there are any. |
 | `-f`, `--force` | Overwrite existing files that rok-data-sqlc did not generate. |
@@ -1097,14 +1109,16 @@ they describe a run rather than a project. A run with no schema (no
 
 ## Generated APIs
 
-With `[api] output` set, rok sqlc generates an actix-web API on top of the
+With `[api] output` set, rok sqlc generates an API on top of the
 data layer: one **API feature** per table, with routes, thin handlers,
-request and response bodies, and a service where business rules go. It
-follows one architecture. The [API guide](docs/guide/index.md) covers it
+request and response bodies, and a service where business rules go. The
+web framework is actix-web (the default) or axum, chosen by the
+`[api] framework` key. It follows one architecture. The [API guide](docs/guide/index.md) covers it
 from the first command to production:
 
 - [Getting started](docs/guide/getting-started.md): from `rok sqlc init`
-  (or `init --template actix`) to a running API and Swagger UI;
+  (or `init --template actix` / `--template axum`) to a running API and
+  Swagger UI;
 - [Configuring API features](docs/guide/configuring.md): every `[api]` key
   and the conventions that shape the API;
 - [Architecture guidelines](docs/guide/architecture.md): the layout, the
@@ -1124,7 +1138,12 @@ from the first command to production:
 The workflow is three commands: `rok sqlc init` scaffolds the application
 skeleton once, `rok sqlc generate` generates `src/db/`, `src/shared/` and
 `src/features/` from your migrations, and `rok sqlc check-arch` checks the
-rules in CI. The complete project the guide's samples come from is
+rules in CI. They are the legacy surface; the front door does the same
+work today — `rok init` scaffolds the project (the skeleton or a
+`--template actix` / `--template axum` starter), `rok gen` generates the
+data layer and the features from the project's schema directory, and
+`rok gen check` fails the build when the generated code is out of date.
+The complete project the guide's samples come from is
 [`docs/examples/api`](docs/examples/api). Its configuration is `init`'s plus
 a query file, owners and search columns:
 
@@ -1228,6 +1247,12 @@ next two sections document `init` and `check-arch`.
 actix-web application skeleton of ADR 0016 into a project. It generates
 nothing; `rok sqlc generate` does that once there are migrations.
 
+The front door scaffolds the same skeleton with `rok init [DIR]`, and its
+`--template actix` / `--template axum` copy a complete starter instead
+(see [Starting from a template](#starting-from-a-template)); it is the
+current way to start a project, and these commands are the legacy surface
+(ADR 0012).
+
 | File | What it is |
 |---|---|
 | `rok-data-sqlc.toml` | `schema = "migrations/"`, `derive = ["serde", "validate"]`, `extractors = ["actix_web"]`, `primary_key_ids = "uuid_v7"` and `api.output = "src/features"`, followed by the dependencies to add to `Cargo.toml`, as comments |
@@ -1258,18 +1283,21 @@ newline aside), and prints `replaced cargo's default src/main.rs`. Any other
 
 | Flag | Meaning |
 |---|---|
-| `-t`, `--template <NAME>` | Copy this ready-made project instead of the skeleton. The only one is `actix`; any other name fails and lists the valid ones. |
+| `-t`, `--template <NAME>` | Copy this ready-made project instead of the skeleton. The templates are `actix` and `axum`; any other name fails and lists the valid ones. |
 
 `rok sqlc init --template actix [DIR]` copies a complete actix-web project
 (its configuration, migrations, scaffolded files, tests and README) into
-`DIR`. The templates are built into the binary, so this works from
-`cargo install`. Like the skeleton, each file is written only when absent,
-and cargo's untouched default `src/main.rs` is replaced, so `DIR` can be
-new or an existing cargo project. rok-data-sqlc's generated files are not
-copied: run `rok sqlc generate` to generate them, as the printed next steps say.
-The template's pinned `Cargo.lock` is copied when the project has none.
-When the project already has a `Cargo.toml`, it is kept and the
-template's Rust files name the project's library crate (`use
+`DIR`; `--template axum` copies its twin, the same application written for
+axum (`[api] framework = "axum"`). The front door's `rok init --template
+actix` / `rok init --template axum` copy the same two templates. The
+templates are built into the binary,
+so this works from `cargo install`. Like the skeleton, each file is written
+only when absent, and cargo's untouched default `src/main.rs` is replaced, so
+`DIR` can be new or an existing cargo project. rok-data-sqlc's generated
+files are not copied: run `rok sqlc generate` to generate them, as the
+printed next steps say. The template's pinned `Cargo.lock` is copied when the
+project has none. When the project already has a `Cargo.toml`, it is kept and
+the template's Rust files name the project's library crate (`use
 myapi::app` instead of `use actix_api::app`).
 
 ## Checking the architecture: `rok sqlc check-arch`
@@ -1366,7 +1394,7 @@ disk. It exits 1 and lists every missing, changed or stale file when they
 differ, and it writes nothing:
 
 ```sh
-rok-data-sqlc g --check
+rok sqlc g --check
 ```
 
 Run it in CI after installing rok-data-sqlc to catch migrations or queries that
@@ -1545,7 +1573,6 @@ fails. With `--resource`, only that table's problems count.
   - verified email change (`[api.immutable]` keeps `email` out of the plain update until then);
   - uploads and avatars;
   - API keys.
-- `templates/axum-api/`, generated for axum, against the same contract.
 
 **Not planned** (possible later):
 

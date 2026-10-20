@@ -84,7 +84,7 @@ impl<M: Model> Select<M> {
 
     /// `SUM(column)` over the matching rows as `BIGINT` (`None` when no
     /// rows match). Use [`select`](Self::select) with
-    /// [`Projection::cast`] for other result types.
+    /// [`Projection::cast`](crate::Projection::cast) for other result types.
     pub async fn sum<'e, E: Executor<'e>>(
         self,
         executor: E,

@@ -85,7 +85,7 @@ Fix the SQL and run it again.
 ## In CI: `--check`
 
 ```sh
-rok-data-sqlc g --check
+rok sqlc g --check
 ```
 
 `--check` writes nothing. It regenerates in memory and lists every file

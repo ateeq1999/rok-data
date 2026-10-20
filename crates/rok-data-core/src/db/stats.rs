@@ -1,6 +1,6 @@
 //! The pool statistics a `Db` reports.
 
-/// Connection pool statistics, from [`Db::stats`].
+/// Connection pool statistics, from [`Db::stats`](crate::Db::stats).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PoolStats {
     /// Open connections (idle and in use).

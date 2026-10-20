@@ -13,11 +13,13 @@ rok --help
 ```
 
 ```text
-rok generate [OPTIONS] [check]      model crate from .sql files
+rok init [NAME]                   scaffold a project (skeleton or template)
+rok gen [OPTIONS] [check]         data layer and API features from the schema dir
+rok generate [OPTIONS] [check]      legacy: model crate from .sql files
 rok migrate <COMMAND>               create|status|up|down (+ rollback)
 rok db <COMMAND>                    check|inspect the configured database
 rok schema <COMMAND>                dump|diff the live schema and journal
-rok sqlc <COMMAND>                  resource-module generator (g|i|a)
+rok sqlc <COMMAND>                  legacy: resource-module generator (g|i|a)
 ```
 
 Most commands read the database from `DATABASE_URL` (or
@@ -25,6 +27,10 @@ Most commands read the database from `DATABASE_URL` (or
 machine-readable contract. The `rok sqlc …` subtree is the
 `rok-data-sqlc` engine's own clap grammar, forwarded verbatim — so its
 tests drive the `rok` binary exactly as a user would.
+
+`rok generate` and `rok sqlc …` are the legacy surfaces: still supported,
+still forwarded verbatim, superseded by the front door (`rok init`,
+`rok gen`), and their removal is deferred to 1.0.
 
 The full command contract (flags, defaults, exit codes, JSON shapes):
 [docs/cli-reference.md](../docs/cli-reference.md). Architecture and the

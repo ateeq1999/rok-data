@@ -497,7 +497,7 @@ one ([Customizing](customizing.md#a-hand-written-feature)).
 ## 12. Automated checks
 
 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo
-test`, `rok-data-sqlc g --check` (the generated code matches the schema) and
+test`, `rok sqlc g --check` (the generated code matches the schema) and
 `rok sqlc check-arch`. `init` lists the clippy lints that deny `unwrap`,
 `expect` and `panic` at the end of `rok-data-sqlc.toml`.
 

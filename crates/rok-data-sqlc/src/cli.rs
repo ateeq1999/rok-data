@@ -9,7 +9,7 @@ use clap::{Parser, Subcommand};
 
 use crate::config_file::{self, FileConfig};
 use crate::report::display_path;
-use crate::{Config, Derive, Extractor, Report};
+use crate::{ApiFramework, Config, Derive, Extractor, Report};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -94,6 +94,12 @@ enum Command {
         /// rok-data-sqlc.toml]
         #[arg(short, long, value_name = "DIR")]
         api_output: Option<PathBuf>,
+
+        /// The web framework the API features are generated for: `actix_web`
+        /// (the default) or `axum` (needs `-e` for the same framework)
+        /// [default: `api.framework` from rok-data-sqlc.toml]
+        #[arg(short = 'w', long, value_name = "FRAMEWORK", value_enum)]
+        api_framework: Option<FrameworkArg>,
     },
 
     /// Scaffold the actix-web application skeleton (ADR 0016) into a
@@ -204,6 +210,7 @@ where
             derive,
             extractor,
             api_output,
+            api_framework,
         } => {
             let payload = match json {
                 Some(arg) => config_file::load_json(&arg)?,
@@ -228,7 +235,7 @@ where
                     .then(|| extractor.into_iter().map(Extractor::from).collect()),
                 relationships: Default::default(),
                 modules: Default::default(),
-                api: config_file::ApiKeys::output(api_output),
+                api: config_file::ApiKeys::flags(api_output, api_framework.map(ApiFramework::from)),
             };
             // Flags override the JSON payload, which overrides the file,
             // which overrides the defaults. `--schema` and `--queries` (each
@@ -347,6 +354,24 @@ impl From<ExtractorArg> for Extractor {
         match arg {
             ExtractorArg::Axum => Extractor::Axum,
             ExtractorArg::ActixWeb => Extractor::ActixWeb,
+        }
+    }
+}
+
+/// An `--api-framework` value. It mirrors [`ApiFramework`], which stays
+/// free of clap because it is part of the stable library API (ADR 0012).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+enum FrameworkArg {
+    Axum,
+    #[value(name = "actix_web")]
+    ActixWeb,
+}
+
+impl From<FrameworkArg> for ApiFramework {
+    fn from(arg: FrameworkArg) -> Self {
+        match arg {
+            FrameworkArg::Axum => ApiFramework::Axum,
+            FrameworkArg::ActixWeb => ApiFramework::ActixWeb,
         }
     }
 }

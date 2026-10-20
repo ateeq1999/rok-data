@@ -21,11 +21,18 @@ use crate::report::display_path;
 use crate::{Conventions, Derive, Extractor, IdGeneration, RelationshipChange};
 
 mod api_keys;
+mod project;
+
+use self::project::RawProject;
 
 pub(crate) use self::api_keys::ApiKeys;
 
 /// The file name looked for during discovery.
 pub(crate) const FILE_NAME: &str = "rok-data-sqlc.toml";
+
+/// The canonical project file name (ADR 0011), which holds the engine's
+/// settings in its `[generate]` section.
+pub(crate) const PROJECT_FILE: &str = "rok.toml";
 
 /// The options one configuration source sets, with paths already resolved.
 /// `None` (or empty) means the source leaves the option to the sources below
@@ -72,6 +79,28 @@ impl FileConfig {
             relationships: relationships_over(self.relationships, lower.relationships),
             modules: modules_over(self.modules, lower.modules),
             api: self.api.over(lower.api),
+        }
+    }
+
+    /// The settings a [`Config`](crate::Config) takes: the file's values,
+    /// and the defaults for the rest. The flags override them afterwards.
+    pub(crate) fn into_config(self) -> crate::Config {
+        let defaults = crate::Config::default();
+        crate::Config {
+            schema: self.schema,
+            queries: self.queries,
+            output: self.output.unwrap_or(defaults.output),
+            resource: self.resource,
+            dry_run: defaults.dry_run,
+            check: defaults.check,
+            force: defaults.force,
+            lenient: defaults.lenient,
+            conventions: self.conventions.resolve(),
+            derive: self.derive.unwrap_or(defaults.derive),
+            extractors: self.extractors.unwrap_or(defaults.extractors),
+            relationships: self.relationships,
+            modules: self.modules,
+            api: self.api.resolve(),
         }
     }
 }
@@ -347,9 +376,48 @@ pub(crate) fn discover(start: &Path) -> Option<PathBuf> {
 /// Reads and validates the config file at `path`. Unknown keys are errors
 /// naming the key and the file.
 pub(crate) fn load(path: &Path) -> Result<FileConfig> {
-    let text = fs::read_to_string(path)
-        .with_context(|| format!("failed to read config file {}", display_path(path)))?;
-    let raw: RawFile = toml::from_str(&text)
+    let text = read(path)?;
+    parse_legacy(&text, path)
+}
+
+/// Reads a config file in whichever shape it uses: the legacy flat one
+/// (`rok-data-sqlc.toml`), whose keys sit at the top level, or the unified
+/// project's (`rok.toml`, ADR 0011), whose generation settings sit in its
+/// `[generate]` section.
+pub(crate) fn load_any(path: &Path) -> Result<FileConfig> {
+    let text = read(path)?;
+    if is_unified(path, &text) {
+        parse_project(&text, path)
+    } else {
+        parse_legacy(&text, path)
+    }
+}
+
+/// Reads a config file's text.
+fn read(path: &Path) -> Result<String> {
+    fs::read_to_string(path)
+        .with_context(|| format!("failed to read config file {}", display_path(path)))
+}
+
+/// Whether the file uses the unified project shape (ADR 0011): the
+/// canonical `rok.toml`, or any file with a `[generate]` section.
+fn is_unified(path: &Path, text: &str) -> bool {
+    if path.file_name().is_some_and(|name| name == PROJECT_FILE) {
+        return true;
+    }
+    toml::from_str::<toml::Table>(text).is_ok_and(|table| table.contains_key("generate"))
+}
+
+/// The legacy flat shape: the keys at the top level.
+fn parse_legacy(text: &str, path: &Path) -> Result<FileConfig> {
+    let raw: RawFile = toml::from_str(text)
+        .with_context(|| format!("invalid config file {}", display_path(path)))?;
+    Ok(raw.resolve(path.parent().unwrap_or(Path::new(""))))
+}
+
+/// The unified project shape: the generation keys in `[generate]`.
+fn parse_project(text: &str, path: &Path) -> Result<FileConfig> {
+    let raw: RawProject = toml::from_str(text)
         .with_context(|| format!("invalid config file {}", display_path(path)))?;
     Ok(raw.resolve(path.parent().unwrap_or(Path::new(""))))
 }

@@ -1,4 +1,4 @@
-// Scaffolded once by rok-sqlc; this file is yours. It is never regenerated. See docs/guide/architecture.md.
+// Scaffolded once by rok-data-sqlc; this file is yours. It is never regenerated. See docs/guide/architecture.md.
 
 //! The application's settings, read from the environment into one
 //! [`Config`]. This is the only file that reads environment variables.

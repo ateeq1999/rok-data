@@ -6,7 +6,7 @@ one runtime, one generator pair, and one CLI.
 ```
 ┌────────────────────────────────────────────────────────────┐
 │                        rok (CLI crate)                     │  ← the only user-facing
-│  generate  migrate  db  schema  sqlc                       │    binary in the workspace
+│  init  gen  generate  migrate  db  schema  sqlc           │    binary in the workspace
 └───────┬──────────────┬──────────────────┬──────────────────-┘
         │              │                  │
         ▼              ▼                  ▼
@@ -35,7 +35,16 @@ one runtime, one generator pair, and one CLI.
 ```
 
 (Also in the workspace: `sqlgen-db`, the generated-code example under
-`examples/sqlgen/`, which exercises rok-data-codegen end to end.)
+`examples/sqlgen/`, which exercises rok-data-codegen end to end, and
+`examples/api`, the vertical slice of the pipeline — a schema, the
+generated data layer and the axum API features beside it, and the staged
+migration pairs — which the repository's own gates compile.)
+
+The CLI's command surface has two generations: the front door (`rok init`,
+`rok gen`) and the legacy commands (`rok generate`, `rok sqlc …`). The legacy
+ones keep working exactly as they do now — `rok sqlc …` forwards its tokens
+verbatim to the engine — but they are superseded by the front door, and
+their removal is deferred to 1.0 (ADR 0012).
 
 ## Crate responsibilities
 
@@ -44,22 +53,23 @@ one runtime, one generator pair, and one CLI.
 | `rok-data-core`   | sqlx runtime: `Db`, builders, error, metrics, migrations, introspection        | sqlx 0.9 (postgres), tokio          |
 | `rok-data-macros` | proc macros: `Model`/`FromRow`/`DbEnum`/`DbNewtype` derives, `#[rok::test]`    | proc-macro2, quote, syn             |
 | `rok-data`        | facade: re-exports core + macros; the single dependency of applications        | core, macros                        |
-| `rok-data-codegen`| model-crate generator (`rok generate`): reads `.sql`, emits a cargo crate      | core (types), toml                  |
-| `rok-data-sqlc`   | SQLx resource-module generator (`rok sqlc generate|init|check-arch`)           | sqlparser-less own pg parser, clap  |
+| `rok-data-codegen`| model-crate generator (legacy `rok generate`): reads `.sql`, emits a cargo crate; stages migration pairs (`rok gen --migration`) | core (types), toml                  |
+| `rok-data-sqlc`   | SQLx resource-module generator (legacy `rok sqlc generate|init|check-arch`); the API features have an actix-web and an axum backend   | own pg parser, clap  |
 | `rok-cli`         | the `rok` binary: argument routing, output formats, connection handling        | codegen, core, sqlc, clap, tokio    |
 
 ## Dependency rules (enforced by review, and the reason the shape holds)
 
 1. **Runtime crates never depend on `rok-cli`.** The CLI is a leaf; every
    capability it offers lives in a library (`rok_data_codegen::generate`,
-   `rok_data_core::migration_file`, `rok_data_sqlc::cli::run_from`). A
-   future GUI, REST daemon or test harness would reuse exactly these.
+   `rok_data_core::migration_file`, `rok_data_sqlc::cli::run_from`,
+   `rok_data_sqlc::init` behind `rok init`). A future GUI, REST daemon or
+   test harness would reuse exactly these.
 2. **Only `rok-data-core` depends on sqlx.** Facade, codegen and the SQLc
    engine consume core's types; `rok-cli` takes its `Db` handle through
    `rok_data::sqlx` re-exports so the sqlx version stays pinned in one
    place.
 3. **The CLI's sqlc subtree is the engine's own clap grammar.**
-   `rok sqlc generate|init|check-arch` delegates straight to
+   The legacy `rok sqlc generate|init|check-arch` delegates straight to
    `rok_data_sqlc::cli::run_from`, so the engine's help text, aliases and
    exit codes remain the ones its tests assert. Nothing about the grammar
    is duplicated in rok-cli.

@@ -52,7 +52,8 @@ impl<M> Expr<M> {
         Self::new(Cond::Or(Vec::new()))
     }
 
-    /// `EXISTS (subquery)`. Combine with [`Column::eq_outer`] to correlate
+    /// `EXISTS (subquery)`. Combine with
+    /// [`Column::eq_outer`](crate::Column::eq_outer) to correlate
     /// the subquery with the outer query.
     pub fn exists<N: Model>(subquery: Select<N>) -> Self {
         Self::new(Cond::Sub {

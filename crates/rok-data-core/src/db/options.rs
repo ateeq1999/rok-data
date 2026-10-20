@@ -2,16 +2,7 @@
 
 use std::time::Duration;
 
-/// A pooled PostgreSQL connection handle — the entry point of rok-data.
-///
-/// `Db` is cheap to clone (it wraps an `Arc`'d pool) and can be passed
-/// wherever an [`Executor`](crate::Executor) is expected:
-///
-/// ```ignore
-/// let db = Db::connect("postgres://localhost/app").await?;
-/// let user = User::find(&db, 1).await?;
-/// ```
-
+/// A transaction's isolation level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Isolation {
     /// `READ COMMITTED` (PostgreSQL's default).
@@ -20,11 +11,11 @@ pub enum Isolation {
     RepeatableRead,
     /// `SERIALIZABLE`: transactions behave as if run one after another;
     /// conflicting ones fail with a serialization error (and are retried by
-    /// [`Db::transaction_with`]).
+    /// [`Db::transaction_with`](crate::Db::transaction_with)).
     Serializable,
 }
 
-/// Settings for [`Db::transaction_with`].
+/// Settings for [`Db::transaction_with`](crate::Db::transaction_with).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TxOptions {
     isolation: Option<Isolation>,

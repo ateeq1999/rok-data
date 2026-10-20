@@ -1,4 +1,4 @@
-// Scaffolded once by rok-sqlc; this file is yours. It is never regenerated. See docs/guide/architecture.md.
+// Scaffolded once by rok-data-sqlc; this file is yours. It is never regenerated. See docs/guide/architecture.md.
 
 //! The `OpenAPI` document `app.rs` serves at `/api-docs/openapi.json`, with
 //! Swagger UI at `/docs/`: the generated features' `GeneratedApiDoc`,

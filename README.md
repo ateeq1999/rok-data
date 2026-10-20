@@ -6,7 +6,9 @@ PostgreSQL data tooling for Rust, consolidated from the rok ecosystem:
   with drift detection, and schema introspection;
 - **two generators** — a whole-crate generator and a resource-module
   generator;
-- **one CLI** — `rok`, the single user-facing binary.
+- **one CLI** — `rok`, the single user-facing binary, and one front door
+  through it: `rok init` scaffolds a project, `rok gen` generates its data
+  layer and API features from the project's schema directory.
 
 ## Install
 
@@ -32,6 +34,37 @@ release story.) The crates need Rust 1.94 or newer.
 
 ## Quick start
 
+The front door: `rok init` scaffolds a project, `rok gen` generates its data
+layer and its API features from the project's schema directory.
+
+```console
+$ rok init my-api --schema schema.sql
+$ cd my-api && rok gen
+```
+
+`rok init` writes the project — the application skeleton, its settings file
+and its schema directory (`migrations/`), seeded with the schema file you
+name. `rok gen` turns that schema directory into the data layer
+(`src/db/**`), the shared tools and the API features (`src/features/**`);
+with `--migration NAME` it also stages the difference between the schema
+and the last staged migration as a `NNNN_name.up.sql` / `NNNN_name.down.sql`
+pair in the same directory. `rok gen check` is the CI mode: it writes
+nothing and fails when the generated code is out of date.
+
+A whole API in one step:
+
+```console
+$ rok init my-api --template axum    # a complete axum application
+$ rok init my-api --template actix   # its actix-web twin
+```
+
+The whole chain in one crate: [`examples/api`](examples/api) holds a schema
+of two files, the generated data layer and API features beside it, and the
+staged migration pairs — the vertical slice the repository's own gates
+compile.
+
+Deriving the models by hand is one derive away:
+
 ```console
 $ cargo new my-app && cd my-app
 $ cargo add rok-data
@@ -52,17 +85,10 @@ Apply it:
 $ rok migrate up        # reads DATABASE_URL, writes the _rok_data_migrations journal
 ```
 
-Generate the typed models from SQL instead of writing derives by hand:
-
-```console
-$ rok generate --input sql --output . --crate-name my-app-db
-```
-
-Or, for resource-module style code inside your crate:
-
-```console
-$ rok sqlc g --schema schema.sql
-```
+The older generators still work — `rok generate` writes a whole model crate
+from `.sql` files, `rok sqlc g` writes resource modules into an existing
+crate — but they are **legacy**: superseded by `rok init`/`rok gen`, with
+their removal deferred to 1.0.
 
 Crate-by-crate docs: [docs/getting-started.md](docs/getting-started.md),
 [docs/cli-reference.md](docs/cli-reference.md), and the per-crate

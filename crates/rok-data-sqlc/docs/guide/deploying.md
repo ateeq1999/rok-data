@@ -117,13 +117,13 @@ Run these on every change, in order of speed:
 
 ```sh
 cargo fmt --check
-rok-data-sqlc g --check
+rok sqlc g --check
 rok sqlc check-arch
 cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
-- `rok-data-sqlc g --check` regenerates in memory and fails, listing the files,
+- `rok sqlc g --check` regenerates in memory and fails, listing the files,
   when the committed generated code doesn't match the migrations, the
   query files and `rok-data-sqlc.toml`: someone changed the schema without
   running `rok sqlc generate`, or edited a generated file. It never checks the

@@ -89,7 +89,7 @@ joined_model_tuples! {
 }
 
 /// A `SELECT` over root model `M` with joined models `J`, created with
-/// [`Select::join`] or [`Select::left_join`]. See the [module docs](self).
+/// [`Select::join`] or [`Select::left_join`]. See the [module docs](crate::join).
 pub struct Joined<M, J> {
     select: Select<M>,
     _joins: PhantomData<fn() -> J>,

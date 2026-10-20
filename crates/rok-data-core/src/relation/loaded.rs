@@ -11,7 +11,8 @@ use super::include::{ErasedState, Relation};
 use super::relations::key;
 
 /// Eager-loaded single related records, keyed by owner. Returned by
-/// [`BelongsTo::load`] and [`HasOne::load`].
+/// [`BelongsTo::load`](crate::BelongsTo::load) and
+/// [`HasOne::load`](crate::HasOne::load).
 pub struct One<O, T> {
     pub(crate) map: HashMap<String, T>,
     owner_key: &'static str,
@@ -54,7 +55,7 @@ impl<O: Model, T> One<O, T> {
 }
 
 /// Eager-loaded related records grouped by owner. Returned by
-/// [`HasMany::load`].
+/// [`HasMany::load`](crate::HasMany::load).
 pub struct Many<O, T> {
     pub(crate) map: HashMap<String, Vec<T>>,
     owner_key: &'static str,
@@ -100,11 +101,6 @@ impl<O: Model, T> Many<O, T> {
     }
 }
 
-/// A relation value — a generated constant of [`HasMany`], [`HasOne`] or
-/// [`BelongsTo`] — in the shape [`Select::with`] needs to batch-load it.
-///
-/// The owner is the model whose rows the query returns; its keys feed the
-/// batch. The target is the model on the other end.
 /// The rows of a `with`-query and the relations loaded beside them. Rows
 /// keep their own type; relations are read by the very constants that
 /// asked for them, and never panic (an unloaded relation is `None`, not a

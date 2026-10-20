@@ -103,4 +103,4 @@ units, time is UTC, and ids are UUIDs.
 ## Checks
 
 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`,
-`cargo test`, `rok-data-sqlc g --check` and `rok sqlc check-arch`.
+`cargo test`, `rok sqlc g --check` and `rok sqlc check-arch`.

@@ -47,6 +47,38 @@ Join tables, which the data layer turns into a many-to-many relationship
 between the two tables they pair, get no feature of their own: the two
 features serve the relationship.
 
+## `framework`
+
+```toml
+[api]
+output = "src/features"
+framework = "axum"
+```
+
+The web framework the features are generated for: `actix_web` (the default)
+or `axum`. It decides the routes, the handlers and the shared tools; the
+bodies, the service and the OpenAPI document are the same either way.
+
+With `actix_web`, a feature's `routes.rs` mounts a `web::ServiceConfig`
+scope, its handlers take `web::Data`, `web::Path` and `web::Query`, and the
+root's `generated.rs` holds `register_services` and `configure_all`. With
+`axum`, a feature's `routes.rs` is a `Router`, its handlers take
+`Extension`, `Path` and `Query`, and the root's `generated.rs` holds one
+`router(pool)`.
+
+The framework needs its extractor in `extractors` (`actix_web` or `axum`),
+since the features take validated JSON bodies through it; a run with
+`framework = "axum"` and only `actix_web` in `extractors` fails naming the
+extractor it needs. `--api-framework` sets it from the command line.
+
+The axum features keep the wire standard: a malformed path or query is a
+`400` with the error body, answered by the `Path` and `Query` extractors in
+`shared/validation.rs` rather than by axum's own rejections. The axum
+router's state is `()`, so an application's own data travels as extensions
+(`Extension<PgPool>`, the JWT keys), and the extractors it writes — the
+`AuthUser` and `AdminUser` in `shared/auth.rs` — implement
+`FromRequestParts<()>`.
+
 ## `db_path`
 
 ```toml

@@ -9,9 +9,9 @@ serves against that one, operation by operation.
 Start one with:
 
 ```sh
-rok-sqlc init --template actix my-api
+rok sqlc init --template actix my-api
 cd my-api
-rok-sqlc g
+rok sqlc g
 ```
 
 ## Running it
@@ -73,8 +73,8 @@ print_stdout = "deny"
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 DATABASE_URL=postgres://... cargo test   # each test makes and drops its own schema
-rok-sqlc g --check                       # the generated code matches the schema
-rok-sqlc check-arch                      # the layout and rules of AGENTS.md
+rok sqlc g --check                       # the generated code matches the schema
+rok sqlc check-arch                      # the layout and rules of AGENTS.md
 ```
 
 Without `DATABASE_URL`, the API tests print a note and pass; the contract
@@ -85,7 +85,7 @@ test needs no database. The lints in `Cargo.toml` deny `unwrap`, `expect`,
 
 `AGENTS.md` and `src/features/README.md` explain the layout. In short:
 
-- **Generated** (first line `@generated`; `rok-sqlc g` rewrites them, never
+- **Generated** (first line `@generated`; `rok sqlc g` rewrites them, never
   edit them): `src/db/` (the data layer), `src/shared/{health,pagination,
   response,tenant,validation}.rs`, and every file of `src/features/` but
   `mod.rs` and each feature's `service.rs`.
@@ -95,7 +95,7 @@ test needs no database. The lints in `Cargo.toml` deny `unwrap`, `expect`,
   `service.rs` (business rules go there), `tests/`, and this README.
 
 Change the schema with a new migration, adjust `rok-sqlc.toml`, run
-`rok-sqlc g`, and the features follow.
+`rok sqlc g`, and the features follow.
 
 ## How the schema meets the target
 

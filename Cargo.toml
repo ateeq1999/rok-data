@@ -15,12 +15,16 @@ members = [
 exclude = [
     "crates/rok-data-sqlc/tests/modules-app",
     "crates/rok-data-sqlc/tests/api-app",
+    "crates/rok-data-sqlc/tests/axum-app",
     "crates/rok-data-sqlc/tests/fixture-app",
     "crates/rok-data-sqlc/templates/actix-api",
+    "crates/rok-data-sqlc/templates/axum-api",
     "crates/rok-data-sqlc/docs/examples/api",
     "crates/rok-data-sqlc/docs/examples/conventions",
     "crates/rok-data-sqlc/docs/examples/quickstart",
     "crates/rok-data-sqlc/docs/examples/validated-api",
+    # The vertical slice: the example crate at the repository's root.
+    "examples/api",
 ]
 
 [workspace.package]
