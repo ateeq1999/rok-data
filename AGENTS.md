@@ -82,10 +82,12 @@ skip is honest (printed, never silent).
 ### Large-file gate (working rule, not yet CI)
 
 Source files grow until a natural seam appears, never past ~600
-lines. Some 2b-era files are already over (e.g.
-`rok-data-core/src/query.rs`); splitting them is queued for after
-the 0.2.0 release — do not stack new kinds of behavior on top of an
-oversized file when a split is available.
+lines. The rule is enforced by review, not by a tool: before adding a
+new kind of behavior to a file that is already large, split it first
+(2026-10: the runtime, the macros, the codegen engine and the two
+large test suites were split to that limit; the largest hand-written
+file is now under 600 lines). Split by responsibility — a module per
+concern — not by line range.
 
 ## Releasing
 

@@ -1,69 +1,19 @@
+//! The `Model` trait: the columns, the keys, and the single-row operations.
+
 use std::future::Future;
 
 use sqlx::FromRow;
 use sqlx::postgres::PgRow;
 
-use sqlx::Row;
-
+use super::Hooks;
+use super::checked_write::checked_write;
+use super::insert::{insert_sql, is_timestamp, pre_insert, writable};
 use crate::exec;
 use crate::key::{IntoKey, key_expr, key_string};
 use crate::query::{Conflict, ConflictAction, ConflictTarget, Insert, InsertMany, Select, Update};
 use crate::sql::Sql;
 use crate::validate::ValidationErrors;
 use crate::{Column, Error, Executor, Expr, Order, Result, Value};
-
-/// Lifecycle hooks, called around the record-level writes of [`Model`]
-/// (`insert`, `insert_all`/`insert_many`, `upsert`, `save`, `delete`,
-/// `force_delete`). Bulk query operations (`Select::update`,
-/// `Select::delete`, …) don't call hooks.
-///
-/// `#[derive(Model)]` implements this trait with no-op hooks; add
-/// `#[rok(hooks)]` to implement it yourself:
-///
-/// ```ignore
-/// #[derive(Model)]
-/// #[rok(hooks)]
-/// struct User { id: i64, email: String }
-///
-/// impl Hooks for User {
-///     fn before_insert(&self) -> rok_data::Result<()> {
-///         if self.email.ends_with("@blocked.example") {
-///             return Err(rok_data::Error::hook("this domain is blocked"));
-///         }
-///         Ok(())
-///     }
-/// }
-/// ```
-///
-/// A `before_*` error aborts the operation before anything is written.
-/// An `after_*` error is returned to the caller *after* the write happened;
-/// run the operation in a transaction if it should be rolled back.
-pub trait Hooks {
-    /// Before inserting (also upserts), after validation.
-    fn before_insert(&self) -> Result<()> {
-        Ok(())
-    }
-    /// After inserting, with the stored row.
-    fn after_insert(&self) -> Result<()> {
-        Ok(())
-    }
-    /// Before `save`, after validation.
-    fn before_save(&self) -> Result<()> {
-        Ok(())
-    }
-    /// After `save`, with the stored row.
-    fn after_save(&self) -> Result<()> {
-        Ok(())
-    }
-    /// Before `delete` / `force_delete`.
-    fn before_delete(&self) -> Result<()> {
-        Ok(())
-    }
-    /// After `delete` / `force_delete`.
-    fn after_delete(&self) -> Result<()> {
-        Ok(())
-    }
-}
 
 /// A database-backed record.
 ///
@@ -631,136 +581,4 @@ pub trait Model:
                 .ok_or_else(|| Error::not_found::<Self>(Some(key)))
         }
     }
-}
-
-/// Run a single-row write (`UPDATE`/`DELETE` by primary key with a version
-/// check) and tell apart success, a version conflict and a missing row in
-/// one round trip:
-///
-/// ```sql
-/// WITH w AS (<write> RETURNING TRUE AS __rok_present, <columns>)
-/// SELECT EXISTS(<exists>) AS __rok_exists, w.*
-/// FROM (SELECT 1) d LEFT JOIN w ON TRUE
-/// ```
-///
-/// `exists` selects the record by primary key (without the version check).
-async fn checked_write<'e, M: Model, E: Executor<'e>>(
-    executor: E,
-    write: Sql,
-    key: String,
-    exists: Select<M>,
-) -> Result<M> {
-    let mut sql = Sql::new();
-    sql.push(r#"WITH "__rok_w" AS ("#);
-    sql.append(write);
-    sql.push(r#" RETURNING TRUE AS "__rok_present", "#);
-    push_columns::<M>(&mut sql);
-    sql.push(") SELECT EXISTS(");
-    exists.write_exists_body(&mut sql);
-    sql.push(r#") AS "__rok_exists", "w".* FROM (SELECT 1) AS "__rok_d" LEFT JOIN "__rok_w" AS "w" ON TRUE"#);
-
-    let rows = exec::fetch_rows(executor, &sql, &[M::TABLE], false).await?;
-    let row = rows
-        .first()
-        .ok_or_else(|| Error::not_found::<M>(Some(key.clone())))?;
-    if row.try_get::<Option<bool>, _>("__rok_present")?.is_some() {
-        Ok(M::from_row(row)?)
-    } else if row.try_get::<bool, _>("__rok_exists")? {
-        Err(Error::Conflict {
-            table: M::TABLE,
-            key,
-        })
-    } else {
-        Err(Error::not_found::<M>(Some(key)))
-    }
-}
-
-/// Validation and `before_insert`, run before any insert of `record`.
-pub(crate) fn pre_insert<M: Model>(record: &M) -> Result<()> {
-    record.validate().map_err(Error::Validation)?;
-    record.before_insert()
-}
-
-fn writable<M: Model>(
-    values: Vec<(&'static str, Value)>,
-) -> impl Iterator<Item = (&'static str, Value)> {
-    values
-        .into_iter()
-        .filter(|(c, _)| !M::GENERATED.contains(c))
-}
-
-fn is_timestamp<M: Model>(column: &str) -> bool {
-    M::CREATED_AT_COLUMN == Some(column) || M::UPDATED_AT_COLUMN == Some(column)
-}
-
-/// Build `INSERT … VALUES (…), (…) [ON CONFLICT …] RETURNING …`.
-pub(crate) fn insert_sql<M: Model>(
-    records: &[M],
-    include_pk: bool,
-    conflict: Option<&Conflict>,
-) -> Result<Sql> {
-    let include =
-        |c: &str| !M::GENERATED.contains(&c) || (include_pk && M::PRIMARY_KEYS.contains(&c));
-    let columns: Vec<&'static str> = M::COLUMNS.iter().copied().filter(|c| include(c)).collect();
-
-    let mut sql = Sql::new();
-    sql.push("INSERT INTO ").push_ident(M::TABLE);
-    if columns.is_empty() {
-        // Every column is generated: rely on defaults (single row only).
-        sql.push(" DEFAULT VALUES");
-    } else {
-        sql.push(" (")
-            .push_list(&columns, ", ", |sql, c| {
-                sql.push_ident(c);
-            })
-            .push(") VALUES ");
-        let tenant = M::TENANT_COLUMN.zip(crate::tenant::current());
-        sql.push_list(records, ", ", |sql, record| {
-            let values = record.values().into_iter().filter(|(c, _)| include(c));
-            sql.push("(")
-                .push_list(values, ", ", |sql, (c, v)| {
-                    if is_timestamp::<M>(c) {
-                        sql.push("now()");
-                    } else if let Some((_, current)) = tenant.as_ref().filter(|(t, _)| *t == c) {
-                        sql.bind(current.clone());
-                    } else {
-                        sql.bind(v);
-                    }
-                })
-                .push(")");
-        });
-    }
-    if let Some(conflict) = conflict {
-        conflict.write::<M>(&mut sql, &columns)?;
-    }
-    push_returning::<M>(&mut sql);
-    Ok(sql)
-}
-
-/// The tenant value to write for `column` of `M`, if it is the tenant column
-/// and a tenant scope is active.
-pub(crate) fn tenant_override<M: Model>(column: &str) -> Option<Value> {
-    M::TENANT_COLUMN
-        .filter(|c| *c == column)
-        .and_then(|_| crate::tenant::current())
-}
-
-pub(crate) fn push_columns<M: Model>(sql: &mut Sql) {
-    sql.push_list(M::COLUMNS, ", ", |sql, c| {
-        sql.push_column(M::TABLE, c);
-    });
-}
-
-pub(crate) fn push_returning<M: Model>(sql: &mut Sql) {
-    sql.push(" RETURNING ");
-    push_columns::<M>(sql);
-}
-
-#[doc(hidden)]
-pub fn __insert_sql<M: Model>(records: &[M], upsert: bool) -> Sql {
-    let conflict = upsert.then(|| Conflict {
-        target: ConflictTarget::Columns(M::PRIMARY_KEYS.to_vec()),
-        action: ConflictAction::UpdateAll,
-    });
-    insert_sql(records, upsert, conflict.as_ref()).expect("valid insert")
 }
