@@ -541,7 +541,7 @@ fn an_empty_schema_dir_fails() -> Result<()> {
     Ok(())
 }
 
-/// `--migration` needs a schema directory.
+/// The `--migration` needs a schema directory.
 #[test]
 fn a_migration_needs_a_schema_directory() -> Result<()> {
     let dir = TempDir::new()?;
@@ -557,5 +557,74 @@ fn a_migration_needs_a_schema_directory() -> Result<()> {
         "{}",
         stderr(&output)
     );
+    Ok(())
+}
+
+/// The advice names a way that works: the staged pair is a plain SQL file,
+/// and the runtime's loader reads a directory of pairs only — the schema
+/// dir holds the truth beside them.
+#[test]
+fn the_migration_advice_names_the_staged_pair() -> Result<()> {
+    let dir = project(SCHEMA)?;
+    let output = run_in(dir.path(), &["gen", "--migration", "init"])?;
+    assert_success(&output);
+
+    let stdout = stdout(&output);
+    assert!(stdout.contains("migrations/0001_init.up.sql"), "{stdout}");
+    assert!(stdout.contains("psql"), "{stdout}");
+    assert!(!stdout.contains("rok migrate up"), "{stdout}");
+    Ok(())
+}
+
+/// The `--api-framework` flag picks the API backend, and beats the file.
+#[test]
+fn the_api_framework_flag_beats_the_file() -> Result<()> {
+    let dir = project(SCHEMA)?;
+    fs::write(
+        dir.path().join("rok.toml"),
+        "[generate]\nschema = \"migrations/\"\nderive = [\"serde\", \"validate\"]\n\
+         extractors = [\"actix_web\", \"axum\"]\n\n[api]\noutput = \"src/features\"\n\
+         framework = \"actix_web\"\n",
+    )?;
+
+    let output = run_in(dir.path(), &["gen", "--api-framework", "axum"])?;
+    assert_success(&output);
+    let routes = fs::read_to_string(dir.path().join("src/features/users/routes.rs"))?;
+    assert!(routes.contains("axum::Router"), "{routes}");
+    Ok(())
+}
+
+/// The flag needs the API features it selects a backend for.
+#[test]
+fn the_api_framework_flag_needs_the_api_section() -> Result<()> {
+    let dir = project(SCHEMA)?;
+
+    let output = run_in(dir.path(), &["gen", "--api-framework", "axum"])?;
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = stderr(&output);
+    assert!(stderr.contains("--api-framework"), "{stderr}");
+    assert!(stderr.contains("[api]"), "{stderr}");
+    Ok(())
+}
+
+/// The unified project's `[generate]` section belongs to `rok gen`: the
+/// legacy generator says so in one line instead of an unknown-key error.
+#[test]
+fn the_legacy_generator_names_the_front_doors_section() -> Result<()> {
+    let dir = TempDir::new()?;
+    fs::write(dir.path().join("schema.sql"), SCHEMA)?;
+    fs::write(
+        dir.path().join("rok.toml"),
+        "[generate]\nschema = \"schema.sql\"\nderive = [\"serde\"]\n",
+    )?;
+
+    let output = run_in(
+        dir.path(),
+        &["generate", "--input", ".", "--output", "db-gen"],
+    )?;
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = stderr(&output);
+    assert!(stderr.contains("belongs to `rok gen`"), "{stderr}");
+    assert!(stderr.contains("[gen]"), "{stderr}");
     Ok(())
 }

@@ -138,7 +138,8 @@ creates a schema-scoped `Db` for the test, like the original
 ## 3. The legacy whole-crate generator (`rok generate`)
 
 This is the superseded path: `rok gen` is the front door's generator, and
-`rok generate` keeps working exactly as it did, with its flags unchanged.
+`rok generate` keeps its flags, its output and its exit codes (the command
+no longer takes the `generate` subcommand, so the write mode is flat).
 It is kept for the projects that still use it; its removal is deferred to
 1.0 (ADR 0012).
 

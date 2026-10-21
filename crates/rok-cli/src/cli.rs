@@ -4,13 +4,16 @@
 //! [`crate::commands::sqlc`]) so its grammar and its tests share one source;
 //! everything below owns the mapping into library calls.
 //!
-//! `rok generate` and `rok sqlc …` are the legacy surfaces (ADR 0012): they
-//! keep working exactly as they do now — `rok sqlc …` is forwarded verbatim
-//! to the engine — and the root help marks them as superseded by the front
-//! door (`rok init`, `rok gen`), their removal deferred to 1.0.
+//! `rok generate` and `rok sqlc …` are the legacy surfaces (ADR 0012): their
+//! flags, their output and their exit codes are unchanged — `rok sqlc …` is
+//! forwarded verbatim to the engine, and `rok generate` no longer takes the
+//! `generate` subcommand — and the root help marks them as superseded by
+//! the front door (`rok init`, `rok gen`), their removal deferred to 1.0.
 
 use clap::{Args, CommandFactory, FromArgMatches, Parser, Subcommand};
 use std::path::PathBuf;
+
+use rok_data_sqlc::ApiFramework;
 
 /// Root of the command line.
 #[derive(Debug, Parser)]
@@ -146,6 +149,25 @@ pub(crate) struct GenerateOptions {
     pub strict: bool,
 }
 
+impl CheckOptions {
+    /// The check's options over the generate run's: a value given to both
+    /// goes to the leaf, a boolean given to either is set.
+    pub(crate) fn over(self, group: GenerateOptions) -> GenerateOptions {
+        GenerateOptions {
+            config: self.config.or(group.config),
+            input: self.input.or(group.input),
+            output: self.output.or(group.output),
+            crate_name: self.crate_name.or(group.crate_name),
+            // The staging flags belong to the generate run; `check` refuses
+            // them there.
+            migration: None,
+            renames: Vec::new(),
+            allow_destructive: self.allow_destructive || group.allow_destructive,
+            strict: self.strict || group.strict,
+        }
+    }
+}
+
 /// Options for the CI `check` variant: `--migration` and `--rename` are
 /// deliberately absent, matching the original `rok-db-gen check` behavior.
 #[derive(Debug, Args)]
@@ -188,6 +210,10 @@ pub(crate) struct GenOptions {
     /// Annotated query file or directory; repeatable.
     #[arg(short, long, value_name = "PATH")]
     pub queries: Vec<PathBuf>,
+    /// The web framework the API features are generated for: `actix_web`
+    /// (the default) or `axum`.
+    #[arg(short = 'w', long, value_name = "FRAMEWORK", value_enum)]
+    pub api_framework: Option<ApiFrameworkArg>,
     /// Stage a migration pair for the schema changes since the last one.
     #[arg(long, value_name = "NAME")]
     pub migration: Option<String>,
@@ -211,6 +237,34 @@ pub(crate) struct GenOptions {
     pub force: bool,
 }
 
+impl GenCheckOptions {
+    /// The check's options over the generate run's: a value given to both
+    /// goes to the leaf, a boolean given to either is set.
+    pub(crate) fn over(self, group: GenOptions) -> GenOptions {
+        GenOptions {
+            config: self.config.or(group.config),
+            schema: self.schema.or(group.schema),
+            output: self.output.or(group.output),
+            resource: self.resource.or(group.resource),
+            queries: if self.queries.is_empty() {
+                group.queries
+            } else {
+                self.queries
+            },
+            api_framework: self.api_framework.or(group.api_framework),
+            // The staging flags belong to the generate run; `check` refuses
+            // them there.
+            migration: None,
+            allow_destructive: self.allow_destructive || group.allow_destructive,
+            renames: Vec::new(),
+            strict: self.strict || group.strict,
+            json: self.json || group.json,
+            dry_run: self.dry_run || group.dry_run,
+            force: self.force || group.force,
+        }
+    }
+}
+
 /// Options of `rok gen check`: the same set minus `--migration` and
 /// `--rename`, which belong to the generate run.
 #[derive(Debug, Args)]
@@ -230,6 +284,10 @@ pub(crate) struct GenCheckOptions {
     /// Annotated query file or directory; repeatable.
     #[arg(short, long, value_name = "PATH")]
     pub queries: Vec<PathBuf>,
+    /// The web framework the API features are generated for: `actix_web`
+    /// (the default) or `axum`.
+    #[arg(short = 'w', long, value_name = "FRAMEWORK", value_enum)]
+    pub api_framework: Option<ApiFrameworkArg>,
     /// Allow the steps that lose data or fail on existing rows.
     #[arg(long)]
     pub allow_destructive: bool,
@@ -245,6 +303,28 @@ pub(crate) struct GenCheckOptions {
     /// Overwrite files that the generator did not write.
     #[arg(short, long)]
     pub force: bool,
+}
+
+/// An `--api-framework` value. It mirrors [`ApiFramework`], which stays
+/// free of clap because it is part of the stable library API (ADR 0012).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum ApiFrameworkArg {
+    /// axum: the routes are a `Router`'s, the handlers take axum's
+    /// extractors.
+    Axum,
+    /// actix-web: the routes are a `web::ServiceConfig`'s scopes, the
+    /// handlers take actix-web's extractors.
+    #[value(name = "actix_web")]
+    ActixWeb,
+}
+
+impl From<ApiFrameworkArg> for ApiFramework {
+    fn from(arg: ApiFrameworkArg) -> Self {
+        match arg {
+            ApiFrameworkArg::Axum => ApiFramework::Axum,
+            ApiFrameworkArg::ActixWeb => ApiFramework::ActixWeb,
+        }
+    }
 }
 
 /// `rok migrate create|status|up|down`.

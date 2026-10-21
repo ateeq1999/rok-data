@@ -52,7 +52,11 @@ impl Tx {
     }
 
     /// Record `actor` as the author of this transaction's changes in the
-    /// audit log (`SET LOCAL rok.actor`, see [`audit`](crate::audit)).
+    /// audit log (`SET LOCAL rok.actor`).
+    #[cfg_attr(
+        feature = "json",
+        doc = "See the [`audit`](crate::audit) module for the audit trail."
+    )]
     pub async fn set_actor(&mut self, actor: &str) -> Result<()> {
         sqlx::query("SELECT set_config('rok.actor', $1, true)")
             .bind(actor)

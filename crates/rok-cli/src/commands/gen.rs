@@ -19,7 +19,7 @@ use std::process::ExitCode;
 use rok_data_codegen::{Rename, StageOptions, Staged};
 use rok_data_sqlc::{Config, Report};
 
-use crate::cli::{GenAction, GenCheckOptions, GenOptions};
+use crate::cli::{GenAction, GenOptions};
 use crate::output::display_path;
 
 mod report;
@@ -46,36 +46,7 @@ pub(crate) fn run(options: GenOptions, action: Option<GenAction>) -> Result<Exit
                 .to_owned(),
         );
     }
-    let GenCheckOptions {
-        config,
-        schema,
-        output,
-        resource,
-        queries,
-        allow_destructive,
-        strict,
-        json,
-        dry_run,
-        force,
-    } = leaf;
-    check(GenOptions {
-        config: config.or(options.config),
-        schema: schema.or(options.schema),
-        output: output.or(options.output),
-        resource: resource.or(options.resource),
-        queries: if queries.is_empty() {
-            options.queries
-        } else {
-            queries
-        },
-        migration: None,
-        allow_destructive: allow_destructive || options.allow_destructive,
-        renames: Vec::new(),
-        strict: strict || options.strict,
-        json: json || options.json,
-        dry_run: dry_run || options.dry_run,
-        force: force || options.force,
-    })
+    check(leaf.over(options))
 }
 
 /// `rok gen`: the data layer and the API features, and the migration pair
@@ -104,7 +75,7 @@ fn generate(options: GenOptions) -> Result<ExitCode, String> {
         print_json(&settings, &report, staged.as_ref(), false);
     } else {
         print_report(&settings, &report, staged.as_ref());
-        next_steps(&settings, staged.as_ref());
+        next_steps(staged.as_ref());
     }
     match strict {
         Some(message) => Err(message),
@@ -227,6 +198,14 @@ impl Settings {
             None => Config::default(),
         };
         // The flags beat the file (ADR 0011).
+        if let Some(framework) = options.api_framework {
+            let api = engine.api.as_mut().ok_or_else(|| {
+                "`--api-framework` needs the `[api]` section of the settings file \
+                 (with its `output`): the run generates no API features"
+                    .to_owned()
+            })?;
+            api.framework = framework.into();
+        }
         let entries: Vec<PathBuf> = match options.schema.as_ref() {
             Some(dir) => vec![dir.clone()],
             None if engine.schema.is_empty() => vec![PathBuf::from(DEFAULT_SCHEMA_DIR)],
@@ -301,12 +280,16 @@ fn schema_inputs(entries: &[PathBuf]) -> Result<Vec<PathBuf>, String> {
 }
 
 /// Prints the numbered next steps.
-fn next_steps(settings: &Settings, staged: Option<&Staged>) {
+fn next_steps(staged: Option<&Staged>) {
     let mut steps: Vec<String> = Vec::new();
-    if staged.is_some() {
+    if let Some(staged) = staged {
+        // The runtime's migration loader reads a directory of
+        // `.up.sql`/`.down.sql` pairs, and the schema dir holds the truth
+        // beside them; the staged pair is a plain SQL file, so it is
+        // applied as one.
         steps.push(format!(
-            "apply the migrations: `rok migrate up --dir {}`",
-            display_path(&settings.schema_dir)
+            "apply the staged pair: `psql \"$DATABASE_URL\" -f {}`",
+            display_path(&staged.up)
         ));
     }
     steps.push("`rok gen check` fails the build when the generated code is out of date".to_owned());

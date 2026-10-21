@@ -106,6 +106,12 @@ by another crate (the CLI of `axum-rok-http`, 0.6.1) — so the CLI needs
 another name, or that name freed; `rok-data-cli` is free. Which of the
 two is the user's call.
 
+The published crates keep their integration tests, and some of them
+(`rok-data-codegen`'s, `rok-cli`'s) need the repository's own layout
+(`examples/sqlgen`, the engine's templates and examples): `cargo test`
+inside a downloaded `.crate` does not pass. Building and installing them
+is unaffected — that is what crates.io and `cargo install` do.
+
 ## Docs discipline
 
 - ADRs under `docs/decisions/`: add one for any decision a reader

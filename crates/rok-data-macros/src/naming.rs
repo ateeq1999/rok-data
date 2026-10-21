@@ -23,6 +23,59 @@ pub(crate) fn rename(name: &str, rule: &str) -> syn::Result<String> {
     })
 }
 
+/// The Rust keywords a generated name may carry. A generated item whose
+/// name is one of them is emitted as a raw identifier (`r#type`), so the
+/// generated code compiles.
+const RESERVED: &[&str] = &[
+    "abstract", "as", "async", "await", "become", "box", "break", "const", "continue", "do", "dyn",
+    "else", "enum", "extern", "false", "final", "fn", "for", "gen", "if", "impl", "in", "let",
+    "loop", "macro", "match", "mod", "move", "mut", "override", "priv", "pub", "ref", "return",
+    "static", "struct", "trait", "true", "try", "type", "typeof", "unsafe", "unsized", "use",
+    "virtual", "where", "while", "yield",
+];
+
+/// The keywords that have no raw form: `r#crate`, `r#self`, `r#Self` and
+/// `r#super` do not exist, so a relation named after one of them is
+/// refused instead of emitted.
+const NOT_RAW: &[&str] = &["crate", "self", "Self", "super"];
+
+/// The ident of a relation named `name`: the name itself, or a raw
+/// identifier when the name is a Rust keyword (`r#type`).
+///
+/// A keyword with no raw form is an error: the generated accessor would
+/// not compile.
+pub(crate) fn relation_ident(name: &str, span: Span) -> syn::Result<Ident> {
+    if NOT_RAW.contains(&name) {
+        return Err(no_raw_form(name, span));
+    }
+    if RESERVED.contains(&name) {
+        return Ok(Ident::new_raw(name, span));
+    }
+    Ok(Ident::new(name, span))
+}
+
+/// The name a generated accessor carries: the name as it stands, or a raw
+/// identifier when the name is a Rust keyword (`r#type`), so the
+/// generated code compiles.
+pub(crate) fn method_ident(name: &Ident) -> syn::Result<Ident> {
+    let plain = unraw(name);
+    if NOT_RAW.contains(&plain.as_str()) {
+        return Err(no_raw_form(&plain, name.span()));
+    }
+    if RESERVED.contains(&plain.as_str()) {
+        return Ok(Ident::new_raw(&plain, name.span()));
+    }
+    Ok(name.clone())
+}
+
+/// The error for a keyword that has no raw form: `r#self` does not exist.
+fn no_raw_form(name: &str, span: Span) -> syn::Error {
+    syn::Error::new(
+        span,
+        format!("`{name}` is a Rust keyword with no raw form; name the relation differently"),
+    )
+}
+
 pub(crate) fn crate_path() -> TokenStream2 {
     let found = crate_name("rok-data")
         .map(|c| (c, "rok_data"))

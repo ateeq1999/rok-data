@@ -15,10 +15,13 @@ rok schema <COMMAND>                live schema as DDL; journal-vs-files diff
 rok sqlc <COMMAND>                  legacy: resource-module generator (engine)
 ```
 
-Two commands are **legacy**: `rok generate` and `rok sqlc …`. They keep
-working exactly as they always have — the `sqlc` tokens are forwarded
-verbatim to the engine — but they are superseded by the front door (`rok gen`
-generates, `rok init` scaffolds), and their removal is deferred to 1.0.
+Two commands are **legacy**: `rok generate` and `rok sqlc …`. Their flags,
+their output and their exit codes are unchanged, and the `sqlc` tokens are
+forwarded verbatim to the engine; one spelling changed: `rok generate` no
+longer takes the `generate` subcommand, so the write mode is flat
+(`rok generate [OPTIONS]`) and the CI mode nests (`rok generate check`).
+Both are superseded by the front door (`rok gen` generates, `rok init`
+scaffolds), and their removal is deferred to 1.0.
 
 ## Conventions
 
@@ -94,6 +97,7 @@ project's only source of truth (ADR 0010).
 | `-o, --output DIR`         | where the modules are written (default `src/db`)                    |
 | `-r, --resource TABLE`     | generate one table plus the resources already generated             |
 | `-q, --queries PATH`       | annotated query file or directory; repeatable                       |
+| `-w, --api-framework FW`   | the API backend: `actix_web` (the default) or `axum`                |
 | `--migration NAME`         | stage a migration pair for the schema changes since the last one    |
 | `--allow-destructive`      | allow the steps that lose data or fail on existing rows             |
 | `--rename OLD=NEW`         | `users=accounts` (table) or `users.name=full_name` (column); repeat|
@@ -110,7 +114,9 @@ top level, is read as well. Flags beat the file.
 The `[api]` section holds the API features' settings. Its `framework` key
 picks the web framework they are generated for: `actix_web` (the default)
 or `axum`; `--api-framework` sets it from the command line. The framework
-needs its extractor in `extractors` (`actix_web` or `axum`).
+needs its extractor in `extractors` (`actix_web` or `axum`), and the flag
+needs the `[api]` section: without it the run generates no API features
+and says so.
 
 The schema dir holds the **truth** (plain `*.sql` files) and the
 **history** (the staged `NNNN_name.up.sql` / `NNNN_name.down.sql` pairs).
@@ -125,6 +131,12 @@ overwritten, and the model crate is never written. A step that loses data
 (a dropped column or table, a new `NOT NULL` column without a default) is
 refused unless `--allow-destructive` is given; `--rename` records a
 rename instead of a drop and an add.
+
+The next steps name the staged pair's file (`psql "$DATABASE_URL" -f
+migrations/0001_init.up.sql`): the runtime's migration loader reads a
+directory of `.up.sql`/`.down.sql` pairs and nothing else, and the schema
+dir holds the truth beside them, so `rok migrate up --dir <schema dir>`
+does not work on a schema dir yet.
 
 The run prints what it wrote, what it skipped and what it refused, and the
 numbered next steps. `--json` prints one object instead:
@@ -150,12 +162,11 @@ error. The leaf's flags win over the group's; the booleans OR.
 Usage: rok generate [OPTIONS] [COMMAND]
 ```
 
-Legacy: superseded by `rok gen`, the front door's generator. The command
-keeps working exactly as it does now — same flags, same output, same exit
-codes — and its removal is deferred to 1.0.
-
-The write mode keeps the original `rok-db-gen` flat shape; the CI mode
-nests as `rok generate check`.
+Legacy: superseded by `rok gen`, the front door's generator. Its flags,
+its output and its exit codes are unchanged; the command no longer takes
+the `generate` subcommand — the write mode keeps the original `rok-db-gen`
+flat shape (`rok generate [OPTIONS]`) and the CI mode nests as
+`rok generate check`. Its removal is deferred to 1.0.
 
 | Flag                       | Meaning                                                            |
 | -------------------------- | ------------------------------------------------------------------ |
@@ -178,7 +189,10 @@ The legacy command's keys (`input`, `output`, `crate_name`,
 share the `[generate]` section, and `output` means two different things
 in it. A `rok.toml` written for `rok gen` is therefore not a file for
 this legacy command; the config spine (Phase 0 of
-`docs/unified-pipeline-plan.md`) reconciles the two.
+`docs/unified-pipeline-plan.md`) reconciles the two. Until then, the
+legacy command says so in one line — the `[generate]` section belongs to
+`rok gen`, and the legacy generator reads its own `[gen]` section in the
+legacy `rok-data.toml`.
 
 `--migration` needs a database connection (DATABASE_URL). `--strict`
 requires an explicit `strict` value in the config file or no default.
@@ -237,8 +251,8 @@ rok schema diff [--database-url] [--dir migrations]
 
 Legacy: superseded by the front door — `rok gen` for the generation,
 `rok init` for the scaffolding. The tokens are still forwarded verbatim to
-the engine, so the command keeps working exactly as it does now; its
-removal is deferred to 1.0.
+the engine, so its grammar, its output and its exit codes are unchanged;
+its removal is deferred to 1.0.
 
 `rok sqlc …` is parsed by the engine's own clap grammar (`rok-data-sqlc`
 is a library; `rok` forwards the tokens verbatim). Subcommand set:

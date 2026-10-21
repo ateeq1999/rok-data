@@ -77,6 +77,9 @@ mod test;
 ///
 /// User::filter(User::EMAIL.eq("ann@example.com"))
 /// ```
+///
+/// A relation whose name is a Rust keyword gets a raw-identifier accessor
+/// (`r#type`), so the generated code compiles.
 #[proc_macro_derive(Model, attributes(rok))]
 pub fn derive_model(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as syn::DeriveInput);

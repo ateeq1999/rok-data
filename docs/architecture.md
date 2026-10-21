@@ -42,9 +42,10 @@ migration pairs — which the repository's own gates compile.)
 
 The CLI's command surface has two generations: the front door (`rok init`,
 `rok gen`) and the legacy commands (`rok generate`, `rok sqlc …`). The legacy
-ones keep working exactly as they do now — `rok sqlc …` forwards its tokens
-verbatim to the engine — but they are superseded by the front door, and
-their removal is deferred to 1.0 (ADR 0012).
+ones keep their flags, their output and their exit codes — `rok sqlc …`
+forwards its tokens verbatim to the engine, and `rok generate` no longer
+takes the `generate` subcommand — but they are superseded by the front
+door, and their removal is deferred to 1.0 (ADR 0012).
 
 ## Crate responsibilities
 

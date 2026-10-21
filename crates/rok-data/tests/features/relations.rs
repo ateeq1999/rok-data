@@ -1,13 +1,14 @@
-//! The relations: lazy and eager loading, and the `with` query.
+//! The relations: the loaders that fetch one relation for many rows, and
+//! the `with` query that loads them beside the rows.
 
 use super::*;
 
 #[tokio::test]
-async fn relations_lazy_and_eager() {
+async fn the_relation_loaders() {
     let Some(db) = setup().await else { return };
     let (users, posts) = seed(&db).await;
 
-    // Lazy
+    // A relation queried on its own.
     let ann_posts = users[0]
         .posts()
         .order_by(Post::TITLE)
@@ -25,7 +26,7 @@ async fn relations_lazy_and_eager() {
     assert!(posts[2].category().first(&db).await.unwrap().is_none());
     assert_eq!(users[0].profile().one(&db).await.unwrap().bio, "hi");
 
-    // Eager: has_many
+    // The loader of a has-many relation.
     let by_author = User::POSTS.load(&db, &users).await.unwrap();
     assert_eq!(by_author.len(), 6);
     assert_eq!(
@@ -51,7 +52,7 @@ async fn relations_lazy_and_eager() {
         [30, 20]
     );
 
-    // Eager: belongs_to, with NULL and shared foreign keys
+    // The loader of a belongs-to relation, with NULL and shared foreign keys
     let mut categories = Post::CATEGORY.load(&db, &posts).await.unwrap();
     assert_eq!(categories.len(), 2);
     assert_eq!(categories.get(&posts[0]).unwrap().name, "rust");
@@ -64,7 +65,7 @@ async fn relations_lazy_and_eager() {
             .all(|p| authors.get(p).unwrap().id == p.author_id)
     );
 
-    // Eager: has_one
+    // The loader of a has-one relation.
     let profiles = User::PROFILE.load(&db, &users).await.unwrap();
     assert!(profiles.get(&users[0]).is_some() && profiles.get(&users[1]).is_none());
 

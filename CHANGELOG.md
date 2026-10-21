@@ -25,16 +25,20 @@ reports the missing, changed and stale files, and fails on drift. The
 settings file is the unified `rok.toml` (ADR 0011), whose `[generate]`
 section holds the generation settings; the engine's
 `rok-data-sqlc.toml` stays readable. The legacy `rok generate` and
-`rok sqlc …` keep working unchanged — the `sqlc` tokens are still forwarded
-verbatim to the engine — and the root help now marks them as superseded by
-the front door; their removal is deferred to 1.0.
+`rok sqlc …` keep their flags, their output and their exit codes — the
+`sqlc` tokens are still forwarded verbatim to the engine — and the root
+help now marks them as superseded by the front door; their removal is
+deferred to 1.0. One spelling changed: `rok generate` no longer takes the
+`generate` subcommand, so the write mode is flat (`rok generate
+[OPTIONS]`) and the CI mode nests (`rok generate check`).
 
 The generated per-table data layer (`models`, `read`, `write` and the
 relationship loaders) now rides the `rok-data` model chains instead of
-built SQL, with `sqlx::Error` traded for `rok_data::Error` across the
-generated surface. Joins, search/listing/filter and `m2m` pair loaders
-stay on the Query builder for this slice. The actix template's
-skeleton gains the `rok-data` dependency and an `AppError` conversion.
+built SQL: the functions that ride the chains return `rok_data::Error`
+where they used to return `sqlx::Error`. Joins, search/listing/filter and
+`m2m` pair loaders stay on the Query builder for this slice, and still
+return `sqlx::Error`. The actix template's skeleton gains the `rok-data`
+dependency and an `AppError` conversion.
 
 The generated API features have a second backend: `[api] framework =
 "axum"` (or `-w/--api-framework axum`) generates them for axum instead of

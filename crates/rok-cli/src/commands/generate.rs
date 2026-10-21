@@ -9,7 +9,7 @@ use std::process::ExitCode;
 
 use rok_data_codegen::{Rename, differences, write};
 
-use crate::cli::{CheckOptions, GenerateAction, GenerateOptions};
+use crate::cli::{GenerateAction, GenerateOptions};
 use crate::config;
 use crate::context;
 
@@ -21,30 +21,10 @@ pub(crate) async fn run(
     generation: GenerateOptions,
     action: Option<GenerateAction>,
 ) -> Result<ExitCode, String> {
-    let GenerateOptions {
-        config,
-        input,
-        output,
-        crate_name,
-        migration,
-        renames,
-        allow_destructive,
-        strict,
-    } = generation;
     let Some(GenerateAction::Check { options: leaf }) = action else {
-        return generate(GenerateOptions {
-            config,
-            input,
-            output,
-            crate_name,
-            migration,
-            renames,
-            allow_destructive,
-            strict,
-        })
-        .await;
+        return generate(generation).await;
     };
-    if migration.is_some() || !renames.is_empty() {
+    if generation.migration.is_some() || !generation.renames.is_empty() {
         // The original generator rejected these flags with `check`; don't
         // silently ignore them now that `check` nests under `generate`.
         return Err(
@@ -53,23 +33,7 @@ pub(crate) async fn run(
                 .to_owned(),
         );
     }
-    let CheckOptions {
-        config: leaf_config,
-        input: leaf_input,
-        output: leaf_output,
-        crate_name: leaf_crate_name,
-        allow_destructive: leaf_allow_destructive,
-        strict: leaf_strict,
-    } = leaf;
-    check(CheckOptions {
-        config: leaf_config.or(config),
-        input: leaf_input.or(input),
-        output: leaf_output.or(output),
-        crate_name: leaf_crate_name.or(crate_name),
-        allow_destructive: leaf_allow_destructive || allow_destructive,
-        strict: leaf_strict || strict,
-    })
-    .await
+    check(leaf.over(generation)).await
 }
 
 /// `rok generate`.
@@ -103,7 +67,7 @@ pub(crate) async fn generate(options: GenerateOptions) -> Result<ExitCode, Strin
 }
 
 /// `rok generate check`.
-pub(crate) async fn check(options: CheckOptions) -> Result<ExitCode, String> {
+pub(crate) async fn check(options: GenerateOptions) -> Result<ExitCode, String> {
     let gen_options = codegen_options(
         options.config.as_deref(),
         options.input,

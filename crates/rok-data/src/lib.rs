@@ -103,7 +103,7 @@
 //!   feeds ([`Model::changes`], see [`notify`]).
 //! - **Multi-instance caching**: [`DbBuilder::shared_cache_invalidation`].
 //! - **Multi-tenancy**: `#[rok(tenant)]` and [`tenant::with_tenant`].
-//! - **Audit log** (feature `json`): the [`audit`] module.
+//! - **Audit log** (feature `json`): the `audit` module.
 //! - **Joins**: [`Select::join`] / [`Select::left_join`] with compile-time
 //!   checked columns across models (see [`join`]).
 //! - **Composite primary keys**: several `#[rok(primary_key)]` fields;
@@ -135,8 +135,8 @@
 //! | `uuid`    | `uuid::Uuid` columns                                 |
 //! | `decimal` | `NUMERIC` columns as `sqlx::types::Decimal` (`rust_decimal`) |
 //! | `json`    | `serde_json::Value` and `sqlx::types::Json<T>` columns |
-//! | `migrate` | [`Db::migrate`] for running sqlx migrations          |
-//! | `testing` | [`macro@test`] and [`testing::TestDb`]: a temporary database per test |
+//! | `migrate` | `Db::migrate` for running sqlx migrations          |
+//! | `testing` | [`macro@test`] and `testing::TestDb`: a temporary database per test |
 //! | `serde`   | `Serialize` for pages, cursors and validation errors |
 //! | `axum`    | [`Error`] implements axum's `IntoResponse` (implies `serde`) |
 //! | `metrics` | query, cache and pool metrics, see [`metrics`] |

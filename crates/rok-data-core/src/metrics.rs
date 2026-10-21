@@ -9,7 +9,7 @@
 //! | `rok_data_slow_queries_total` | counter | `kind` |
 //! | `rok_data_rows_total` | counter | `kind` — rows returned or affected |
 //! | `rok_data_cache_requests_total` | counter | `result` (`hit`/`miss`) |
-//! | `rok_data_pool_connections` | gauge | `state` (`total`/`idle`/`max`), via [`Db::record_pool_metrics`](crate::Db::record_pool_metrics) |
+//! | `rok_data_pool_connections` | gauge | `state` (`total`/`idle`/`max`), recorded by `Db::record_pool_metrics` |
 
 use std::time::Duration;
 

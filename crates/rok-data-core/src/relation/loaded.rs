@@ -10,8 +10,8 @@ use crate::Model;
 use super::include::{ErasedState, Relation};
 use super::relations::key;
 
-/// Eager-loaded single related records, keyed by owner. Returned by
-/// [`BelongsTo::load`](crate::BelongsTo::load) and
+/// The loaded records of a one-relation, keyed by owner: one record per
+/// owner. Returned by [`BelongsTo::load`](crate::BelongsTo::load) and
 /// [`HasOne::load`](crate::HasOne::load).
 pub struct One<O, T> {
     pub(crate) map: HashMap<String, T>,
@@ -54,7 +54,7 @@ impl<O: Model, T> One<O, T> {
     }
 }
 
-/// Eager-loaded related records grouped by owner. Returned by
+/// The loaded records of a many-relation, grouped by owner. Returned by
 /// [`HasMany::load`](crate::HasMany::load).
 pub struct Many<O, T> {
     pub(crate) map: HashMap<String, Vec<T>>,

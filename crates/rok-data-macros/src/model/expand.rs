@@ -6,7 +6,7 @@ use syn::{Data, DeriveInput, Fields, Ident, LitStr, Path, spanned::Spanned};
 
 use super::from_row::from_row_tokens;
 use super::{Field, Relation, Rule, parse_relations, parse_rules};
-use crate::naming::{crate_path, pluralize, snake_case, unraw};
+use crate::naming::{crate_path, method_ident, pluralize, relation_ident, snake_case, unraw};
 pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     let name = &input.ident;
     if !input.generics.params.is_empty() {
@@ -123,6 +123,7 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     let mut relation_items = Vec::new();
     for f in &columns {
         if let Some((rel, model)) = &f.belongs_to {
+            let accessor = method_ident(rel)?;
             let const_name = format_ident!("{}", unraw(rel).to_uppercase(), span = rel.span());
             let fk_const =
                 format_ident!("{}", unraw(&f.ident).to_uppercase(), span = f.ident.span());
@@ -138,7 +139,7 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
 
                 #[doc = #doc]
                 #[allow(dead_code)]
-                pub fn #rel(&self) -> #krate::Select<#model> {
+                pub fn #accessor(&self) -> #krate::Select<#model> {
                     Self::#const_name.query(self)
                 }
             });
@@ -151,6 +152,7 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
             model,
             foreign_key,
         } = r;
+        let accessor = method_ident(rel)?;
         let kind = Ident::new(kind, Span::call_site());
         let const_name = format_ident!("{}", unraw(rel).to_uppercase(), span = rel.span());
         let doc = format!(
@@ -165,7 +167,7 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
 
             #[doc = #doc]
             #[allow(dead_code)]
-            pub fn #rel(&self) -> #krate::Select<#model> {
+            pub fn #accessor(&self) -> #krate::Select<#model> {
                 Self::#const_name.query(self)
             }
         });
@@ -397,7 +399,7 @@ pub(crate) fn parse_fields(input: &DeriveInput, derive: &str) -> syn::Result<Vec
                                 "can't derive a relation name from `{field}`; use `belongs_to(name = Model)`"
                             ))
                         })?;
-                        f.belongs_to = Some((Ident::new(name, f.ident.span()), model));
+                        f.belongs_to = Some((relation_ident(name, f.ident.span())?, model));
                     } else {
                         meta.parse_nested_meta(|inner| {
                             let name = inner.path.get_ident().cloned().ok_or_else(|| {
