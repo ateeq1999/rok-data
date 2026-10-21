@@ -2,9 +2,12 @@
 # reads it; the flags beat it. See README.md.
 
 [generate]
-# The schema dir: the truth (the plain `*.sql` files) and the history (the
-# staged migration pairs). The generator reads the truth only.
+# The truth dir: the plain `*.sql` files describing the schema. The
+# generator reads the truth only; the history dir holds the pairs.
 schema = "schema"
+# The history dir: the staged migration pairs and their snapshot, which
+# `rok gen --migration` writes and `rok migrate` applies.
+migrations = "migrations"
 # Where the data layer is written.
 output = "src/db"
 # The generated rows carry serde's derives, and the API features take

@@ -1,4 +1,4 @@
-//! The `[api]` section of a configuration source (ADR 0016).
+//! The `[api]` section of a configuration source (engine ADR 0016).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

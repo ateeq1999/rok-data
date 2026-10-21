@@ -1,4 +1,4 @@
-//! Relationships (ADR 0014): inferred from foreign keys over the tables
+//! Relationships (engine ADR 0014): inferred from foreign keys over the tables
 //! generated together, recorded on the schema model, and rendered as each
 //! resource's `relationships.rs` of loaders.
 //!

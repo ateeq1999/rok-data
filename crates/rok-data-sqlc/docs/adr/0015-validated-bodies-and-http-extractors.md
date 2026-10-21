@@ -15,7 +15,7 @@ Both are answered in the Rok error envelope, `{"success": false, "error": {"mess
 
 ## Considered Options
 
-- **A companion crate (`rok-data-sqlc-web`) the generated code depends on.** Rejected: generated code has never needed a rok-data-sqlc runtime crate (ADR 0013), and a small module the user owns, reads, and can edit beats a dependency whose release cycle is tied to the generator's.
+- **A companion crate (`rok-data-sqlc-web`) the generated code depends on.** Rejected: generated code has never needed a rok-data-sqlc runtime crate (engine ADR 0013), and a small module the user owns, reads, and can edit beats a dependency whose release cycle is tied to the generator's.
 - **Generated plain-Rust `validate()` methods, with no `validator` dependency.** Rejected: one extractor could not then take both generated inputs and the hand-written, `validator`-based request types Rok's apps already have.
 - **Leave extractors to each app.** Rejected: every app would rewrite the same two extractors and the same envelope, and malformed bodies would keep going through per-app `JsonConfig` handlers in different shapes.
 - **Flattened `details` (`{"name": ["…"]}`).** Rejected: existing clients read validator's shape, and its `params` let a client phrase its own message.
@@ -26,4 +26,4 @@ Both are answered in the Rok error envelope, `{"success": false, "error": {"mess
 
 `VARCHAR(n)` lengths and simple `CHECK`s, which the parser dropped before, are now kept on the model. The consuming crate depends on `validator` (with its `derive` feature), on `serde_json`, and on the framework it lists, and with axum on `serde_path_to_error` (already one of axum's), to reach serde's error. The generated `mod.rs` names them.
 
-> **Superseded in part by ADR 0016 (0.4.0):** the error body becomes `{"error": {"code", "message", "details"?}}` with snake_case codes (`validation_failed`, `payload_too_large`, `bad_request`), the wire standard shared by every generated API.
+> **Superseded in part by engine ADR 0016 (0.4.0):** the error body becomes `{"error": {"code", "message", "details"?}}` with snake_case codes (`validation_failed`, `payload_too_large`, `bad_request`), the wire standard shared by every generated API.

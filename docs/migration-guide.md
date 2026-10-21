@@ -70,7 +70,7 @@ utoipa 5 as before; only the package names changed.
 
 ## From `rok-fluent`
 
-Superseded by the rok-db lineage (ADR 0001). What carries over:
+Superseded by the rok-db lineage (workspace ADR 0001). What carries over:
 
 - **Schema introspection** → `rok_data_core::introspect`
   (`tables`, `columns`, `indexes`, `foreign_keys`, DDL dump). The old

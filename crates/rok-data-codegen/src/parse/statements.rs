@@ -1,17 +1,17 @@
-//! Reading the `CREATE TABLE` statements out of a schema file.
+//! Reading the schema statements out of a schema file: the tables (`CREATE
+//! TABLE`), the types and indexes, the comments, extensions and views, and
+//! everything else, which rides as written — an `Extra`.
 
-use sqlparser::ast::{
-    ColumnOption, CommentObject, CreateTable, GeneratedAs, Statement, TableConstraint,
-    UserDefinedTypeRepresentation,
-};
+use sqlparser::ast::{CommentObject, CreateTable, Statement, UserDefinedTypeRepresentation};
 use sqlparser::dialect::PostgreSqlDialect;
 use sqlparser::parser::Parser;
 
-use crate::ir::{Check, Column, EnumType, Extra, ForeignKey, Index, Schema, Table, Unique};
-use crate::parse::check::{constraint_name, expr_ident, ident, object_name, quote};
+use crate::Error;
+use crate::ir::{EnumType, Extra, Index, Schema, Table};
+use crate::parse::alter::{self, add_table_constraint, build_column, place_column};
+use crate::parse::check::{object_name, quote};
 use crate::parse::comments::column_comments;
 use crate::split::RawStatement;
-use crate::{Error, naming, types};
 
 fn parse_one(sql: &str) -> Option<Statement> {
     let mut statements = Parser::parse_sql(&PostgreSqlDialect {}, sql).ok()?;
@@ -103,6 +103,11 @@ pub(crate) fn schema_statement(
             down: format!("DROP VIEW IF EXISTS {}", view.name),
             before_tables: false,
         }),
+        // An `ALTER TABLE` that folds into the tables needs no `-- rok:down`
+        // and rides no `Extra`; a clause the model cannot represent falls
+        // through to the extras path below, wording and all.
+        Some(Statement::AlterTable(alter_table))
+            if alter::apply(schema, &alter_table.name, &alter_table.operations).is_ok() => {}
         None if looks_like_table => {
             return Err(Error::at(at, "couldn't parse this CREATE TABLE statement"));
         }
@@ -138,7 +143,6 @@ fn table_from(
     at: &str,
 ) -> Result<Table, Error> {
     let name = object_name(&table.name);
-    let short = naming::unqualified(&name).to_owned();
     let column_notes = column_comments(sql);
     let mut out = Table {
         name: name.clone(),
@@ -150,147 +154,17 @@ fn table_from(
         foreign_keys: Vec::new(),
         checks: Vec::new(),
     };
+    // The columns and the constraints their options imply: the same
+    // builders `ALTER TABLE ... ADD COLUMN` goes through.
     for def in &table.columns {
-        let column_name = ident(&def.name);
-        let mut column = Column {
-            name: column_name.clone(),
-            sql_type: types::canonical(&def.data_type.to_string()),
-            nullable: true,
-            default: None,
-            generated: None,
-            identity: None,
-            tenant: false,
-            doc: Vec::new(),
-        };
-        for option in &def.options {
-            match &option.option {
-                ColumnOption::NotNull => column.nullable = false,
-                ColumnOption::Null => column.nullable = true,
-                ColumnOption::Default(expr) => column.default = Some(expr.to_string()),
-                ColumnOption::PrimaryKey(_) => {
-                    if !out.primary_key.is_empty() {
-                        return Err(Error::at(
-                            at,
-                            format!("table `{name}` has two primary keys"),
-                        ));
-                    }
-                    out.primary_key = vec![column_name.clone()];
-                }
-                ColumnOption::Unique(_) => out.uniques.push(Unique {
-                    name: format!("{short}_{column_name}_key"),
-                    columns: vec![column_name.clone()],
-                }),
-                ColumnOption::ForeignKey(fk) => out.foreign_keys.push(ForeignKey {
-                    name: constraint_name(fk.name.as_ref(), || {
-                        format!("{short}_{column_name}_fkey")
-                    }),
-                    columns: vec![column_name.clone()],
-                    ref_table: object_name(&fk.foreign_table),
-                    ref_columns: fk.referred_columns.iter().map(ident).collect(),
-                    on_delete: fk.on_delete.as_ref().map(ToString::to_string),
-                    on_update: fk.on_update.as_ref().map(ToString::to_string),
-                }),
-                ColumnOption::Check(check) => out.checks.push(Check {
-                    name: constraint_name(check.name.as_ref(), || {
-                        format!("{short}_{column_name}_check")
-                    }),
-                    expr: check.expr.to_string(),
-                }),
-                ColumnOption::Generated {
-                    generated_as,
-                    generation_expr,
-                    ..
-                } => match generation_expr {
-                    Some(expr) => column.generated = Some(expr.to_string()),
-                    None => {
-                        column.identity = Some(
-                            match generated_as {
-                                GeneratedAs::Always => "ALWAYS",
-                                _ => "BY DEFAULT",
-                            }
-                            .to_owned(),
-                        );
-                    }
-                },
-                other => {
-                    return Err(Error::at(
-                        at,
-                        format!("column option `{other}` on `{column_name}` is not supported"),
-                    ));
-                }
-            }
-        }
-        if let Some((doc, tenant)) = column_notes
-            .iter()
-            .find_map(|(c, d, t)| (c.eq_ignore_ascii_case(&column_name)).then(|| (d.clone(), *t)))
-        {
-            column.doc = doc;
-            column.tenant = tenant;
-        }
-        out.columns.push(column);
+        let built =
+            build_column(&out, def, &column_notes).map_err(|reason| Error::at(at, reason))?;
+        place_column(&mut out, built);
     }
     let mut unnamed_checks = 0;
     for constraint in &table.constraints {
-        match constraint {
-            TableConstraint::PrimaryKey(pk) => {
-                if !out.primary_key.is_empty() {
-                    return Err(Error::at(
-                        at,
-                        format!("table `{name}` has two primary keys"),
-                    ));
-                }
-                out.primary_key = pk
-                    .columns
-                    .iter()
-                    .map(|c| expr_ident(&c.column.expr))
-                    .collect();
-            }
-            TableConstraint::Unique(u) => {
-                let columns: Vec<String> = u
-                    .columns
-                    .iter()
-                    .map(|c| expr_ident(&c.column.expr))
-                    .collect();
-                out.uniques.push(Unique {
-                    name: constraint_name(u.name.as_ref(), || {
-                        format!("{short}_{}_key", columns.join("_"))
-                    }),
-                    columns,
-                });
-            }
-            TableConstraint::ForeignKey(fk) => {
-                let columns: Vec<String> = fk.columns.iter().map(ident).collect();
-                out.foreign_keys.push(ForeignKey {
-                    name: constraint_name(fk.name.as_ref(), || {
-                        format!("{short}_{}_fkey", columns.join("_"))
-                    }),
-                    columns,
-                    ref_table: object_name(&fk.foreign_table),
-                    ref_columns: fk.referred_columns.iter().map(ident).collect(),
-                    on_delete: fk.on_delete.as_ref().map(ToString::to_string),
-                    on_update: fk.on_update.as_ref().map(ToString::to_string),
-                });
-            }
-            TableConstraint::Check(check) => {
-                let name = constraint_name(check.name.as_ref(), || {
-                    unnamed_checks += 1;
-                    match unnamed_checks {
-                        1 => format!("{short}_check"),
-                        n => format!("{short}_check{}", n - 1),
-                    }
-                });
-                out.checks.push(Check {
-                    name,
-                    expr: check.expr.to_string(),
-                });
-            }
-            other => {
-                return Err(Error::at(
-                    at,
-                    format!("table constraint `{other}` is not supported"),
-                ));
-            }
-        }
+        add_table_constraint(&mut out, constraint, &mut unnamed_checks)
+            .map_err(|reason| Error::at(at, reason))?;
     }
     // Primary key columns are NOT NULL.
     for column in &mut out.columns {

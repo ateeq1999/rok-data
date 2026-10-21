@@ -1,4 +1,4 @@
-//! The unified project config (`rok.toml`, ADR 0011): the engine's
+//! The unified project config (`rok.toml`, engine ADR 0011): the engine's
 //! generation settings in a `[generate]` section, beside the `[api]` and
 //! `[conventions]` sections the legacy file holds at the top level.
 //!
@@ -45,6 +45,8 @@ pub(super) struct RawProject {
 pub(super) struct GenerationKeys {
     /// The schema inputs.
     schema: Option<OneOrMany>,
+    /// The migration history directory the staging writes its pairs into.
+    migrations: Option<PathBuf>,
     /// The annotated query files or directories.
     queries: Option<OneOrMany>,
     /// The directory the modules are written to.
@@ -86,6 +88,7 @@ impl GenerationKeys {
         };
         FileConfig {
             schema: paths(self.schema),
+            migrations: self.migrations.map(|path| base.join(path)),
             queries: paths(self.queries),
             output: self.output.map(|path| base.join(path)),
             resource: self.resource,
@@ -165,6 +168,15 @@ mod tests {
              [generate]\nschema = \"migrations/\"\n",
         );
         assert_eq!(file.schema, vec![PathBuf::from("/project/migrations")]);
+    }
+
+    /// The history dir the staging writes its pairs into: the
+    /// `[generate] migrations` key (the truth's `schema` stays what it is).
+    #[test]
+    fn the_migrations_key_names_the_history_dir() {
+        let file = settings("[generate]\nschema = \"schema\"\nmigrations = \"history\"\n");
+        assert_eq!(file.schema, vec![PathBuf::from("/project/schema")]);
+        assert_eq!(file.migrations, Some(PathBuf::from("/project/history")));
     }
 
     #[test]

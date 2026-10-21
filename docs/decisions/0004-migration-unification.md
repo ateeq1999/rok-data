@@ -46,3 +46,29 @@ picking one format would strand the other side.
   already-applied SQL until it fails on existing objects). The `unknown`
   state remains the honest report for journal rows whose checksum has
   drifted or whose file is gone.
+
+## Amendment (2026-10-21): the truth and the history live in one dir each
+
+Ticket (c) of the unified-pipeline plan splits the project's SQL in two
+deliberate places (`crates/rok-data-codegen/src/staging.rs`, workspace
+ADR 0010):
+
+- the **truth dir** (`[generate] schema` in `rok.toml`; `rok init` and
+  `rok sqlc init` now seed `schema/`): the plain `*.sql` files the
+  generator reads — always hand-writable;
+- the **history dir** (`[generate] migrations`, default `migrations`;
+  `rok gen --migrations-dir` overrides the file): the staged
+  `NNNN_name.up.sql` / `.down.sql` pairs and the `.rok-schema.json`
+  snapshot, which `rok gen --migration` writes and the loader of this
+  ADR reads back.
+
+Two rules follow:
+
+- The loader skips **hidden files**: the staging's snapshot is a hidden
+  file and is not a migration.
+- The truth's `-- rok:down` markers are honoured by every truth reader
+  (the engine's parser: engine ADR 0017); a staged pair still carries
+  the undo SQL the marker supplies.
+
+Legacy projects keep staging as before: both dirs default to one —
+`migrations` — when the config file says nothing else.

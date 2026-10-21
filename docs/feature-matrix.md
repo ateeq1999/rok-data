@@ -26,7 +26,7 @@ equivalent without a ported implementation.
 | Generate model crate from `.sql` + migrations  | ✔                   | —                 | ✔ legacy `rok generate` (`rok-data-codegen`) |
 | Flags-beat-file precedence, `--strict` check   | ✔                   | —                 | ✔                                     |
 | Per-table resource modules                     | —                   | ✔                 | ✔ legacy `rok sqlc generate`          |
-| Front door: data layer from the schema dir     | —                   | ✔                 | ✔ `rok gen` (ADR 0012)                 |
+| Front door: data layer from the schema dir     | —                   | ✔                 | ✔ `rok gen` (engine ADR 0012)                 |
 | Front door: staged migration pairs             | ✔                   | —                 | ✔ `rok gen --migration`               |
 | Front door: CI drift check                    | ✔                   | ✔                 | ✔ `rok gen check` (exit 1 on drift)   |
 | Generate from schema file, no DB needed        | —                   | ✔                 | ✔ (parser, no connection)             |
@@ -35,7 +35,7 @@ equivalent without a ported implementation.
 | API feature layer for axum (`[api] framework`)   | —                   | —                 | ✔ (engine feature)                    |
 | OpenAPI schemas (`utoipa`)                     | —                   | ✔                 | ✔ (engine feature)                    |
 | Init scaffold (dir + templates)                | —                   | ✔                 | ✔ `rok init` (`--template actix`/`axum`) / legacy `rok sqlc init` |
-| check-arch (ADR 0016 layout rules)             | —                   | ✔                 | ✔ `rok sqlc check-arch`               |
+| check-arch (engine ADR 0016 layout rules)             | —                   | ✔                 | ✔ `rok sqlc check-arch`               |
 | `@generated` markers, stale detection          | ✔ (`// generated…`) | ✔                 | ✔ both marker generations recognized  |
 | Vertical slice: schema → models, features, migrations | —             | —                 | ✔ `examples/api`                      |
 
@@ -62,8 +62,8 @@ project: `[api] framework` (or `rok gen -w/--api-framework`) picks
 | `rok-fluent` | `migrate *`        | `rok migrate *`      | single-file sources accepted  |
 | `rok-fluent` | `schema dump/diff` | `rok schema dump|diff` | introspect-backed           |
 | (new)        | —                  | `rok db check|inspect` | connectivity + structure    |
-| (new)        | —                  | `rok init`        | root scaffolding command (ADR 0012)   |
-| (new)        | —                  | `rok gen`         | root generation command (ADR 0012)    |
+| (new)        | —                  | `rok init`        | root scaffolding command (engine ADR 0012)   |
+| (new)        | —                  | `rok gen`         | root generation command (engine ADR 0012)    |
 | (new)        | —                  | `rok gen check`   | CI mode: exit 1 on drift             |
 | `rok-sqlc`   | `g`/`generate`     | `rok sqlc g`       | legacy: engine clap grammar verbatim |
 | `rok-sqlc`   | `i`/`init`         | `rok sqlc i`       | legacy: as above               |
@@ -72,7 +72,7 @@ project: `[api] framework` (or `rok gen -w/--api-framework`) picks
 `rok generate` and `rok sqlc …` are the legacy commands: they keep working
 exactly as they do now (the `sqlc` tokens are forwarded verbatim to the
 engine), they are superseded by the front door (`rok gen` generates,
-`rok init` scaffolds), and their removal is deferred to 1.0 (ADR 0012).
+`rok init` scaffolds), and their removal is deferred to 1.0 (engine ADR 0012).
 
 Exit-code contract: `--help`/`--version` → 0; wrong usage at the root →
 2 (clap); usage errors inside `rok sqlc …` → 1 (preserved engine

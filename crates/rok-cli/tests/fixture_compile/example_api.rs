@@ -1,6 +1,6 @@
 //! `examples/api`: the vertical slice — the axum template's hand-written
-//! half, a schema of two files, and beside it the generated data layer,
-//! the API features and the staged migration pairs.
+//! half, a truth of two files, and beside it the generated data layer,
+//! the API features and the staged migration history.
 //!
 //! The example is a crate of its own (the root `Cargo.toml`'s `exclude`
 //! lists it, and it has its own `[workspace]` table), so this suite is
@@ -102,9 +102,11 @@ fn the_example_stages_the_migration_pairs_it_checks_in() -> Result<()> {
     let dir = project.path().join("api");
     copy_tree(&checked_in, &dir)?;
 
-    // The pairs and the snapshot go: the staging starts from nothing.
-    let schema = dir.join("schema");
-    for entry in std::fs::read_dir(&schema)? {
+    // The pairs and the snapshot go from the history dir: the staging
+    // starts from nothing.
+    let truth_schema = dir.join("schema");
+    let history = dir.join("migrations");
+    for entry in std::fs::read_dir(&history)? {
         let entry = entry?;
         let name = entry.file_name().to_string_lossy().into_owned();
         if name.ends_with(".up.sql") || name.ends_with(".down.sql") || name.starts_with('.') {
@@ -114,7 +116,7 @@ fn the_example_stages_the_migration_pairs_it_checks_in() -> Result<()> {
     // The second truth file waits: the first migration carries the first
     // file's tables alone. Its configuration entry goes with it, since the
     // table is not in the schema yet.
-    let loans = schema.join("loans.sql");
+    let loans = truth_schema.join("loans.sql");
     let truth = std::fs::read_to_string(&loans)?;
     std::fs::remove_file(&loans)?;
     let config = dir.join("rok.toml");
@@ -137,8 +139,8 @@ fn the_example_stages_the_migration_pairs_it_checks_in() -> Result<()> {
         "0002_add_loans.up.sql",
         "0002_add_loans.down.sql",
     ] {
-        let staged = read(&schema.join(name))?;
-        let expected = read(&checked_in.join("schema").join(name))?;
+        let staged = read(&history.join(name))?;
+        let expected = read(&checked_in.join("migrations").join(name))?;
         ensure!(
             staged == expected,
             "the staged {name} differs from the one the example checks in"

@@ -14,8 +14,8 @@ use rok_data_sqlc::init::{Scaffolded, init as init_skeleton, init_template};
 
 use crate::output::display_path;
 
-/// The schema directory of a project: its only source of truth (ADR 0010).
-const SCHEMA_DIR: &str = "migrations";
+/// The truth directory of a project: its only source of truth (ADR 0010).
+const SCHEMA_DIR: &str = "schema";
 
 /// The file a seeded schema is written as.
 const SCHEMA_FILE: &str = "0001_init.sql";
@@ -64,10 +64,10 @@ fn read_schema(schema: &Path) -> Result<String, String> {
         .map_err(|err| format!("failed to read `{}`: {err}", schema.display()))
 }
 
-/// Seeds the project's schema directory with `content`.
+/// Seeds the project's truth directory with `content`.
 ///
 /// The schema directory is the project's only source of truth, so it starts
-/// non-empty: the file is written as `migrations/0001_init.sql`. Like every
+/// non-empty: the file is written as `schema/0001_init.sql`. Like every
 /// scaffolded file it is written once and never rewritten — an existing one
 /// is kept, and the run says so. Answers whether it wrote the file.
 fn seed_schema(dir: &Path, content: &str) -> Result<bool, String> {
@@ -88,8 +88,10 @@ fn seed_schema(dir: &Path, content: &str) -> Result<bool, String> {
 
 /// Prints the numbered next steps.
 ///
-/// The front door is `rok gen`: the schema in the schema directory is the
-/// truth, and `rok gen` turns it into the data layer and the API features.
+/// The front door is `rok gen`: the truth in the schema directory is the
+/// truth (ADR 0010), and `rok gen` turns it into the data layer and the API
+/// features; `rok gen --migration` stages the history pairs into
+/// `migrations/`, the default history dir.
 fn next_steps(scaffolded: &Scaffolded, template: bool, seeded: bool) {
     let mut steps: Vec<&str> = Vec::new();
     if template {
@@ -98,17 +100,19 @@ fn next_steps(scaffolded: &Scaffolded, template: bool, seeded: bool) {
                 "add the template's dependencies and lints (its README.md lists them) to Cargo.toml",
             );
         }
-        steps.push(
-            "run `rok gen` to generate src/db/, src/shared/ and src/features/ from migrations/",
-        );
+        steps.push("run `rok gen` to generate src/db/, src/shared/ and src/features/ from schema/");
         steps.push("set DATABASE_URL and JWT_SECRET (see .env.example) and apply migrations/");
         steps.push("`cargo test`, then `cargo run`");
     } else {
         steps.push("add the dependencies listed at the end of rok-data-sqlc.toml to Cargo.toml");
         if seeded {
-            steps.push("add more migrations to migrations/ (0002_*.sql, ...)");
+            steps.push(
+                "grow the truth in schema/: edit its .sql files, then stage the change with `rok gen --migration <name>`",
+            );
         } else {
-            steps.push("add migrations to migrations/ (0001_init.sql, ...)");
+            steps.push(
+                "describe the tables in schema/ (0001_init.sql), then stage them with `rok gen --migration init`",
+            );
         }
         steps.push("run `rok gen` to generate src/db/ and src/features/");
         steps.push("set DATABASE_URL and JWT_SECRET, then `cargo run`");

@@ -104,6 +104,79 @@ fn extras_need_a_down() {
     assert_eq!(p.schema.extras[0].down, "DROP FUNCTION f()");
 }
 
+/// An `ALTER TABLE` changes the parsed table itself: the fold needs no
+/// `-- rok:down`, and the later `CREATE TABLE` describing the folded shape
+/// parses identically (pinned end-to-end by
+/// `an_alter_folded_into_the_table_stages_nothing` in the diff's tests).
+#[test]
+fn alters_change_the_tables() {
+    let p = parse_text(
+        "CREATE TABLE books (id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL);
+             ALTER TABLE books
+                 ADD COLUMN isbn TEXT UNIQUE,
+                 ADD COLUMN year INT NOT NULL DEFAULT 0,
+                 DROP COLUMN title,
+                 ALTER COLUMN isbn SET DATA TYPE VARCHAR(64);",
+    )
+    .unwrap();
+    let table = &p.schema.tables[0];
+    assert!(p.schema.extras.is_empty());
+    assert_eq!(
+        table
+            .columns
+            .iter()
+            .map(|column| column.name.as_str())
+            .collect::<Vec<_>>(),
+        ["id", "isbn", "year"]
+    );
+    let isbn = table.column("isbn").unwrap();
+    assert_eq!(isbn.sql_type, "VARCHAR(64)");
+    assert!(isbn.nullable);
+    let year = table.column("year").unwrap();
+    assert!(!year.nullable && year.default.as_deref() == Some("0"));
+    assert_eq!(table.uniques[0].name, "books_isbn_key");
+
+    // A rename follows the column into the keys that name it.
+    let p = parse_text(
+        "CREATE TABLE teams (id BIGSERIAL PRIMARY KEY, leader_id BIGINT REFERENCES teams, CONSTRAINT teams_leader_key UNIQUE (leader_id));
+             ALTER TABLE teams RENAME COLUMN leader_id TO captain_id;",
+    )
+    .unwrap();
+    let table = &p.schema.tables[0];
+    assert_eq!(table.foreign_keys[0].columns, ["captain_id"]);
+    assert_eq!(table.uniques[0].columns, ["captain_id"]);
+
+    // An `ADD CONSTRAINT` folds the same way a `CREATE TABLE` one would.
+    let p = parse_text(
+        "CREATE TABLE shelves (room_id INT, row INT);
+             ALTER TABLE shelves ADD CONSTRAINT shelves_pkey PRIMARY KEY (room_id, row);",
+    )
+    .unwrap();
+    assert_eq!(p.schema.tables[0].primary_key, ["room_id", "row"]);
+    assert!(!p.schema.tables[0].column("room_id").unwrap().nullable);
+}
+
+/// A clause the model cannot represent keeps the statement on the extras
+/// path: without `-- rok:down` it is refused, with one it rides as
+/// written.
+#[test]
+fn unsupported_alter_clauses_still_need_a_down() {
+    let err = parse_text(
+        "CREATE TABLE books (id BIGSERIAL PRIMARY KEY);
+             ALTER TABLE books SET UNLOGGED;",
+    )
+    .unwrap_err();
+    assert!(err.to_string().contains("rok can't undo"), "{err}");
+    let p = parse_text(
+        "CREATE TABLE books (id BIGSERIAL PRIMARY KEY);
+             ALTER TABLE books SET UNLOGGED;
+             -- rok:down
+             ALTER TABLE books SET LOGGED;",
+    )
+    .unwrap();
+    assert_eq!(p.schema.extras[0].up, "ALTER TABLE books SET UNLOGGED");
+}
+
 #[test]
 fn errors_point_at_the_file() {
     let err = parse_text("CREATE TABLE posts (id INT PRIMARY KEY, user_id INT REFERENCES users);")

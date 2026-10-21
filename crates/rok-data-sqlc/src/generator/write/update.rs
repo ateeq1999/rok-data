@@ -66,7 +66,7 @@ fn target_key_alias(index: usize) -> String {
     format!("rok_data_sqlc_key_{index}")
 }
 
-/// `update` for a table with a version column (ADR 0006): the version check
+/// `update` for a table with a version column (engine ADR 0006): the version check
 /// is part of the `UPDATE`'s condition, and the same statement reports
 /// whether the row was updated, is at another version, or does not exist, so
 /// the generic executor is used once (the model chains carry one statement

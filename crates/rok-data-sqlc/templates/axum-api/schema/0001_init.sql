@@ -16,6 +16,9 @@ begin
 end;
 $$;
 
+-- rok:down
+DROP FUNCTION touch_updated_at();
+
 CREATE TABLE users (
     id UUID PRIMARY KEY,
     email TEXT NOT NULL,
@@ -42,6 +45,9 @@ CREATE UNIQUE INDEX users_email_key ON users (lower(email)) WHERE deleted_at IS 
 
 CREATE TRIGGER users_touch_updated_at BEFORE UPDATE ON users
     FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+
+-- rok:down
+DROP TRIGGER users_touch_updated_at ON users;
 
 -- Administrative actions, newest first; written by the application.
 CREATE TABLE audit_log (

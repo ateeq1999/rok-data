@@ -30,7 +30,7 @@ fn has_marker(text: &[u8]) -> bool {
 }
 
 /// The first line of a scaffolded file: a file written only when absent and
-/// owned by the user from then on (ADR 0016). A planned file whose contents
+/// owned by the user from then on (engine ADR 0016). A planned file whose contents
 /// start with it is scaffolded: never rewritten, never reported as changed,
 /// and never stale, since it lacks the generated header.
 pub const SCAFFOLD_HEADER: &str = "// Scaffolded once by rok-data-sqlc; this file is yours. It is never regenerated. See docs/guide/architecture.md.";
@@ -234,7 +234,7 @@ fn classify(path: &Path, contents: &str, force: bool) -> Result<Action> {
         .with_context(|| format!("failed to read existing file `{}`", display_path(path)))?;
 
     if !has_marker(existing.as_bytes()) && !force {
-        // `schema.json` is the pipeline's own artifact (ADR 0010): it holds
+        // `schema.json` is the pipeline's own artifact (engine ADR 0010): it holds
         // no marker, and a run always regenerates it.
         if path.file_name().is_some_and(|name| name == "schema.json") {
             return Ok(if same_text(existing.as_bytes(), contents) {

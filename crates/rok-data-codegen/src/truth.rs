@@ -1,4 +1,4 @@
-//! The offline truth of the pipeline (ADR 0010): the `.sql` files are the
+//! The offline truth of the pipeline (workspace ADR 0010): the `.sql` files are the
 //! schema sources, the parsed [`Schema`] is what every consumer agrees on,
 //! and a migration is the offline diff between two schemas. Nothing in here
 //! needs a PostgreSQL server; the database only verifies what these

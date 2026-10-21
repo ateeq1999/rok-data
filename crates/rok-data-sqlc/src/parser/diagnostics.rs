@@ -18,7 +18,7 @@ pub struct TableFailure {
     /// `DROP TABLE` can forget the failure.
     pub schema: Option<String>,
     /// The table's last shape that generated, when rok-data-sqlc knows it, so an
-    /// earlier run's files for it can be kept (ADR 0001).
+    /// earlier run's files for it can be kept (engine ADR 0001).
     pub last_good: Option<Box<LastGood>>,
 }
 

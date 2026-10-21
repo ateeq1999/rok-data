@@ -1,11 +1,11 @@
-//! The validation rules of a create input and an update patch (ADR 0015).
+//! The validation rules of a create input and an update patch (engine ADR 0015).
 
 use super::super::test_support::{column, nullable, table};
 use super::*;
 use crate::schema::{LengthRange, NumberBound, TypedId, ValueRange};
 
 /// `validate` derives `validator::Validate` for the create input and the
-/// update patch, and for nothing else (ADR 0015).
+/// update patch, and for nothing else (engine ADR 0015).
 #[test]
 fn validate_derives_only_inputs_and_patches() {
     let users = table(

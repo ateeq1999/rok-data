@@ -1,4 +1,4 @@
-//! actix-web's side of the API features (ADR 0016): the routes, the
+//! actix-web's side of the API features (engine ADR 0016): the routes, the
 //! handlers' syntax, and the root's wiring. axum's is [`super::axum`].
 
 use super::feature::Feature;

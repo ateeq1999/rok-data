@@ -1,4 +1,4 @@
-//! One documented operation of a feature (ADR 0016) and its rendering as
+//! One documented operation of a feature (engine ADR 0016) and its rendering as
 //! `#[utoipa::path(...)]`: [`super::paths`] decides what each handler
 //! answers, this module how that reads.
 

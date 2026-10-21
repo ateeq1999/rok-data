@@ -114,7 +114,7 @@ fn the_config_file_turns_on_the_api_for_actix_web() -> Result<()> {
     let file = dir.path().join("rok-data-sqlc.toml");
     fs::write(&file, template("rok-data-sqlc.toml"))?;
     let config = config_file::load(&file)?;
-    assert_eq!(config.schema, vec![dir.path().join("migrations/")]);
+    assert_eq!(config.schema, vec![dir.path().join("schema")]);
     assert_eq!(config.output, Some(dir.path().join("src/db")));
     assert_eq!(config.derive, Some(vec![Derive::Serde, Derive::Validate]));
     assert_eq!(config.extractors, Some(vec![Extractor::ActixWeb]));

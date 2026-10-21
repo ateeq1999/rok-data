@@ -1,4 +1,4 @@
-//! Conventions (ADR 0010): the configured column names, applied to the
+//! Conventions (engine ADR 0010): the configured column names, applied to the
 //! tables being generated before any renderer runs.
 //!
 //! A convention is recorded on the schema model, so renderers ask a column

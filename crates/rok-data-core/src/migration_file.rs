@@ -7,11 +7,15 @@
 //! migration, so `up`, `down` and drift detection behave identically whether
 //! the source of the files is an editor or the generator.
 //!
+//! Hidden files are skipped: the staging's snapshot (`.rok-schema.json`)
+//! sits beside the pairs and is not a migration.
+//!
 //! ```text
 //! migrations/
 //! ├── 0001_init.up.sql
 //! ├── 0001_init.down.sql
-//! └── 0002_add_slug.up.sql
+//! ├── 0002_add_slug.up.sql
+//! └── .rok-schema.json
 //! ```
 
 use std::collections::BTreeMap;
@@ -89,7 +93,8 @@ pub fn status_rows(migrations: &[Migration], applied: &[AppliedMigration]) -> Ve
 /// Read `NNNN_name.up.sql` (and the optional `NNNN_name.down.sql`) from `dir`,
 /// oldest first. Errors when the directory mixes in files that do not follow
 /// the `<version>_<name>` convention, has duplicate versions, or has a down
-/// file without its matching up file.
+/// file without its matching up file. Hidden files are skipped (the
+/// staging's snapshot).
 ///
 /// The contents are exactly what the generated crate embeds with
 /// `include_str!`, so checksums match a generated crate's constants.
@@ -101,6 +106,12 @@ pub fn load(dir: &Path) -> Result<Vec<Migration>, crate::Error> {
     for entry in entries {
         let entry = entry.map_err(|e| crate::Error::Config(format!("{}: {e}", dir.display())))?;
         let file = entry.file_name().to_string_lossy().into_owned();
+        // Hidden neighbors are not migrations: the staging's snapshot
+        // (`.rok-schema.json`) sits beside the pairs, and a hidden name
+        // cannot follow `<version>_<name>` anyway.
+        if file.starts_with('.') {
+            continue;
+        }
         let (stem, map) = if let Some(stem) = file.strip_suffix(".up.sql") {
             (stem, &mut ups)
         } else if let Some(stem) = file.strip_suffix(".down.sql") {
@@ -242,6 +253,22 @@ mod tests {
             assert!(load(&dir).is_err(), "{files:?}");
             fs::remove_dir_all(dir).unwrap();
         }
+    }
+
+    #[test]
+    fn skips_hidden_neighbors() {
+        let dir = dir_with(&[
+            ("0001_init.up.sql", "CREATE 1"),
+            ("0001_init.down.sql", "DROP 1"),
+            (".rok-schema.json", "{\"tables\":[]}"),
+            (".env", "SECRET=x"),
+        ]);
+        let m = load(&dir).unwrap();
+        assert_eq!(
+            m.iter().map(|m| (m.version, m.up)).collect::<Vec<_>>(),
+            [(1, "CREATE 1")]
+        );
+        fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

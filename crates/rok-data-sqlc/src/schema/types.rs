@@ -68,19 +68,19 @@ pub struct Table {
     /// the names `ON CONFLICT ON CONSTRAINT` can use. A unique index is not a
     /// constraint, so it is not listed.
     pub key_constraints: Vec<KeyConstraint>,
-    /// The version column (ADR 0010), as its SQL name: set only when the
+    /// The version column (engine ADR 0010), as its SQL name: set only when the
     /// version convention is configured and this table has the column. The
     /// parser leaves it `None`; the generator applies the conventions.
     pub version_column: Option<String>,
-    /// The soft-delete column (ADR 0010), when the soft-delete convention is
+    /// The soft-delete column (engine ADR 0010), when the soft-delete convention is
     /// configured and this table has that column. The parser leaves it
     /// `None`; the generator applies the conventions.
     pub soft_delete_column: Option<String>,
-    /// The tenant column (ADR 0010), when the tenant convention is
+    /// The tenant column (engine ADR 0010), when the tenant convention is
     /// configured and this table has that column. The parser leaves it
     /// `None`; the generator applies the conventions.
     pub tenant_column: Option<String>,
-    /// The relationships inferred from foreign keys (ADR 0014): belongs-to
+    /// The relationships inferred from foreign keys (engine ADR 0014): belongs-to
     /// first, in foreign key order, then the inverses, in table order. The
     /// parser leaves it empty; the generator infers it over the tables
     /// generated together.
@@ -93,7 +93,7 @@ pub struct Table {
 }
 
 /// A relationship from a table to another table, or to itself, inferred from
-/// one single-column foreign key (ADR 0014). Both tables are generated in the
+/// one single-column foreign key (engine ADR 0014). Both tables are generated in the
 /// same run, and the two columns it joins on have the same type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Relationship {
@@ -253,7 +253,7 @@ pub struct Column {
     pub sql_name: String,
     pub rust_name: String,
     /// The declared SQL type, as written (`UUID`, `VARCHAR(255)`,
-    /// `user_status`); the schema snapshot canonicalizes it (ADR 0010).
+    /// `user_status`); the schema snapshot canonicalizes it (engine ADR 0010).
     pub sql_type: String,
     pub rust_type: String,
     pub sqlx_type: String,
@@ -291,7 +291,7 @@ pub struct Column {
     /// table's id for a foreign key to it. The parser leaves it `None`; the
     /// generator fills it in for the tables it generates.
     pub typed_id: Option<TypedId>,
-    /// A managed column (ADR 0010): the database maintains it, so it is
+    /// A managed column (engine ADR 0010): the database maintains it, so it is
     /// never inserted or updated by generated code but stays in rows. The
     /// parser leaves it `false`; the generator applies the conventions.
     pub is_managed: bool,

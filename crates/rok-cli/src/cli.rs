@@ -201,6 +201,9 @@ pub(crate) struct GenOptions {
     /// The schema dir: the truth the generator reads (default: migrations).
     #[arg(short, long, value_name = "DIR")]
     pub schema: Option<PathBuf>,
+    /// The migration history dir the staged pairs go in (default: migrations).
+    #[arg(long, value_name = "DIR")]
+    pub migrations_dir: Option<PathBuf>,
     /// Where the modules are written (default: src/db).
     #[arg(short, long, value_name = "DIR")]
     pub output: Option<PathBuf>,
@@ -244,6 +247,7 @@ impl GenCheckOptions {
         GenOptions {
             config: self.config.or(group.config),
             schema: self.schema.or(group.schema),
+            migrations_dir: self.migrations_dir.or(group.migrations_dir),
             output: self.output.or(group.output),
             resource: self.resource.or(group.resource),
             queries: if self.queries.is_empty() {
@@ -275,6 +279,9 @@ pub(crate) struct GenCheckOptions {
     /// The schema dir: the truth the generator reads (default: migrations).
     #[arg(short, long, value_name = "DIR")]
     pub schema: Option<PathBuf>,
+    /// The migration history dir the staged pairs go in (default: migrations).
+    #[arg(long, value_name = "DIR")]
+    pub migrations_dir: Option<PathBuf>,
     /// Where the modules are written (default: src/db).
     #[arg(short, long, value_name = "DIR")]
     pub output: Option<PathBuf>,

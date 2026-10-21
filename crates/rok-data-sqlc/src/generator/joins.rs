@@ -1,4 +1,4 @@
-//! Joined reads (ADR 0014): for each to-one relationship of a table with a
+//! Joined reads (engine ADR 0014): for each to-one relationship of a table with a
 //! primary key, `get_with_<relationship>` reads a row and its related row
 //! in one statement, returning a `{Row}With{Relationship}` struct.
 //!

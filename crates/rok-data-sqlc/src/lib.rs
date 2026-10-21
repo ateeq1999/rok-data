@@ -18,7 +18,7 @@
 //! ```
 //!
 //! Anything else reachable from this crate is an implementation detail with
-//! no stability promise (see ADR 0012).
+//! no stability promise (see engine ADR 0012).
 
 mod api_config;
 mod check_arch;
@@ -37,7 +37,7 @@ mod schema;
 #[doc(hidden)]
 pub mod cli;
 // The scaffolding library behind `rok sqlc init` and the root `rok init`
-// (ADR 0012): the skeleton and the ready-made Templates, each file written
+// (engine ADR 0012): the skeleton and the ready-made Templates, each file written
 // once and never rewritten.
 #[doc(hidden)]
 pub mod init;

@@ -13,7 +13,7 @@ const RESTORED: &str = "rok_data_sqlc_restored";
 
 /// `attach`, `detach`, and `sync` for a join table (ticket 23): they add,
 /// remove, and replace the pairs of one row of the pair's `near` table.
-/// Each runs one statement (ADR 0006), so `sync` replaces the set
+/// Each runs one statement (engine ADR 0006), so `sync` replaces the set
 /// atomically inside the caller's transaction. On a soft-delete join table,
 /// `detach` soft-deletes and `attach` restores the soft-deleted row rather
 /// than inserting another. `attach` and `sync` insert only the pair (and the

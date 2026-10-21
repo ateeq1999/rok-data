@@ -3,7 +3,7 @@
 //!
 //! Two shapes are readable, and both name the same keys:
 //!
-//! - the unified project file `rok.toml` (ADR 0011), whose generation
+//! - the unified project file `rok.toml` (engine ADR 0011), whose generation
 //!   settings live in its `[generate]` section, beside the `[api]` and
 //!   `[conventions]` sections;
 //! - the engine's own file `rok-data-sqlc.toml`, whose keys sit at the top
@@ -20,7 +20,7 @@ use crate::Config;
 use crate::config_file;
 
 /// The config file names, in the order they are looked for: the canonical
-/// `rok.toml` (ADR 0011) and the engine's legacy `rok-data-sqlc.toml`.
+/// `rok.toml` (engine ADR 0011) and the engine's legacy `rok-data-sqlc.toml`.
 pub const FILE_NAMES: &[&str] = &["rok.toml", "rok-data-sqlc.toml"];
 
 /// The nearest config file in `start` or one of its parents.

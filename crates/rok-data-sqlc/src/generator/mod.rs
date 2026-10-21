@@ -66,7 +66,7 @@ pub struct QueryModule {
 }
 
 /// Resource modules an earlier run generated for tables this run skips as
-/// unsupported (ADR 0001). Their files are kept as they are, and the run
+/// unsupported (engine ADR 0001). Their files are kept as they are, and the run
 /// plans everything else as if these tables generated in their last good
 /// shape: `mod.rs` declares them (and `UpdateOutcome` for a versioned one),
 /// `types.rs` defines their enums, and the typed ids, relationships, and
@@ -133,7 +133,7 @@ pub fn prepare(
 }
 
 /// Why `table` cannot be generated under `config`: its module is `http`
-/// while `extractors` generates `db/http/` (ADR 0015), or, found on its
+/// while `extractors` generates `db/http/` (engine ADR 0015), or, found on its
 /// model with the conventions [applied](conventions::apply) once, a managed
 /// column with no source of values ([`conventions::unsourced`]) or search
 /// names that collide ([`search::name_clash`]).

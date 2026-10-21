@@ -1,4 +1,4 @@
-//! The OpenAPI side of a feature's handlers (ADR 0016): the
+//! The OpenAPI side of a feature's handlers (engine ADR 0016): the
 //! `#[utoipa::path]` above each one, documenting its method, absolute path,
 //! tag, operation id (the handler's name), params, request body, `bearer_auth`
 //! when it needs a caller, and exactly the statuses it can answer, each

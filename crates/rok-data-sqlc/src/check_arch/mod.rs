@@ -1,4 +1,4 @@
-//! `rok sqlc check-arch`: checks a project against ADR 0016's architecture.
+//! `rok sqlc check-arch`: checks a project against engine ADR 0016's architecture.
 //!
 //! The rules and the layout it checks are stated once, in [`rules`]: the
 //! lists of files each rule allows, and the texts the scaffolded `AGENTS.md`

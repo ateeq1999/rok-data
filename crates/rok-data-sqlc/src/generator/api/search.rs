@@ -1,4 +1,4 @@
-//! `POST /search` (ADR 0016, opt-in with `[api] search = true`): the body
+//! `POST /search` (engine ADR 0016, opt-in with `[api] search = true`): the body
 //! in `dto.rs`, the data layer's filter less its hidden columns and
 //! relationship fields, the service method, and the reads in `listing.rs`
 //! that scope it to the tenant and the owner and count its rows.

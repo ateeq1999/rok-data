@@ -11,7 +11,7 @@ scaffolds the application skeleton once, and `rok sqlc generate` generates the d
 layer (`src/db/`), the shared tools (`src/shared/`) and one **API feature**
 per table (`src/features/<table>/`). [Generated and scaffolded
 files](layout.md) says which files are rok-data-sqlc's and which are yours.
-`rok sqlc check-arch` checks the rules below on every build. ADR 0016 records
+`rok sqlc check-arch` checks the rules below on every build. engine ADR 0016 records
 the decisions behind this guide.
 
 Every Rust sample here comes from [`docs/examples/api`](../examples/api), a

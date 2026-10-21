@@ -8,7 +8,7 @@ Prerequisites: Rust ≥ 1.94, PostgreSQL 12+.
 ## 1. The front door (`rok init` and `rok gen`)
 
 One command scaffolds a project, one generates it. The project's schema
-directory is its only source of truth (ADR 0010): the plain `*.sql` files
+directory is its only source of truth (workspace ADR 0010): the plain `*.sql` files
 in it are the schema as it is now, and the staged migration pairs beside
 them are the history — how the schema got there.
 
@@ -25,7 +25,7 @@ $ cd my-api
 `migrations/`, seeded with the schema file you named. Every file it
 writes is written once and never rewritten.
 
-The settings file is the unified `rok.toml` (ADR 0011), whose `[generate]`
+The settings file is the unified `rok.toml` (workspace ADR 0011), whose `[generate]`
 section holds the generation settings; the engine's own
 `rok-data-sqlc.toml` stays readable, and `rok init` writes that one for
 now. `rok gen` reads either.
@@ -141,7 +141,7 @@ This is the superseded path: `rok gen` is the front door's generator, and
 `rok generate` keeps its flags, its output and its exit codes (the command
 no longer takes the `generate` subcommand, so the write mode is flat).
 It is kept for the projects that still use it; its removal is deferred to
-1.0 (ADR 0012).
+1.0 (engine ADR 0012).
 
 Instead of hand-writing models, describe tables as `.sql` under `sql/`
 and let the generator emit a crate with models, typed queries and the
@@ -177,7 +177,7 @@ $ rok generate check --strict
 
 The engine's own generator, behind the legacy `rok sqlc …` subtree: the
 tokens are forwarded verbatim, the commands keep working exactly as they
-did, and their removal is deferred to 1.0 (ADR 0012).
+did, and their removal is deferred to 1.0 (engine ADR 0012).
 
 The rok-data-sqlc engine generates modules from a schema file — without
 a database connection — into an existing crate:
@@ -189,7 +189,7 @@ $ rok sqlc g             # reads rok-data-sqlc.toml; or --schema schema.sql
 
 Each table gets `src/db/<table>/{models,read,write,filter,relationships,…}`,
 plus optional API features and OpenAPI schemas (the engine's road map is
-its own `docs/guide/`). Its ADR-0016 architecture check:
+its own `docs/guide/`). Its engine ADR 0016 architecture check:
 
 ```console
 $ rok sqlc check-arch

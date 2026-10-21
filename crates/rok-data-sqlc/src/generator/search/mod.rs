@@ -6,7 +6,7 @@
 //! Conditions are rendered from schema column names only; every value is
 //! bound.
 //!
-//! A resource with relationships (ADR 0014) also gets a filter field per
+//! A resource with relationships (engine ADR 0014) also gets a filter field per
 //! relationship it can follow, holding the related resource's filter. It is
 //! rendered as an `EXISTS` subquery over the related table under an alias
 //! (`_r1`, `_r2`, … by nesting depth), correlated with the enclosing row, so

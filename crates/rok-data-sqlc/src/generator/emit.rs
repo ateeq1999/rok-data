@@ -192,7 +192,7 @@ fn push_chain_argument(output: &mut String, pad: &str, arg: &str) {
     }
 }
 
-/// The derives `derive = ["serde"]` adds (ADR 0013), for [`push_derives`]:
+/// The derives `derive = ["serde"]` adds (engine ADR 0013), for [`push_derives`]:
 /// none without `serde`.
 pub fn serde_derives(serde: bool) -> &'static [&'static str] {
     if serde {
@@ -203,8 +203,8 @@ pub fn serde_derives(serde: bool) -> &'static [&'static str] {
 }
 
 /// What a run's `derive` asks of the generated items: serde's derives
-/// (ADR 0013), and `validator::Validate` with its rules on create inputs and
-/// update patches (ADR 0015), and with `[api] openapi`, utoipa's
+/// (engine ADR 0013), and `validator::Validate` with its rules on create inputs and
+/// update patches (engine ADR 0015), and with `[api] openapi`, utoipa's
 /// `ToSchema` on the types an API feature exposes.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct DeriveOptions {
@@ -295,7 +295,7 @@ pub fn push_derives(output: &mut String, extra: &[&str]) {
 
 /// Makes a serde-deriving search enum (a condition, `Direction`, or a sort
 /// key) read and write its variants in snake_case, as JSON APIs expect
-/// (`{"ge": 400}`, `"price_cents"`; ADR 0013). Generated enum types keep
+/// (`{"ge": 400}`, `"price_cents"`; engine ADR 0013). Generated enum types keep
 /// their database labels instead.
 pub fn push_serde_snake_case(output: &mut String) {
     output.push_str("#[serde(rename_all = \"snake_case\")]\n");

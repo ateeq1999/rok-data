@@ -185,7 +185,7 @@ pub fn generate(options: &Options) -> Result<Generated, Error> {
         Err(_) => Cache::default(),
     };
     let up_scripts: Vec<String> = migrations.iter().map(|m| m.up.clone()).collect();
-    // The database word (ADR 0010): the parse is offline and first, but with
+    // The database word (workspace ADR 0010): the parse is offline and first, but with
     // a URL at hand the migrations are applied to a temporary database and
     // the catalog is compared with `parsed.schema`; without one, the run
     // stays parser-only.

@@ -71,7 +71,11 @@ fn init_scaffolds_the_skeleton_into_the_current_directory() -> Result<()> {
     for file in SKELETON {
         assert!(dir.path().join(file).is_file(), "{file} is not scaffolded");
     }
-    assert!(dir.path().join("migrations").is_dir());
+    assert!(dir.path().join("schema").is_dir());
+    assert!(
+        !dir.path().join("migrations").is_dir(),
+        "the history dir appears with the first staged pair, not before"
+    );
     assert!(
         !dir.path().join("src/db").exists(),
         "init generates nothing"
@@ -95,7 +99,7 @@ fn init_scaffolds_into_the_named_directory() -> Result<()> {
 
     let project = dir.path().join("my-app");
     assert!(project.join("src/app.rs").is_file());
-    assert!(project.join("migrations").is_dir());
+    assert!(project.join("schema").is_dir());
     // The library crate is named after the directory.
     let main = fs::read_to_string(project.join("src/main.rs"))?;
     assert!(main.contains("\nuse my_app::{app, config};\n"), "{main}");
@@ -141,13 +145,38 @@ fn init_copies_a_template_instead_of_the_skeleton() -> Result<()> {
         "rok-data-sqlc.toml",
         "src/app.rs",
         "src/main.rs",
-        "migrations/0001_init.sql",
+        "schema/0001_init.sql",
+        "migrations/0001_init.up.sql",
+        "migrations/0001_init.down.sql",
     ] {
         assert!(project.join(file).is_file(), "{file} is not copied");
     }
     // The template's generated files are left out: `rok gen` writes them.
     assert!(!project.join("src/db").exists(), "generated files copied");
     assert!(!project.join("src/features/generated.rs").exists());
+    Ok(())
+}
+
+/// A template copy's `migrations/` is the runtime's history: the loader
+/// reads the shipped pairs (and not the hidden snapshot beside them).
+#[test]
+fn a_template_copys_migrations_load_as_history() -> Result<()> {
+    let dir = TempDir::new()?;
+    assert_success(&run_in(dir.path(), &["init", "--template", "actix"])?);
+
+    let migrations = rok_data::migration_file::load(&dir.path().join("migrations"))?;
+    assert_eq!(migrations.len(), 1, "one migration: {migrations:?}");
+    assert_eq!(migrations[0].name, "init");
+    assert!(
+        migrations[0].up.contains("CREATE TABLE \"users\""),
+        "{}",
+        migrations[0].up
+    );
+    assert!(
+        migrations[0].down.contains("DROP TABLE \"users\""),
+        "{}",
+        migrations[0].down
+    );
     Ok(())
 }
 
@@ -167,7 +196,9 @@ fn init_copies_the_axum_template() -> Result<()> {
         "rok-data-sqlc.toml",
         "src/app.rs",
         "src/main.rs",
-        "migrations/0001_init.sql",
+        "schema/0001_init.sql",
+        "migrations/0001_init.up.sql",
+        "migrations/0001_init.down.sql",
     ] {
         assert!(project.join(file).is_file(), "{file} is not copied");
     }
@@ -208,7 +239,7 @@ fn init_seeds_the_schema_directory() -> Result<()> {
     )?;
     assert_success(&output);
 
-    let seeded = dir.path().join("app/migrations/0001_init.sql");
+    let seeded = dir.path().join("app/schema/0001_init.sql");
     assert_eq!(
         fs::read_to_string(&seeded)?,
         "CREATE TABLE users (id UUID PRIMARY KEY);\n"
@@ -228,16 +259,16 @@ fn init_keeps_a_schema_file_that_is_already_there() -> Result<()> {
     let dir = TempDir::new()?;
     let schema = dir.path().join("schema.sql");
     fs::write(&schema, "CREATE TABLE users (id UUID PRIMARY KEY);\n")?;
-    fs::create_dir_all(dir.path().join("migrations"))?;
+    fs::create_dir_all(dir.path().join("schema"))?;
     fs::write(
-        dir.path().join("migrations/0001_init.sql"),
+        dir.path().join("schema/0001_init.sql"),
         "-- mine\nCREATE TABLE notes (id UUID PRIMARY KEY);\n",
     )?;
 
     let output = run_in(dir.path(), &["init", "--schema", &schema.to_string_lossy()])?;
     assert_success(&output);
     assert_eq!(
-        fs::read_to_string(dir.path().join("migrations/0001_init.sql"))?,
+        fs::read_to_string(dir.path().join("schema/0001_init.sql"))?,
         "-- mine\nCREATE TABLE notes (id UUID PRIMARY KEY);\n"
     );
     let stdout = stdout(&output);

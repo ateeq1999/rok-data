@@ -1,4 +1,4 @@
-//! A feature's relationship routes (ADR 0016), one [`Relation`] per
+//! A feature's relationship routes (engine ADR 0016), one [`Relation`] per
 //! relationship of its table whose related table has a feature of its own:
 //! a to-one relationship is embedded by `GET /{key}?include=<name>`, a
 //! has-many one is read by `GET /{key}/<name>`, and a many-to-many one is

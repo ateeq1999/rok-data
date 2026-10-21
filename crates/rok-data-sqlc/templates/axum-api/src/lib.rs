@@ -4,7 +4,7 @@
 //! with `app::app`. Every module is public, so generated code the
 //! application does not use yet is not dead code.
 //!
-//! The lints below are the bar the generated code meets (ADR 0013): every
+//! The lints below are the bar the generated code meets (engine ADR 0013): every
 //! public item is documented, and no `unwrap`, `expect` or `panic` outside
 //! the tests.
 

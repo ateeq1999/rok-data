@@ -1,4 +1,4 @@
-//! The shared schema artifact (ADR 0010): the engine's parsed schema in the
+//! The shared schema artifact (engine ADR 0010): the engine's parsed schema in the
 //! `rok-data-codegen` shape, so the resource-module generator and the crate
 //! generator hold one round-trip truth (`schema.json`) between them.
 //!

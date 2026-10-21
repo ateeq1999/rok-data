@@ -47,7 +47,9 @@ fn package_ships_licenses_readme_and_changelog_but_no_fixtures() -> Result<()> {
         // `init --template` embeds `templates/` through `build.rs`.
         "build.rs",
         "templates/actix-api/rok-data-sqlc.toml",
-        "templates/actix-api/migrations/0001_init.sql",
+        "templates/actix-api/schema/0001_init.sql",
+        "templates/actix-api/migrations/0001_init.up.sql",
+        "templates/actix-api/migrations/0001_init.down.sql",
     ] {
         ensure!(
             files.iter().any(|file| file == required),

@@ -11,6 +11,7 @@ mod check;
 mod comments;
 mod statements;
 
+pub(crate) mod alter;
 pub(crate) use check::quote;
 
 /// One input file.

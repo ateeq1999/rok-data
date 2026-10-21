@@ -1,8 +1,10 @@
-# The axum template's configuration; this file is yours. `rok sqlc g` reads
-# it: `migrations/` becomes the data layer in `src/db/`, and `users` and
-# `audit_log` API features in `src/features/`. See README.md.
+# The axum template's configuration; this file is yours. `rok sqlc generate`
+# reads it: `schema/` becomes the data layer in `src/db/`, and `users` and
+# `audit_log` API features in `src/features/`. The history pairs live in
+# `migrations/`, the default history dir `rok gen --migration` stages into
+# (the workspace CLI). See README.md.
 
-schema = "migrations/"
+schema = "schema"
 output = "src/db"
 derive = ["serde", "validate"]
 extractors = ["axum"]

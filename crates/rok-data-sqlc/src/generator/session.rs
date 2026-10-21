@@ -1,5 +1,5 @@
 //! `db::session`: helpers that set the tenant and acting-user settings
-//! (ADR 0010) for the rest of the caller's transaction, for row-level
+//! (engine ADR 0010) for the rest of the caller's transaction, for row-level
 //! security policies and audit triggers to read.
 
 use crate::Conventions;

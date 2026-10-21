@@ -560,9 +560,8 @@ fn a_migration_needs_a_schema_directory() -> Result<()> {
     Ok(())
 }
 
-/// The advice names a way that works: the staged pair is a plain SQL file,
-/// and the runtime's loader reads a directory of pairs only — the schema
-/// dir holds the truth beside them.
+/// The advice names a way that works: the runtime's loader reads the
+/// history dir's pairs, so the staged pair is applied by `rok migrate up`.
 #[test]
 fn the_migration_advice_names_the_staged_pair() -> Result<()> {
     let dir = project(SCHEMA)?;
@@ -571,8 +570,101 @@ fn the_migration_advice_names_the_staged_pair() -> Result<()> {
 
     let stdout = stdout(&output);
     assert!(stdout.contains("migrations/0001_init.up.sql"), "{stdout}");
-    assert!(stdout.contains("psql"), "{stdout}");
-    assert!(!stdout.contains("rok migrate up"), "{stdout}");
+    assert!(stdout.contains("rok migrate up"), "{stdout}");
+    assert!(!stdout.contains("psql"), "{stdout}");
+    Ok(())
+}
+
+/// A history dir moved off its default is named in the advice.
+#[test]
+fn the_migration_advice_names_a_moved_history_dir() -> Result<()> {
+    let dir = TempDir::new()?;
+    fs::create_dir_all(dir.path().join("schema"))?;
+    fs::write(dir.path().join("schema/0001_init.sql"), SCHEMA)?;
+
+    let output = run_in(
+        dir.path(),
+        &[
+            "gen",
+            "--schema",
+            "schema",
+            "--migrations-dir",
+            "history",
+            "--migration",
+            "init",
+        ],
+    )?;
+    assert_success(&output);
+    assert!(
+        dir.path().join("history/0001_init.up.sql").is_file(),
+        "the pair lands in the history dir"
+    );
+    assert!(
+        !dir.path().join("schema/0001_init.up.sql").exists(),
+        "the truth dir never holds pairs"
+    );
+    let stdout = stdout(&output);
+    assert!(stdout.contains("history/0001_init.up.sql"), "{stdout}");
+    assert!(stdout.contains("--dir history"), "{stdout}");
+    Ok(())
+}
+
+/// The CI mode guards the staged history too: a truth that moved on since
+/// the last staged pair is drift, and the check writes nothing.
+#[test]
+fn gen_check_fails_on_a_pending_migration() -> Result<()> {
+    let dir = project(SCHEMA)?;
+    assert_success(&run_in(dir.path(), &["gen", "--migration", "init"])?);
+    fs::write(
+        dir.path().join("migrations/0001_init.sql"),
+        SCHEMA_WITH_POSTS,
+    )?;
+    assert_success(&run_in(dir.path(), &["gen"])?);
+
+    let output = run_in(dir.path(), &["gen", "check"])?;
+    assert_eq!(output.status.code(), Some(1));
+    let out = stdout(&output);
+    assert!(
+        out.contains("missing migrations/0002_pending.up.sql"),
+        "{out}"
+    );
+    let err = stderr(&output);
+    assert!(
+        err.contains("not staged as a migration"),
+        "the error names the staging: {err}"
+    );
+    assert!(
+        !dir.path().join("migrations/0002_pending.up.sql").exists()
+            && !dir.path().join("migrations/0002_pending.down.sql").exists(),
+        "the check writes nothing"
+    );
+
+    // Staging for real unsticks the check.
+    assert_success(&run_in(dir.path(), &["gen", "--migration", "add_posts"])?);
+    let output = run_in(dir.path(), &["gen", "check"])?;
+    assert_success(&output);
+    assert!(
+        stdout(&output).contains("up to date"),
+        "{}",
+        stdout(&output)
+    );
+    Ok(())
+}
+
+/// An up-to-date truth with staged pairs is not drift.
+#[test]
+fn gen_check_passes_when_the_history_is_staged() -> Result<()> {
+    let dir = project(SCHEMA)?;
+    assert_success(&run_in(dir.path(), &["gen", "--migration", "init"])?);
+    assert_success(&run_in(dir.path(), &["gen"])?);
+
+    let output = run_in(dir.path(), &["gen", "check"])?;
+    assert_success(&output);
+    assert!(
+        stdout(&output).contains("up to date"),
+        "{}",
+        stdout(&output)
+    );
     Ok(())
 }
 

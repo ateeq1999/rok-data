@@ -66,7 +66,7 @@ Sources (each kept as `*_src` sibling clones for reference):
 
   absorbed wholesale: catalog introspection (ported into
   `rok-data-core::introspect`) and the single-file migration format (the
-  unified loader accepts it; see ADR 0004). Nothing else: conduit to its
+  unified loader accepts it; see workspace ADR 0004). Nothing else: conduit to its
   own runtime was never completed and rok-orm/rok-db cover the same
   ground.
 
@@ -83,10 +83,10 @@ Sources (each kept as `*_src` sibling clones for reference):
 - Two SQLx module generators coexist (rok-db-gen emits an entire model
   crate from migrations; rok-sqlc emits per-table resource modules from a
   schema file). They serve different jobs; both are kept as separate
-  libraries behind one CLI (ADR 0006).
+  libraries behind one CLI (workspace ADR 0006).
 - Two migration conventions coexist (file pairs + journal in rok-db;
   single-file sections in rok-fluent). One engine now loads both
-  (ADR 0004).
+  (workspace ADR 0004).
 - Every repository duplicated: naming rules, PostgreSQL types mapping,
   "you don't need a database to generate" philosophy, MIT OR Apache-2.0
   licensing, and MSRV/deps. The workspace keeps the strictest of each:
@@ -94,4 +94,4 @@ Sources (each kept as `*_src` sibling clones for reference):
   in the rok-db workspace.
 - rok-sqlc's binary-driven tests cannot live in the engine crate anymore
   (`CARGO_BIN_EXE_rok-data-sqlc` does not exist once the binary target is
-  removed); they moved to `rok-cli/tests` (ADR 0003).
+  removed); they moved to `rok-cli/tests` (workspace ADR 0003).

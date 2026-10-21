@@ -3,8 +3,9 @@
 The vertical slice of [rok-data](https://github.com/ateeq1999/rok-data):
 one schema, one `rok gen`, and the whole application around it.
 
-- `schema/` — the truth (two plain `.sql` files) and the history (the
-  staged migration pairs);
+- `schema/` — the truth: two plain `.sql` files describing the schema;
+- `migrations/` — the history: the staged migration pairs and their
+  `.rok-schema.json` snapshot;
 - `src/db/**` — the generated data layer: the ORM chains over `authors`,
   `books` and `loans`;
 - `src/features/**` — the generated API features: the axum routes,
@@ -29,12 +30,13 @@ $ rok gen                               # the data layer and the features
 
 This example is that project: the axum template's hand-written half,
 copied and adapted, with a schema of its own — `schema/library.sql` and
-`schema/loans.sql` where the template has `migrations/`, and its own
-`rok.toml`.
+`schema/loans.sql` where the template has `schema/0001_init.sql`, and its
+own `rok.toml`.
 
 `rok gen` reads the schema dir and writes `src/db/` and `src/features/`;
 `rok gen --migration NAME` writes the difference between the schema and the
-last staged migration as a `NNNN_name.up.sql` / `.down.sql` pair beside it.
+last staged migration as a `NNNN_name.up.sql` / `.down.sql` pair into the
+history dir (`migrations/` in `rok.toml`).
 `rok gen check` is the CI mode: it writes nothing and fails on drift.
 
 The two truth files are the schema as it is now:
@@ -42,12 +44,12 @@ The two truth files are the schema as it is now:
 - `schema/library.sql` — `authors` and `books`;
 - `schema/loans.sql` — `loans`, the table the books are lent from.
 
-The history beside them is what the schema dir recorded on the way:
+The history is what the schema dir recorded on the way:
 
-- `schema/0001_init.up.sql` / `.down.sql` — the two tables of the first
-  file;
-- `schema/0002_add_loans.up.sql` / `.down.sql` — the third table and the
-  foreign key that wires it to the books.
+- `migrations/0001_init.up.sql` / `.down.sql` — the two tables of the
+  first file;
+- `migrations/0002_add_loans.up.sql` / `.down.sql` — the third table and
+  the foreign key that wires it to the books.
 
 The truth is what the generator reads; the pairs are the history. That is
 why the generator never applies a change twice: it reads `library.sql` and
@@ -60,14 +62,13 @@ You need PostgreSQL and Rust 1.94 or newer.
 1. Apply the staged migrations, in order, to a database of your own:
 
    ```console
-   $ psql "$DATABASE_URL" -f schema/0001_init.up.sql
-   $ psql "$DATABASE_URL" -f schema/0002_add_loans.up.sql
+   $ psql "$DATABASE_URL" -f migrations/0001_init.up.sql
+   $ psql "$DATABASE_URL" -f migrations/0002_add_loans.up.sql
    ```
 
-   The runtime's own loader (`rok migrate up --dir`) reads a directory of
-   migration pairs and nothing else, and the schema dir holds the truth
-   beside them; that gap is recorded in
-   [`docs/unified-pipeline-plan.md`](../../docs/unified-pipeline-plan.md).
+   The runtime's own loader (`rok migrate up`) reads the history dir —
+   pair files only; the truth holds no pairs, so the generator never
+   applies a change twice.
 
 2. Set `DATABASE_URL` and `JWT_SECRET` (`.env.example` lists every
    setting; `src/config.rs` reads them from the environment).
@@ -134,5 +135,9 @@ runs the checks above.
   `rok.toml`, `schema/`, `src/{lib,main,app,config,error,openapi}.rs`,
   `src/shared/{mod,auth}.rs`, `src/features/mod.rs`, each feature's
   `service.rs` (business rules go there), `tests/`, and this README.
+- **Generated too**: the history `migrations/` — `rok gen --migration`
+  stages its pairs and refreshes `.rok-schema.json`; never edit those
+  files.
 
-Change the schema, run `rok gen`, and the features follow.
+Change the truth in `schema/`, stage the change with `rok gen --migration
+<name>`, and the features follow.

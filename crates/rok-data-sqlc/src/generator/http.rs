@@ -1,5 +1,5 @@
-//! `db/http/`, generated with `extractors` (ADR 0015): `mod.rs`, the wire
-//! standard's error body (ADR 0016) and the rules every framework's extractor
+//! `db/http/`, generated with `extractors` (engine ADR 0015): `mod.rs`, the wire
+//! standard's error body (engine ADR 0016) and the rules every framework's extractor
 //! shares, and a module per framework.
 
 use std::path::Path;

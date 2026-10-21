@@ -1,4 +1,4 @@
-//! The model every API feature renderer reads (ADR 0016): one [`Feature`]
+//! The model every API feature renderer reads (engine ADR 0016): one [`Feature`]
 //! per table with an API, holding its names, its route base, its key, and
 //! the [`Endpoint`]s it serves, its unique [`Lookup`]s and its
 //! [`Relation`]s. The renderers iterate them, so an endpoint added here

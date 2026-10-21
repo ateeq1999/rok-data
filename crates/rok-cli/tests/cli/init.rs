@@ -31,7 +31,11 @@ fn init_scaffolds_the_skeleton_into_the_given_directory() -> Result<()> {
 
     let files = read_tree(&project)?;
     assert_eq!(files.keys().cloned().collect::<Vec<_>>(), skeleton());
-    assert!(project.join("migrations").is_dir());
+    assert!(project.join("schema").is_dir());
+    assert!(
+        !project.join("migrations").exists(),
+        "init seeds the truth dir, never the history"
+    );
     assert!(!project.join("src/db").exists(), "init generates nothing");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -41,7 +45,7 @@ fn init_scaffolds_the_skeleton_into_the_given_directory() -> Result<()> {
             "{file} not reported:\n{stdout}"
         );
     }
-    for step in ["migrations/", "rok sqlc generate", "cargo run"] {
+    for step in ["schema/", "rok sqlc generate", "cargo run"] {
         assert!(
             stdout.contains(step),
             "next step `{step}` missing:\n{stdout}"

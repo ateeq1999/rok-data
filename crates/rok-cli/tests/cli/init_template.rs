@@ -21,7 +21,13 @@ fn axum_template() -> PathBuf {
 fn copied_files(template: &Path) -> Result<BTreeMap<PathBuf, String>> {
     Ok(read_tree(template)?
         .into_iter()
-        .filter(|(path, text)| !path.starts_with("target") && !common::is_generated(text))
+        .filter(|(path, text)| {
+            !path.starts_with("target")
+                && !common::is_generated(text)
+                // The schema artifact (engine ADR 0010) carries no marker for
+                // JSON: `rok sqlc generate` writes it, `init` leaves it out.
+                && path != Path::new("src/db/schema.json")
+        })
         .map(|(path, text)| {
             let name = path.to_string_lossy().into_owned();
             let path = name.strip_suffix(".template").map_or(path, PathBuf::from);
@@ -143,7 +149,7 @@ fn init_template_prints_numbered_next_steps_without_the_dependencies_it_copied()
     assert_eq!(
         steps,
         [
-            "  1. run `rok sqlc generate` to generate src/db/, src/shared/ and src/features/ from migrations/",
+            "  1. run `rok sqlc generate` to generate src/db/, src/shared/ and src/features/ from schema/",
             "  2. set DATABASE_URL and JWT_SECRET (see .env.example) and apply migrations/",
             "  3. `cargo test`, then `cargo run`",
         ],

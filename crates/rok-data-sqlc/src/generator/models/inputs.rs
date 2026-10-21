@@ -10,7 +10,7 @@ use super::nullable::NULLABLE_DESERIALIZE;
 use crate::schema::{Column, Table};
 
 /// The `#[serde(...)]` attribute of an `Option` field of an input or patch
-/// (ADR 0013): serializing skips `None`, and an `Option<Option<T>>`
+/// (engine ADR 0013): serializing skips `None`, and an `Option<Option<T>>`
 /// (`double`) reads `null` as `Some(None)` through the generated
 /// `db::nullable` helper. `default` makes an absent field `None` in a struct
 /// without `#[serde(default)]`.

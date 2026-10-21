@@ -60,7 +60,7 @@ sync.
 > **The `rok sqlc …` commands are legacy.** They keep working exactly as
 > they do now — the tokens are forwarded verbatim to this engine — but they
 > are superseded by the root front door: `rok init` scaffolds a project and
-> `rok gen` generates from the schema dir (ADR 0012). Their removal is
+> `rok gen` generates from the schema dir (engine ADR 0012). Their removal is
 > deferred to 1.0.
 
 ## Contents
@@ -865,7 +865,7 @@ and needs no `JsonConfig` error handler:
 ```
 
 Any other body is answered with the wire standard's error body
-(`{"error": {"code", "message", "details"?}}`, ADR 0016), the same on both
+(`{"error": {"code", "message", "details"?}}`, engine ADR 0016), the same on both
 frameworks:
 
 | The body | Status | `code` | `details` |
@@ -948,6 +948,7 @@ output   = "src/db"          # the default
 resource = "products"        # add this table to the generated ones; rarely useful in a file
 derive   = ["serde", "validate"]  # extra derives for generated types; "validate" needs "serde"
 extractors = ["axum", "actix_web"]  # validated-body extractors to generate; need "validate"
+migrations = "migrations"   # the history dir: codegen stages the pairs and their snapshot into it; `rok migrate` reads it
 
 [conventions]                # all off unless set; see "Conventions"
 preset             = "rok"
@@ -966,7 +967,7 @@ approved_by_user = false     # opt out, together with the other side
 [modules]                    # by table: generate it as another module
 "audit.users" = "audit_users"  # db::audit_users, with AuditUser and AuditUserId
 
-[api]                        # generated API features (ADR 0016); off without `output`
+[api]                        # generated API features (engine ADR 0016); off without `output`
 output          = "src/features"  # needs derive = ["serde", "validate"] and the framework's extractor
 db_path         = "crate::db"     # the default: where the generated data layer is
 prefix          = "/api/v1"       # the default URL prefix
@@ -1003,7 +1004,7 @@ products = ["name", "sku"]
 products = ["name", "price", "created_at"]
 ```
 
-`[api]` configures the generated API features (ADR 0016). Without `output`
+`[api]` configures the generated API features (engine ADR 0016). Without `output`
 (or `-a`), every other `[api]` key is ignored. Its single keys and
 `exclude` layer like the top-level keys; its table-keyed sections merge by
 table. A table key is the table's SQL, schema-qualified or module name. Each
@@ -1244,14 +1245,14 @@ next two sections document `init` and `check-arch`.
 ## Starting an API project: `rok sqlc init`
 
 `rok sqlc init [DIR]` (default: the current directory) scaffolds the
-actix-web application skeleton of ADR 0016 into a project. It generates
+actix-web application skeleton of engine ADR 0016 into a project. It generates
 nothing; `rok sqlc generate` does that once there are migrations.
 
 The front door scaffolds the same skeleton with `rok init [DIR]`, and its
 `--template actix` / `--template axum` copy a complete starter instead
 (see [Starting from a template](#starting-from-a-template)); it is the
 current way to start a project, and these commands are the legacy surface
-(ADR 0012).
+(engine ADR 0012).
 
 | File | What it is |
 |---|---|
@@ -1302,7 +1303,7 @@ myapi::app` instead of `use actix_api::app`).
 
 ## Checking the architecture: `rok sqlc check-arch`
 
-`rok sqlc check-arch` (`a`) checks an API project against ADR 0016's
+`rok sqlc check-arch` (`a`) checks an API project against engine ADR 0016's
 architecture, the rules its `AGENTS.md` states. It reads `api.output` (the
 features directory), `api.db_path` (the data layer, default `crate::db`) and
 `api.framework` (rule 1's watched crate) from `rok-data-sqlc.toml`,

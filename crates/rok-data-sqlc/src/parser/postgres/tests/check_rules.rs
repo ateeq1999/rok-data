@@ -1,4 +1,4 @@
-//! Declared lengths and simple `CHECK` rules kept on columns (ADR 0015).
+//! Declared lengths and simple `CHECK` rules kept on columns (engine ADR 0015).
 
 use super::*;
 use crate::schema::{Column, LengthRange};

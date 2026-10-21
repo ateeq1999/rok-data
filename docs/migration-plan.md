@@ -74,7 +74,7 @@ before this.
 - `--json` flags for migrate status/up/down and db check with a stable
   machine contract (`output::json_line`, `StatusRow` JSON).
 - Tests: the binary-driving engine suites relocated to `rok-cli/tests`
-  (ADR 0003), plus in-process CLI tests.
+  (workspace ADR 0003), plus in-process CLI tests.
 
 ## Phase 6 — compatibility machine
 

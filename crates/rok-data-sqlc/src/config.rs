@@ -23,6 +23,13 @@ pub struct Config {
     /// whose `*.sql` migrations are read in filename order, skipping
     /// `*.down.sql`.
     pub schema: Vec<PathBuf>,
+    /// The migration history directory: where the front door's
+    /// `--migration` staging writes its pairs (`NNNN_name.up.sql`) and
+    /// keeps its snapshot (`.rok-schema.json`). Defaults to `migrations`.
+    /// The engine reads the truth ([`Config::schema`]) only; this places
+    /// the staged pairs, and `migrate` (`rok migrate`) reads the same
+    /// directory. The `[generate] migrations` key sets it.
+    pub migrations: PathBuf,
     /// Annotated query files or directories. A single file becomes the
     /// generated `queries.rs`. A directory (its `*.sql` files) or several
     /// inputs become one `queries/<stem>.rs` module per file, declared by a
@@ -53,14 +60,14 @@ pub struct Config {
     /// All off by default; [`Conventions::rok`] gives the Rok preset.
     pub conventions: Conventions,
     /// Extra derives for the generated rows, typed ids, key structs, enums,
-    /// inputs, and patches (ADR 0013). Empty by default.
+    /// inputs, and patches (engine ADR 0013). Empty by default.
     pub derive: Vec<Derive>,
     /// HTTP frameworks to generate validated-body extractors for, into
-    /// `http/` of the output: `mod.rs` and a module per framework (ADR 0015).
+    /// `http/` of the output: `mod.rs` and a module per framework (engine ADR 0015).
     /// Needs [`Derive::Validate`], and reserves the module name `http`. Empty
     /// by default.
     pub extractors: Vec<Extractor>,
-    /// Renames and opt-outs of inferred relationships (ADR 0014), by table
+    /// Renames and opt-outs of inferred relationships (engine ADR 0014), by table
     /// (its SQL name, schema-qualified name, or module name) and then by the
     /// relationship's inferred name. Empty by default.
     ///
@@ -84,7 +91,7 @@ pub struct Config {
     /// config.modules.insert("audit.users".into(), "audit_users".into());
     /// ```
     pub modules: BTreeMap<String, String>,
-    /// Generated API features (ADR 0016), the config file's `[api]` section:
+    /// Generated API features (engine ADR 0016), the config file's `[api]` section:
     /// `None` (the default) generates no API. Needs [`Derive::Serde`],
     /// [`Derive::Validate`] and [`Extractor::ActixWeb`].
     pub api: Option<ApiConfig>,
@@ -115,7 +122,7 @@ pub enum Derive {
     /// generated code uses them; the generated `mod.rs` lists them.
     Serde,
     /// `validator::Validate` for create inputs and update patches, with
-    /// rules derived from the schema (ADR 0015). Needs [`Derive::Serde`].
+    /// rules derived from the schema (engine ADR 0015). Needs [`Derive::Serde`].
     /// The consuming crate needs `validator` with its `derive` feature.
     Validate,
 }
@@ -157,6 +164,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             schema: Vec::new(),
+            migrations: PathBuf::from("migrations"),
             queries: Vec::new(),
             output: PathBuf::from("src/db"),
             resource: None,
@@ -175,7 +183,7 @@ impl Default for Config {
 }
 
 /// Opt-in conventions: columns that mean the same thing in every table that
-/// has them (ADR 0010). Each convention applies only to the tables that have
+/// has them (engine ADR 0010). Each convention applies only to the tables that have
 /// the named column, and all are off by default.
 ///
 /// ```

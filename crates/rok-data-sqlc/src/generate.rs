@@ -38,6 +38,17 @@ fn run(config: &Config, report: &mut Report) -> anyhow::Result<()> {
         }
     }
     let sources = read_schema(config)?;
+    // The undos a truth carries are the reverse half of pairs, not schema
+    // (engine ADR 0017): the parser skips them before the SQL parser reads
+    // the file, and so does the snapshot the generated `schema.rs` carries —
+    // executed, an undo SQL would undo the change.
+    let sources = sources
+        .into_iter()
+        .map(|(path, sql)| {
+            let sql = parser::postgres::undo::strip_undos(&sql, &path)?;
+            anyhow::Ok((path, sql.into_owned()))
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
     let mut parsed = parser::parse_sources_with_modules(
         &sources
             .iter()
@@ -198,7 +209,7 @@ fn run(config: &Config, report: &mut Report) -> anyhow::Result<()> {
         &kept,
     )
     .map_err(anyhow::Error::msg)?;
-    // The schema artifact (ADR 0010): the parsed schema in the codegen
+    // The schema artifact (engine ADR 0010): the parsed schema in the codegen
     // shape, so the two engines hold and check one round-trip truth.
     files.push((
         output_dir.join("schema.json"),
@@ -292,7 +303,7 @@ fn scaffolded_document_warning(config: &Config) -> Option<String> {
     })
 }
 
-/// Fails a run whose options need ones it doesn't set (ADRs 0015, 0016):
+/// Fails a run whose options need ones it doesn't set (engine ADRs 0015, 0016):
 /// `validate` needs `serde`, extractors need `validate`, and the API needs
 /// both derives and the extractor of the framework it is generated for.
 fn check_options(config: &Config) -> anyhow::Result<()> {
@@ -325,7 +336,7 @@ fn check_options(config: &Config) -> anyhow::Result<()> {
 /// still defines but this run skips as unsupported (`--lenient`, or a table
 /// outside `--resource`), with the tables' last good shapes. They are kept as
 /// they are rather than removed as stale, and the run plans the other files
-/// against those shapes, so the kept files still compile (ADR 0001).
+/// against those shapes, so the kept files still compile (engine ADR 0001).
 ///
 /// A table the schema no longer defines (dropped, or never created) has no
 /// failure, so its directory stays stale. So does one with no last good

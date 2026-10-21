@@ -1,4 +1,4 @@
-//! Everything `api.output` generates (ADR 0016): the infrastructure beside
+//! Everything `api.output` generates (engine ADR 0016): the infrastructure beside
 //! the features ([`shared`]), each table's API feature under
 //! `api.output/<module>/`, the root `generated.rs` and `README.md`, and the
 //! data layer's `listing.rs` that a feature's reads and relationship writes

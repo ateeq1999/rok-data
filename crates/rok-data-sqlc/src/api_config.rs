@@ -1,4 +1,4 @@
-//! The `[api]` configuration (ADR 0016): where generated API features go and
+//! The `[api]` configuration (engine ADR 0016): where generated API features go and
 //! how each table's API behaves. Checked against the schema by [`check`].
 
 use std::collections::{BTreeMap, HashMap};
@@ -9,7 +9,7 @@ use heck::ToKebabCase;
 use crate::Conventions;
 use crate::schema::{BaseType, Column, FilterKind, Table};
 
-/// Generated API features (ADR 0016), set by the config file's `[api]`
+/// Generated API features (engine ADR 0016), set by the config file's `[api]`
 /// section ([`Config::api`](crate::Config::api)).
 ///
 /// Every map is keyed by table: its SQL name, schema-qualified name, or

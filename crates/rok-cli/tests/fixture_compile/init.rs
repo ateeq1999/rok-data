@@ -30,8 +30,8 @@ CREATE TABLE tags (
 /// The `rok-data-sqlc.toml` lines skipping all of `tags`' endpoints but its list.
 const LIST_ONLY: &str = "\n[api.skip]\ntags = [\"create\", \"get_one\", \"update\", \"remove\"]\n";
 
-/// A project as after `cargo new <name>`, then `rok sqlc init`, with
-/// [`MIGRATION`] and `init`'s `rok-data-sqlc.toml` plus [`LIST_ONLY`].
+/// A project as after `cargo new <name>`, then `rok sqlc init`, with the
+/// [`MIGRATION`] truth and `init`'s `rok-data-sqlc.toml` plus [`LIST_ONLY`].
 fn scaffold(name: &str) -> Result<tempfile::TempDir> {
     let project = tempfile::TempDir::new()?;
     let dir = project.path();
@@ -46,7 +46,7 @@ fn scaffold(name: &str) -> Result<tempfile::TempDir> {
     // to the workspace crate (the release publishes it afterwards); cargo
     // substitutes it for crates.io while the tests run.
     common::rok_data_patch_shim(dir)?;
-    std::fs::write(dir.join("migrations/0001_init.sql"), MIGRATION)?;
+    std::fs::write(dir.join("schema/0001_init.sql"), MIGRATION)?;
     let config = dir.join("rok-data-sqlc.toml");
     let toml = std::fs::read_to_string(&config)?;
     std::fs::write(&config, format!("{toml}{LIST_ONLY}"))?;

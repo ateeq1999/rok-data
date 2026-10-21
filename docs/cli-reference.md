@@ -49,7 +49,7 @@ Usage: rok init [OPTIONS] [NAME]
 ```
 
 Scaffolds a project: the application skeleton (`main`/`app`/`config`/`error`/
-OpenAPI wiring, ADR 0016), or — with `--template` — a ready-made **Template**,
+OpenAPI wiring, engine ADR 0016), or — with `--template` — a ready-made **Template**,
 a complete starter project for one web framework. The scaffolding itself is
 the engine's (`rok_data_sqlc::init`); the root command owns the grammar, the
 schema seeding and the report.
@@ -57,7 +57,7 @@ schema seeding and the report.
 | Flag                  | Meaning                                                            |
 | --------------------- | ------------------------------------------------------------------ |
 | `-t, --template NAME` | copy this Template instead of the skeleton (`actix` or `axum`)      |
-| `-s, --schema PATH`   | seed the schema directory (`migrations/`) with this file's content |
+| `-s, --schema PATH`   | seed the truth directory (`schema/`) with this file's content       |
 
 `NAME` is the project directory: it is created when missing, and the current
 directory is the project when `NAME` is left out. Every file it writes is a
@@ -66,13 +66,14 @@ what is missing; a file the user has edited is kept as it is. Cargo's
 untouched default `src/main.rs` (the one `cargo new` writes) is replaced, and
 the run says so; any other `main.rs` is kept.
 
-`--schema PATH` copies that file to `migrations/0001_init.sql`, so the schema
-directory — the project's only source of truth — starts non-empty. An
-existing `migrations/0001_init.sql` is kept, never overwritten, and the run
-says that it kept it.
+`--schema PATH` copies that file to `schema/0001_init.sql`, so the truth
+directory — the project's only source of truth — starts non-empty. The
+skeleton seeds `schema/` empty; the migration history (`migrations/`)
+appears with the first staged pair. An existing `schema/0001_init.sql`
+is kept, never overwritten, and the run says that it kept it.
 
 The run prints what it wrote and the next steps, which name the front door:
-`rok gen` turns the schema directory into `src/db/` and `src/features/`.
+`rok gen` turns the truth directory into `src/db/` and `src/features/`.
 
 An unknown `--template` is a usage error (exit 2) and names the valid
 templates. A failure while scaffolding (an unwritable directory, an
@@ -88,12 +89,13 @@ Two things, both over the project's schema dir: the data layer
 (`src/db/**`), the shared tools and the API features (`src/features/**`)
 come from the engine's generator, and `--migration NAME` stages a
 migration pair with the codegen crate's diff engine. The schema dir is the
-project's only source of truth (ADR 0010).
+project's only source of truth (workspace ADR 0010).
 
 | Flag                       | Meaning                                                            |
 | -------------------------- | ------------------------------------------------------------------ |
 | `-c, --config FILE`        | settings file (`rok.toml` `[generate]` table; the engine's `rok-data-sqlc.toml` also accepted) |
-| `-s, --schema DIR`         | the schema dir (default: the config's `schema`, else `migrations/`) |
+| `-s, --schema DIR`         | the truth dir (default: the config's `schema`, else `migrations/`) |
+| `--migrations-dir DIR`     | the history dir the pairs stage into (default: the config's `migrations`, else `migrations/`) |
 | `-o, --output DIR`         | where the modules are written (default `src/db`)                    |
 | `-r, --resource TABLE`     | generate one table plus the resources already generated             |
 | `-q, --queries PATH`       | annotated query file or directory; repeatable                       |
@@ -106,7 +108,7 @@ project's only source of truth (ADR 0010).
 | `-n, --dry-run`            | plan the run; write nothing                                         |
 | `-f, --force`              | overwrite files the generator did not write                          |
 
-The settings file: `rok.toml` (the canonical name, ADR 0011) holds the
+The settings file: `rok.toml` (the canonical name, workspace ADR 0011) holds the
 generation settings in its `[generate]` section, beside `[api]` and
 `[conventions]`; the engine's `rok-data-sqlc.toml`, whose keys sit at the
 top level, is read as well. Flags beat the file.
@@ -118,25 +120,28 @@ needs its extractor in `extractors` (`actix_web` or `axum`), and the flag
 needs the `[api]` section: without it the run generates no API features
 and says so.
 
-The schema dir holds the **truth** (plain `*.sql` files) and the
-**history** (the staged `NNNN_name.up.sql` / `NNNN_name.down.sql` pairs).
-The generator reads the truth only, so a staged migration is never applied
-twice; the staged pairs use the runtime's `NNNN_name.up.sql` convention.
+The truth dir holds the **truth** (plain `*.sql` files) and the
+history dir holds the **history** (the staged
+`NNNN_name.up.sql` / `NNNN_name.down.sql` pairs and their
+`.rok-schema.json` snapshot; workspace ADR 0004's amendment names the
+split). The generator reads the truth only, so a staged migration is
+never applied twice; the staged pairs use the runtime's
+`NNNN_name.up.sql` convention.
 
 `--migration NAME` diffs the truth against the state of the last staged
-migration (the snapshot `.rok-schema.json` in the schema dir) and writes
+migration (the snapshot `.rok-schema.json` in the history dir) and writes
 `NNNN_NAME.up.sql` plus — when the steps can be undone —
-`NNNN_NAME.down.sql` into the schema dir. An existing migration is never
-overwritten, and the model crate is never written. A step that loses data
+`NNNN_NAME.down.sql` into the history dir. An existing migration is never
+overwritten, and the truth dir is never written. A step that loses data
 (a dropped column or table, a new `NOT NULL` column without a default) is
 refused unless `--allow-destructive` is given; `--rename` records a
 rename instead of a drop and an add.
 
-The next steps name the staged pair's file (`psql "$DATABASE_URL" -f
-migrations/0001_init.up.sql`): the runtime's migration loader reads a
-directory of `.up.sql`/`.down.sql` pairs and nothing else, and the schema
-dir holds the truth beside them, so `rok migrate up --dir <schema dir>`
-does not work on a schema dir yet.
+The next steps name the staged pair's file: apply it with `rok migrate
+up` (`--dir migrations <dir>` when the history dir is not `migrations`).
+An `ALTER TABLE` the truth carries folds into the truth's tables when
+the model can represent it; a clause it cannot rides the pair as an
+extra step with the undo the truth's `-- rok:down` marker supplies.
 
 The run prints what it wrote, what it skipped and what it refused, and the
 numbered next steps. `--json` prints one object instead:
@@ -260,7 +265,7 @@ is a library; `rok` forwards the tokens verbatim). Subcommand set:
 | Command        | Alias | One-liner                                                                 |
 | -------------- | ----- | ------------------------------------------------------------------------- |
 | `generate`     | `g`   | parse the schema and emit `src/db/<table>/{…}` modules, optional api/openapi |
-| `init`         | `i`   | scaffold a project (ADR 0016 skeleton or `--template actix`/`axum`), files-if-absent |
+| `init`         | `i`   | scaffold a project (engine ADR 0016 skeleton or `--template actix`/`axum`), files-if-absent |
 | `check-arch`   | `a`   | check `src/` layout against the engine's ADR 0016 rules; violations → exit 1 |
 
 Executive summary of the main flags (full text: `rok sqlc generate --help`):

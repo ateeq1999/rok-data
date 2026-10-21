@@ -1,4 +1,4 @@
-//! Validation rules (ADR 0015): the `#[validate(...)]` attributes
+//! Validation rules (engine ADR 0015): the `#[validate(...)]` attributes
 //! `derive = ["validate"]` puts on create input and update patch fields,
 //! derived from each column's declared length and range checks.
 

@@ -149,6 +149,37 @@ fn schema_inputs_are_combined_in_order() -> Result<()> {
 }
 
 #[test]
+fn the_snapshot_leaves_out_the_truths_undo_statements() -> Result<()> {
+    // The undo a `-- rok:down` marker introduces is the reverse half of a
+    // pair, not schema (engine ADR 0017): executing the snapshot must not
+    // undo the change the truth means to have.
+    let inputs = Inputs::new()?;
+    fs::write(
+        inputs.path("schema.sql"),
+        "CREATE TABLE books (id BIGSERIAL PRIMARY KEY);\n\
+         ALTER TABLE books ADD COLUMN isbn TEXT;\n\
+         -- rok:down\n\
+         ALTER TABLE books DROP COLUMN isbn;\n",
+    )?;
+    let mut config = Config::default();
+    config.schema = vec![inputs.path("schema.sql")];
+    config.output = inputs.path("out");
+
+    rok_data_sqlc::generate(&config)?;
+
+    let snapshot = fs::read_to_string(inputs.path("out/schema.rs"))?;
+    assert!(
+        snapshot.contains("ALTER TABLE books ADD COLUMN isbn"),
+        "{snapshot}"
+    );
+    assert!(
+        !snapshot.contains("DROP COLUMN isbn"),
+        "the snapshot carries the truth's undo SQL:\n{snapshot}"
+    );
+    Ok(())
+}
+
+#[test]
 fn report_failures_carry_their_source_path_and_line() -> Result<()> {
     let inputs = Inputs::new()?;
 

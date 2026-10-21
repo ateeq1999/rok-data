@@ -18,9 +18,9 @@ rok sqlc g
 
 You need PostgreSQL and Rust 1.94 or newer.
 
-1. Create a database and apply `migrations/` to it, for example with
-   `sqlx migrate run` ([sqlx-cli](https://crates.io/crates/sqlx-cli)) or
-   `psql -f migrations/0001_init.sql`.
+1. Create a database and apply `migrations/` to it — `rok migrate up` (the
+   workspace CLI), or `psql -f migrations/0001_init.up.sql` and, to roll
+   back, `psql -f migrations/0001_init.down.sql`.
 2. Set `DATABASE_URL` and `JWT_SECRET` (`.env.example` lists every
    setting; `src/config.rs` reads them from the environment).
 3. `cargo run`. The API is under `/api/v1`, health at `/health/live` and
@@ -101,13 +101,18 @@ item without documentation.
   response,tenant,validation}.rs`, and every file of `src/features/` but
   `mod.rs` and each feature's `service.rs`.
 - **Yours** (first line `Scaffolded once`, or no header): `rok-data-sqlc.toml`,
-  `migrations/`, `src/{lib,main,app,config,error,openapi}.rs`,
+  `schema/` (the truth: the `.sql` files `rok sqlc g` reads),
+  `src/{lib,main,app,config,error,openapi}.rs`,
   `src/shared/{mod,auth}.rs`, `src/features/mod.rs`, each feature's
   `service.rs` (business rules go there), `tests/`, and this README.
+- **Generated**: `migrations/` is the history — `rok gen --migration` (the
+  workspace CLI) stages its pairs and refreshes `.rok-schema.json`; never
+  edit those files.
 
-Change the schema with a new migration, adjust `rok-data-sqlc.toml`, run
-`rok sqlc g`, and the features follow. The template generates for axum
-(`[api] framework = "axum"`); the actix template is its twin.
+Grow the truth in `schema/`, stage the change with `rok gen --migration
+<name>`, adjust `rok-data-sqlc.toml`, run `rok gen` (or `rok sqlc g`), and
+the features follow. The template generates for axum (`[api] framework =
+"axum"`); the actix template is its twin.
 
 ## How the schema meets the target
 

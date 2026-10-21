@@ -102,7 +102,7 @@ enum Command {
         api_framework: Option<FrameworkArg>,
     },
 
-    /// Scaffold the actix-web application skeleton (ADR 0016) into a
+    /// Scaffold the actix-web application skeleton (engine ADR 0016) into a
     /// project, each file only if absent; generates nothing
     #[command(visible_alias = "i")]
     Init {
@@ -121,7 +121,7 @@ enum Command {
         template: Option<String>,
     },
 
-    /// Check the project against ADR 0016's architecture: the feature
+    /// Check the project against engine ADR 0016's architecture: the feature
     /// layout and rules 1, 2, 4, 5 and 6; print each violation as
     /// `path:line: rule: message` and exit 1 if any
     #[command(visible_alias = "a")]
@@ -176,7 +176,7 @@ where
             }
             print_scaffolded(scaffolded);
             steps.extend([
-                "run `rok sqlc generate` to generate src/db/, src/shared/ and src/features/ from migrations/",
+                "run `rok sqlc generate` to generate src/db/, src/shared/ and src/features/ from schema/",
                 "set DATABASE_URL and JWT_SECRET (see .env.example) and apply migrations/",
                 "`cargo test`, then `cargo run`",
             ]);
@@ -190,7 +190,7 @@ where
             print_scaffolded(crate::init::init(&dir)?);
             print_next_steps(&[
                 "add the dependencies listed at the end of rok-data-sqlc.toml to Cargo.toml",
-                "add migrations to migrations/ (0001_init.sql, ...)",
+                "add truth files to schema/ (0001_init.sql, ...)",
                 "run `rok sqlc generate` to generate src/db/ and src/features/",
                 "set DATABASE_URL and JWT_SECRET, then `cargo run`",
             ]);
@@ -225,6 +225,7 @@ where
             };
             let flags = FileConfig {
                 schema,
+                migrations: None,
                 queries,
                 output,
                 resource,
@@ -248,6 +249,7 @@ where
             let defaults = Config::default();
             generate(&Config {
                 schema: merged.schema,
+                migrations: merged.migrations.unwrap_or(defaults.migrations),
                 queries: merged.queries,
                 output: merged.output.unwrap_or(defaults.output),
                 resource: merged.resource,
@@ -325,7 +327,7 @@ fn check_arch(config: Option<PathBuf>, lenient: bool) -> Result<()> {
 }
 
 /// A `--derive` value. It mirrors [`Derive`], which stays free of clap
-/// because it is part of the stable library API (ADR 0012).
+/// because it is part of the stable library API (engine ADR 0012).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 enum DeriveArg {
     Serde,
@@ -360,7 +362,7 @@ impl From<ExtractorArg> for Extractor {
 }
 
 /// An `--api-framework` value. It mirrors [`ApiFramework`], which stays
-/// free of clap because it is part of the stable library API (ADR 0012).
+/// free of clap because it is part of the stable library API (engine ADR 0012).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 enum FrameworkArg {
     Axum,

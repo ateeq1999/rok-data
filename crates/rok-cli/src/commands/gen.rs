@@ -1,19 +1,22 @@
 //! `rok gen` / `rok gen check`: the unified front door.
 //!
-//! Two things, both over the project's schema dir:
+//! Two things, both over the project's SQL:
 //!
 //! 1. the engine's generator (`rok_data_sqlc`): the data layer in
-//!    `src/db/`, the shared tools, and the API features in `src/features/`;
-//! 2. the codegen crate's migration staging, used only with `--migration
-//!    NAME`: the difference between the schema dir and the state of the last
-//!    staged migration, written as a `NNNN_name.up.sql` pair.
+//!    `src/db/`, the shared tools, and the API features in `src/features/`,
+//!    built from the **truth dir** (its plain `*.sql` files, `--schema`);
+//! 2. the codegen crate's migration staging (`--migration NAME`): the
+//!    difference between the truth and the state of the last staged
+//!    migration, written as a `NNNN_name.up.sql` pair into the **history
+//!    dir** (`--migrations-dir`). The snapshot the next staging diffs
+//!    against lives there too, hidden beside the pairs.
 //!
-//! The schema dir is the project's only source of truth (ADR 0010). It
-//! holds the truth (plain `*.sql` files) and the history (the staged
-//! migration pairs); the generator reads the truth only, so a staged
-//! migration is never applied twice.
+//! The truth dir is the project's only source of truth (ADR 0010); the
+//! history dir is what `rok migrate` reads. The two default to one —
+//! `migrations`, the layout `rok init` seeded before the split — so a
+//! project of that layout keeps generating and staging as before.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use rok_data_codegen::{Rename, StageOptions, Staged};
@@ -26,9 +29,14 @@ mod report;
 
 use report::{print_json, print_report};
 
-/// The schema dir a project has when nothing else is said: the one `rok
-/// init` seeds and the runtime's migrations live in.
+/// The truth dir a project has when nothing else is said: also where the
+/// pre-split layout (`rok init` before the history was separated) keeps
+/// its staged pairs.
 const DEFAULT_SCHEMA_DIR: &str = "migrations";
+
+/// The history dir the settings place the staged pairs in when nothing
+/// moves them: the same dir `rok migrate` reads by default.
+const DEFAULT_MIGRATIONS_DIR: &str = "migrations";
 
 /// `rok gen`: with the flags directly, or with the nested `rok gen check`
 /// CI mode. A value given at the group level and again on the leaf: the
@@ -75,7 +83,7 @@ fn generate(options: GenOptions) -> Result<ExitCode, String> {
         print_json(&settings, &report, staged.as_ref(), false);
     } else {
         print_report(&settings, &report, staged.as_ref());
-        next_steps(staged.as_ref());
+        next_steps(&settings, staged.as_ref());
     }
     match strict {
         Some(message) => Err(message),
@@ -84,10 +92,11 @@ fn generate(options: GenOptions) -> Result<ExitCode, String> {
 }
 
 /// `rok gen check`: the CI mode. Nothing is written; the drift (missing,
-/// changed, or stale files) is reported and fails the run.
+/// changed, or stale files — the staged pair a moved truth would stage
+/// among them) is reported and fails the run.
 fn check(options: GenOptions) -> Result<ExitCode, String> {
     let settings = Settings::resolve(&options, true)?;
-    let report = match rok_data_sqlc::generate(&settings.engine) {
+    let mut report = match rok_data_sqlc::generate(&settings.engine) {
         Ok(report) => report,
         Err(error) => {
             let report = error.report();
@@ -106,17 +115,69 @@ fn check(options: GenOptions) -> Result<ExitCode, String> {
         }
     };
     let strict = strict_failure(&settings, &report);
+    if strict.is_none() {
+        staged_drift(&settings, &mut report)?;
+    }
     if settings.json {
         print_json(&settings, &report, None, false);
     } else {
         print_report(&settings, &report, None);
-        println!("the generated code is up to date");
+        if !report.has_drift() {
+            println!("the generated code is up to date");
+        }
     }
     match strict {
         Some(message) => Err(message),
+        None if report.has_drift() => {
+            eprintln!(
+                "error: the truth has a change that is not staged as a migration; \
+                 run `rok gen --migration NAME` in the repo"
+            );
+            Ok(ExitCode::FAILURE)
+        }
         None => Ok(ExitCode::SUCCESS),
     }
 }
+
+/// The staged pair a moved truth would stage, as the check's drift: a
+/// staged history base is the last known schema, so a truth that differs
+/// from the snapshot is missing pair files. The run plans the staging only
+/// (dry run; nothing is written) and lists the would-be pair among the
+/// report's missing files.
+///
+/// There is no pair to look for until the history dir already holds
+/// migrations, and a truth equal to the snapshot stages nothing (the
+/// `hasn't changed` message). Any other staging problem fails the run
+/// with its message.
+fn staged_drift(settings: &Settings, report: &mut Report) -> Result<(), String> {
+    let history = rok_data_codegen::existing_migrations(&settings.migrations_dir)
+        .map_err(|e| e.to_string())?;
+    if history.is_empty() {
+        return Ok(());
+    }
+    let staged = match rok_data_codegen::stage(&StageOptions {
+        schema: settings.schema_dir.clone(),
+        history: settings.migrations_dir.clone(),
+        // `check` refuses `--migration`; the pair is named for what it is:
+        // a pending change the run did not stage yet.
+        name: PENDING_MIGRATION_NAME.to_owned(),
+        renames: Vec::new(),
+        allow_destructive: settings.allow_destructive,
+        dry_run: true,
+    }) {
+        Ok(staged) => staged,
+        Err(error) if error.to_string().contains("hasn't changed") => return Ok(()),
+        Err(error) => return Err(error.to_string()),
+    };
+    report.missing.push(staged.up);
+    if let Some(down) = staged.down {
+        report.missing.push(down);
+    }
+    Ok(())
+}
+
+/// The name a check's planned pair carries until it is staged for real.
+const PENDING_MIGRATION_NAME: &str = "pending";
 
 /// The message of a `--strict` run that found warnings, if any.
 fn strict_failure(settings: &Settings, report: &Report) -> Option<String> {
@@ -156,6 +217,7 @@ fn stage(settings: &Settings) -> Result<Option<Staged>, String> {
     }
     let options = StageOptions {
         schema: settings.schema_dir.clone(),
+        history: settings.migrations_dir.clone(),
         name: name.clone(),
         renames: settings.renames.clone(),
         allow_destructive: settings.allow_destructive,
@@ -169,8 +231,10 @@ fn stage(settings: &Settings) -> Result<Option<Staged>, String> {
 struct Settings {
     /// The engine's configuration.
     engine: Config,
-    /// The schema dir the migration staging works in.
+    /// The truth dir the generator reads and the staging diffs.
     schema_dir: PathBuf,
+    /// The history dir the staged pairs are written into.
+    migrations_dir: PathBuf,
     /// The migration to stage, when the run stages one.
     migration: Option<String>,
     /// The renames to record instead of a drop-and-add.
@@ -245,9 +309,14 @@ impl Settings {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let migrations_dir = options
+            .migrations_dir
+            .clone()
+            .unwrap_or_else(|| engine.migrations.clone());
         Ok(Settings {
             engine,
             schema_dir,
+            migrations_dir,
             migration: options.migration.clone(),
             renames,
             allow_destructive: options.allow_destructive,
@@ -280,15 +349,19 @@ fn schema_inputs(entries: &[PathBuf]) -> Result<Vec<PathBuf>, String> {
 }
 
 /// Prints the numbered next steps.
-fn next_steps(staged: Option<&Staged>) {
+fn next_steps(settings: &Settings, staged: Option<&Staged>) {
     let mut steps: Vec<String> = Vec::new();
     if let Some(staged) = staged {
-        // The runtime's migration loader reads a directory of
-        // `.up.sql`/`.down.sql` pairs, and the schema dir holds the truth
-        // beside them; the staged pair is a plain SQL file, so it is
-        // applied as one.
+        // The runtime's loader reads the history dir's pairs (and skips
+        // the snapshot beside them); the --dir is the loader's own flag,
+        // needed only when the run moved the history off its default.
+        let dir = if settings.migrations_dir == Path::new(DEFAULT_MIGRATIONS_DIR) {
+            String::new()
+        } else {
+            format!(" --dir {}", display_path(&settings.migrations_dir))
+        };
         steps.push(format!(
-            "apply the staged pair: `psql \"$DATABASE_URL\" -f {}`",
+            "apply the staged pair ({}) with `rok migrate up{dir}`",
             display_path(&staged.up)
         ));
     }

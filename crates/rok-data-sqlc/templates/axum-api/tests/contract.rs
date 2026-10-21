@@ -64,15 +64,15 @@ const KNOWN: &[(&str, &str)] = &[
     ),
     (
         "DELETE /api/v1/users/{id}: parameter `permanent` (query): served has it, target has not",
-        "every generated soft-delete `DELETE` takes `?permanent=true` (ADR 0016)",
+        "every generated soft-delete `DELETE` takes `?permanent=true` (engine ADR 0016)",
     ),
     (
         "GET /api/v1/audit-log: parameter `sort` (query): served has it, target has not",
-        "every generated list takes `sort` (ADR 0016); the default is newest first, as the target's",
+        "every generated list takes `sort` (engine ADR 0016); the default is newest first, as the target's",
     ),
     (
         "GET /api/v1/audit-log: parameter `order` (query): served has it, target has not",
-        "every generated list takes `order` (ADR 0016)",
+        "every generated list takes `order` (engine ADR 0016)",
     ),
 ];
 

@@ -19,7 +19,7 @@ SELECT id, sku, name, price_cents FROM products WHERE category_id = $1 ORDER BY 
 
 **The SQL is embedded verbatim** and bound positionally, so `$n` always receives the n-th parameter. Queries are not compile-time checked; no database is needed to generate.
 
-**Strictness follows ADR 0001.** A malformed annotation, an unknown table or column, a reference to a table the schema parser rejected, an untypable placeholder, or a multi-statement query (`BEGIN; …; COMMIT;`) fails the run and writes nothing; `--lenient` skips such queries with warnings. Transactions remain the caller's: run several generated functions on `&mut *tx` (ADR 0006).
+**Strictness follows engine ADR 0001.** A malformed annotation, an unknown table or column, a reference to a table the schema parser rejected, an untypable placeholder, or a multi-statement query (`BEGIN; …; COMMIT;`) fails the run and writes nothing; `--lenient` skips such queries with warnings. Transactions remain the caller's: run several generated functions on `&mut *tx` (engine ADR 0006).
 
 ## Considered Options
 

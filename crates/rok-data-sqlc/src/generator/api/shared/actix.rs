@@ -1,4 +1,4 @@
-//! The shared tools that hold actix-web's own types (ADR 0016): health's
+//! The shared tools that hold actix-web's own types (engine ADR 0016): health's
 //! routes, the tenant, and the validated bodies. axum's are
 //! [`super::axum`].
 

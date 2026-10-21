@@ -1,5 +1,5 @@
 //! Range checks: single-column `CHECK`s against number literals, kept as
-//! the value and length ranges validation rules come from (ADR 0015).
+//! the value and length ranges validation rules come from (engine ADR 0015).
 
 use std::cmp::Ordering;
 

@@ -3,7 +3,7 @@
 //!
 //! The tests need `DATABASE_URL`; without it they print a note and pass.
 //! Each one creates a fresh schema holding the tables (`db::schema`'s
-//! snapshot of `migrations/`) and drops it when done, so tests run in
+//! snapshot of `schema/`) and drops it when done, so tests run in
 //! parallel without seeing each other's rows.
 
 #![allow(dead_code, reason = "each test file uses some of the helpers")]

@@ -1,4 +1,4 @@
-//! What the OpenAPI document needs of the generated code (ADR 0016): the
+//! What the OpenAPI document needs of the generated code (engine ADR 0016): the
 //! utoipa 5 derives on the types an API feature exposes, the
 //! `#[schema(value_type = …)]` of a field whose Rust type utoipa can't
 //! describe, and the `utoipa` dependency hint.

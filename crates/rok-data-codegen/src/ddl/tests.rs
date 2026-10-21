@@ -104,46 +104,97 @@ fn removed_enum_values_are_refused() {
     );
 }
 
-/// The plan's staging experiment, pinned: a previous state whose
-/// `ALTER TABLE` rides as an `Extra` (the truth's `-- rok:down` supplied
-/// its undo), and a new state with the column folded into the `CREATE
-/// TABLE`, stage a pair whose up starts with the removed `Extra`'s own
-/// undo before the added column — the redundant drop-and-add instead of
-/// leaving the shape alone (`docs/unified-pipeline-plan.md`'s Open note).
+/// The plan's staging experiment, re-pinned: a truth whose `ALTER TABLE`
+/// folds into the table it changes, and a later truth with the column
+/// folded into the `CREATE TABLE` instead, describe the same schema — the
+/// pair stages **nothing**, no redundant drop-and-add
+/// (`docs/unified-pipeline-plan.md`'s Open note). From a snapshot before
+/// the ALTER, the same change is one add-column step and its undo.
 #[test]
-fn an_alter_folded_into_the_table_stages_drop_then_add() {
+fn an_alter_folded_into_the_table_stages_nothing() {
     let old = schema(
         "CREATE TABLE books (id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL);
         ALTER TABLE books ADD COLUMN isbn TEXT;
         -- rok:down
         ALTER TABLE books DROP COLUMN isbn;",
     );
-    assert_eq!(old.extras.len(), 1, "the ALTER rides as an `Extra`");
-    assert_eq!(old.extras[0].up, "ALTER TABLE books ADD COLUMN isbn TEXT");
-    assert_eq!(old.extras[0].down, "ALTER TABLE books DROP COLUMN isbn");
-    assert!(!old.extras[0].before_tables);
-
-    let new =
+    assert!(old.extras.is_empty(), "the ALTER folds into the table");
+    let folded =
         schema("CREATE TABLE books (id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL, isbn TEXT);");
-    let ops = diff(&old, &new, &[]).unwrap();
+    assert_eq!(old, folded, "the ALTER leaves the same table");
+    let ops = diff(&old, &folded, &[]).unwrap();
+    assert!(
+        ops.is_empty(),
+        "no drop-then-add pair: {:?}",
+        ops.iter().map(|op| &op.up).collect::<Vec<_>>()
+    );
+
+    // From a snapshot before the ALTER, the change is one step up, undo
+    // beneath it.
+    let earlier = schema("CREATE TABLE books (id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL);");
+    let ops = diff(&earlier, &folded, &[]).unwrap();
     assert_eq!(
         ops.iter().map(|op| op.up.as_str()).collect::<Vec<_>>(),
-        [
-            // The removed `Extra`: its undo (the marker supplied it) runs
-            // first, its up step being the changed pair's down.
-            "ALTER TABLE books DROP COLUMN isbn",
-            // Then the column, folded into the truth's `CREATE TABLE`.
-            "ALTER TABLE \"books\" ADD COLUMN \"isbn\" TEXT",
-        ]
+        ["ALTER TABLE \"books\" ADD COLUMN \"isbn\" TEXT"]
     );
     assert!(ops.iter().all(|op| op.destructive.is_none()));
     let (up, down) = scripts(&ops);
     assert!(
-        up.starts_with("ALTER TABLE books DROP COLUMN isbn;\n"),
+        up.starts_with("ALTER TABLE \"books\" ADD COLUMN \"isbn\" TEXT;\n"),
         "{up}"
     );
     assert!(
         down.starts_with("ALTER TABLE \"books\" DROP COLUMN \"isbn\";\n"),
         "{down}"
     );
+}
+
+/// A clause the model cannot represent keeps its old life: the statement
+/// rides as an `Extra` with the undo the marker supplied.
+#[test]
+fn an_unsupported_clause_still_rides_as_written() {
+    let old = schema(
+        "CREATE TABLE books (id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL);
+        ALTER TABLE books DROP CONSTRAINT books_pkey;
+        -- rok:down
+        ALTER TABLE books ADD CONSTRAINT books_pkey PRIMARY KEY (id);",
+    );
+    assert_eq!(old.extras.len(), 1, "the statement rides as an `Extra`");
+    assert_eq!(
+        old.extras[0].up,
+        "ALTER TABLE books DROP CONSTRAINT books_pkey"
+    );
+    assert_eq!(
+        old.extras[0].down,
+        "ALTER TABLE books ADD CONSTRAINT books_pkey PRIMARY KEY (id)"
+    );
+
+    // The same ALTER folded away later: only the removed `Extra`'s undo
+    // runs, and it restores what the undo promised.
+    let folded = schema("CREATE TABLE books (id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL);");
+    let ops = diff(&old, &folded, &[]).unwrap();
+    assert_eq!(ops.len(), 1);
+    assert_eq!(
+        ops[0].up,
+        "ALTER TABLE books ADD CONSTRAINT books_pkey PRIMARY KEY (id)"
+    );
+    assert!(ops[0].destructive.is_none());
+    let (up, down) = scripts(&ops);
+    assert!(
+        up.starts_with("ALTER TABLE books ADD CONSTRAINT books_pkey PRIMARY KEY (id);\n"),
+        "{up}"
+    );
+    assert!(
+        down.starts_with("ALTER TABLE books DROP CONSTRAINT books_pkey;\n"),
+        "{down}"
+    );
+
+    // An ALTER on a table the truth never declared rides as written too.
+    let stray = schema(
+        "CREATE TABLE books (id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL);
+         ALTER TABLE dust ADD COLUMN note TEXT;
+         -- rok:down
+         ALTER TABLE dust DROP COLUMN note;",
+    );
+    assert_eq!(stray.extras.len(), 1, "an unknown table keeps the ride");
 }

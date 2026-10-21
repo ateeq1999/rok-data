@@ -1,23 +1,28 @@
-//! Staging a migration pair from the schema dir: the narrow half of the
+//! Staging a migration pair from the truth: the narrow half of the
 //! whole-crate generator that the unified front door (`rok gen --migration
 //! NAME`) needs — the diff, the guard rails and the two files, without a
 //! crate.
 //!
-//! The schema dir is the project's source of truth (ADR 0010). It holds two
-//! kinds of file:
+//! The project's SQL is split (workspace ADR 0010) into two directories:
 //!
-//! - the **truth**: plain `*.sql` files describing the wanted schema, the
-//!   files the generator reads;
-//! - the **history**: the staged migration pairs, `NNNN_name.up.sql` and the
-//!   optional `NNNN_name.down.sql`.
+//! - the **truth dir**: plain `*.sql` files describing the wanted schema, the
+//!   files the generator reads (and rewrites by hand);
+//! - the **history dir**: the staged migration pairs, `NNNN_name.up.sql` and
+//!   the optional `NNNN_name.down.sql`, plus the *snapshot* file they are
+//!   diffed against.
 //!
 //! A migration is the difference between the truth and the state of the last
-//! staged migration. That state is the *snapshot* file, `.rok-schema.json`
-//! in the schema dir: a hidden file next to the migration files, and not a
-//! `*.sql` file, so neither the truth's reader nor the engine's schema
-//! reader takes it for schema. It is not the engine's registry
-//! (`src/db/schema.json`): that one holds the schema as it is *now*, this
-//! one holds the schema as of the *last migration*.
+//! staged migration. That state is the snapshot file, `.rok-schema.json` in
+//! the **history** dir: a hidden file, and not a `*.sql` file, so neither
+//! the truth's reader nor the runtime's migration loader
+//! (`rok migrate`) takes it for one of its own. It is not the engine's
+//! registry (`src/db/schema.json`): that one holds the schema as it is
+//! *now*, this one holds the schema as of the *last migration*.
+//!
+//! The two directories default to one — `migrations` for both, the layout
+//! `rok init` seeded before the split. The front door keeps such a project
+//! staging as before; the loader refuses its truth files, so `rok migrate`
+//! reads only the divided layout's `migrations/`.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -29,15 +34,21 @@ use crate::naming;
 use crate::parse::{self, SourceFile};
 use crate::truth;
 
-/// The snapshot file's name inside the schema dir.
+/// The snapshot file's name inside the history dir.
 const SNAPSHOT: &str = ".rok-schema.json";
+
+/// The dir both the truth and the history live in when nothing separates
+/// them: the layout `rok init` seeded before the split, and the layout the
+/// settings default to so such a project keeps staging as before.
+const DEFAULT_DIRS: &str = "migrations";
 
 /// The snapshot file: the schema as of the last staged migration.
 ///
-/// It sits in the schema dir, next to the migration files, and is not a
-/// `*.sql` file, so the readers of the schema never take it for schema.
-pub fn snapshot_path(schema_dir: &Path) -> PathBuf {
-    schema_dir.join(SNAPSHOT)
+/// It sits in the history dir, next to the migration pairs, and is a hidden
+/// file that is not a `*.sql` file, so neither the truth's reader nor the
+/// runtime's migration loader takes it for one of their own.
+pub fn snapshot_path(history_dir: &Path) -> PathBuf {
+    history_dir.join(SNAPSHOT)
 }
 
 /// The truth files of a schema dir: its plain `*.sql` files, without the
@@ -75,9 +86,10 @@ fn is_truth_file(path: &Path) -> bool {
 /// What to stage, and how.
 #[derive(Debug, Clone)]
 pub struct StageOptions {
-    /// The schema dir: the truth (its plain `*.sql` files) and the staged
-    /// migration pairs.
+    /// The truth dir: the `*.sql` files describing the wanted schema.
     pub schema: PathBuf,
+    /// The history dir: the staged migration pairs and the snapshot.
+    pub history: PathBuf,
     /// The migration's name (`add_posts`).
     pub name: String,
     /// The renames to record instead of a drop-and-add.
@@ -91,7 +103,8 @@ pub struct StageOptions {
 impl Default for StageOptions {
     fn default() -> Self {
         Self {
-            schema: PathBuf::from("migrations"),
+            schema: PathBuf::from(DEFAULT_DIRS),
+            history: PathBuf::from(DEFAULT_DIRS),
             name: String::new(),
             renames: Vec::new(),
             allow_destructive: false,
@@ -119,23 +132,31 @@ pub struct Staged {
 
 /// Stages the migration: the difference between the truth and the state of
 /// the last staged migration, written as a `NNNN_name.up.sql` file and — when
-/// the steps can be undone — a `NNNN_name.down.sql` file beside it.
+/// the steps can be undone — a `NNNN_name.down.sql` file beside it, into the
+/// **history** dir. The snapshot the next staging diffs against sits there
+/// too; the truth dir is read only.
 ///
 /// Nothing is overwritten: an existing migration file is an error. The
 /// snapshot is updated to the truth, so the next staging diffs against what
 /// this one staged.
 pub fn stage(options: &StageOptions) -> Result<Staged, Error> {
-    let dir = &options.schema;
-    let files = truth_files(dir)?;
+    let files = truth_files(&options.schema)?;
     if files.is_empty() {
+        // A divided truth dir never holds pairs; the one-dir layout does,
+        // so the message says why the pairs do not count as truth.
+        let besides = if options.schema == options.history {
+            " besides its staged migrations"
+        } else {
+            ""
+        };
         return Err(Error::new(format!(
-            "{} holds no schema file besides its staged migrations: there is nothing to migrate",
-            dir.display()
+            "{} holds no schema file{besides}: there is nothing to migrate",
+            options.schema.display()
         )));
     }
     let sources = read_sources(&files)?;
     let parsed = parse::parse(&sources)?;
-    let previous = read_snapshot(dir)?;
+    let previous = read_snapshot(&options.history)?;
     let pair = truth::migration(&previous, &parsed.schema, &options.renames)?;
     if pair.is_empty() {
         return Err(Error::new(
@@ -149,10 +170,10 @@ pub fn stage(options: &StageOptions) -> Result<Staged, Error> {
             pair.destructive.join("\n  - ")
         )));
     }
-    let version = next_version(dir)?;
+    let version = next_version(&options.history)?;
     let stem = format!("{version:04}_{name}");
-    let up = dir.join(format!("{stem}.up.sql"));
-    let down = dir.join(format!("{stem}.down.sql"));
+    let up = options.history.join(format!("{stem}.up.sql"));
+    let down = options.history.join(format!("{stem}.down.sql"));
     if up.exists() {
         return Err(Error::new(format!(
             "{} already exists; migrations are never overwritten",
@@ -167,11 +188,13 @@ pub fn stage(options: &StageOptions) -> Result<Staged, Error> {
         )));
     }
     if !options.dry_run {
+        fs::create_dir_all(&options.history)
+            .map_err(|e| Error::new(format!("{}: {e}", options.history.display())))?;
         write(&up, &pair.up)?;
         if reversible {
             write(&down, &pair.down)?;
         }
-        write_snapshot(dir, &parsed.schema)?;
+        write_snapshot(&options.history, &parsed.schema)?;
     }
     Ok(Staged {
         version,
@@ -183,10 +206,10 @@ pub fn stage(options: &StageOptions) -> Result<Staged, Error> {
     })
 }
 
-/// The next free version in `dir`: one above the highest version of the
-/// staged migrations there, so the staged and the hand-made ones
+/// The next free version in the history dir: one above the highest version
+/// of the migrations there, so the staged and the hand-made ones
 /// (`rok migrate create`) share one numbering. `1` for a directory without
-/// staged migrations.
+/// migrations.
 ///
 /// The truth files are not migrations, so they hold no version: the first
 /// staged migration of a project is `0001_<name>.up.sql`.
@@ -218,7 +241,7 @@ fn read_sources(files: &[PathBuf]) -> Result<Vec<SourceFile>, Error> {
 }
 
 /// The schema as of the last staged migration, or an empty schema when the
-/// directory has no snapshot yet (nothing was staged).
+/// history dir has no snapshot yet (nothing was staged).
 fn read_snapshot(dir: &Path) -> Result<Schema, Error> {
     let path = snapshot_path(dir);
     let text = match fs::read_to_string(&path) {
@@ -255,6 +278,7 @@ mod tests {
     fn options(dir: &Path) -> StageOptions {
         StageOptions {
             schema: dir.to_path_buf(),
+            history: dir.to_path_buf(),
             name: "add_posts".to_owned(),
             ..StageOptions::default()
         }
@@ -386,5 +410,80 @@ mod tests {
             "the existing migration is untouched"
         );
         fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The split layout: the pairs and the snapshot live in the history
+    /// dir, the truth dir keeps its plain files and loses nothing.
+    #[test]
+    fn staging_writes_the_history_into_its_own_dir() {
+        let root = dir("stage-split");
+        let truth = root.join("schema");
+        let history = root.join("migrations");
+        fs::create_dir_all(&truth).expect("create the truth dir");
+        fs::write(
+            truth.join("0001_init.sql"),
+            "CREATE TABLE users (id INT, email TEXT);",
+        )
+        .expect("write");
+
+        let mut options = options(&truth);
+        options.history = history.clone();
+        let staged = stage(&options).expect("stage the migration");
+        assert_eq!(staged.version, 1);
+        assert!(staged.up.starts_with(history.join("0001_add_posts.up.sql")));
+        assert!(
+            snapshot_path(&history).is_file(),
+            "the snapshot is recorded"
+        );
+        assert!(
+            truth_files(&truth)
+                .expect("read the truth")
+                .iter()
+                .all(|file| file.ends_with("0001_init.sql")),
+            "the truth dir holds no pairs"
+        );
+
+        // The next staging diffs against what this one staged.
+        fs::write(truth.join("0002_more.sql"), "CREATE TABLE posts (id INT);").expect("write");
+        let again = stage(&options).expect("the second migration stages");
+        assert_eq!(again.version, 2);
+        assert!(again.up.ends_with("0002_add_posts.up.sql"));
+        let up = fs::read_to_string(&again.up).expect("read");
+        assert!(up.contains("CREATE TABLE \"posts\""), "{up}");
+        assert!(!up.contains("users"), "{up}");
+        fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn the_default_dirs_are_one_dir() {
+        let options = StageOptions::default();
+        assert_eq!(options.schema, PathBuf::from("migrations"));
+        assert_eq!(options.history, PathBuf::from("migrations"));
+        assert_eq!(options.schema, options.history);
+    }
+
+    /// A dry run in the split layout writes nothing, and neither dir is
+    /// created.
+    #[test]
+    fn a_dry_run_writes_nothing_across_two_dirs() {
+        let root = dir("stage-split-dry");
+        let truth = root.join("schema");
+        fs::create_dir_all(&truth).expect("create the truth dir");
+        fs::write(truth.join("0001_init.sql"), "CREATE TABLE users (id INT);").expect("write");
+
+        let options = StageOptions {
+            schema: truth.clone(),
+            history: root.join("migrations"),
+            name: "add_posts".to_owned(),
+            dry_run: true,
+            ..StageOptions::default()
+        };
+        let staged = stage(&options).expect("the dry run plans the migration");
+        assert!(!staged.up.exists(), "the dry run wrote the up file");
+        assert!(
+            !snapshot_path(&options.history).exists() && !options.history.exists(),
+            "the dry run wrote into the history dir"
+        );
+        fs::remove_dir_all(&root).ok();
     }
 }

@@ -1,4 +1,4 @@
-//! `GeneratedApiDoc` in `generated.rs` (ADR 0016): the OpenAPI document of
+//! `GeneratedApiDoc` in `generated.rs` (engine ADR 0016): the OpenAPI document of
 //! every generated path, a tag per feature, the schemas utoipa can't
 //! collect from the paths, and the `BearerAuth` addon defining
 //! `bearer_auth`. The scaffolded `src/openapi.rs` merges it into the user's

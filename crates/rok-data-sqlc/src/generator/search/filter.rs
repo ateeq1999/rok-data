@@ -16,7 +16,7 @@ use crate::generator::{
 
 /// Renders the resource's `filter.rs`, or `None` when the resource has no
 /// search function to use it. `tables` holds every table generated with it.
-/// With `serde`, the filter and the sort key derive serde (ADR 0013).
+/// With `serde`, the filter and the sort key derive serde (engine ADR 0013).
 pub fn render_filter(table: &Table, tables: &[Table], serde: bool) -> Option<String> {
     let api = SearchApi::for_table(table);
     if !api.any() {

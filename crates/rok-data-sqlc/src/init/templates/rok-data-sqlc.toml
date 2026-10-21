@@ -1,9 +1,11 @@
 # Scaffolded once by rok-data-sqlc; this file is yours. It is never regenerated. See docs/guide/architecture.md.
 #
-# `rok sqlc generate` reads this file: the migrations become the data layer in
-# `src/db/`, and every table an API feature in `src/features/`.
+# `rok sqlc generate` reads this file: the truth in `schema/` becomes the data
+# layer in `src/db/`, and every table an API feature in `src/features/`.
+# `rok gen --migration` (the workspace CLI) stages the history pairs into
+# `migrations/`, the default history dir.
 
-schema = "migrations/"
+schema = "schema"
 output = "src/db"
 derive = ["serde", "validate"]
 extractors = ["actix_web"]

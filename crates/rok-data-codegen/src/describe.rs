@@ -1,5 +1,5 @@
 //! Parameter and column types of queries, as PostgreSQL reports them, and
-//! the database word on the schema (ADR 0010): the parse runs offline first,
+//! the database word on the schema (workspace ADR 0010): the parse runs offline first,
 //! and a database at hand cross-checks it.
 //!
 //! Queries are prepared in a temporary database that has every migration
@@ -216,7 +216,7 @@ async fn describe_in_temp_db(
 }
 
 /// What a database built from the migrations disagrees with `schema` on
-/// (ADR 0010): a warning per difference, empty when the parse and the
+/// (workspace ADR 0010): a warning per difference, empty when the parse and the
 /// catalog agree. `--strict` escalates the list to an error, in
 /// `generate` — that separation lives there, not here.
 pub(crate) fn verify_schema(

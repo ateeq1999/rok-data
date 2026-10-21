@@ -1,10 +1,10 @@
 # Relationships: inferred once onto the schema model, loaded `with` loaders, read with `join`
 
-ADR 0002 splits relationships into an inferred lane (single-hop relationships, from foreign keys) and a declared lane (what DDL cannot show). This ADR settles the inferred lane: which foreign keys become relationships, what they are called, where the generator records them, and the two ways generated code traverses them, **`with`** (a loader per relationship, for rows already fetched) and **`join`** (one joined read for a to-one relationship).
+engine ADR 0002 splits relationships into an inferred lane (single-hop relationships, from foreign keys) and a declared lane (what DDL cannot show). This ADR settles the inferred lane: which foreign keys become relationships, what they are called, where the generator records them, and the two ways generated code traverses them, **`with`** (a loader per relationship, for rows already fetched) and **`join`** (one joined read for a to-one relationship).
 
 ## Inference
 
-Relationships are inferred **over the tables generated together**, after typed ids are resolved and conventions applied (ADRs 0010, 0013), by `generator::relationships::infer`. A foreign key makes a relationship when:
+Relationships are inferred **over the tables generated together**, after typed ids are resolved and conventions applied (engine ADRs 0010, 0013), by `generator::relationships::infer`. A foreign key makes a relationship when:
 
 - it is not the **tenant column's** foreign key (every tenant table would otherwise sprout an `organization` relationship, and the tenant is a scope, not a navigation);
 - the referenced table is in the run, matched exactly by schema and name like typed ids: a reference to a table that was filtered out, rejected, or lives in another migration set makes no relationship and degrades silently, so a module generated without its dependencies still generates;
@@ -21,7 +21,7 @@ Two relationships of one table with the same name **fail generation**, naming bo
 
 ## Renaming and opting out
 
-The `[relationships]` section (ADR 0011; `Config::relationships` in the library) is ADR 0002's declared lane limited to two edits of an inferred relationship, named by table (SQL, schema-qualified, or module name) and its **inferred** name:
+The `[relationships]` section (engine ADR 0011; `Config::relationships` in the library) is engine ADR 0002's declared lane limited to two edits of an inferred relationship, named by table (SQL, schema-qualified, or module name) and its **inferred** name:
 
 ```toml
 [relationships.invoices]
@@ -34,7 +34,7 @@ approved_by_user = false       # opt out
 - `true` is an error, not a no-op.
 - Entries are **checked against the whole schema**, inferred the same way, not just the tables a run generates: a `--resource` run accepts the configuration of a full run, and an entry for a table or relationship outside the run is skipped. An entry naming a table or relationship that does not exist fails, listing the table's relationships; a rename onto a name the table already uses fails the collision check, naming the entry (`` `relationships.invoices.created_by_user` ``).
 
-Many-to-many through join tables builds on this model (ticket 23); declared has-many-through and polymorphic relationships remain ADR 0002's declared lane.
+Many-to-many through join tables builds on this model (ticket 23); declared has-many-through and polymorphic relationships remain engine ADR 0002's declared lane.
 
 ## The model
 
@@ -59,7 +59,7 @@ pub async fn load_comments<'e, E>(executor: E, tenant_id: TenantId, rows: &[Post
 - The map is keyed by the **joining key**, typed as the parent's column (its typed id where it has one): for a belongs-to the related row's key, which is the value of the child's foreign key; for an inverse the parent row's key. The caller looks up `loaded[&product.category_id]` or `loaded[&post.id]`, whichever side it holds. A primary key that is also a foreign key carries its own table's typed id; the loader converts it through the raw type.
 - **To-one** (belongs-to, has-one) maps a key to one row; a key with no live related row is absent, and a `NULL` foreign key is skipped. **To-many** maps every input row's key to a list ordered by the related table's primary key, empty when nothing relates, so callers never special-case a missing entry.
 - The query follows the **related table's** conventions: it takes the tenant right after the executor when that table has a tenant column and adds `<tenant> = $1`, and adds `<soft-delete column> IS NULL` when it has one. The loaded table, not the caller's, decides, because that is the table whose rows could leak.
-- Like every generated function, it is generic over `PgExecutor` and runs one statement (ADR 0006).
+- Like every generated function, it is generic over `PgExecutor` and runs one statement (engine ADR 0006).
 
 Loaders return maps rather than attaching related rows to the caller's structs: generated rows stay plain `FromRow` structs, a caller loads only what a view needs, and composing two loaders is two lookups. "Nested" loading is loading the next relationship for the rows a loader returned.
 
@@ -73,7 +73,7 @@ The join table's `write.rs` also gets, for the key's first foreign key (`near`) 
 
 - `attach(near, far) -> bool`: inserts the pair with `ON CONFLICT (<key>) DO NOTHING`, so a second call changes nothing and returns `false`.
 - `detach(near, far) -> bool`: deletes the pair.
-- `sync(near, &[far])`: replaces `near`'s set in one statement (ADR 0006), so it is atomic inside the caller's transaction or on its own. An empty slice removes every pair.
+- `sync(near, &[far])`: replaces `near`'s set in one statement (engine ADR 0006), so it is atomic inside the caller's transaction or on its own. An empty slice removes every pair.
 
 On a **soft-delete join table**, `detach` sets the soft-delete column, and `attach` and `sync` first restore a soft-deleted row of the pair (chosen by `ctid`, the most recently deleted one, only when no live row exists) and insert only when there is none, so history rows are not duplicated and a full unique key over the pair never conflicts. Every statement is scoped to the tenant. `attach` and `sync` insert only the pair and the tenant, so they are not generated when another column has neither a default nor `NULL` to fall back on; `detach` always is.
 
@@ -82,7 +82,7 @@ A many-to-many gets no joined read (it is to-many). Its relationship filter fiel
 Considered for many-to-many:
 
 - **Recognising a join table by having exactly two foreign keys.** Rejected: `user_roles`-style tables with two foreign keys and no unique pair hold duplicates, and `sync` could not tell which row to keep; the unique key is what makes the pair a set.
-- **`sync` as a `DELETE` followed by `INSERT`s.** Rejected: the generic executor runs one statement (ADR 0006); CTEs do it in one.
+- **`sync` as a `DELETE` followed by `INSERT`s.** Rejected: the generic executor runs one statement (engine ADR 0006); CTEs do it in one.
 - **`ON CONFLICT … DO UPDATE SET deleted_at = NULL` for restoring.** Rejected: it works only when the unique key covers deleted rows; a partial unique index over live rows never conflicts with a deleted row, so restoring has to find the row itself.
 
 ## `join`: joined reads (ticket 21)

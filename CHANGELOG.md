@@ -19,8 +19,8 @@ written once, never rewritten.
 turns the project's schema directory into the data layer (`src/db/**`),
 the shared tools and the API features (`src/features/**`), and — with
 `--migration NAME` — stages the difference between the schema and the
-last staged migration as a `NNNN_name.up.sql` / `.down.sql` pair in that
-same directory. `rok gen check` is the CI mode: it writes nothing,
+last staged migration as a `NNNN_name.up.sql` / `.down.sql` pair in the
+history directory. `rok gen check` is the CI mode: it writes nothing,
 reports the missing, changed and stale files, and fails on drift. The
 settings file is the unified `rok.toml` (ADR 0011), whose `[generate]`
 section holds the generation settings; the engine's
@@ -31,6 +31,31 @@ help now marks them as superseded by the front door; their removal is
 deferred to 1.0. One spelling changed: `rok generate` no longer takes the
 `generate` subcommand, so the write mode is flat (`rok generate
 [OPTIONS]`) and the CI mode nests (`rok generate check`).
+
+The truth and the history now live in one directory each: `rok gen`
+reads the truth directory — the plain `*.sql` files a hand writes,
+`schema/` in the layout `rok init` seeds — and, with `--migration NAME`,
+stages the full history into the history directory (`migrations` by
+default): the `NNNN_name.up.sql` / `.down.sql` pairs and, hidden beside
+them, the `.rok-schema.json` snapshot of the staged shape that the next
+staging diffs against. `rok migrate` reads that history unchanged. Both
+directories keep their pre-split default — one `migrations` directory
+holds the truth and the pairs in an old project, and it keeps
+generating and staging as before — and the split is wired in the
+settings: the truth is named by `--schema` / `[generate] schema` as
+before, the history by the new `[generate] migrations` key and `rok gen
+--migrations-dir` (the flag beats the file). The loader that reads the
+history skips hidden files, so the snapshot rides along unseen — and the
+snapshot itself leaves the truth's `-- rok:down` undo statements out.
+Where `--migration`
+used to advise a `psql` invocation, it now points at the pair it staged:
+`apply the staged pair (<up>) with `rok migrate up``, with `--dir`
+added only when the history is not the default. `rok init` seeds the
+truth (`schema/0001_init.sql`, whose `-- rok:down` lines mark its undo
+SQL) and no history — the history appears with the first staged pair —
+and the templates and [`examples/api`](examples/api) follow the same
+layout: a `schema/` truth beside the pairs and the snapshot in
+`migrations/`.
 
 The generated per-table data layer (`models`, `read`, `write` and the
 relationship loaders) now rides the `rok-data` model chains instead of

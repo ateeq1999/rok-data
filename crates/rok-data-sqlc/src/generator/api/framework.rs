@@ -1,4 +1,4 @@
-//! The web framework the API features are generated for (ADR 0016):
+//! The web framework the API features are generated for (engine ADR 0016):
 //! actix-web (the default) or axum. The framework decides the routes, the
 //! handlers and the shared tools; the bodies, the service, the listing and
 //! the OpenAPI document are the same either way.

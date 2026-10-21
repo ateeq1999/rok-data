@@ -1,4 +1,4 @@
-//! A feature's service (ADR 0016): `service_api.rs`, the generated trait
+//! A feature's service (engine ADR 0016): `service_api.rs`, the generated trait
 //! with one method per endpoint, each defaulting to the data layer, and
 //! `service.rs`, the scaffolded struct implementing it, which the user owns.
 

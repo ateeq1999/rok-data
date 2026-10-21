@@ -22,8 +22,8 @@ The relationship filters build `EXISTS` subqueries with `QueryBuilder`, and the 
 
 ## Considered Options
 
-- **A generated `Patch<T>` enum instead of `Option<Option<T>>`** — rejected for now: ADR 0005's `Option` encoding is unchanged and documented on each nullable field; a `Patch` type would add a shared runtime file to every output directory and a second, larger API break.
+- **A generated `Patch<T>` enum instead of `Option<Option<T>>`** — rejected for now: engine ADR 0005's `Option` encoding is unchanged and documented on each nullable field; a `Patch` type would add a shared runtime file to every output directory and a second, larger API break.
 - **Always quote identifiers** — rejected: correct but noisy, and the keyword categories make minimal quoting just as safe.
 - **Build all statements with `QueryBuilder`** — rejected: static SQL is easier to review in generated diffs and is the shape `query_as!` would need if compile-time checking is added later.
-- **Separate `*_in_transaction` functions** — rejected again (ADR 0006): the generic executor already accepts `&mut *tx`, and the PostgreSQL tests exercise rollback and commit through it.
+- **Separate `*_in_transaction` functions** — rejected again (engine ADR 0006): the generic executor already accepts `&mut *tx`, and the PostgreSQL tests exercise rollback and commit through it.
 - **Rename `delete` to `delete_by_id`** — rejected: not worth a second rename; `delete` already mirrors `create`/`update`.

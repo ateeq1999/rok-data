@@ -1,5 +1,5 @@
 //! `db/<table>/listing.rs`: the reads and writes an API feature needs
-//! beyond the data layer's own, kept with the rest of the SQL (ADR 0016).
+//! beyond the data layer's own, kept with the rest of the SQL (engine ADR 0016).
 //! Generated for a table whose feature serves `list` (the `XSort` keys
 //! `sort` takes, and a page of rows matching `q`, with its count) or
 //! `search`, has an owner (every read scoped to the caller: the list's,

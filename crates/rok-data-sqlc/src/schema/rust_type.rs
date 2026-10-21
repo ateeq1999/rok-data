@@ -5,7 +5,7 @@
 //! them out verbatim, and query overrides may name any Rust type. Questions
 //! about a type (is it optional, a list, text, a generated enum, a scalar a
 //! typed id can wrap?) are answered here, so the string shapes are parsed in
-//! one place (ADR 0013).
+//! one place (engine ADR 0013).
 
 /// The shared generated module holding enum types. A column of an enum type
 /// has the Rust type `types::{Name}`, and every generated file mentioning one

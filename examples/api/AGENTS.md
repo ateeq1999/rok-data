@@ -53,8 +53,8 @@ rules below follow them.
 |---|---|---|
 | A business rule | the feature's `service.rs`, overriding a `service_api.rs` default (`create_in`, `update_in`, ...) | handler, repo |
 | A new endpoint, request or response shape | the schema and `rok.toml` (`[api]`), then `rok gen` | generated files |
-| SQL query | the data layer: a migration and `rok gen`, or a query file | service, handler |
-| New DB table or column | `schema/*.sql`, then `rok gen` | anywhere else |
+| SQL query | the data layer: the truth in `schema/` and `rok gen`, or a query file | service, handler |
+| New DB table or column | `schema/*.sql`, then `rok gen --migration` to stage the pair | anywhere else |
 | Error case | a variant in `error.rs` | feature folder |
 | Code two features need | `shared/` | one feature |
 | Call to an outside system | `shared/<name>.rs` behind a trait | service directly |

@@ -1,6 +1,6 @@
-//! `rok sqlc init`: scaffolds the application skeleton of ADR 0016 into a
+//! `rok sqlc init`: scaffolds the application skeleton of engine ADR 0016 into a
 //! project, each file only when absent. It generates nothing; `rok sqlc generate`
-//! does that once migrations exist.
+//! does that once the truth exists.
 //!
 //! The application is a library crate (`src/lib.rs` declares every module
 //! `pub`) with a thin `src/main.rs` that starts it, so generated code the
@@ -48,8 +48,9 @@ const TEMPLATES: &[(&str, &str)] = &[
     ("src/shared/mod.rs", include_str!("templates/shared/mod.rs")),
 ];
 
-/// The directory the migrations go in, created empty.
-const MIGRATIONS: &str = "migrations";
+/// The truth dir the schema files go in, created empty. The migration
+/// history (`migrations/` by default) appears when the first pair stages.
+const SCHEMA: &str = "schema";
 
 /// Where `main.rs` names the library crate.
 const CRATE_PLACEHOLDER: &str = "{crate}";
@@ -150,11 +151,11 @@ fn is_cargo_default_main(text: &str) -> bool {
 }
 
 /// Scaffolds the skeleton into `dir`, keeping every file that exists but
-/// cargo's untouched default `src/main.rs`, and creates `migrations/`.
+/// cargo's untouched default `src/main.rs`, and creates `schema/`.
 pub fn init(dir: &Path) -> Result<Scaffolded> {
-    let migrations = dir.join(MIGRATIONS);
-    fs::create_dir_all(&migrations)
-        .with_context(|| format!("failed to create directory `{}`", display_path(&migrations)))?;
+    let truth = dir.join(SCHEMA);
+    fs::create_dir_all(&truth)
+        .with_context(|| format!("failed to create directory `{}`", display_path(&truth)))?;
     let main = dir.join("src/main.rs");
     let replaced_default_main =
         fs::read_to_string(&main).is_ok_and(|text| is_cargo_default_main(&text));

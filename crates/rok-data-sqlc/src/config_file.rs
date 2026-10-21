@@ -5,7 +5,7 @@
 //! `-c/--config`, the CLI looks for `rok-data-sqlc.toml` in the current directory
 //! and then each parent, like Cargo. Paths in the file resolve relative to the
 //! file's directory; paths in a JSON payload resolve relative to the current
-//! directory, like flags. The library entry point reads neither (ADR 0011).
+//! directory, like flags. The library entry point reads neither (engine ADR 0011).
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -30,7 +30,7 @@ pub(crate) use self::api_keys::ApiKeys;
 /// The file name looked for during discovery.
 pub(crate) const FILE_NAME: &str = "rok-data-sqlc.toml";
 
-/// The canonical project file name (ADR 0011), which holds the engine's
+/// The canonical project file name (engine ADR 0011), which holds the engine's
 /// settings in its `[generate]` section.
 pub(crate) const PROJECT_FILE: &str = "rok.toml";
 
@@ -40,6 +40,8 @@ pub(crate) const PROJECT_FILE: &str = "rok.toml";
 #[derive(Debug, Default)]
 pub(crate) struct FileConfig {
     pub(crate) schema: Vec<PathBuf>,
+    /// The migration history directory the staging writes its pairs into.
+    pub(crate) migrations: Option<PathBuf>,
     pub(crate) queries: Vec<PathBuf>,
     pub(crate) output: Option<PathBuf>,
     pub(crate) resource: Option<String>,
@@ -70,6 +72,7 @@ impl FileConfig {
         };
         FileConfig {
             schema: list(self.schema, lower.schema),
+            migrations: self.migrations.or(lower.migrations),
             queries: list(self.queries, lower.queries),
             output: self.output.or(lower.output),
             resource: self.resource.or(lower.resource),
@@ -88,6 +91,7 @@ impl FileConfig {
         let defaults = crate::Config::default();
         crate::Config {
             schema: self.schema,
+            migrations: self.migrations.unwrap_or(defaults.migrations),
             queries: self.queries,
             output: self.output.unwrap_or(defaults.output),
             resource: self.resource,
@@ -129,6 +133,9 @@ fn modules_over(
 struct RawFile {
     #[serde(default)]
     schema: Option<OneOrMany>,
+    /// The migration history directory the staging writes its pairs into.
+    #[serde(default)]
+    migrations: Option<PathBuf>,
     #[serde(default)]
     queries: Option<OneOrMany>,
     output: Option<PathBuf>,
@@ -194,6 +201,7 @@ impl RawFile {
         };
         FileConfig {
             schema: resolve(self.schema),
+            migrations: self.migrations.map(|p| base.join(p)),
             queries: resolve(self.queries),
             output: self.output.map(|p| base.join(p)),
             resource: self.resource,
@@ -382,7 +390,7 @@ pub(crate) fn load(path: &Path) -> Result<FileConfig> {
 
 /// Reads a config file in whichever shape it uses: the legacy flat one
 /// (`rok-data-sqlc.toml`), whose keys sit at the top level, or the unified
-/// project's (`rok.toml`, ADR 0011), whose generation settings sit in its
+/// project's (`rok.toml`, engine ADR 0011), whose generation settings sit in its
 /// `[generate]` section.
 pub(crate) fn load_any(path: &Path) -> Result<FileConfig> {
     let text = read(path)?;
@@ -399,7 +407,7 @@ fn read(path: &Path) -> Result<String> {
         .with_context(|| format!("failed to read config file {}", display_path(path)))
 }
 
-/// Whether the file uses the unified project shape (ADR 0011): the
+/// Whether the file uses the unified project shape (engine ADR 0011): the
 /// canonical `rok.toml`, or any file with a `[generate]` section.
 fn is_unified(path: &Path, text: &str) -> bool {
     if path.file_name().is_some_and(|name| name == PROJECT_FILE) {
@@ -510,5 +518,16 @@ mod tests {
         assert_eq!(conventions("[conventions]\n"), Conventions::default());
         assert_eq!(Conventions::default().managed_columns, Vec::<String>::new());
         assert_eq!(Conventions::default().tenant_column, None);
+    }
+
+    /// The legacy file's top level carries the history dir key too.
+    #[test]
+    fn the_legacy_file_names_the_history_dir() {
+        let file = RawFile::resolve(
+            toml::from_str("schema = \"schema\"\nmigrations = \"history\"\n").unwrap(),
+            Path::new("/project"),
+        );
+        assert_eq!(file.schema, vec![PathBuf::from("/project/schema")]);
+        assert_eq!(file.migrations, Some(PathBuf::from("/project/history")));
     }
 }
