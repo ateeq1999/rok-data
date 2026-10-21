@@ -97,16 +97,16 @@ impl<M: Model> Select<M> {
     /// Add a `WHERE` condition — the Eloquent spelling of
     /// [`filter`](Self::filter).
     ///
-    /// `where` is a Rust keyword, so only the raw identifier `r#where`
-    /// compiles; `filter` stays the canonical verb.
+    /// `where` is a Rust keyword, so the alias is spelled `where_`;
+    /// `filter` stays the canonical verb.
     ///
     /// ```ignore
     /// let admins = User::query()
-    ///     .r#where(User::ROLE.eq("admin"))
+    ///     .where_(User::ROLE.eq("admin"))
     ///     .all(&db)
     ///     .await?;
     /// ```
-    pub fn r#where(self, expr: Expr<M>) -> Self {
+    pub fn where_(self, expr: Expr<M>) -> Self {
         self.filter(expr)
     }
 

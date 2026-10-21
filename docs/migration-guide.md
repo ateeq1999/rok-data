@@ -58,15 +58,15 @@ verbs they call changed.
 | Verb                | Signature                                  | Notes |
 | ------------------- | ------------------------------------------ | ----- |
 | `Model::exists`     | `fn exists(executor) -> Result<bool>`      | does the table have a row? the model's own scope applies (soft deletes, default scope, tenant) |
-| `Model::r#where`    | `fn r#where(expr) -> Select<Self>`         | the Eloquent spelling of `filter` |
-| `Select::r#where`   | `fn r#where(expr) -> Self`                 | the Eloquent spelling of `filter`, on the chain |
+| `Model::where_`    | `fn where_(expr) -> Select<Self>`         | the Eloquent spelling of `filter` |
+| `Select::where_`   | `fn where_(expr) -> Self`                 | the Eloquent spelling of `filter`, on the chain |
 | `Select::get`       | `fn get(executor) -> Result<Vec<Self>>`    | the Eloquent spelling of `all`; both stay |
 | `Select::chunk`     | `fn chunk(executor, size, f) -> Result<()>` | the rows in windows of `size`, so a large table need not fit in memory |
 
 ```rust
 // `where` is a Rust keyword, so only the raw identifier compiles; `filter`
 // stays the canonical verb and the generated code keeps using it.
-let admins = User::r#where(User::ROLE.eq("admin")).all(&db).await?;
+let admins = User::where_(User::ROLE.eq("admin")).all(&db).await?;
 
 // one row or many, without fetching them
 if User::exists(&db).await? {
@@ -98,7 +98,7 @@ connection).
 ### Unchanged on purpose
 
 - `filter` stays the canonical verb (the Diesel/SeaORM convention);
-  `r#where` is an alias, not a replacement.
+  `where_` is an alias, not a replacement.
 - `all` stays next to `get`.
 - `Tracked::save` keeps its name: a tracked record only ever writes the
   columns that changed, so it never has the insert-or-update ambiguity

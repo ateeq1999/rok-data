@@ -361,11 +361,11 @@ Task graph, in order:
 - **M1 — the runtime surface** (spec D2/D3): `create()` →
   `insert_builder()`, `save()` removed in favour of `update()`, `exists()`
   added to the model; the chain gains `get()` (alias of `all`), `chunk()`
-  and `r#where`; `r#where` also aliases the model's `filter`. Proven in
+  and `where_`; `where_` also aliases the model's `filter`. Proven in
   the facade's integration suite.
   - **Done (M1)**: the runtime carries the renamed verbs (`insert_builder`,
     `update`, `update_only`) and the new ones (`exists`, `get`, `chunk`,
-    `r#where` at both levels); `chunk` windows the existing stream, so one
+    `where_` at both levels); `chunk` windows the existing stream, so one
     query serves every window. `save_only` became `update_only` for the
     same reason `save` went: the ambiguous word does not survive. The
     engine's emission, `Tracked`, the templates and `examples/api` follow

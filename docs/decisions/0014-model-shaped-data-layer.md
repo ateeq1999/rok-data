@@ -53,7 +53,7 @@ the module keeps what it is good at.
   stop overlapping.
 
 The release is **0.3.0 and breaking**: the runtime's public surface and the
-generated output both change. `where` stays spelled `filter` (with `r#where`
+generated output both change. `where` stays spelled `filter` (with `where_`
 as an alias) because `where` is a Rust keyword — see
 [ADR 0015](0015-inferred-conventions.md) for the conventions half of this
 release and the engine's ADR 0018 for the generated code's shape.
@@ -69,8 +69,9 @@ release and the engine's ADR 0018 for the generated code's shape.
   project regenerate twice for no user benefit; the framework is pre-1.0 and
   `docs/migration-guide.md` exists for exactly this.
 - **Hard-rename `filter` to `where`.** Rejected for a language reason:
-  `fn where(..)` does not compile, so the only spelling is `r#where`. The
-  canonical verb stays `filter` (the Diesel/SeaORM convention) and `r#where`
+  `fn where(..)` does not compile, and the raw identifier (`r#where`) reads
+  badly in a chain, so the alias is spelled `where_`. The
+  canonical verb stays `filter` (the Diesel/SeaORM convention) and `where_`
   is offered as an alias for Eloquent muscle memory.
 - **Keep `save()` as "insert or update".** Rejected: Eloquent's `save()`
   decides by whether the key is set, and our keys are non-optional typed
@@ -85,7 +86,7 @@ release and the engine's ADR 0018 for the generated code's shape.
   `ROK_DATA_SQLC_UPDATE_EXPECTED=1` runs, never by hand).
 - The runtime's public surface changes in one release: `create()` (the insert
   builder) is renamed `insert_builder()`, `save()` is removed in favour of
-  `update()`, and `exists()`, `get()`, `chunk()` and `r#where` are added.
+  `update()`, and `exists()`, `get()`, `chunk()` and `where_` are added.
 - `docs/migration-guide.md` carries the 0.3.0 before/after for every renamed
   call; the root glossary gains **Model** and **Scope**; the engine glossary's
   **Resource** entry is rewritten.

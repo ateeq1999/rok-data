@@ -67,7 +67,7 @@
 //! ## More features
 //!
 //! - **Streaming**: [`Select::stream`] yields rows one at a time.
-//! - **Eloquent-style reads**: [`Model::exists`], `Model::r#where` (the
+//! - **Eloquent-style reads**: [`Model::exists`], `Model::where_` (the
 //!   Eloquent spelling of `filter`), [`Select::get`] and [`Select::chunk`]
 //!   (the rows in windows, so a large table need not fit in memory).
 //! - **Aggregates & projections**: [`Select::sum`], [`Select::avg`],

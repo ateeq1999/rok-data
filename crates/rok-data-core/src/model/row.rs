@@ -125,13 +125,13 @@ pub trait Model:
     /// Start a `SELECT` filtered by `expr` — the Eloquent spelling of
     /// [`filter`](Model::filter).
     ///
-    /// `where` is a Rust keyword, so only the raw identifier `r#where`
-    /// compiles; `filter` stays the canonical verb.
+    /// `where` is a Rust keyword, so the alias is spelled `where_`;
+    /// `filter` stays the canonical verb.
     ///
     /// ```ignore
-    /// let admins = User::r#where(User::ROLE.eq("admin")).all(&db).await?;
+    /// let admins = User::where_(User::ROLE.eq("admin")).all(&db).await?;
     /// ```
-    fn r#where(expr: Expr<Self>) -> Select<Self> {
+    fn where_(expr: Expr<Self>) -> Select<Self> {
         Self::filter(expr)
     }
 

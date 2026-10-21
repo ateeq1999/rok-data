@@ -12,21 +12,21 @@ struct Tag {
 
 // ----- SQL shape -------------------------------------------------------------
 
-/// `r#where` is the Eloquent spelling of `filter`, on the model and on the
+/// `where_` is the Eloquent spelling of `filter`, on the model and on the
 /// chain: the same statement, the same parameters.
 #[test]
 fn where_is_an_alias_of_filter() {
     assert_eq!(
-        User::r#where(User::ROLE.eq("admin")).to_sql().as_str(),
+        User::where_(User::ROLE.eq("admin")).to_sql().as_str(),
         User::filter(User::ROLE.eq("admin")).to_sql().as_str(),
     );
     assert_eq!(
-        User::r#where(User::ROLE.eq("admin")).to_sql().as_str(),
+        User::where_(User::ROLE.eq("admin")).to_sql().as_str(),
         r#"SELECT "id", "name", "role", "age" FROM "users" WHERE "role" = $1"#,
     );
     assert_eq!(
         User::query()
-            .r#where(User::ROLE.eq("admin"))
+            .where_(User::ROLE.eq("admin"))
             .to_sql()
             .as_str(),
         User::query()
@@ -36,7 +36,7 @@ fn where_is_an_alias_of_filter() {
     );
     assert_eq!(
         User::query()
-            .r#where(User::ROLE.eq("admin"))
+            .where_(User::ROLE.eq("admin"))
             .to_sql()
             .as_str(),
         r#"SELECT "id", "name", "role", "age" FROM "users" WHERE "role" = $1"#,
@@ -156,7 +156,7 @@ async fn get_returns_what_all_returns() {
     assert_eq!(model_all, chain_get);
 }
 
-/// `r#where` filters exactly like `filter`, on the model and on the chain.
+/// `where_` filters exactly like `filter`, on the model and on the chain.
 #[tokio::test]
 async fn where_filters_like_filter() {
     let Some(db) = setup().await else { return };
@@ -164,10 +164,7 @@ async fn where_filters_like_filter() {
 
     // The model's.
     let admins = User::filter(User::ROLE.eq("admin")).all(&db).await.unwrap();
-    let admins_where = User::r#where(User::ROLE.eq("admin"))
-        .all(&db)
-        .await
-        .unwrap();
+    let admins_where = User::where_(User::ROLE.eq("admin")).all(&db).await.unwrap();
     assert_eq!(admins, admins_where);
     assert_eq!(admins.len(), 1);
     assert_eq!(admins[0].name, "ann");
@@ -179,7 +176,7 @@ async fn where_filters_like_filter() {
         .await
         .unwrap();
     let popular_where = Post::query()
-        .r#where(Post::VIEWS.gt(15))
+        .where_(Post::VIEWS.gt(15))
         .order_by(Post::ID)
         .all(&db)
         .await
