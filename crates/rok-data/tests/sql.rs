@@ -154,7 +154,7 @@ fn insert_sql() {
         r#"INSERT INTO "users" ("id", "email", "name", "age") VALUES ($1, $2, $3, $4) ON CONFLICT ("id") DO UPDATE SET "email" = EXCLUDED."email", "name" = EXCLUDED."name", "age" = EXCLUDED."age" RETURNING "id", "email", "name", "age""#
     );
 
-    let sql = User::create()
+    let sql = User::insert_builder()
         .set(User::EMAIL, "c@x")
         .set(User::AGE, 3)
         .to_sql();

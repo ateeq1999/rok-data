@@ -31,7 +31,7 @@ async fn memoized_queries() {
     assert_eq!(cache.stats().misses, 3);
 
     // A write through rok-data invalidates the table.
-    User::create()
+    User::insert_builder()
         .set(User::NAME, "dee")
         .set(User::ROLE, "admin")
         .set(User::AGE, 50)

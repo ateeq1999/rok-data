@@ -54,7 +54,7 @@ async fn main() -> rok_data::Result<()> {
     let author = db
         .transaction(|tx| {
             Box::pin(async move {
-                let author = Author::create()
+                let author = Author::insert_builder()
                     .set(Author::NAME, "Ada")
                     .set(Author::EMAIL, "ada@example.com")
                     .exec(&mut *tx)

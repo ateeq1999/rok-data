@@ -9,7 +9,7 @@
 //! // Attribute changes to an actor: every transaction started inside
 //! // `with_actor` records it (or call `tx.set_actor(..)` yourself).
 //! rok_data::audit::with_actor("user:42", async {
-//!     db.transaction(|tx| Box::pin(async move { user.save(&mut *tx).await })).await
+//!     db.transaction(|tx| Box::pin(async move { user.update(&mut *tx).await })).await
 //! }).await?;
 //!
 //! for entry in rok_data::audit::history::<User>(&db, user.id).await? {

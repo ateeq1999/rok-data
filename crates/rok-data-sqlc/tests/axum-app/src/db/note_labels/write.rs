@@ -10,7 +10,7 @@ pub async fn create<'e, E>(executor: E, input: NewNoteLabel) -> Result<NoteLabel
 where
     E: rok_data::Executor<'e>,
 {
-    NoteLabel::create()
+    NoteLabel::insert_builder()
         .set(NoteLabel::NOTE_ID, input.note_id)
         .set(NoteLabel::LABEL_ID, input.label_id)
         .exec(executor)

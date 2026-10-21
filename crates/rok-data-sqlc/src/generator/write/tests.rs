@@ -16,7 +16,7 @@ fn static_create_when_no_column_has_a_default() {
         "pub async fn create<'e, E>(executor: E, input: NewUser) -> Result<User, rok_data::Error>"
     ));
     assert!(rendered.contains(
-        "    User::create()\n        .set(User::ID, input.id)\n        .set(User::EMAIL, input.email)\n        .set(User::NOTE, input.note)\n        .exec(executor)\n        .await\n"
+        "    User::insert_builder()\n        .set(User::ID, input.id)\n        .set(User::EMAIL, input.email)\n        .set(User::NOTE, input.note)\n        .exec(executor)\n        .await\n"
     ));
     assert!(!rendered.contains("INSERT"));
 }
@@ -32,7 +32,7 @@ fn dynamic_create_omits_defaulted_columns_from_columns_and_binds_alike() {
         ],
         &["id"],
     ));
-    assert!(rendered.contains("    let mut insert = User::create();\n"));
+    assert!(rendered.contains("    let mut insert = User::insert_builder();\n"));
     assert!(rendered.contains("    insert = insert.set(User::EMAIL, input.email);\n"));
     assert!(rendered.contains("    if let Some(value) = input.created_at {\n        insert = insert.set(User::CREATED_AT, value);\n    }\n"));
     assert!(rendered.contains("    if let Some(value) = input.tag {\n        insert = insert.set(User::TAG, value);\n    }\n"));
@@ -57,7 +57,7 @@ fn dynamic_create_falls_back_to_default_values() {
     // Every column has a default, so the emitted chain may end up set-less
     // (`INSERT ... DEFAULT VALUES`, which the core emits for an empty
     // insert); the conditional sets stand in for it.
-    assert!(rendered.contains("    let mut insert = User::create();\n"));
+    assert!(rendered.contains("    let mut insert = User::insert_builder();\n"));
     assert!(rendered.contains("    if let Some(value) = input.hits {\n        insert = insert.set(User::HITS, value);\n    }\n"));
     assert!(rendered.contains("    if let Some(value) = input.created_at {\n        insert = insert.set(User::CREATED_AT, value);\n    }\n"));
     assert!(rendered.contains("    insert.exec(executor).await\n"));

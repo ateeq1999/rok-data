@@ -10,7 +10,7 @@ use crate::{Column, Error, Executor, Model, Result, Value};
 use super::{Conflict, ConflictAction, ConflictTarget};
 
 /// An `INSERT` of a single row built column by column, created with
-/// [`Model::create`]. Columns you don't set get their database default;
+/// [`Model::insert_builder`]. Columns you don't set get their database default;
 /// timestamp columns default to `now()`.
 pub struct Insert<M> {
     /// `(column, raw sql, params)`; plain values are stored as `"?"`.

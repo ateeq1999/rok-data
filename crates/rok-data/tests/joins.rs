@@ -97,7 +97,7 @@ async fn seed(db: &Db) -> (Vec<User>, Vec<Post>) {
     )
     .await
     .unwrap();
-    let rust = Category::create()
+    let rust = Category::insert_builder()
         .set(Category::NAME, "rust")
         .exec(db)
         .await
@@ -126,7 +126,7 @@ async fn seed(db: &Db) -> (Vec<User>, Vec<Post>) {
         .await
         .unwrap();
     hidden[0].delete(db).await.unwrap();
-    Comment::create()
+    Comment::insert_builder()
         .set(Comment::POST_ID, posts[0].id)
         .set(Comment::BODY, "nice")
         .exec(db)

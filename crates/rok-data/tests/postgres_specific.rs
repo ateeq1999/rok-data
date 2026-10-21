@@ -92,10 +92,10 @@ async fn arrays(db: Db) {
         1
     );
 
-    // Arrays round-trip through save and COPY.
+    // Arrays round-trip through update and COPY.
     let mut cooking = docs[2].clone();
     cooking.tags.push("baking".into());
-    assert_eq!(cooking.save(&db).await.unwrap().tags, ["food", "baking"]);
+    assert_eq!(cooking.update(&db).await.unwrap().tags, ["food", "baking"]);
     Doc::copy_in(&db, &[doc("copied", "x", &["a", "b"], &[9])])
         .await
         .unwrap();
@@ -281,7 +281,7 @@ async fn read_replicas_route_reads() {
     );
 
     // Writes go to the primary; their RETURNING rows come from there too.
-    let created = Item::create()
+    let created = Item::insert_builder()
         .set(Item::NAME, "new")
         .exec(&db)
         .await
@@ -366,7 +366,11 @@ async fn model_change_feed(db: Db) {
             .unwrap()
     }
 
-    let item = Item::create().set(Item::NAME, "a").exec(&db).await.unwrap();
+    let item = Item::insert_builder()
+        .set(Item::NAME, "a")
+        .exec(&db)
+        .await
+        .unwrap();
     let change = next(&mut changes).await;
     assert_eq!(
         (change.op, change.key.clone()),
@@ -390,7 +394,7 @@ async fn model_change_feed(db: Db) {
     assert_eq!(change.fetch(&db).await.unwrap(), None);
 
     Item::uninstall_change_notifications(&db).await.unwrap();
-    Item::create()
+    Item::insert_builder()
         .set(Item::NAME, "silent")
         .exec(&db)
         .await

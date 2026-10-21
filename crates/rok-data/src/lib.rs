@@ -33,7 +33,7 @@
 //! // Update
 //! let mut ann = User::find_or_fail(&db, ann.id).await?;
 //! ann.name = Some("Ann".into());
-//! let ann = ann.save(&db).await?;
+//! let ann = ann.update(&db).await?;
 //!
 //! // Bulk update & delete
 //! User::filter(User::AGE.lt(18)).update().set(User::NAME, None::<String>).exec(&db).await?;
@@ -67,6 +67,9 @@
 //! ## More features
 //!
 //! - **Streaming**: [`Select::stream`] yields rows one at a time.
+//! - **Eloquent-style reads**: [`Model::exists`], `Model::r#where` (the
+//!   Eloquent spelling of `filter`), [`Select::get`] and [`Select::chunk`]
+//!   (the rows in windows, so a large table need not fit in memory).
 //! - **Aggregates & projections**: [`Select::sum`], [`Select::avg`],
 //!   [`Select::group_by`], [`Select::having`] and [`Select::select`] with
 //!   [`Projection`]s, decoded into tuples or [`derive@FromRow`] structs.
@@ -89,7 +92,7 @@
 //!   [`Select::unscoped`].
 //! - **Retrying transactions**: [`Db::transaction_with`] with [`TxOptions`].
 //! - **Change tracking**: [`Model::track`] / [`Tracked`] and
-//!   [`Model::save_only`].
+//!   [`Model::update_only`].
 //! - **Bulk loading**: [`Model::copy_in`] with binary `COPY`.
 //! - **Web & metrics**: the [`web`] module (`serde`, `axum` features) and
 //!   [`metrics`] (`metrics` feature).

@@ -8,7 +8,7 @@ pub async fn create<'e, E>(executor: E, input: NewAuthor) -> Result<Author, rok_
 where
     E: rok_data::Executor<'e>,
 {
-    Author::create()
+    Author::insert_builder()
         .set(Author::ID, input.id.unwrap_or_else(AuthorId::generate))
         .set(Author::NAME, input.name)
         .set(Author::EMAIL, input.email)

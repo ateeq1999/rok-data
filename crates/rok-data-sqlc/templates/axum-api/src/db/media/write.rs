@@ -8,7 +8,7 @@ pub async fn create<'e, E>(executor: E, input: NewMedia) -> Result<Media, rok_da
 where
     E: rok_data::Executor<'e>,
 {
-    Media::create()
+    Media::insert_builder()
         .set(Media::ID, input.id.unwrap_or_else(MediaId::generate))
         .set(Media::OWNER_ID, input.owner_id)
         .set(Media::CONTENT_TYPE, input.content_type)

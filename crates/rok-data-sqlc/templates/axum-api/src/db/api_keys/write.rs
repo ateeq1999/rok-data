@@ -9,7 +9,7 @@ pub async fn create<'e, E>(executor: E, input: NewApiKey) -> Result<ApiKey, rok_
 where
     E: rok_data::Executor<'e>,
 {
-    let mut insert = ApiKey::create();
+    let mut insert = ApiKey::insert_builder();
     insert = insert.set(ApiKey::ID, input.id.unwrap_or_else(ApiKeyId::generate));
     insert = insert.set(ApiKey::USER_ID, input.user_id);
     insert = insert.set(ApiKey::NAME, input.name);

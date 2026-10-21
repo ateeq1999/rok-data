@@ -363,6 +363,18 @@ Task graph, in order:
   added to the model; the chain gains `get()` (alias of `all`), `chunk()`
   and `r#where`; `r#where` also aliases the model's `filter`. Proven in
   the facade's integration suite.
+  - **Done (M1)**: the runtime carries the renamed verbs (`insert_builder`,
+    `update`, `update_only`) and the new ones (`exists`, `get`, `chunk`,
+    `r#where` at both levels); `chunk` windows the existing stream, so one
+    query serves every window. `save_only` became `update_only` for the
+    same reason `save` went: the ambiguous word does not survive. The
+    engine's emission, `Tracked`, the templates and `examples/api` follow
+    the renames, and the corpus was refreshed through the sanctioned
+    `ROK_DATA_SQLC_UPDATE_EXPECTED=1` runs. `Tracked::save` and the
+    `before_save`/`after_save` hooks keep their names on purpose — a
+    tracked record only ever writes changed columns, so the
+    insert-or-update ambiguity never reaches them (spec D9). The
+    migration guide carries the before/after.
 - **M2 — the inferred conventions** (spec D4): the derive infers managed
   timestamps and soft deletes from the field names; `#[rok(no_timestamps)]`
   and `#[rok(no_soft_delete)]` are the opt-outs; the existing markers keep

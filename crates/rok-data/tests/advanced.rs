@@ -176,7 +176,7 @@ fn upsert_sql() {
             .contains("ON CONFLICT DO NOTHING RETURNING")
     );
     assert!(
-        Account::create()
+        Account::insert_builder()
             .set(Account::EMAIL, "a@x")
             .on_constraint("accounts_email_key")
             .do_update_all()
@@ -331,11 +331,11 @@ async fn optimistic_locking() {
     let mut bob = acct.clone();
 
     alice.score = 10;
-    let alice = alice.save(&db).await.unwrap();
+    let alice = alice.update(&db).await.unwrap();
     assert_eq!(alice.version, 2);
 
     bob.score = 20;
-    let err = bob.save(&db).await.unwrap_err();
+    let err = bob.update(&db).await.unwrap_err();
     assert!(err.is_conflict(), "{err}");
     assert!(err.to_string().contains("modified concurrently"));
     assert_eq!(
@@ -347,7 +347,7 @@ async fn optimistic_locking() {
     // Reload and retry succeeds.
     let mut bob = bob.reload(&db).await.unwrap();
     bob.score = 20;
-    let bob = bob.save(&db).await.unwrap();
+    let bob = bob.update(&db).await.unwrap();
     assert_eq!((bob.score, bob.version), (20, 3));
 
     // Bulk updates bump the version too.
@@ -364,7 +364,7 @@ async fn optimistic_locking() {
     fresh.delete(&db).await.unwrap();
     assert!(fresh.delete(&db).await.unwrap_err().is_not_found());
     assert!(
-        fresh.save(&db).await.unwrap_err().is_not_found(),
+        fresh.update(&db).await.unwrap_err().is_not_found(),
         "missing, not conflict"
     );
 
@@ -380,7 +380,7 @@ async fn optimistic_locking() {
     .unwrap();
     let mut edited = note.clone();
     edited.body = "m".into();
-    let edited = edited.save(&db).await.unwrap();
+    let edited = edited.update(&db).await.unwrap();
     assert!(note.delete(&db).await.unwrap_err().is_conflict());
     edited.delete(&db).await.unwrap();
     let trashed = edited.reload(&db).await.unwrap();
@@ -393,8 +393,8 @@ async fn optimistic_locking() {
     let acct = account("t@x", 1).insert(&db).await.unwrap();
     let stale = acct.clone();
     let mut tx = db.begin().await.unwrap();
-    acct.save(&mut *tx).await.unwrap();
-    assert!(stale.save(&mut *tx).await.unwrap_err().is_conflict());
+    acct.update(&mut *tx).await.unwrap();
+    assert!(stale.update(&mut *tx).await.unwrap_err().is_conflict());
     tx.rollback().await.unwrap();
 }
 
@@ -450,7 +450,7 @@ async fn upserts() {
     );
 
     // Column builder with a named constraint, and DO NOTHING → None.
-    let skipped = Account::create()
+    let skipped = Account::insert_builder()
         .set(Account::EMAIL, "u@x")
         .set(Account::NAME, "n")
         .set(Account::SCORE, 0)
@@ -460,7 +460,7 @@ async fn upserts() {
         .await
         .unwrap();
     assert!(skipped.is_none());
-    let via_constraint = Account::create()
+    let via_constraint = Account::insert_builder()
         .set(Account::EMAIL, "u@x")
         .set(Account::NAME, "c")
         .set(Account::SCORE, 7)
@@ -472,7 +472,7 @@ async fn upserts() {
     assert_eq!(via_constraint.score, 7);
 
     // Misconfiguration is reported by exec.
-    let err = Account::create()
+    let err = Account::insert_builder()
         .set(Account::EMAIL, "z@x")
         .on_conflict([Account::EMAIL])
         .exec(&db)

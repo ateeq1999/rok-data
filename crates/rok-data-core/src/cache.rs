@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 /// ```
 ///
 /// Entries expire after their time-to-live, and every write that rok-data
-/// performs on a table (insert, save, upsert, delete, bulk update/delete —
+/// performs on a table (insert, update, upsert, delete, bulk update/delete —
 /// including inside transactions, again on commit) invalidates that table's
 /// entries. Changes rok-data can't see are not tracked: writes from other
 /// processes, [`raw`](crate::raw) SQL that doesn't declare

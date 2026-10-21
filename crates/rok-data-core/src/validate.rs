@@ -1,4 +1,4 @@
-//! Validation of model fields, run automatically before `insert`, `save`,
+//! Validation of model fields, run automatically before `insert`, `update`,
 //! `upsert` and `insert_many`.
 //!
 //! Declare rules on fields with `#[rok(validate(…))]`:

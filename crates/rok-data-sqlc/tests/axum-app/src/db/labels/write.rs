@@ -8,7 +8,7 @@ pub async fn create<'e, E>(executor: E, input: NewLabel) -> Result<Label, rok_da
 where
     E: rok_data::Executor<'e>,
 {
-    Label::create()
+    Label::insert_builder()
         .set(Label::NAME, input.name)
         .exec(executor)
         .await

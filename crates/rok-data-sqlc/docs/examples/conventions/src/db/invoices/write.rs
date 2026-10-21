@@ -15,7 +15,7 @@ pub async fn create<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    let mut insert = Invoice::create().set(Invoice::ORGANIZATION_ID, organization_id);
+    let mut insert = Invoice::insert_builder().set(Invoice::ORGANIZATION_ID, organization_id);
     if let Some(value) = input.id {
         insert = insert.set(Invoice::ID, value);
     }

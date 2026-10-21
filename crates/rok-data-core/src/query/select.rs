@@ -16,6 +16,9 @@ use super::{Trashed, implicit, push_where};
 /// arm re-borrows the path, so the rows and each include's batched load
 pub(crate) mod exec;
 
+/// The windowed read: [`Select::chunk`].
+pub(crate) mod chunk;
+
 /// Lock mode appended to a `SELECT`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Lock {
@@ -89,6 +92,22 @@ impl<M: Model> Select<M> {
     pub fn filter(mut self, expr: Expr<M>) -> Self {
         self.filters.push(expr.cond);
         self
+    }
+
+    /// Add a `WHERE` condition — the Eloquent spelling of
+    /// [`filter`](Self::filter).
+    ///
+    /// `where` is a Rust keyword, so only the raw identifier `r#where`
+    /// compiles; `filter` stays the canonical verb.
+    ///
+    /// ```ignore
+    /// let admins = User::query()
+    ///     .r#where(User::ROLE.eq("admin"))
+    ///     .all(&db)
+    ///     .await?;
+    /// ```
+    pub fn r#where(self, expr: Expr<M>) -> Self {
+        self.filter(expr)
     }
 
     /// Query every tenant's rows of a `#[rok(tenant)]` model, ignoring the

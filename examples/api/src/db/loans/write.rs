@@ -8,7 +8,7 @@ pub async fn create<'e, E>(executor: E, input: NewLoan) -> Result<Loan, rok_data
 where
     E: rok_data::Executor<'e>,
 {
-    Loan::create()
+    Loan::insert_builder()
         .set(Loan::ID, input.id.unwrap_or_else(LoanId::generate))
         .set(Loan::BOOK_ID, input.book_id)
         .set(Loan::BORROWER, input.borrower)

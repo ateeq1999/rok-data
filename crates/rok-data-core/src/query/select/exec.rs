@@ -44,6 +44,12 @@ impl<M: Model> Select<M> {
         exec::fetch_all(executor, &self.to_sql(), &[], self.use_replica()).await
     }
 
+    /// Fetch every matching row — the Eloquent spelling of
+    /// [`all`](Self::all). Both names do the same thing.
+    pub async fn get<'e, E: Executor<'e>>(self, executor: E) -> Result<Vec<M>> {
+        self.all(executor).await
+    }
+
     /// Fetch the first matching row, or `None`.
     pub async fn first<'e, E: Executor<'e>>(self, executor: E) -> Result<Option<M>> {
         let replica = self.use_replica();

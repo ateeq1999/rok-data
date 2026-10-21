@@ -96,12 +96,12 @@ async fn crud_by_composite_key(db: Db) {
         .unwrap();
     assert_eq!(many.len(), 2);
 
-    // save/delete touch exactly one row, with version checks.
+    // update/delete touch exactly one row, with version checks.
     let mut promoted = found.clone();
     promoted.role = "admin".into();
-    let promoted = promoted.save(&db).await.unwrap();
+    let promoted = promoted.update(&db).await.unwrap();
     assert_eq!((promoted.role.as_str(), promoted.version), ("admin", 2));
-    assert!(found.save(&db).await.unwrap_err().is_conflict());
+    assert!(found.update(&db).await.unwrap_err().is_conflict());
     assert_eq!(
         Membership::filter(Membership::ROLE.eq("admin"))
             .count(&db)
@@ -177,7 +177,7 @@ async fn audit_history_with_composite_keys(db: Db) {
     m(3, 5, "other").insert(&db).await.unwrap();
     let mut edited = row.clone();
     edited.role = "b".into();
-    edited.save(&db).await.unwrap();
+    edited.update(&db).await.unwrap();
 
     let history = audit::history::<Membership>(&db, (3_i64, 4_i64))
         .await

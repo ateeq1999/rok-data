@@ -6,6 +6,107 @@ what was actually renamed, removed, or unified. Everything not listed is
 unchanged — same APIs, same test suites, same behavior (verified by
 porting the original tests).
 
+The one section that is not about a repository lineage is **To 0.3.0**,
+the upgrade from 0.2.0 to 0.3.0: the runtime's public surface and the
+generated output both change there.
+
+## To 0.3.0
+
+0.3.0 is a breaking release: the runtime's public surface changes, and the
+generated output changes with it. Regenerate once (`rok gen`, or
+`rok sqlc generate` for the engine's own projects) and fix the compiler
+errors the compiler finds for you. Nothing else changes — the query
+builders, the executors, the hooks' behaviour and the CLI's commands,
+flags, outputs and exit codes are the same.
+
+### Renamed calls
+
+| Before (0.2.0)        | After (0.3.0)             | What it is |
+| --------------------- | ------------------------- | ---------- |
+| `Model::create()`     | `Model::insert_builder()` | the insert builder: one column at a time, raw expressions, conflict handling |
+| `row.save(&db)`       | `row.update(&db)`         | the row-level update by primary key; returns the stored row |
+| `row.save_only(&db, columns)` | `row.update_only(&db, columns)` | the row-level update of the listed columns only |
+
+```rust
+// before
+let user = User::create()
+    .set(User::EMAIL, "a@b.c")
+    .exec(&db)
+    .await?;
+user.save(&db).await?;
+
+// after
+let user = User::insert_builder()
+    .set(User::EMAIL, "a@b.c")
+    .exec(&db)
+    .await?;
+user.update(&db).await?;
+```
+
+`save` is **removed, not aliased**: it is the one Eloquent verb whose
+meaning is ambiguous (insert *or* update), and a non-optional typed key
+leaves the runtime nothing to decide on. Use the explicit verbs — `insert`,
+`update`, `upsert`, `upsert_on` — instead.
+
+The generated data layer changes with the runtime: the generated write
+module calls `insert_builder()` now, so regenerate. The generated
+functions keep their names (`create`, `update`, `delete`); only the model
+verbs they call changed.
+
+### New verbs
+
+| Verb                | Signature                                  | Notes |
+| ------------------- | ------------------------------------------ | ----- |
+| `Model::exists`     | `fn exists(executor) -> Result<bool>`      | does the table have a row? the model's own scope applies (soft deletes, default scope, tenant) |
+| `Model::r#where`    | `fn r#where(expr) -> Select<Self>`         | the Eloquent spelling of `filter` |
+| `Select::r#where`   | `fn r#where(expr) -> Self`                 | the Eloquent spelling of `filter`, on the chain |
+| `Select::get`       | `fn get(executor) -> Result<Vec<Self>>`    | the Eloquent spelling of `all`; both stay |
+| `Select::chunk`     | `fn chunk(executor, size, f) -> Result<()>` | the rows in windows of `size`, so a large table need not fit in memory |
+
+```rust
+// `where` is a Rust keyword, so only the raw identifier compiles; `filter`
+// stays the canonical verb and the generated code keeps using it.
+let admins = User::r#where(User::ROLE.eq("admin")).all(&db).await?;
+
+// one row or many, without fetching them
+if User::exists(&db).await? {
+    // …
+}
+
+// the same rows as `all`
+let users = User::query().get(&db).await?;
+
+// the rows in windows of 100, one query, every row once
+User::query().chunk(&db, 100, |rows| async move {
+    for user in rows {
+        archive(&db, user).await?;
+    }
+    Ok(())
+}).await?;
+```
+
+`chunk` streams the rows: only one window is in memory at a time, the
+query runs once (not once per window), every matching row reaches the
+callback exactly once in the order the query returns them, and the last
+window is shorter when the rows don't divide by the size. The callback
+returns a future, so a window can be written back to the database before
+the next one arrives; the first error stops the walk and is returned.
+The query holds its connection while the windows are processed, so a
+callback that writes back needs a second one (give the pool more than one
+connection).
+
+### Unchanged on purpose
+
+- `filter` stays the canonical verb (the Diesel/SeaORM convention);
+  `r#where` is an alias, not a replacement.
+- `all` stays next to `get`.
+- `Tracked::save` keeps its name: a tracked record only ever writes the
+  columns that changed, so it never has the insert-or-update ambiguity
+  `Model::save` had.
+- The `before_save` / `after_save` hooks keep their names (and their
+  meaning: they run around the row-level update).
+- `Model::update_all()` (the bulk set-builder) keeps its name.
+
 ## From `rok-db`
 
 **Rust packages:** `rok-db` → `rok-data` (facade), `rok-db-core` →

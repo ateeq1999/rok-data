@@ -9,7 +9,7 @@ pub async fn create<'e, E>(executor: E, input: NewUser) -> Result<User, rok_data
 where
     E: rok_data::Executor<'e>,
 {
-    let mut insert = User::create();
+    let mut insert = User::insert_builder();
     insert = insert.set(User::ID, input.id.unwrap_or_else(UserId::generate));
     insert = insert.set(User::EMAIL, input.email);
     insert = insert.set(User::DISPLAY_NAME, input.display_name);

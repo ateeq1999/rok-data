@@ -62,6 +62,24 @@ async fn query_logging() {
         .unwrap_err();
     assert!(matches!(err, Error::Database(_)));
 
+    // A chunked read is one statement, however many windows it delivers.
+    for name in ["a", "b"] {
+        User::insert_builder()
+            .set(User::NAME, name)
+            .exec(&db)
+            .await
+            .unwrap();
+    }
+    let mut windows = Vec::new();
+    User::query()
+        .chunk(&db, 1, |rows| {
+            windows.push(rows.len());
+            async { Ok(()) }
+        })
+        .await
+        .unwrap();
+    assert_eq!(windows, [1, 1], "one window per row");
+
     let logs = String::from_utf8(capture.0.lock().unwrap().clone()).unwrap();
     assert!(
         logs.contains(r#"SELECT COUNT(*) FROM \"users\" WHERE \"name\" = $1"#),
@@ -70,6 +88,19 @@ async fn query_logging() {
     assert!(
         !logs.contains("secret"),
         "parameters are only logged at TRACE level"
+    );
+    let streams: Vec<&str> = logs
+        .lines()
+        .filter(|line| line.contains("rok_data::query: stream"))
+        .collect();
+    assert_eq!(
+        streams.len(),
+        1,
+        "the chunk is one statement, whatever the window size: {logs}"
+    );
+    assert!(
+        streams[0].contains(r#"SELECT \"id\", \"name\" FROM \"users\""#),
+        "{logs}"
     );
     assert!(
         logs.contains("slow query") && logs.contains("pg_sleep"),

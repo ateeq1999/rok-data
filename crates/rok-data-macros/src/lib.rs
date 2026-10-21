@@ -44,7 +44,7 @@ mod test;
 ///   Mark several fields for a composite key (in field order); look records
 ///   up with a tuple: `Membership::find(&db, (org_id, user_id))`.
 /// - `#[rok(generated)]` — filled in by the database (serial ids, defaults,
-///   triggers): read, but never written by `insert`/`save`.
+///   triggers): read, but never written by `insert`/`update`.
 /// - `#[rok(column = "name")]` — column name, if it differs from the field.
 /// - `#[rok(skip)]` — not a column; initialised with `Default::default()`.
 /// - `#[rok(created_at)]` / `#[rok(updated_at)]` — managed timestamp column
@@ -53,10 +53,10 @@ mod test;
 /// - `#[rok(tenant)]` — the tenant column for row-level multi-tenancy
 ///   (see `rok_data::tenant`).
 /// - `#[rok(version)]` — optimistic-locking counter (an integer): every
-///   update increments it, and `save`/`delete` fail with a conflict error if
+///   update increments it, and `update`/`delete` fail with a conflict error if
 ///   it changed since the record was loaded.
 /// - `#[rok(validate(…))]` — validation rules checked before every insert
-///   and save: `length(min = 1, max = 50)`, `range(min = 0, max = 150)`,
+///   and update: `length(min = 1, max = 50)`, `range(min = 0, max = 150)`,
 ///   `email`, `non_empty`, `custom = path::to::fn` (`fn(&T) -> Result<(), String>`).
 ///   Rules on `Option` fields apply only to `Some`.
 /// - `#[rok(belongs_to = User)]` on a foreign key field `user_id` — generates

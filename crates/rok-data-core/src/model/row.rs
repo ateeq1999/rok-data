@@ -6,12 +6,9 @@ use sqlx::FromRow;
 use sqlx::postgres::PgRow;
 
 use super::Hooks;
-use super::checked_write::checked_write;
-use super::insert::{insert_sql, is_timestamp, pre_insert, writable};
-use crate::exec;
+use super::writes;
 use crate::key::{IntoKey, key_expr, key_string};
-use crate::query::{Conflict, ConflictAction, ConflictTarget, Insert, InsertMany, Select, Update};
-use crate::sql::Sql;
+use crate::query::{Insert, InsertMany, Select, Update};
 use crate::validate::ValidationErrors;
 use crate::{Column, Error, Executor, Expr, Order, Result, Value};
 
@@ -43,7 +40,7 @@ pub trait Model:
     /// Every column read from and written to the database, in field order.
     const COLUMNS: &'static [&'static str];
     /// Columns filled in by the database (serial ids, defaults, triggers).
-    /// They are read but never written by [`insert`](Model::insert) or [`save`](Model::save).
+    /// They are read but never written by [`insert`](Model::insert) or [`update`](Model::update).
     const GENERATED: &'static [&'static str] = &[];
     /// Column set to `now()` on insert and never changed afterwards.
     const CREATED_AT_COLUMN: Option<&'static str> = None;
@@ -54,7 +51,7 @@ pub trait Model:
     const DELETED_AT_COLUMN: Option<&'static str> = None;
     /// Tenant column: see [`tenant`](crate::tenant).
     const TENANT_COLUMN: Option<&'static str> = None;
-    /// Optimistic-locking column: incremented on every update, and `save`/
+    /// Optimistic-locking column: incremented on every update, and `update`/
     /// `delete` fail with [`Error::Conflict`] if it changed since loading.
     const VERSION_COLUMN: Option<&'static str> = None;
 
@@ -79,7 +76,7 @@ pub trait Model:
     fn values(&self) -> Vec<(&'static str, Value)>;
 
     /// Check the record's `#[rok(validate(…))]` rules. Called automatically
-    /// before every insert and save.
+    /// before every insert and update.
     fn validate(&self) -> std::result::Result<(), ValidationErrors> {
         Ok(())
     }
@@ -125,13 +122,34 @@ pub trait Model:
         Select::new().filter(expr)
     }
 
+    /// Start a `SELECT` filtered by `expr` — the Eloquent spelling of
+    /// [`filter`](Model::filter).
+    ///
+    /// `where` is a Rust keyword, so only the raw identifier `r#where`
+    /// compiles; `filter` stays the canonical verb.
+    ///
+    /// ```ignore
+    /// let admins = User::r#where(User::ROLE.eq("admin")).all(&db).await?;
+    /// ```
+    fn r#where(expr: Expr<Self>) -> Select<Self> {
+        Self::filter(expr)
+    }
+
     /// Start a `SELECT` ordered by `order`.
     fn order_by(order: impl Into<Order<Self>>) -> Select<Self> {
         Select::new().order_by(order)
     }
 
-    /// Start an `INSERT` built column by column.
-    fn create() -> Insert<Self> {
+    /// Start an `INSERT` built column by column — the low-level write path,
+    /// for raw expressions and conflict handling.
+    ///
+    /// ```ignore
+    /// User::insert_builder()
+    ///     .set(User::EMAIL, "a@b.c")
+    ///     .exec(&db)
+    ///     .await?;
+    /// ```
+    fn insert_builder() -> Insert<Self> {
         Insert::new()
     }
 
@@ -230,6 +248,23 @@ pub trait Model:
         Self::query().count(executor)
     }
 
+    /// `true` if the table has at least one record.
+    ///
+    /// The model's own scope applies (soft deletes, the default scope, the
+    /// tenant), like every other read.
+    ///
+    /// ```ignore
+    /// if User::exists(&db).await? {
+    ///     // …
+    /// }
+    /// ```
+    fn exists<'e, E>(executor: E) -> impl Future<Output = Result<bool>> + Send
+    where
+        E: Executor<'e>,
+    {
+        Self::query().exists(executor)
+    }
+
     /// Re-read this record from the database.
     fn reload<'e, E>(&self, executor: E) -> impl Future<Output = Result<Self>> + Send
     where
@@ -299,16 +334,7 @@ pub trait Model:
     where
         E: Executor<'e>,
     {
-        async move {
-            // Rendered when awaited, so tenant scopes apply.
-            pre_insert(self)?;
-            let sql = insert_sql::<Self>(std::slice::from_ref(self), false, None);
-            let row = exec::fetch_optional::<Self, _>(executor, &sql?, &[Self::TABLE], false)
-                .await?
-                .ok_or_else(|| Error::not_found::<Self>(None))?;
-            row.after_insert()?;
-            Ok(row)
-        }
+        writes::insert(self, executor)
     }
 
     /// `INSERT` many records in a single statement and return the stored rows.
@@ -353,19 +379,7 @@ pub trait Model:
     where
         E: Executor<'e>,
     {
-        let conflict = Conflict {
-            target: ConflictTarget::Columns(Self::PRIMARY_KEYS.to_vec()),
-            action: ConflictAction::UpdateAll,
-        };
-        async move {
-            pre_insert(self)?;
-            let sql = insert_sql::<Self>(std::slice::from_ref(self), true, Some(&conflict));
-            let row = exec::fetch_optional::<Self, _>(executor, &sql?, &[Self::TABLE], false)
-                .await?
-                .ok_or_else(|| Error::not_found::<Self>(None))?;
-            row.after_insert()?;
-            Ok(row)
-        }
+        writes::upsert(self, executor)
     }
 
     /// `INSERT` this record, or update it if it conflicts on `columns` (a
@@ -377,7 +391,8 @@ pub trait Model:
     ///
     /// Every inserted column except `columns`, the primary key and
     /// `created_at` is overwritten. For other policies use
-    /// [`insert_many`](Model::insert_many) or [`create`](Model::create).
+    /// [`insert_many`](Model::insert_many) or
+    /// [`insert_builder`](Model::insert_builder).
     fn upsert_on<'e, E>(
         &self,
         executor: E,
@@ -386,42 +401,39 @@ pub trait Model:
     where
         E: Executor<'e>,
     {
-        let conflict = Conflict {
-            target: ConflictTarget::Columns(columns.into_iter().map(|c| c.name()).collect()),
-            action: ConflictAction::UpdateAll,
-        };
-        async move {
-            pre_insert(self)?;
-            let sql = insert_sql::<Self>(std::slice::from_ref(self), false, Some(&conflict));
-            let row = exec::fetch_optional::<Self, _>(executor, &sql?, &[Self::TABLE], false)
-                .await?
-                .ok_or_else(|| Error::not_found::<Self>(None))?;
-            row.after_insert()?;
-            Ok(row)
-        }
+        writes::upsert_on(
+            self,
+            executor,
+            columns.into_iter().map(|c| c.name()).collect(),
+        )
     }
 
     /// `UPDATE` every non-generated column of this record by primary key and
     /// return the stored row. Fails with [`Error::NotFound`] if the row is
     /// gone, and with [`Error::Conflict`] if its `#[rok(version)]` changed
     /// since it was loaded.
-    fn save<'e, E>(&self, executor: E) -> impl Future<Output = Result<Self>> + Send
+    ///
+    /// ```ignore
+    /// user.name = "Ann".into();
+    /// let user = user.update(&db).await?;
+    /// ```
+    fn update<'e, E>(&self, executor: E) -> impl Future<Output = Result<Self>> + Send
     where
         E: Executor<'e>,
     {
-        self.save_only(executor, None)
+        self.update_only(executor, None)
     }
 
-    /// Like [`save`](Model::save), but only write `columns` (managed columns
-    /// such as `updated_at` and `version` are still maintained). Passing
-    /// `None` writes every column.
+    /// Like [`update`](Model::update), but only write `columns` (managed
+    /// columns such as `updated_at` and `version` are still maintained).
+    /// Passing `None` writes every column.
     ///
     /// ```ignore
-    /// user.save_only(&db, Some(vec![User::EMAIL])).await?;
+    /// user.update_only(&db, Some(vec![User::EMAIL])).await?;
     /// ```
     ///
     /// [`Tracked`](crate::Tracked) uses this to write only changed fields.
-    fn save_only<'e, E>(
+    fn update_only<'e, E>(
         &self,
         executor: E,
         columns: Option<Vec<Column<Self>>>,
@@ -429,58 +441,13 @@ pub trait Model:
     where
         E: Executor<'e>,
     {
-        let only: Option<Vec<&'static str>> = columns.map(|c| c.iter().map(|c| c.name()).collect());
+        // The validation and the `before_save` hook run when the call is
+        // made, not when the future is awaited.
         let pre = self
             .validate()
             .map_err(Error::Validation)
             .and_then(|()| self.before_save());
-        let key = key_string(&self.key_values());
-        let managed = |c: &str| {
-            Self::PRIMARY_KEYS.contains(&c)
-                || is_timestamp::<Self>(c)
-                || Self::VERSION_COLUMN == Some(c)
-                || Self::TENANT_COLUMN == Some(c)
-        };
-        let sets: Vec<_> = writable::<Self>(self.values())
-            .filter(|(c, _)| !managed(c))
-            .filter(|(c, _)| only.as_ref().is_none_or(|only| only.contains(c)))
-            .collect();
-        let mut update = Self::update_all()
-            .with_trashed()
-            .unscoped()
-            .filter(self.key_filter());
-        let version = Self::VERSION_COLUMN.and_then(|c| self.value_of(c).map(|v| (c, v)));
-        if let Some((column, current)) = version.clone() {
-            update = update.filter(Column::new(column).eq(current));
-        }
-        for (column, value) in sets {
-            update = update.set(Column::new(column), value);
-        }
-        let changes = update.has_sets()
-            || Self::UPDATED_AT_COLUMN.is_some()
-            || Self::VERSION_COLUMN.is_some();
-        async move {
-            pre?;
-            let row = if !changes {
-                update
-                    .into_select()
-                    .first(executor)
-                    .await?
-                    .ok_or_else(|| Error::not_found::<Self>(Some(key)))?
-            } else if version.is_some() {
-                let mut sql = Sql::new();
-                update.write_into(&mut sql);
-                let exists = Self::filter(self.key_filter()).with_trashed().unscoped();
-                checked_write::<Self, _>(executor, sql, key, exists).await?
-            } else {
-                update
-                    .returning_one(executor)
-                    .await?
-                    .ok_or_else(|| Error::not_found::<Self>(Some(key)))?
-            };
-            row.after_save()?;
-            Ok(row)
-        }
+        writes::update_only(self, executor, columns, pre)
     }
 
     /// Delete this record by primary key. Models with soft deletes are
@@ -514,44 +481,10 @@ pub trait Model:
     where
         E: Executor<'e>,
     {
+        // The `before_delete` hook runs when the call is made, not when the
+        // future is awaited.
         let pre = self.before_delete();
-        let key = key_string(&self.key_values());
-        let soft = Self::DELETED_AT_COLUMN.filter(|_| !force);
-        let version = Self::VERSION_COLUMN.and_then(|c| self.value_of(c).map(|v| (c, v)));
-        let mut select = Self::filter(self.key_filter()).unscoped();
-        if force {
-            select = select.with_trashed();
-        }
-        // "Does the row exist?" uses the same soft-delete scope as the write.
-        let exists = select.clone();
-        if let Some((column, current)) = version.clone() {
-            select = select.filter(Column::new(column).eq(current));
-        }
-        async move {
-            pre?;
-            // Rendered when awaited, so tenant scopes apply.
-            let mut sql = Sql::new();
-            match soft {
-                Some(deleted_at) => select
-                    .update()
-                    .set_raw(Column::new(deleted_at), "now()", [] as [Value; 0])
-                    .write_into(&mut sql),
-                None => {
-                    let delete = if force {
-                        select.force_delete_sql()
-                    } else {
-                        select.delete_sql()
-                    };
-                    sql = delete;
-                }
-            }
-            if version.is_some() {
-                checked_write::<Self, _>(executor, sql, key, exists).await?;
-            } else if exec::execute(executor, &sql, &[Self::TABLE]).await? == 0 {
-                return Err(Error::not_found::<Self>(Some(key)));
-            }
-            self.after_delete()
-        }
+        writes::delete_by_key(self, executor, force, pre)
     }
 
     /// Restore this soft-deleted record (`deleted_at = NULL`) and return the

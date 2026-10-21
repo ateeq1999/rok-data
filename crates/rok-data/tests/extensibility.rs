@@ -104,7 +104,7 @@ async fn custom_types_round_trip(db: Db) {
         2
     );
 
-    // Update through `set` and `save`, including NULL of a custom type.
+    // Update through `set` and `update`, including NULL of a custom type.
     Member::filter(Member::ID.eq(bob.id))
         .update()
         .set(Member::MOOD, Some(Mood::Sad))
@@ -114,7 +114,7 @@ async fn custom_types_round_trip(db: Db) {
     let mut ann = ann;
     ann.mood = None;
     ann.role = Role::Member;
-    let ann = ann.save(&db).await.unwrap();
+    let ann = ann.update(&db).await.unwrap();
     assert_eq!((ann.role, ann.mood), (Role::Member, None));
     assert_eq!(bob.reload(&db).await.unwrap().mood, Some(Mood::Sad));
 
@@ -277,7 +277,7 @@ async fn validation_and_hooks_guard_writes(db: Db) {
 
     ann.age = -1;
     assert!(
-        ann.save(&db)
+        ann.update(&db)
             .await
             .unwrap_err()
             .validation_errors()
@@ -285,9 +285,9 @@ async fn validation_and_hooks_guard_writes(db: Db) {
     );
     ann.age = 31;
     ann.name = "frozen".into();
-    assert!(matches!(ann.save(&db).await.unwrap_err(), Error::Hook(_)));
+    assert!(matches!(ann.update(&db).await.unwrap_err(), Error::Hook(_)));
     ann.name = "ann".into();
-    let ann = ann.save(&db).await.unwrap();
+    let ann = ann.update(&db).await.unwrap();
     assert_eq!(ann.age, 31);
 
     // Upserts are validated like inserts.
@@ -396,7 +396,7 @@ async fn default_and_named_scopes(db: Db) {
     );
     let mut draft = rows[0].clone();
     draft.title = "draft v2".into();
-    assert_eq!(draft.save(&db).await.unwrap().views, 500);
+    assert_eq!(draft.update(&db).await.unwrap().views, 500);
     draft.delete(&db).await.unwrap();
     assert_eq!(Article::query().unscoped().count(&db).await.unwrap(), 3);
 }

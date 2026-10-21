@@ -9,7 +9,7 @@ pub async fn create<'e, E>(executor: E, input: NewProject) -> Result<Project, ro
 where
     E: rok_data::Executor<'e>,
 {
-    let mut insert = Project::create();
+    let mut insert = Project::insert_builder();
     insert = insert.set(Project::ID, input.id.unwrap_or_else(ProjectId::generate));
     insert = insert.set(Project::OWNER_ID, input.owner_id);
     insert = insert.set(Project::NAME, input.name);

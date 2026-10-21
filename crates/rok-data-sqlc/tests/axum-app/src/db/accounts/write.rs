@@ -8,7 +8,7 @@ pub async fn create<'e, E>(executor: E, input: NewAccount) -> Result<Account, ro
 where
     E: rok_data::Executor<'e>,
 {
-    Account::create()
+    Account::insert_builder()
         .set(Account::ID, input.id.unwrap_or_else(AccountId::generate))
         .set(Account::EMAIL, input.email)
         .set(Account::PASSWORD_HASH, input.password_hash)

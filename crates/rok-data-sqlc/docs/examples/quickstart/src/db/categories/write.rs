@@ -9,7 +9,7 @@ pub async fn create<'e, E>(executor: E, input: NewCategory) -> Result<Category, 
 where
     E: rok_data::Executor<'e>,
 {
-    let mut insert = Category::create();
+    let mut insert = Category::insert_builder();
     insert = insert.set(Category::NAME, input.name);
     if let Some(value) = input.created_at {
         insert = insert.set(Category::CREATED_AT, value);

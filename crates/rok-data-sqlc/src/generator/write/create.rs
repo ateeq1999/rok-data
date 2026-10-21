@@ -83,7 +83,7 @@ pub(super) fn render_static_create(output: &mut String, table: &Table, columns: 
         output,
         4,
         "",
-        &format!("{}::create()", table.struct_name),
+        &format!("{}::insert_builder()", table.struct_name),
         &calls,
         "",
     );
@@ -116,7 +116,7 @@ pub(super) fn render_dynamic_create(output: &mut String, table: &Table, columns:
         output,
         4,
         "let mut insert = ",
-        &format!("{}::create()", table.struct_name),
+        &format!("{}::insert_builder()", table.struct_name),
         &calls,
         ";",
     );

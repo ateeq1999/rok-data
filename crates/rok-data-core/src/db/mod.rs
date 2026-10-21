@@ -131,7 +131,7 @@ impl Db {
     /// ```ignore
     /// let user = db.transaction(|tx| Box::pin(async move {
     ///     let user = new_user.insert(&mut *tx).await?;
-    ///     Profile::create().set(Profile::USER_ID, user.id).exec(&mut *tx).await?;
+    ///     Profile::insert_builder().set(Profile::USER_ID, user.id).exec(&mut *tx).await?;
     ///     Ok(user)
     /// })).await?;
     /// ```
@@ -167,8 +167,8 @@ impl Db {
     ///     let mut to = Account::find_or_fail(&mut *tx, 2).await?;
     ///     from.balance -= 10;
     ///     to.balance += 10;
-    ///     from.save(&mut *tx).await?;
-    ///     to.save(&mut *tx).await?;
+    ///     from.update(&mut *tx).await?;
+    ///     to.update(&mut *tx).await?;
     ///     Ok::<_, rok_data::Error>(())
     /// })).await?;
     /// ```

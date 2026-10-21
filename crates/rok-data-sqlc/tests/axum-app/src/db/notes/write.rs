@@ -13,7 +13,7 @@ pub async fn create<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    Note::create()
+    Note::insert_builder()
         .set(Note::TENANT_ID, tenant_id)
         .set(Note::ID, input.id.unwrap_or_else(NoteId::generate))
         .set(Note::OWNER_ID, input.owner_id)

@@ -6,6 +6,10 @@ use crate::{Column, Executor, Model, Result, Value};
 /// A record that remembers its loaded values, so [`save`](Tracked::save)
 /// writes only the columns you changed — or nothing at all.
 ///
+/// The tracked record's own verb is `update` (the model's
+/// [`update`](crate::Model::update)); `Tracked::save` keeps its own name
+/// because it never inserts: it only writes the columns that changed.
+///
 /// ```ignore
 /// let mut user = User::find_or_fail(&db, 1).await?.track();
 /// user.name = "Ann".into();               // DerefMut to the record
@@ -67,7 +71,7 @@ impl<M: Model> Tracked<M> {
         if changed.is_empty() {
             return Ok(false);
         }
-        let stored = self.record.save_only(executor, Some(changed)).await?;
+        let stored = self.record.update_only(executor, Some(changed)).await?;
         *self = Tracked::new(stored);
         Ok(true)
     }

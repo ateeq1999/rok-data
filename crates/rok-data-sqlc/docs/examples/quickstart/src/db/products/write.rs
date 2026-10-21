@@ -9,7 +9,7 @@ pub async fn create<'e, E>(executor: E, input: NewProduct) -> Result<Product, ro
 where
     E: rok_data::Executor<'e>,
 {
-    let mut insert = Product::create();
+    let mut insert = Product::insert_builder();
     if let Some(value) = input.id {
         insert = insert.set(Product::ID, value);
     }

@@ -11,6 +11,7 @@ use rok_data::{Include, raw};
 mod memoized;
 mod relations;
 mod streaming;
+mod surface;
 mod timestamps;
 
 #[derive(Debug, Clone, PartialEq, Model)]
@@ -104,12 +105,12 @@ async fn seed(db: &Db) -> (Vec<User>, Vec<Post>) {
     )
     .await
     .unwrap();
-    let rust = Category::create()
+    let rust = Category::insert_builder()
         .set(Category::NAME, "rust")
         .exec(db)
         .await
         .unwrap();
-    let sql = Category::create()
+    let sql = Category::insert_builder()
         .set(Category::NAME, "sql")
         .exec(db)
         .await
@@ -134,7 +135,7 @@ async fn seed(db: &Db) -> (Vec<User>, Vec<Post>) {
     )
     .await
     .unwrap();
-    Profile::create()
+    Profile::insert_builder()
         .set(Profile::USER_ID, users[0].id)
         .set(Profile::BIO, "hi")
         .exec(db)

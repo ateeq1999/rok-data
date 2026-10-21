@@ -5,13 +5,14 @@ use crate::Result;
 mod checked_write;
 mod insert;
 mod row;
+mod writes;
 
 pub use insert::__insert_sql;
 pub(crate) use insert::{insert_sql, pre_insert, push_columns, push_returning, tenant_override};
 pub use row::Model;
 
 /// Lifecycle hooks, called around the record-level writes of [`Model`]
-/// (`insert`, `insert_all`/`insert_many`, `upsert`, `save`, `delete`,
+/// (`insert`, `insert_all`/`insert_many`, `upsert`, `update`, `delete`,
 /// `force_delete`). Bulk query operations (`Select::update`,
 /// `Select::delete`, …) don't call hooks.
 ///
@@ -45,11 +46,11 @@ pub trait Hooks {
     fn after_insert(&self) -> Result<()> {
         Ok(())
     }
-    /// Before `save`, after validation.
+    /// Before the record is written by the `update` verb, after validation.
     fn before_save(&self) -> Result<()> {
         Ok(())
     }
-    /// After `save`, with the stored row.
+    /// After the record is written by the `update` verb, with the stored row.
     fn after_save(&self) -> Result<()> {
         Ok(())
     }

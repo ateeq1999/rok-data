@@ -12,7 +12,7 @@ pub async fn create<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    let mut insert = AuditLogEntry::create();
+    let mut insert = AuditLogEntry::insert_builder();
     insert = insert.set(
         AuditLogEntry::ID,
         input.id.unwrap_or_else(AuditLogEntryId::generate),

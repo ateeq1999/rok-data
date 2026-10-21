@@ -41,7 +41,10 @@ mod timestamps_sql {
             r#"UPDATE "notes" SET "body" = $1, "updated_at" = now() WHERE "id" = $2"#
         );
         assert_eq!(
-            Note::create().set(Note::BODY, "x").to_sql().as_str(),
+            Note::insert_builder()
+                .set(Note::BODY, "x")
+                .to_sql()
+                .as_str(),
             r#"INSERT INTO "notes" ("body", "created_at", "updated_at") VALUES ($1, now(), now()) RETURNING "id", "body", "created_at", "updated_at""#
         );
     }
@@ -81,7 +84,7 @@ async fn timestamps() {
     let mut edited = note.clone();
     edited.body = "b".into();
     edited.created_at = epoch;
-    let saved = edited.save(&db).await.unwrap();
+    let saved = edited.update(&db).await.unwrap();
     assert_eq!(
         saved.created_at, note.created_at,
         "created_at is never updated"
@@ -107,6 +110,10 @@ async fn timestamps() {
     assert_eq!(upserted.created_at, note.created_at);
     assert!(upserted.updated_at > reloaded.updated_at);
 
-    let built = Note::create().set(Note::BODY, "e").exec(&db).await.unwrap();
+    let built = Note::insert_builder()
+        .set(Note::BODY, "e")
+        .exec(&db)
+        .await
+        .unwrap();
     assert!(built.created_at > epoch);
 }

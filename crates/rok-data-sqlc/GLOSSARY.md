@@ -193,7 +193,7 @@ The generic `rok_data::Executor<'e>` (implements `sqlx::PgExecutor`) a generated
 _Avoid_: pool (when it may be a transaction), connection
 
 **Query chain**:
-The fluent data-layer chain a generated function runs on: entry points on the row type (`Xxx::query()` for reads and deletes, `Xxx::create()` for inserts, `Xxx::update_all()` for partial updates) with `.filter()`, `.set()`, `.order_by()`, and terminal calls — `first`, `all`, `count`, `returning_one`, `exec`, `delete` — each executed against an executor. The chains mirror the runtime facade's builders (`Select`, `Insert`, `Patch`); the engine only assembles them.
+The fluent data-layer chain a generated function runs on: entry points on the row type (`Xxx::query()` for reads and deletes, `Xxx::insert_builder()` for inserts, `Xxx::update_all()` for partial updates) with `.filter()`, `.set()`, `.order_by()`, and terminal calls — `first`, `all`, `count`, `returning_one`, `exec`, `delete` — each executed against an executor. The chains mirror the runtime facade's builders (`Select`, `Insert`, `Patch`); the engine only assembles them.
 _Avoid_: raw SQL (for the chains), query builder (that is the filter surface)
 
 ## Relationships

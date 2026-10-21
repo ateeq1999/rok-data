@@ -90,12 +90,12 @@ async fn tracked_saves_only_changes(db: Db) {
     let ann: Customer = ann.into_inner();
     assert_eq!(ann.reload(&db).await.unwrap().name, "Ann");
 
-    // save_only writes just the listed columns.
+    // update_only writes just the listed columns.
     let mut fresh = ann.reload(&db).await.unwrap();
     fresh.name = "ignored".into();
     fresh.credits = 5;
     let saved = fresh
-        .save_only(&db, Some(vec![Customer::CREDITS]))
+        .update_only(&db, Some(vec![Customer::CREDITS]))
         .await
         .unwrap();
     assert_eq!((saved.name.as_str(), saved.credits), ("Ann", 5));

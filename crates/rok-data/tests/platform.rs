@@ -79,9 +79,12 @@ async fn tenancy_is_enforced(db: Db) {
         with_tenant(1_i64, invoice(999, 10).insert(&db))
             .await
             .unwrap(),
-        with_tenant(2_i64, Invoice::create().set(Invoice::TOTAL, 20).exec(&db))
-            .await
-            .unwrap(),
+        with_tenant(
+            2_i64,
+            Invoice::insert_builder().set(Invoice::TOTAL, 20).exec(&db),
+        )
+        .await
+        .unwrap(),
     );
     assert_eq!((mine.org_id, theirs.org_id), (1, 2));
     with_tenant(
@@ -124,7 +127,7 @@ async fn tenancy_is_enforced(db: Db) {
         // Record operations can't reach another tenant's row.
         let mut stolen = theirs.clone();
         stolen.total = 0;
-        assert!(stolen.save(&db).await.unwrap_err().is_not_found());
+        assert!(stolen.update(&db).await.unwrap_err().is_not_found());
         assert!(theirs.delete(&db).await.unwrap_err().is_not_found());
 
         // Upserting another tenant's primary key does nothing.
@@ -135,10 +138,10 @@ async fn tenancy_is_enforced(db: Db) {
         };
         assert!(hijack.upsert(&db).await.unwrap_err().is_not_found());
 
-        // Saving keeps the tenant even if the field was changed.
+        // Updating keeps the tenant even if the field was changed.
         let mut moved = mine.reload(&db).await.unwrap();
         moved.org_id = 2;
-        assert_eq!(moved.save(&db).await.unwrap().org_id, 1);
+        assert_eq!(moved.update(&db).await.unwrap().org_id, 1);
     })
     .await;
 
@@ -221,8 +224,8 @@ async fn audit_log(db: Db) {
     tx.set_actor("admin").await.unwrap();
     let mut edited = acct.clone();
     edited.email = "b@x.io".into();
-    let edited = edited.save(&mut *tx).await.unwrap();
-    edited.save(&mut *tx).await.unwrap(); // no change: not logged
+    let edited = edited.update(&mut *tx).await.unwrap();
+    edited.update(&mut *tx).await.unwrap(); // no change: not logged
     tx.commit().await.unwrap();
 
     // Bulk and raw writes are captured too (no actor outside a transaction).

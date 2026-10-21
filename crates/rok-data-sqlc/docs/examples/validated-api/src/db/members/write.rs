@@ -9,7 +9,7 @@ pub async fn create<'e, E>(executor: E, input: NewMember) -> Result<Member, rok_
 where
     E: rok_data::Executor<'e>,
 {
-    let mut insert = Member::create();
+    let mut insert = Member::insert_builder();
     insert = insert.set(Member::NAME, input.name);
     insert = insert.set(Member::HANDLE, input.handle);
     insert = insert.set(Member::AGE, input.age);

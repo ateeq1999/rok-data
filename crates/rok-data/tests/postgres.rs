@@ -107,7 +107,7 @@ async fn crud_roundtrip() {
     let mut ann = User::find_or_fail(&db, ann.id).await.unwrap();
     ann.name = Some("Ann".into());
     ann.age = 32;
-    let ann = ann.save(&db).await.unwrap();
+    let ann = ann.update(&db).await.unwrap();
     assert_eq!(ann.name.as_deref(), Some("Ann"));
     assert_eq!(ann.reload(&db).await.unwrap().age, 32);
 
@@ -268,7 +268,7 @@ async fn pagination() {
 #[tokio::test]
 async fn create_builder_columns_and_skip() {
     let Some(db) = setup().await else { return };
-    let bob = User::create()
+    let bob = User::insert_builder()
         .set(User::EMAIL, "bob@example.com")
         .set(User::AGE, 40)
         .exec(&db)
@@ -304,7 +304,7 @@ async fn create_builder_columns_and_skip() {
     let err = user("bob@example.com", 1).insert(&db).await.unwrap_err();
     assert!(err.is_unique_violation(), "{err}");
     // So are foreign-key violations.
-    let err = Post::create()
+    let err = Post::insert_builder()
         .set(Post::USER_ID, 424242_i64)
         .set(Post::TITLE, "orphan")
         .exec(&db)

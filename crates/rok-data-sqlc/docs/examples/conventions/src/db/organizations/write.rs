@@ -12,7 +12,7 @@ pub async fn create<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    let mut insert = Organization::create();
+    let mut insert = Organization::insert_builder();
     if let Some(value) = input.id {
         insert = insert.set(Organization::ID, value);
     }

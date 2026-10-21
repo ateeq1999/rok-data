@@ -9,7 +9,7 @@ pub async fn create<'e, E>(executor: E, input: NewTask) -> Result<Task, rok_data
 where
     E: rok_data::Executor<'e>,
 {
-    let mut insert = Task::create();
+    let mut insert = Task::insert_builder();
     insert = insert.set(Task::ID, input.id.unwrap_or_else(TaskId::generate));
     insert = insert.set(Task::OWNER_ID, input.owner_id);
     insert = insert.set(Task::PROJECT_ID, input.project_id);
