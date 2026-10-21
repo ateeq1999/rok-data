@@ -18,6 +18,28 @@ to fix it, and how CI catches a change nobody regenerated.
 5. Apply the migration to your database (`sqlx migrate run`), run the
    tests, and commit the migration and the generated code together.
 
+## The undo, when the truth files carry it
+
+A truth file that defines a table may carry a change its `CREATE TABLE`
+does not spell — an `ALTER TABLE books ADD COLUMN isbn TEXT`, and later
+such statements — with the SQL that undoes it beside it. The convention is
+a `-- rok:down` comment line: the statement above the marker is applied,
+and the statement the marker introduces is the undo of that change. The
+parser skips the marker and the undo statement (they are not parts of the
+schema the files declare — applied, an undo would leave the schema without
+what the truth means to have), and a misplaced marker names the marker's
+line instead of deciding for the project:
+
+```text
+error: schema/books.sql:3: `-- rok:down` must be followed by the SQL that undoes the statement above it
+```
+
+Keep the marker's line joined to the undo statement it introduces: the
+marker sits in the whitespace between two statements — alone on a line, or
+right after the previous statement's `;` — with the undo directly under it
+and at least one statement before it. A marker inside a string literal,
+or any comment that is not exactly `rok:down`, is a comment.
+
 ## What regenerates and what stays yours
 
 | Files | On a schema change |

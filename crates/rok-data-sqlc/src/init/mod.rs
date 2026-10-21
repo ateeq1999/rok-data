@@ -67,7 +67,13 @@ pub(crate) fn plan(dir: &Path, krate: &str) -> Vec<(PathBuf, String)> {
             let text = text
                 .replace("\r\n", "\n")
                 .replace(CRATE_PLACEHOLDER, krate)
-                .replace(RULES_PLACEHOLDER, &crate::check_arch::rules_markdown());
+                .replace(
+                    RULES_PLACEHOLDER,
+                    // The skeleton generates for actix-web, so its rule texts
+                    // name `actix_web`; the templates' own `AGENTS.md`s carry
+                    // the framework each template's code is written for.
+                    &crate::check_arch::rules_markdown(crate::ApiFramework::ActixWeb),
+                );
             let contents = if path.ends_with(".rs") {
                 format!("{SCAFFOLD_HEADER}\n\n{text}")
             } else {

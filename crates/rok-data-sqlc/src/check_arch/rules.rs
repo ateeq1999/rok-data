@@ -1,12 +1,56 @@
-//! The rule texts: what each rule allows, in one place. `check-arch` checks
-//! against these lists, the scaffolded `AGENTS.md` states them (rendered by
-//! [`rules_markdown`]), and `docs/guide/architecture.md` states them word for
+//! The rule texts: what each rule allows, in one place, one rule 1 per
+//! framework. `check-arch` checks against these lists, the scaffolded
+//! `AGENTS.md` states them (rendered by [`rules_markdown`], with the
+//! framework the project is generated for), and
+//! `docs/guide/architecture.md` states the default framework's word for
 //! word (a test checks it).
 
-/// The files at the root of `src/` that may use `actix_web` (rule 1).
-pub(super) const ACTIX_WEB_ROOT: &[&str] = &["app.rs", "main.rs", "error.rs"];
-/// The feature files that may use `actix_web` (rule 1).
-pub(super) const ACTIX_WEB_FEATURE: &[&str] = &["routes.rs", "handlers.rs"];
+use crate::ApiFramework;
+
+/// Rule 1's one framework: the crate its rule polices (`actix_web`, `axum`)
+/// and the files allowed to name it. The two backends' emissions mirror
+/// each other's file layout, so both allow the same files; only the
+/// watched crate — and so the rule's wording — differs.
+pub(super) struct Rule1 {
+    /// The crate path the generated code imports, as the rule watches it.
+    pub(super) watched: &'static str,
+    /// The files at the root of `src/` that may use the watched crate.
+    pub(super) root: &'static [&'static str],
+    /// The feature files that may use the watched crate.
+    pub(super) feature: &'static [&'static str],
+}
+
+/// The root files rule 1 lets name the watched crate, either backend's:
+/// the one shared file table, so the rule's file set is one edit.
+const RULE_1_ROOT: &[&str] = &["app.rs", "main.rs", "error.rs"];
+/// The feature files rule 1 lets name the watched crate, either backend's.
+const RULE_1_FEATURE: &[&str] = &["routes.rs", "handlers.rs"];
+
+/// actix-web's rule 1: the default backend's own rule, watching
+/// `actix_web` over the shared file table.
+pub(super) const ACTIX_WEB: Rule1 = Rule1 {
+    watched: "actix_web",
+    root: RULE_1_ROOT,
+    feature: RULE_1_FEATURE,
+};
+
+/// axum's rule 1: the same laid-out files, watching `axum`. The generated
+/// axum code imports crates of `axum` alone (the extractors ride
+/// `axum::extract`), so nothing else joins the watch.
+pub(super) const AXUM: Rule1 = Rule1 {
+    watched: "axum",
+    root: RULE_1_ROOT,
+    feature: RULE_1_FEATURE,
+};
+
+/// The rule 1 of `framework`: what it watches and what may name it.
+pub(super) fn rule_1(framework: ApiFramework) -> &'static Rule1 {
+    match framework {
+        ApiFramework::ActixWeb => &ACTIX_WEB,
+        ApiFramework::Axum => &AXUM,
+    }
+}
+
 /// The files at the root of `src/` that may use `sqlx` (rule 2).
 pub(super) const SQLX_ROOT: &[&str] = &["app.rs", "error.rs"];
 /// The feature files that may use `sqlx` (rule 2).
@@ -29,9 +73,10 @@ fn listed(items: &[&str]) -> String {
 /// The infrastructure every rule 1 and 2 list ends with.
 const INFRASTRUCTURE: &str = "the features' `generated.rs`, `shared/` and the data layer";
 
-/// The six rules, numbered from 1, as one sentence or paragraph each. Rule 3
-/// is not checked; the others are.
-pub(crate) fn rules() -> [String; 6] {
+/// The six rules, numbered from 1, as one sentence or paragraph each, for
+/// `framework` (rule 1's names). Rule 3 is not checked; the others are.
+pub(crate) fn rules(framework: ApiFramework) -> [String; 6] {
+    let rule_1 = rule_1(framework);
     let root = |files: &[&str]| {
         files
             .iter()
@@ -45,10 +90,11 @@ pub(crate) fn rules() -> [String; 6] {
     let ports: Vec<&str> = ports.iter().map(String::as_str).collect();
     [
         format!(
-            "In a feature, only {} use `actix_web`. Outside the features, so may \
+            "In a feature, only {} use `{}`. Outside the features, so may \
              {}{INFRASTRUCTURE}.",
-            listed(ACTIX_WEB_FEATURE),
-            root(ACTIX_WEB_ROOT),
+            listed(rule_1.feature),
+            rule_1.watched,
+            root(rule_1.root),
         ),
         format!(
             "In a feature, only {} use `sqlx`, and {} may name {} and nothing else. \
@@ -93,10 +139,11 @@ pub(crate) fn scope() -> String {
 }
 
 /// The rules as a Markdown numbered list wrapped at 76 columns, then
-/// [`scope`] as a paragraph: the rules section of the scaffolded `AGENTS.md`.
-pub(crate) fn rules_markdown() -> String {
+/// [`scope`] as a paragraph: the rules section of the scaffolded `AGENTS.md`,
+/// stated with the `AGENTS.md`'s own framework.
+pub(crate) fn rules_markdown(framework: ApiFramework) -> String {
     let mut out = String::new();
-    for (index, rule) in rules().iter().enumerate() {
+    for (index, rule) in rules(framework).iter().enumerate() {
         out.push_str(&wrap(&format!("{}. {rule}", index + 1), "   "));
     }
     out.push('\n');
@@ -143,13 +190,16 @@ fn wrap(text: &str, indent: &str) -> String {
 mod tests {
     use super::*;
 
+    /// The tests read real files, so they share anyhow's `Result`.
+    type Result<T> = std::result::Result<T, anyhow::Error>;
+
     fn normalized(text: &str) -> String {
         text.split_whitespace().collect::<Vec<_>>().join(" ")
     }
 
     #[test]
     fn rules_name_their_allowed_files() {
-        let [one, two, ..] = rules();
+        let [one, two, ..] = rules(ApiFramework::ActixWeb);
         assert_eq!(
             one,
             "In a feature, only `routes.rs` and `handlers.rs` use `actix_web`. Outside \
@@ -163,31 +213,44 @@ mod tests {
              nothing else. Outside the features, so may `app.rs`, `error.rs`, the \
              features' `generated.rs`, `shared/` and the data layer."
         );
+        // The axum rule allows the same files, and names `axum`: the rule
+        // wraps the watched crate's own name everywhere else stays.
+        let [one, ..] = rules(ApiFramework::Axum);
+        assert_eq!(
+            one,
+            "In a feature, only `routes.rs` and `handlers.rs` use `axum`. Outside \
+             the features, so may `app.rs`, `main.rs`, `error.rs`, the features' \
+             `generated.rs`, `shared/` and the data layer."
+        );
     }
 
     #[test]
     fn the_markdown_states_every_rule_and_wraps() {
-        let markdown = rules_markdown();
-        for (index, rule) in rules().iter().enumerate() {
-            assert!(
-                normalized(&markdown).contains(&normalized(&format!("{}. {rule}", index + 1))),
-                "rule {}",
-                index + 1
-            );
-        }
-        assert!(normalized(&markdown).contains(&normalized(&scope())));
-        for line in markdown.lines() {
-            assert!(line.chars().count() <= 76 || !line.contains(' '), "{line}");
+        for framework in [ApiFramework::ActixWeb, ApiFramework::Axum] {
+            let markdown = rules_markdown(framework);
+            for (index, rule) in rules(framework).iter().enumerate() {
+                assert!(
+                    normalized(&markdown).contains(&normalized(&format!("{}. {rule}", index + 1))),
+                    "rule {}",
+                    index + 1
+                );
+            }
+            assert!(normalized(&markdown).contains(&normalized(&scope())));
+            for line in markdown.lines() {
+                assert!(line.chars().count() <= 76 || !line.contains(' '), "{line}");
+            }
         }
     }
 
-    /// The architecture guide states each rule, and what `check-arch`
-    /// enforces, exactly as `check-arch` does.
+    /// The architecture guide states each rule of the default framework, and
+    /// what `check-arch` enforces, exactly as `check-arch` does. The axum
+    /// wording is the templates' `AGENTS.md`s' own: `init::template`'s test
+    /// holds each template to the framework it generates for.
     #[test]
-    fn the_architecture_guide_states_the_rules_exactly() {
+    fn the_architecture_guide_states_the_rules_exactly() -> Result<()> {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/docs/guide/architecture.md");
-        let guide = normalized(&std::fs::read_to_string(path).unwrap_or_default());
-        for (index, rule) in rules().iter().enumerate() {
+        let guide = normalized(&std::fs::read_to_string(path)?);
+        for (index, rule) in rules(ApiFramework::ActixWeb).iter().enumerate() {
             let rule = normalized(&format!("{}. {rule}", index + 1));
             assert!(
                 guide.contains(&rule),
@@ -199,5 +262,6 @@ mod tests {
             guide.contains(&scope),
             "architecture.md does not say: {scope}"
         );
+        Ok(())
     }
 }

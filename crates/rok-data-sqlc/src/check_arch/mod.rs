@@ -2,7 +2,8 @@
 //!
 //! The rules and the layout it checks are stated once, in [`rules`]: the
 //! lists of files each rule allows, and the texts the scaffolded `AGENTS.md`
-//! and the architecture guide carry. The Rust source is read with `syn`, and
+//! and the architecture guide carry. Rule 1 follows the framework the
+//! project's `[api] framework` sets; the Rust source is read with `syn`, and
 //! test code is exempt from every rule.
 
 mod rules;
@@ -14,10 +15,10 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 
+use crate::ApiFramework;
+
 pub(crate) use rules::rules_markdown;
-use rules::{
-    ACTIX_WEB_FEATURE, ACTIX_WEB_ROOT, SQLX_FEATURE, SQLX_PORT_FILES, SQLX_PORT_TYPES, SQLX_ROOT,
-};
+use rules::{Rule1, SQLX_FEATURE, SQLX_PORT_FILES, SQLX_PORT_TYPES, SQLX_ROOT, rule_1};
 use source::Reference;
 
 /// The files a feature directory may hold.
@@ -45,13 +46,18 @@ pub(crate) struct Project {
     pub(crate) features: PathBuf,
     /// The data layer's Rust path (`api.db_path`, `crate::db`).
     pub(crate) db_path: String,
+    /// The framework the features are generated for (`api.framework`),
+    /// which rule 1 polices.
+    pub(crate) framework: ApiFramework,
 }
 
 /// A rule `check-arch` enforces.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Rule {
     Layout,
-    ActixWeb,
+    /// Rule 1: the configured framework's crate, named only by the feature's
+    /// HTTP files and the files the framework's rule allows outside.
+    Framework,
     Sqlx,
     CrossFeature,
     SharedToFeatures,
@@ -70,7 +76,7 @@ impl fmt::Display for Rule {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Rule::Layout => "layout",
-            Rule::ActixWeb => "rule-1",
+            Rule::Framework => "rule-1",
             Rule::Sqlx => "rule-2",
             Rule::CrossFeature => "rule-4",
             Rule::SharedToFeatures => "rule-5",
@@ -171,6 +177,8 @@ struct Layout {
     db: Vec<String>,
     /// The feature directories' names.
     feature_names: Vec<String>,
+    /// Rule 1 for the project's framework.
+    rule_1: &'static Rule1,
 }
 
 /// What a path names in this crate, after `crate`, `self`, `super` and the
@@ -229,6 +237,7 @@ impl Layout {
             features,
             db,
             feature_names,
+            rule_1: rule_1(project.framework),
         })
     }
 
@@ -407,12 +416,12 @@ impl Layout {
         let infrastructure = Self::in_shared(rel) || self.in_db(rel) || self.is_generated_root(rel);
         match target {
             Target::Other(path) => match path.first().map(String::as_str) {
-                Some("actix_web") => {
+                Some(crate_name) if crate_name == self.rule_1.watched => {
                     let allowed = infrastructure
-                        || Self::is_root(rel, ACTIX_WEB_ROOT)
-                        || (feature.is_some() && ACTIX_WEB_FEATURE.contains(&file));
+                        || Self::is_root(rel, self.rule_1.root)
+                        || (feature.is_some() && self.rule_1.feature.contains(&file));
                     if !allowed {
-                        rules.push(Rule::ActixWeb);
+                        rules.push(Rule::Framework);
                     }
                 }
                 Some("sqlx") => {
@@ -457,9 +466,10 @@ impl Layout {
 
     fn message(&self, rel: &[String], rule: Rule, target: &Target) -> String {
         match rule {
-            Rule::ActixWeb => format!(
-                "`{target}`: only {}, features/generated.rs, shared/ and db/ may use actix_web",
-                [ACTIX_WEB_FEATURE, ACTIX_WEB_ROOT].concat().join(", ")
+            Rule::Framework => format!(
+                "`{target}`: only {}, features/generated.rs, shared/ and db/ may use {}",
+                [self.rule_1.feature, self.rule_1.root].concat().join(", "),
+                self.rule_1.watched
             ),
             Rule::Sqlx => format!(
                 "`{target}`: only {}, features/generated.rs, shared/ and db/ may use sqlx \
@@ -498,3 +508,6 @@ fn module_path(rel: &[String]) -> Vec<String> {
     }
     path
 }
+
+#[cfg(test)]
+mod tests;

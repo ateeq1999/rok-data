@@ -2,16 +2,27 @@
 //! the feature layout, and the guidelines' rules 1, 2, 4, 5 and 6 plus the
 //! cross-feature write rule, read from the Rust source with `syn`. Each
 //! violation is printed as `path:line: rule: message`; any fails the run.
+//! Rule 1 polices the framework the config's `[api] framework` sets
+//! (`actix_web` by default; `axum` with the same allowed files); those
+//! tests run both frameworks.
 
 use super::*;
 
 /// The config of a project `init` scaffolded: features in `src/features`.
 const CONFIG: &str = "[api]\noutput = \"src/features\"\n";
 
+/// The config of an axum project: the framework rule 1 polices.
+const CONFIG_AXUM: &str = "[api]\noutput = \"src/features\"\nframework = \"axum\"\n";
+
 /// A scratch project with `rok-data-sqlc.toml` and `files`.
 fn project(files: &[(&str, &str)]) -> Result<TempDir> {
+    project_with(CONFIG, files)
+}
+
+/// A scratch project whose config is `config` and with `files`.
+fn project_with(config: &str, files: &[(&str, &str)]) -> Result<TempDir> {
     let dir = TempDir::new()?;
-    fs::write(dir.path().join("rok-data-sqlc.toml"), CONFIG)?;
+    fs::write(dir.path().join("rok-data-sqlc.toml"), config)?;
     for (path, text) in files {
         let path = dir.path().join(path);
         fs::create_dir_all(path.parent().unwrap_or(dir.path()))?;
@@ -97,6 +108,93 @@ fn rule_1_actix_web_outside_routes_and_handlers_is_reported() -> Result<()> {
             "src/features/notes/service.rs:3: rule-1: `actix_web::HttpResponse`: only routes.rs, handlers.rs, app.rs, main.rs, error.rs, features/generated.rs, shared/ and db/ may use actix_web",
         ],
     );
+    Ok(())
+}
+
+/// A feature of an axum project that follows every rule: what the axum
+/// generation writes, in the words the axum template's features carry.
+const AXUM_NOTES: &[(&str, &str)] = &[
+    (
+        "src/features/notes/mod.rs",
+        "pub mod handlers;\npub mod repo;\npub mod routes;\npub mod service;\n",
+    ),
+    (
+        "src/features/notes/routes.rs",
+        "use axum::routing::get;\nuse axum::Router;\npub fn routes() -> Router { Router::new() }\n",
+    ),
+    (
+        "src/features/notes/handlers.rs",
+        "use axum::response::{IntoResponse, Response};\npub async fn list() -> Response { todo_free() }\n",
+    ),
+    (
+        "src/features/notes/repo.rs",
+        "pub use crate::db::notes::read::*;\npub use crate::db::notes::write::*;\n",
+    ),
+    (
+        "src/features/notes/service.rs",
+        "use sqlx::{PgConnection, PgPool};\npub struct NotesService { pub pool: PgPool }\n",
+    ),
+];
+
+#[test]
+fn an_axum_project_that_follows_the_rules_passes() -> Result<()> {
+    let mut files = AXUM_NOTES.to_vec();
+    // The wiring, the errors, the generated root and the shared tools may
+    // name the framework; the feature's HTTP files may.
+    files.extend_from_slice(&[
+        (
+            "src/app.rs",
+            "use axum::Router;\nuse axum::middleware::Next;\nuse sqlx::PgPool;\n",
+        ),
+        ("src/error.rs", "use axum::http::StatusCode;\n"),
+        ("src/features/generated.rs", "use axum::Router;\n"),
+        ("src/shared/auth.rs", "use axum::http::request::Parts;\n"),
+    ]);
+    let dir = project_with(CONFIG_AXUM, &files)?;
+    let output = check_arch(&dir, &[]);
+    assert_success(&output);
+    assert_eq!(stdout(&output), "");
+    Ok(())
+}
+
+#[test]
+fn rule_1_axum_outside_routes_and_handlers_is_reported() -> Result<()> {
+    let dir = project_with(CONFIG_AXUM, AXUM_NOTES)?;
+    fs::write(
+        dir.path().join("src/features/notes/service.rs"),
+        "// axum in a comment is fine.\nconst S: &str = \"axum::http::StatusCode\";\n\
+         fn f() -> axum::http::StatusCode {\n    todo_free()\n}\n",
+    )?;
+    assert_violations(
+        &check_arch(&dir, &[]),
+        &[
+            "src/features/notes/service.rs:3: rule-1: `axum::http::StatusCode`: only routes.rs, handlers.rs, app.rs, main.rs, error.rs, features/generated.rs, shared/ and db/ may use axum",
+        ],
+    );
+    Ok(())
+}
+
+/// Rule 1 polices the configured framework alone: what the config does not
+/// name is the compiler's problem, not rule 1's.
+#[test]
+fn rule_1_watches_the_framework_the_config_sets() -> Result<()> {
+    let dir = project_with(CONFIG_AXUM, AXUM_NOTES)?;
+    fs::write(
+        dir.path().join("src/features/notes/service.rs"),
+        "fn f() -> actix_web::HttpResponse {\n    todo_free()\n}\n",
+    )?;
+    let output = check_arch(&dir, &[]);
+    assert_success(&output);
+    assert_eq!(stdout(&output), "");
+
+    let dir = project(NOTES)?;
+    fs::write(
+        dir.path().join("src/features/notes/service.rs"),
+        "fn f() -> axum::Router {\n    todo_free()\n}\n",
+    )?;
+    let output = check_arch(&dir, &[]);
+    assert_success(&output);
+    assert_eq!(stdout(&output), "");
     Ok(())
 }
 

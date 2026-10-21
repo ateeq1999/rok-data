@@ -221,6 +221,32 @@ mod tests {
         Ok(())
     }
 
+    /// Every template's `AGENTS.md` states the framework its code is written
+    /// for: its rules section is what `check-arch` renders for that
+    /// template's own backend, so the rule it states is the one
+    /// `check-arch` checks the template's project against.
+    #[test]
+    fn every_template_states_its_own_framework_in_agents_md() -> Result<()> {
+        for (name, framework) in [
+            ("actix", crate::ApiFramework::ActixWeb),
+            ("axum", crate::ApiFramework::Axum),
+        ] {
+            let files = files(name)?;
+            let agents = files
+                .iter()
+                .find(|file| file.path == "AGENTS.md")
+                .map(|file| String::from_utf8_lossy(file.bytes).into_owned())
+                .ok_or_else(|| anyhow::anyhow!("template `{name}` has no `AGENTS.md`"))?;
+            let rules = crate::check_arch::rules_markdown(framework);
+            assert!(
+                agents.contains(&format!("## The six rules\n\n{rules}\n\n")),
+                "template `{name}`'s `AGENTS.md` rules section is not check-arch's \
+                 for `{framework:?}`:\n{agents}"
+            );
+        }
+        Ok(())
+    }
+
     /// rok-data-sqlc's generated files are left out; cargo's `Cargo.lock`, also
     /// `@generated`, is the template's pinned lock and is copied.
     #[test]

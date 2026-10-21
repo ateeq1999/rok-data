@@ -46,7 +46,12 @@ actix-web. The routes are a `Router`'s, the handlers take axum's
 extractors, and the shared tools (health, the tenant, the validated
 bodies) are axum's. The bodies, the service and the OpenAPI document are
 the same either way, and actix-web stays the default: every existing
-project generates exactly what it did before.
+project generates exactly what it did before. `rok sqlc check-arch`
+follows this key as well: its rule 1 polices the imports of the API
+backend the project is generated for (`actix_web` under the default,
+`axum` under `framework = "axum"`), over the same allowed-file set either
+way, so an axum project's architecture is checked like an actix one's
+instead of passing rule 1 trivially.
 
 `rok init --template axum` scaffolds the starter that matches it: the
 `actix` template's twin, with the same `users` and `audit-log` features,
@@ -66,7 +71,12 @@ staged pairs, rustfmt, the lint gate and its tests.
 Also in 0.2.0: an unqualified `ALTER TABLE <name>` in a later
 migration now reaches a table created under a schema
 (`catalog.products`) when that SQL name is unique in the schema, and
-diagnostics name the resolved table; the `Model` derive accepts
+diagnostics name the resolved table; a truth file can carry an
+`ALTER TABLE` beside its `CREATE TABLE`s — the schema parser now skips
+the `-- rok:down` undo statements the truth carries (previously the undo
+was applied as a statement of its own and undid the truth's change), and
+refuses a misplaced marker with the whole-crate generator's rule
+wording; the `Model` derive accepts
 no-primary-key tables; composite types (money, ranges, timetz,
 inet/cidr, macaddr, bytea arrays) ride the new `ipnetwork` and
 `mac_address` facade features.

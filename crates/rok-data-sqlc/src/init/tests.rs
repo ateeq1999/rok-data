@@ -344,14 +344,16 @@ fn agents_md_holds_the_rules_and_where_code_goes() {
 }
 
 /// `AGENTS.md` states exactly what `check-arch` enforces: its rules section
-/// is rendered from `check-arch`'s own rule texts.
+/// is rendered from `check-arch`'s own rule texts, for the framework the
+/// skeleton generates for (actix-web; the templates' own `AGENTS.md`s carry
+/// their frameworks' wording, pinned in `template`'s tests).
 #[test]
 fn agents_md_states_the_rules_check_arch_enforces() {
     let raw = template("AGENTS.md");
     assert!(
         raw.contains(&format!(
             "## The six rules\n\n{}\n\n",
-            crate::check_arch::rules_markdown()
+            crate::check_arch::rules_markdown(crate::ApiFramework::ActixWeb)
         )),
         "AGENTS.md's rules section is not check-arch's"
     );

@@ -411,7 +411,9 @@ enum Parsed {
     },
 }
 
-/// Parses one schema input into its statements. When the whole input does
+/// Parses one schema input into its statements. The `-- rok:down` undo
+/// statements of a truth file are skipped before the text reaches the SQL
+/// parser (`strip_undos`). When the whole input does
 /// not parse, it is split into statements (see [`split_statements`]) and
 /// each is parsed on its own. A statement that does not parse is recognised
 /// from its tokens where its effect on the model is known: an `ALTER TABLE`
@@ -421,6 +423,7 @@ enum Parsed {
 /// [`recover_statement`]). Any other statement that does not parse fails the
 /// run at its `path:line`. Spans keep their place in the whole input.
 fn parse_statements(dialect: &PostgreSqlDialect, source: &SchemaSource<'_>) -> Result<Vec<Parsed>> {
+    let sql = super::undo::strip_undos(source.sql, source.path)?;
     let invalid = |line: Option<u64>| {
         let place = match (source.path.as_os_str().is_empty(), line) {
             (true, None) => String::new(),
@@ -430,13 +433,13 @@ fn parse_statements(dialect: &PostgreSqlDialect, source: &SchemaSource<'_>) -> R
         };
         format!("{place}invalid PostgreSQL SQL syntax")
     };
-    if let Ok(statements) = Parser::parse_sql(dialect, source.sql) {
+    if let Ok(statements) = Parser::parse_sql(dialect, &sql) {
         return Ok(statements
             .into_iter()
             .map(|statement| Parsed::Statement(Box::new(statement)))
             .collect());
     }
-    let tokens = Tokenizer::new(dialect, source.sql)
+    let tokens = Tokenizer::new(dialect, &sql)
         .tokenize_with_location()
         .with_context(|| invalid(None))?;
     let parse = |tokens: Vec<_>| {

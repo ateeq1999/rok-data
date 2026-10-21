@@ -77,3 +77,7 @@ Both templates follow the axum starter's OpenAPI document:
 - **The `{success, data, meta}` envelope, or a configurable `style`.** Rejected: the maintainer chose the axum starter's OpenAPI document as the standard, and a second style would double every template and test.
 - **The actix starter's workspace and `#[module]` macro.** Rejected: the guidelines' single crate keeps the two templates identical apart from the framework edge.
 - **Keyset pagination by default.** Rejected: the standard is offset pages with a total. Keyset stays available in the data layer.
+
+## Amendment (2026-10-21): rule 1 follows the configured API backend
+
+`check-arch`'s rule 1 names the API backend the project's own `[api] framework` key selects now — `actix_web` under the default, `axum` when the key names axum — over the same allowed files either way, since the two backends' emissions mirror each other's file layout. The paragraph above keeps the default's wording; the scaffolded `AGENTS.md`s state each project's own backend's rule, and `check-arch` reads the key from the config file the generation does (rok-data-sqlc 0.2.0).

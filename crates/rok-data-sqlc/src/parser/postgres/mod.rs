@@ -14,6 +14,7 @@ mod table;
 mod tests;
 mod triggers;
 mod types;
+mod undo;
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};

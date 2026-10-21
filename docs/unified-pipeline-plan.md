@@ -23,7 +23,9 @@ legacy engines keep working as forwarded aliases until 1.0.
   change as grammar, per docs discipline).
 - **Open (a decision the user must take)**: the two ADR series collide
   in numbering. The workspace's `docs/decisions/0001-0013` and the
-  engine's `crates/rok-data-sqlc/docs/adr/0001-0016` both start at
+  engine's `crates/rok-data-sqlc/docs/adr/0001-0016` (0017 as of this
+  round — the marker-convention ADR — which widens the collision in
+  passing; the decision itself stays the user's) both start at
   0001, and both are cited as "ADR 0013" (the workspace's is the crate
   family, the engine's is the generated-code quality bar). `AGENTS.md`
   says the ADRs live in `docs/decisions/`. Either the engine's series
@@ -155,10 +157,16 @@ legacy engines keep working as forwarded aliases until 1.0.
     (`tests/axum-app`, listed in the workspace `exclude`) proves it under
     the same bar as the actix one: `deny(missing_docs)`, the selected
     pedantic lints, `-D warnings`, `check-arch` and rustfmt.
-    - **Open (Phase 4, still open)**: `check-arch`'s rule 1 names
-      `actix_web` only; an axum project passes it trivially. The rule
-      should name the configured framework (and the scaffolded
-      `AGENTS.md` and the architecture guide with it).
+  - **Done (Phase 4, this release)**: `check-arch`'s rule 1 names the
+    configured framework now. It reads `[api] framework` from the same
+    config file the generation does: under the default `actix_web`
+    everything prints exactly as before (texts byte-identical, pinned by
+    tests), and under `axum` it polices `axum` over the same allowed-file
+    set the axum emission fills. The rule texts are one source per
+    framework; the templates' `AGENTS.md`s already stated their own
+    framework (each pinned to `check-arch`'s rendering now), and
+    `docs/guide/architecture.md`, the engine README, the troubleshooting
+    page and ADR 0016 name what rule 1 watches.
 - Acceptance: the engine unit suite (240) passes; generated data
   layers no longer contain raw sqlx function modules (query files
   and joined reads keep their explicit sqlx bodies).
@@ -250,14 +258,38 @@ legacy engines keep working as forwarded aliases until 1.0.
     `rok gen --migration` writes, and the crate passes rustfmt, the lint
     gate and its tests (the API tests against PostgreSQL when a database
     is configured; they skip otherwise).
-  - **Open**: a truth file cannot carry an `ALTER TABLE` yet. The
-    staging's diff works on the parsed tables (`CREATE TABLE`), and the
-    undo it asks for (`-- rok:down`) is a statement the generator would
-    apply as well — so the truth stays at `CREATE TABLE`s, and what a
-    second truth file carries shows up in the staged pair (the
-    `ALTER TABLE ... ADD CONSTRAINT` of its foreign key) instead.
-    Teaching the generator to skip the `-- rok:down` statements (the
-    staging's own vocabulary) is the fix.
+  - **Done (the engine's half of it)**: a truth file can carry an
+    `ALTER TABLE` now (ADR 0017, the engine's series). The engine's
+    schema parser honors the `-- rok:down` section the truth carries
+    (the codegen's own vocabulary: a marker line's next statement is
+    the undo of the statement immediately before the marker), where it
+    used to apply the undo as a statement of its own — `ALTER TABLE
+    books ADD COLUMN isbn` and its `-- rok:down` / `DROP COLUMN` undo
+    now leave the generated data layer with the column. A misplaced
+    marker is refused engine-side, with the codegen's rule wording: a
+    leading marker errors ("`-- rok:down` must directly follow the
+    statement it undoes" — the one case the codegen refuses with the
+    same words), and a marker whose undo never joined it — a blank line
+    parted them, or nothing follows the marker at all — errors
+    ("`-- rok:down` must be followed by the SQL that undoes the
+    statement above it"); there the codegen either refuses the
+    orphaned statement itself ("rok can't undo this statement by
+    itself…") or, for a purely trailing marker, loses it silently,
+    which the engine may not. The engine's pre-pass scans the truth
+    like the codegen's statement splitter does, so a `rok:down` line
+    inside a string literal is that literal's text, in either tool.
+  - **Open (the staging's half)**: the staged pair still carries the
+    truth's `ALTER TABLE` statements as its own steps instead of folding
+    them into the truth's tables. The codegen's diff works on the parsed
+    tables (`CREATE TABLE`s), so the truth's ALTER rides the staged pair
+    as an `Extra` step with the undo the marker supplied, and
+    `.rok-schema.json` records the tables at their `CREATE TABLE`
+    columns; folding an ALTERed column into the truth's `CREATE TABLE`
+    then stages a redundant drop-and-add pair (the removed `Extra` before
+    the added column) instead of leaving the shape alone — pinned by
+    `an_alter_folded_into_the_table_stages_drop_then_add`
+    (`crates/rok-data-codegen/src/ddl/tests.rs`). Merging the staging's
+    own vocabulary into the diff's tables is the remaining fix.
   - **Open**: the runtime's migration loader
     (`rok-data-core::migration_file`) reads a directory of migration pairs
     (`NNNN_name.up.sql` / `NNNN_name.down.sql`) and refuses the truth
@@ -266,11 +298,16 @@ legacy engines keep working as forwarded aliases until 1.0.
     instead" is what would fix it; the Phase 3 item). The example
     applies its pairs with `psql` for now, and so does the `rok gen
     --migration` advice.
-  - **Open**: `check-arch`'s rule 1 names `actix_web` only (the Phase 2
-    item), so an axum project passes it trivially. The rule should name
-    the configured framework, with the scaffolded `AGENTS.md` and the
-    architecture guide — a change the templates' bytes depend on, so it
-    waits for a release that may write them again.
+  - **Done (this release)**: `check-arch`'s rule 1 names the configured
+    framework now: it reads `[api] framework` from the same config
+    file the generation does. Under the default `actix_web` every text
+    stays byte-identical (pinned by engine and CLI tests), and under
+    `axum` it polices `axum` over the allowed file sets of the axum
+    generation. The scaffolded `AGENTS.md`s already named their own
+    frameworks — each pinned to `check-arch`'s rendering for its
+    framework now — so the templates' bytes needed no rewrite; the
+    architecture guide, the engine README, the troubleshooting page and
+    ADR 0016 say what rule 1 watches.
 - Docs: `README.md`, `docs/getting-started.md`,
   `docs/feature-matrix.md` updated to sell the new front door.
   - **Done (T5)**: the root README's quick start leads with `rok init …
@@ -377,3 +414,25 @@ Declined (deliberate no's — do not re-litigate without new grounds):
   pins `CARGO_BUILD_JOBS: 1` because overhead OOMs 16 GB).
 - `release-plz` for 0.2.0 (ADR 0008 flow kept; revisit as optional
   automation later).
+
+### Additions (review round, 2026-10-21 (second pass))
+
+No-action decisions from the second read (recorded rather than changed,
+so the next round does not re-litigate them):
+
+18. The cross-crate scanner agreement — the engine's truth pre-pass
+    (`crates/rok-data-sqlc/src/parser/postgres/undo.rs`) reading text
+    like the codegen's statement splitter
+    (`crates/rok-data-codegen/src/split.rs`) — is pinned by prose plus
+    the two suites' mirrored unit tests, not by an executable
+    cross-boundary test. The engines stay independent crates (ADR 0006);
+    a shared corpus test would need a dev-dependency coupling of one on
+    the other, a cost worth paying only for a consumer of both, and
+    neither tool has a third consumer of its counterpart's corpus today.
+
+19. Contract texts stay as they are pinned: the byte-for-byte violation
+    messages asserted through a rendered rule 1 (`check-arch`'s
+    `tests::the_actix_rule_is_what_it_always_printed`) sit beside the
+    re-typed expected strings in the CLI and `init` suites, and that
+    two-way pinning (one renderer, several asserters) is the repo's
+    established contract-text style, not a duplication to consolidate.

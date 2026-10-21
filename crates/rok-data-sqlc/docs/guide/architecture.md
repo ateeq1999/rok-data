@@ -127,6 +127,14 @@ features' and `bin/`. Test code is exempt from every rule: files under
 functions, and `tests/`, which is not read. Each violation prints as
 `path:line: rule: message`. Rule 3 is yours to keep.
 
+Rule 1 follows the API backend too. `check-arch` reads it from the same
+`rok-data-sqlc.toml` the generation uses: the rule states the API backend
+the `[api] framework` key names, watching its imports (`actix_web` by
+default; `axum` under `framework = "axum"`) over the same allowed files,
+so an axum project is policed exactly the way this chapter polices an
+actix one. The scaffolded `AGENTS.md`s state their own backend, and this
+chapter's samples are the actix-web ones.
+
 The cross-feature write part of rule 4 is reported as `cross-feature-write`
 and the layout as `layout`. `check-arch` reads `src/` with a Rust parser, so
 comments and strings never count. A path counts wherever it appears: a

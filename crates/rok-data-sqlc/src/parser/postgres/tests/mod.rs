@@ -8,6 +8,7 @@ mod check_rules;
 mod create_table;
 mod enums;
 mod recovered;
+mod undo;
 mod value_lists;
 
 fn parse(sql: &str) -> ParsedSchema {

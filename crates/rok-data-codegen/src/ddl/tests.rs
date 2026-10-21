@@ -103,3 +103,47 @@ fn removed_enum_values_are_refused() {
             .contains("lost or reordered")
     );
 }
+
+/// The plan's staging experiment, pinned: a previous state whose
+/// `ALTER TABLE` rides as an `Extra` (the truth's `-- rok:down` supplied
+/// its undo), and a new state with the column folded into the `CREATE
+/// TABLE`, stage a pair whose up starts with the removed `Extra`'s own
+/// undo before the added column — the redundant drop-and-add instead of
+/// leaving the shape alone (`docs/unified-pipeline-plan.md`'s Open note).
+#[test]
+fn an_alter_folded_into_the_table_stages_drop_then_add() {
+    let old = schema(
+        "CREATE TABLE books (id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL);
+        ALTER TABLE books ADD COLUMN isbn TEXT;
+        -- rok:down
+        ALTER TABLE books DROP COLUMN isbn;",
+    );
+    assert_eq!(old.extras.len(), 1, "the ALTER rides as an `Extra`");
+    assert_eq!(old.extras[0].up, "ALTER TABLE books ADD COLUMN isbn TEXT");
+    assert_eq!(old.extras[0].down, "ALTER TABLE books DROP COLUMN isbn");
+    assert!(!old.extras[0].before_tables);
+
+    let new =
+        schema("CREATE TABLE books (id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL, isbn TEXT);");
+    let ops = diff(&old, &new, &[]).unwrap();
+    assert_eq!(
+        ops.iter().map(|op| op.up.as_str()).collect::<Vec<_>>(),
+        [
+            // The removed `Extra`: its undo (the marker supplied it) runs
+            // first, its up step being the changed pair's down.
+            "ALTER TABLE books DROP COLUMN isbn",
+            // Then the column, folded into the truth's `CREATE TABLE`.
+            "ALTER TABLE \"books\" ADD COLUMN \"isbn\" TEXT",
+        ]
+    );
+    assert!(ops.iter().all(|op| op.destructive.is_none()));
+    let (up, down) = scripts(&ops);
+    assert!(
+        up.starts_with("ALTER TABLE books DROP COLUMN isbn;\n"),
+        "{up}"
+    );
+    assert!(
+        down.starts_with("ALTER TABLE \"books\" DROP COLUMN \"isbn\";\n"),
+        "{down}"
+    );
+}

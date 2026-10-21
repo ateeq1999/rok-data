@@ -251,7 +251,9 @@ Error: check-arch found 11 violation(s)
 ```
 
 The rules are explained in [Architecture](architecture.md#4-the-six-rules).
-Each violation, with its usual fix:
+Rule 1's message names the API backend the `[api] framework` key sets —
+`actix_web` in the examples below, the default; on an axum project it names
+`axum` and allows the same files. Each violation, with its usual fix:
 
 ```text
 src/features/users/service.rs:33: rule-1: `actix_web::HttpResponse`: only routes.rs, handlers.rs, app.rs, main.rs, error.rs, features/generated.rs, shared/ and db/ may use actix_web

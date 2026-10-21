@@ -71,6 +71,10 @@ since the features take validated JSON bodies through it; a run with
 `framework = "axum"` and only `actix_web` in `extractors` fails naming the
 extractor it needs. `--api-framework` sets it from the command line.
 
+`check-arch` reads this key too: its rule 1 polices the API backend the
+key names — `use actix_web` under the default, `use axum` under `axum` —
+over the same allowed-file set, and the scaffolded `AGENTS.md` states it.
+
 The axum features keep the wire standard: a malformed path or query is a
 `400` with the error body, answered by the `Path` and `Query` extractors in
 `shared/validation.rs` rather than by axum's own rejections. The axum

@@ -1304,14 +1304,19 @@ myapi::app` instead of `use actix_api::app`).
 
 `rok sqlc check-arch` (`a`) checks an API project against ADR 0016's
 architecture, the rules its `AGENTS.md` states. It reads `api.output` (the
-features directory) and `api.db_path` (the data layer, default `crate::db`)
-from `rok-data-sqlc.toml`, discovered like `generate` does or named with
-`-c`/`--config`, and checks the project's `src/`. Each violation is printed
-as `path:line: rule: message`, and any violation exits with code 1, for CI:
+features directory), `api.db_path` (the data layer, default `crate::db`) and
+`api.framework` (rule 1's watched crate) from `rok-data-sqlc.toml`,
+discovered like `generate` does or named with `-c`/`--config`, and checks
+the project's `src/`. Each violation is printed as
+`path:line: rule: message`, and any violation exits with code 1, for CI:
 
 ```text
 src/features/notes/service.rs:3: rule-1: `actix_web::HttpResponse`: only routes.rs, handlers.rs, app.rs, main.rs, error.rs, features/generated.rs, shared/ and db/ may use actix_web
 ```
+
+The example is an actix project's: rule 1 names the API backend the `[api]
+framework` key sets, `actix_web` by default; an axum project's message
+names `axum`, over the same allowed files as the axum generation's.
 
 The layout checks (`layout`):
 
@@ -1326,7 +1331,7 @@ test code, `#[cfg(test)]` or `#[test]`, never count):
 
 | Rule | What it allows |
 |---|---|
-| `rule-1` | `actix_web` only in a feature's `routes.rs` and `handlers.rs`, `app.rs`, `main.rs`, `error.rs`, the features' `generated.rs`, `shared/` and the data layer |
+| `rule-1` | the `[api] framework` key's crate (`actix_web`, or `axum` on an axum project) only in a feature's `routes.rs` and `handlers.rs`, `app.rs`, `main.rs`, `error.rs`, the features' `generated.rs`, `shared/` and the data layer |
 | `rule-2` | `sqlx` only in a feature's `repo.rs` and `model.rs`, `app.rs`, `error.rs`, the features' `generated.rs`, `shared/` and the data layer; a feature's `service.rs` and `service_api.rs` may name `sqlx::PgPool` and `sqlx::PgConnection` and nothing else |
 | `rule-4` | a feature never refers to another feature's modules |
 | `rule-5` | `shared/` never refers to the features module |
