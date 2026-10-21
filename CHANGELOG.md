@@ -21,16 +21,21 @@ the shared tools and the API features (`src/features/**`), and — with
 `--migration NAME` — stages the difference between the schema and the
 last staged migration as a `NNNN_name.up.sql` / `.down.sql` pair in the
 history directory. `rok gen check` is the CI mode: it writes nothing,
-reports the missing, changed and stale files, and fails on drift. The
-settings file is the unified `rok.toml` (ADR 0011), whose `[generate]`
-section holds the generation settings; the engine's
-`rok-data-sqlc.toml` stays readable. The legacy `rok generate` and
-`rok sqlc …` keep their flags, their output and their exit codes — the
-`sqlc` tokens are still forwarded verbatim to the engine — and the root
-help now marks them as superseded by the front door; their removal is
-deferred to 1.0. One spelling changed: `rok generate` no longer takes the
-`generate` subcommand, so the write mode is flat (`rok generate
-[OPTIONS]`) and the CI mode nests (`rok generate check`).
+reports the missing, changed and stale files, and fails on drift. An
+un-staged truth change is a finding of its own there — the prose names
+the last staged migration and the version the pair would take
+(`0002_pending`), and `--json` carries it in `pending_migration`; no
+file that does not exist is reported among the missing ones, and the
+run still fails. The settings file is the unified `rok.toml`
+(workspace ADR 0011), whose `[generate]` section holds the generation
+settings; the engine's `rok-data-sqlc.toml` stays readable. The legacy
+`rok generate` and `rok sqlc …` keep their flags, their output and
+their exit codes — the `sqlc` tokens are still forwarded verbatim to
+the engine — and the root help now marks them as superseded by the
+front door; their removal is deferred to 1.0. One spelling changed:
+`rok generate` no longer takes the `generate` subcommand, so the write
+mode is flat (`rok generate [OPTIONS]`) and the CI mode nests
+(`rok generate check`).
 
 The truth and the history now live in one directory each: `rok gen`
 reads the truth directory — the plain `*.sql` files a hand writes,
@@ -109,9 +114,9 @@ inet/cidr, macaddr, bytea arrays) ride the new `ipnetwork` and
 The release is a tag: `vX.Y.Z` must equal the workspace's version, and
 the tag publishes the `rok` binary for Linux (musl), macOS and Windows
 (x86_64 and ARM64) as checksummed archives, then the six crates to
-crates.io in dependency order (ADR 0008). The repository's `install.sh`
-and `install.ps1` fetch and verify those archives, so a release installs
-with one line.
+crates.io in dependency order (workspace ADR 0008). The repository's
+`install.sh` and `install.ps1` fetch and verify those archives, so a
+release installs with one line.
 
 ## [0.1.0] — initial consolidation
 
@@ -147,6 +152,6 @@ former `rok-db`, `rok-sqlc`, `rok-fluent` and `rok-orm` repositories
 ### Removed
 
 - The standalone binaries `rok-db-gen` and `rok-sqlc` (merged into
-  `rok`, ADR 0002).
+  `rok`, workspace ADR 0002).
 - `rok-fluent` and `rok-orm` as separate runtimes (superseded; the
-  absorbed pieces are documented in ADR 0001).
+  absorbed pieces are documented in workspace ADR 0001).

@@ -14,7 +14,8 @@ use rok_data_sqlc::init::{Scaffolded, init as init_skeleton, init_template};
 
 use crate::output::display_path;
 
-/// The truth directory of a project: its only source of truth (ADR 0010).
+/// The truth directory of a project: its only source of truth
+/// (workspace ADR 0010).
 const SCHEMA_DIR: &str = "schema";
 
 /// The file a seeded schema is written as.
@@ -89,9 +90,9 @@ fn seed_schema(dir: &Path, content: &str) -> Result<bool, String> {
 /// Prints the numbered next steps.
 ///
 /// The front door is `rok gen`: the truth in the schema directory is the
-/// truth (ADR 0010), and `rok gen` turns it into the data layer and the API
-/// features; `rok gen --migration` stages the history pairs into
-/// `migrations/`, the default history dir.
+/// truth (workspace ADR 0010), and `rok gen` turns it into the data
+/// layer and the API features; `rok gen --migration` stages the history
+/// pairs into `migrations/`, the default history dir.
 fn next_steps(scaffolded: &Scaffolded, template: bool, seeded: bool) {
     let mut steps: Vec<&str> = Vec::new();
     if template {

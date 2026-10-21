@@ -1,8 +1,8 @@
 //! `ALTER TABLE` applied to the parsed schema.
 //!
 //! The truth may carry `ALTER TABLE` statements beside the tables they
-//! change (ADR 0017 in the engine's series). The staging diff works on the
-//! parsed tables only, so an `ALTER TABLE` this model can represent is
+//! change (engine ADR 0017). The staging diff works on the parsed
+//! tables only, so an `ALTER TABLE` this model can represent is
 //! applied to the tables themselves: the change rides no `Extra` step, and
 //! folding such a change into the truth's `CREATE TABLE` later stages no
 //! redundant drop-and-add pair. A clause the model cannot represent falls

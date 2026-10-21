@@ -50,8 +50,10 @@ picking one format would strand the other side.
 ## Amendment (2026-10-21): the truth and the history live in one dir each
 
 Ticket (c) of the unified-pipeline plan splits the project's SQL in two
-deliberate places (`crates/rok-data-codegen/src/staging.rs`, workspace
-ADR 0010):
+deliberate places. This amendment is that split's home — the staging
+that implements it is `crates/rok-data-codegen/src/staging.rs`, and the
+truth dir's own rule (the single writable source of truth) is
+workspace ADR 0010:
 
 - the **truth dir** (`[generate] schema` in `rok.toml`; `rok init` and
   `rok sqlc init` now seed `schema/`): the plain `*.sql` files the

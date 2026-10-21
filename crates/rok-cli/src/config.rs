@@ -2,7 +2,7 @@
 //! same precedence rules the original `rok-db-gen` used: flags beat the
 //! file, the file beats defaults.
 //!
-//! The canonical name is `rok.toml` (ADR 0011); the legacy
+//! The canonical name is `rok.toml` (workspace ADR 0011); the legacy
 //! `rok-data.toml` stays readable as an alias and prints a note when
 //! read.
 

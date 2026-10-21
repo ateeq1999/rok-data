@@ -1,6 +1,6 @@
--- The truth of this example (ADR 0010): the schema as it is now, in one
--- plain `.sql` file. `rok gen` reads these files; the staged migration
--- pairs beside them are the history — how the schema got here.
+-- The truth of this example (workspace ADR 0010): the schema as it is now,
+-- in one plain `.sql` file. `rok gen` reads these files; the staged
+-- migration pairs beside them are the history — how the schema got here.
 --
 -- The file names carry no version: the version belongs to the migration.
 

@@ -21,3 +21,11 @@ The rule wording the refusals borrow is the codegen's rule told from the marker'
 ## Consequences
 
 The pre-pass lives once, in `src/parser/postgres/undo.rs`, whose module docs state the convention, the scan and the refusals; `parse_statements` strips the markers before the SQL parser or the statement-recovery path sees the text. A truth file and the codegen's comment blocks now carry the same `-- rok:down` meaning, and the staged-pair behavior that reads them is unchanged: the ALTER still rides the staged pair as an `Extra` step with the undo the marker supplied, pending the staging's own vocabulary in the diff.
+
+## Amendment (2026-10-21): the folding landed with the separate history dir
+
+The deferred option above — structural `ALTER` support in the staging's diff — has landed, and it landed with the split of the truth and the history (ticket (c) of the unified-pipeline plan; workspace ADR 0004's amendment names the layout).
+
+`crates/rok-data-codegen/src/parse/alter.rs` applies the `ALTER TABLE` statements a truth carries to the parsed tables themselves: an `ALTER` this model can represent rides no `Extra` step, so the staged pair carries the change as the table's own shape, and a later truth that folds the same column into its `CREATE TABLE` stages nothing. The pin is `an_alter_folded_into_the_table_stages_nothing` (`crates/rok-data-codegen/src/ddl/tests.rs`), which replaced the old drop-then-add pin: the ALTER folds into the table, and the folded and the unfolded truth describe the same schema.
+
+So the Consequences above hold for the truth half of this ADR — what a truth input means, the marker vocabulary and its two refusals, unchanged — but not for the staged-pair behavior: an `ALTER` the model can represent now rides the pair as the table's own columns, and only a clause the model cannot represent still rides it as an `Extra` step with the undo the `-- rok:down` marker supplied.

@@ -81,8 +81,8 @@ fn generate_fixture() -> Result<Vec<PathBuf>> {
     let report = rok_data_sqlc::generate(&plain)?;
     files.extend(report.written.into_iter().chain(report.unchanged));
 
-    // Validation rules (ADR 0015) get a third `db` module, so the main one
-    // stays as `derive = ["serde"]` generates it.
+    // Validation rules (engine ADR 0015) get a third `db` module, so the
+    // main one stays as `derive = ["serde"]` generates it.
     let mut validated = rok_data_sqlc::Config::default();
     validated.schema = vec![app_dir().join("validated_schema.sql")];
     validated.output = app_dir().join("src/validated_db");
@@ -197,8 +197,8 @@ fn generated_code_passes_the_lint_gate() -> Result<()> {
     generate_fixture()?;
 
     // The fixture crate denies warnings and `missing_docs` and turns on the
-    // selected pedantic lints (ADR 0013); `--all-targets` also type-checks
-    // the PostgreSQL integration tests.
+    // selected pedantic lints (engine ADR 0013); `--all-targets` also
+    // type-checks the PostgreSQL integration tests.
     let status = cargo(
         &app_dir(),
         &["clippy", "--quiet", "--all-targets", "--", "-Dwarnings"],

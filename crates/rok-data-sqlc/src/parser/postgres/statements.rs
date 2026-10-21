@@ -423,6 +423,12 @@ enum Parsed {
 /// [`recover_statement`]). Any other statement that does not parse fails the
 /// run at its `path:line`. Spans keep their place in the whole input.
 fn parse_statements(dialect: &PostgreSqlDialect, source: &SchemaSource<'_>) -> Result<Vec<Parsed>> {
+    // This strip is the statement path's own, for the flow of this
+    // function: parsing reads one input at a time. The engine's own run
+    // (`crate::generate`, via `generate/snapshot.rs`) strips every source
+    // once more for the snapshot SQL it composes, so there is nothing
+    // left for this strip to skip when the generation calls — on other
+    // callers of the parser, the marker refusals surface here.
     let sql = super::undo::strip_undos(source.sql, source.path)?;
     let invalid = |line: Option<u64>| {
         let place = match (source.path.as_os_str().is_empty(), line) {

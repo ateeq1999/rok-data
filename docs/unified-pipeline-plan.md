@@ -33,10 +33,10 @@ legacy engines keep working as forwarded aliases until 1.0.
   no file moves — and separates them by citation: wherever the number
   alone is ambiguous, the cite says "engine ADR NNNN" or "workspace
   ADR NNNN" (a file path beside it leaves it unambiguous; in-code doc
-  comments keep the short form). The workspace's numbers (0001-0016)
-  stay reserved for the workspace series, which the engine's series
-  never claims; the engine's keeps growing (0017 is its newest). The
-  rule is recorded in AGENTS.md's Docs discipline section, and the
+  comments keep the short form). The two series number independently —
+  the workspace's reaches 0013, the engine's 0017 — and a new engine
+  ADR continues the engine's series. The rule is recorded in AGENTS.md's
+  Docs discipline section, and the
   citation sweep went over the engine's source doc comments, README,
   guides and ADR directory, the workspace-level docs, the codegen
   crate and the templates.
@@ -242,7 +242,15 @@ legacy engines keep working as forwarded aliases until 1.0.
     rides the pair as an `Extra` step with the undo its `-- rok:down`
     marker supplied. The `--migration` advice now names `rok migrate
     up` (+ `--dir` when the history dir is not `migrations`), not a
-    `psql` invocation the loader could not answer.
+    `psql` invocation the loader could not answer. `rok gen check`
+    guards the history too: a truth that moved on since the last staged
+    pair is drift, and it is a finding of its own — the prose names the
+    migration the truth moved on from and the version the pair would
+    take (`0002_pending`), and `--json` carries it in
+    `pending_migration`. Deliberate: the check names no file that does
+    not exist (no synthesized pair among the missing files), because the
+    pair is the user's to name and to write; the gate itself is
+    unchanged — the run still fails (exit 1).
 - Legacy aliases stay verbatim-forwarding (`rok sqlc` →
   `run_from`); root help marks both `rok generate` and `rok sqlc` as
   superseded, removal deferred to 1.0; `docs/cli-reference.md`
@@ -277,7 +285,7 @@ legacy engines keep working as forwarded aliases until 1.0.
     gate and its tests (the API tests against PostgreSQL when a database
     is configured; they skip otherwise).
   - **Done (the engine's half of it)**: a truth file can carry an
-    `ALTER TABLE` now (ADR 0017, the engine's series). The engine's
+    `ALTER TABLE` now (engine ADR 0017). The engine's
     schema parser honors the `-- rok:down` section the truth carries
     (the codegen's own vocabulary: a marker line's next statement is
     the undo of the statement immediately before the marker), where it
@@ -332,6 +340,51 @@ legacy engines keep working as forwarded aliases until 1.0.
 - Release per workspace ADR 0008 (and the Releasing section of AGENTS.md):
   `## [0.2.0]` heading in root `CHANGELOG.md`, tag `v0.2.0`,
   checksummed bundles, crates.io in dependency order.
+
+## Phase 6 — 0.3.0: the model-shaped data layer
+
+The spec of record: `docs/specs/0.3.0-model-shaped-data-layer.md`
+(proposed 2026-10-22). The decisions: workspace ADR 0014 (the verbs live
+on the model), workspace ADR 0015 (conventions are inferred, with explicit
+opt-outs), engine ADR 0018 (the generated model's shape).
+
+Breaking release: the runtime's public surface and the generated output
+both change; no deprecation staging (workspace ADR 0014). The legacy
+command surfaces (`rok generate`, `rok sqlc …`) are not touched, and
+`docs/cli-reference.md` does not change (no command, flag, output or exit
+code changes).
+
+Task graph, in order:
+
+- **M0 — the records.** The three ADRs above, this phase, and the spec's
+  acceptance. (Done.)
+- **M1 — the runtime surface** (spec D2/D3): `create()` →
+  `insert_builder()`, `save()` removed in favour of `update()`, `exists()`
+  added to the model; the chain gains `get()` (alias of `all`), `chunk()`
+  and `r#where`; `r#where` also aliases the model's `filter`. Proven in
+  the facade's integration suite.
+- **M2 — the inferred conventions** (spec D4): the derive infers managed
+  timestamps and soft deletes from the field names; `#[rok(no_timestamps)]`
+  and `#[rok(no_soft_delete)]` are the opt-outs; the existing markers keep
+  working.
+- **M3 — the generated model's shape** (spec D6/D7/D8): relation
+  attributes derived from the schema's foreign keys (`User::POSTS`,
+  `user.posts()`), named scopes (model entry + chain method through the
+  runtime's `Scope` trait). Pinned in the module-fixture corpus.
+- **M4 — the typed write spine** (spec D5): `User::create(&db, NewUser)`,
+  `User::patch(&db, id, UpdateUser)`, `User::destroy(&db, id)`; the
+  module's functions stay as thin wrappers.
+- **M5 — the docs and the release**: the glossaries (Model, Scope; Resource
+  and Query chain rewritten), `docs/getting-started.md` rewritten,
+  `docs/migration-guide.md` gains the 0.3.0 before/after, the root
+  `CHANGELOG.md` gains `## [0.3.0]`, the feature matrix and the
+  architecture doc follow, the workspace version becomes 0.3.0 and the
+  release is tagged per workspace ADR 0008.
+
+The three testing seams the spec names: the facade's integration suite, the
+engine's module-fixture corpus (refreshed only through
+`ROK_DATA_SQLC_UPDATE_EXPECTED=1`), and the compile fixtures plus
+`examples/api` (no drift under `rok gen check`).
 
 ## Post-0.2.0 backlog (recorded deferrals, in interview order)
 

@@ -14,6 +14,10 @@ use crate::report::{Error, QueryFailure, RefusedFile, Report, Result, TableFailu
 use crate::schema::{self, BaseType, EnumType, Shape, Table};
 use crate::{api_config, generator, output, parser, queries};
 
+mod snapshot;
+
+use snapshot::{prepared, sql as snapshot_sql};
+
 pub(crate) fn generate(config: &Config) -> Result<Report> {
     let mut report = Report::default();
     match run(config, &mut report) {
@@ -39,16 +43,12 @@ fn run(config: &Config, report: &mut Report) -> anyhow::Result<()> {
     }
     let sources = read_schema(config)?;
     // The undos a truth carries are the reverse half of pairs, not schema
-    // (engine ADR 0017): the parser skips them before the SQL parser reads
-    // the file, and so does the snapshot the generated `schema.rs` carries —
-    // executed, an undo SQL would undo the change.
-    let sources = sources
-        .into_iter()
-        .map(|(path, sql)| {
-            let sql = parser::postgres::undo::strip_undos(&sql, &path)?;
-            anyhow::Ok((path, sql.into_owned()))
-        })
-        .collect::<anyhow::Result<Vec<_>>>()?;
+    // (engine ADR 0017): [`snapshot::prepared`] runs the run-level strip
+    // whose output feeds both this parse (the statement path strips anew
+    // per source for its own reading, `parser/postgres/statements.rs`)
+    // and the snapshot SQL below — where an undo SQL would undo the
+    // change the truth means to have.
+    let sources = prepared(sources)?;
     let mut parsed = parser::parse_sources_with_modules(
         &sources
             .iter()
@@ -64,7 +64,7 @@ fn run(config: &Config, report: &mut Report) -> anyhow::Result<()> {
         );
     }
     parsed.fail_tables(|table| generator::table_failures(table, config));
-    let sql = schema_snapshot(&sources);
+    let sql = snapshot_sql(&sources);
 
     let matches_resource =
         |table: &str| resource.is_none_or(|name| table == name || table.to_snake_case() == name);
@@ -440,19 +440,6 @@ fn migration_files(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
     }
     files.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
     Ok(files)
-}
-
-/// The schema snapshot: every input verbatim, in order, each starting on a
-/// new line.
-fn schema_snapshot(sources: &[(PathBuf, String)]) -> String {
-    let mut sql = String::new();
-    for (_, text) in sources {
-        if !sql.is_empty() && !sql.ends_with('\n') {
-            sql.push('\n');
-        }
-        sql.push_str(text);
-    }
-    sql
 }
 
 /// One query file to analyze.

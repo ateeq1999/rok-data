@@ -1,4 +1,5 @@
-//! `rok sqlc check-arch` checks a project against ADR 0016's architecture:
+//! `rok sqlc check-arch` checks a project against engine ADR 0016's
+//! architecture:
 //! the feature layout, and the guidelines' rules 1, 2, 4, 5 and 6 plus the
 //! cross-feature write rule, read from the Rust source with `syn`. Each
 //! violation is printed as `path:line: rule: message`; any fails the run.

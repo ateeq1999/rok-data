@@ -1,5 +1,5 @@
 //! `tests/api-app`: an application laid out by `rok sqlc init` and generated
-//! with `api.output` (ADR 0016).
+//! with `api.output` (engine ADR 0016).
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -9,8 +9,8 @@ use anyhow::{Context, Result, ensure};
 
 use crate::common::{self, cargo};
 
-/// The API fixture crate, `tests/api-app` (ADR 0016): an application laid
-/// out by `rok sqlc init` and generated with `api.output`.
+/// The API fixture crate, `tests/api-app` (engine ADR 0016): an application
+/// laid out by `rok sqlc init` and generated with `api.output`.
 pub(crate) fn api_app_dir() -> PathBuf {
     common::app_dir("api-app")
 }
@@ -149,7 +149,7 @@ fn copy_skeleton(from: &std::path::Path, to: &std::path::Path) -> Result<()> {
 }
 
 /// The skeleton `init` scaffolds compiles against the generated pool and
-/// shared tools, and all of it passes the lint gate (ADR 0013), with
+/// shared tools, and all of it passes the lint gate (engine ADR 0013), with
 /// `unwrap`, `expect` and `panic` denied.
 #[test]
 fn api_app_passes_the_lint_gate() -> Result<()> {
@@ -194,7 +194,7 @@ fn api_app_passes_its_tests() -> Result<()> {
 }
 
 /// Generated code obeys the architecture it generates: the API fixture,
-/// skeleton included, passes `rok sqlc check-arch` (ADR 0016) with no
+/// skeleton included, passes `rok sqlc check-arch` (engine ADR 0016) with no
 /// warning, reading the fixture's `rok-data-sqlc.toml`.
 #[test]
 fn api_app_passes_check_arch() -> Result<()> {

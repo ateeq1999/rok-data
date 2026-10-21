@@ -16,11 +16,12 @@
 //! rok sqlc generate|init|check-arch   # legacy: forwarded to the engine
 //! ```
 //!
-//! `rok generate` and `rok sqlc …` are the legacy surfaces (ADR 0012): their
-//! flags, their output and their exit codes are unchanged — `rok sqlc …`
-//! forwards its tokens verbatim to the engine, and `rok generate` no longer
-//! takes the `generate` subcommand — and the root help marks them as
-//! superseded by the front door, their removal deferred to 1.0.
+//! `rok generate` and `rok sqlc …` are the legacy surfaces
+//! (workspace ADR 0012): their flags, their output and their exit
+//! codes are unchanged — `rok sqlc …` forwards its tokens verbatim to
+//! the engine, and `rok generate` no longer takes the `generate`
+//! subcommand — and the root help marks them as superseded by the
+//! front door, their removal deferred to 1.0.
 
 use std::process::ExitCode;
 

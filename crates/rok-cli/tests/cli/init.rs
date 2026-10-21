@@ -1,4 +1,4 @@
-//! `rok sqlc init [DIR]` scaffolds the application skeleton of ADR 0016,
+//! `rok sqlc init [DIR]` scaffolds the application skeleton of engine ADR 0016,
 //! each file only when absent, and generates nothing.
 
 use super::*;

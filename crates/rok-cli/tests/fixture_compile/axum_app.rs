@@ -1,5 +1,5 @@
 //! `tests/axum-app`: an application laid out by `rok sqlc init` and
-//! generated with `api.output` for axum (ADR 0016): the same feature set
+//! generated with `api.output` for axum (engine ADR 0016): the same feature set
 //! as the actix fixture, on the other backend.
 
 use std::path::PathBuf;
@@ -10,8 +10,8 @@ use anyhow::{Context, Result, ensure};
 
 use crate::common::{self, cargo};
 
-/// The axum API fixture crate, `tests/axum-app` (ADR 0016): an application
-/// laid out by `rok sqlc init` and generated for axum.
+/// The axum API fixture crate, `tests/axum-app` (engine ADR 0016): an
+/// application laid out by `rok sqlc init` and generated for axum.
 pub(crate) fn axum_app_dir() -> PathBuf {
     common::app_dir("axum-app")
 }
@@ -63,9 +63,9 @@ fn generate_axum_app() -> Result<Vec<PathBuf>> {
         .collect())
 }
 
-/// The axum fixture passes the lint gate (ADR 0013): `deny(missing_docs)`,
-/// the selected pedantic lints, and `-D warnings`, with `unwrap`, `expect`
-/// and `panic` denied.
+/// The axum fixture passes the lint gate (engine ADR 0013):
+/// `deny(missing_docs)`, the selected pedantic lints, and `-D warnings`, with
+/// `unwrap`, `expect` and `panic` denied.
 #[test]
 fn axum_app_passes_the_lint_gate() -> Result<()> {
     let _guard = AXUM_APP
@@ -111,7 +111,7 @@ fn axum_app_passes_its_tests() -> Result<()> {
 }
 
 /// The generated code obeys the architecture it generates: the axum
-/// fixture passes `rok sqlc check-arch` (ADR 0016) with no warning,
+/// fixture passes `rok sqlc check-arch` (engine ADR 0016) with no warning,
 /// reading the fixture's `rok-data-sqlc.toml`.
 #[test]
 fn axum_app_passes_check_arch() -> Result<()> {

@@ -1,4 +1,5 @@
-//! `derive = ["validate"]` and `extractors` (ADR 0015): where they are set,
+//! `derive = ["validate"]` and `extractors` (engine ADR 0015): where they
+//! are set,
 //! how layers override them, and the derives each one needs.
 
 use super::*;

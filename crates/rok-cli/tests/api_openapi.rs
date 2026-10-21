@@ -1,4 +1,4 @@
-//! OpenAPI schemas for generated API features (ADR 0016, milestone 2):
+//! OpenAPI schemas for generated API features (engine ADR 0016, milestone 2):
 //! with `api.output` set and `[api] openapi` on, every type a feature
 //! exposes derives utoipa's `ToSchema` or `IntoParams`, and the data-layer
 //! types inside them derive `ToSchema` too. Without the API, or with

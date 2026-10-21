@@ -1,5 +1,5 @@
-# The example's settings: the unified project file (ADR 0011). `rok gen`
-# reads it; the flags beat it. See README.md.
+# The example's settings: the unified project file (workspace ADR 0011).
+# `rok gen` reads it; the flags beat it. See README.md.
 
 [generate]
 # The truth dir: the plain `*.sql` files describing the schema. The

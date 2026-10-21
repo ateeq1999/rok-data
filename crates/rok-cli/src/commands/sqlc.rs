@@ -7,10 +7,11 @@
 //! the grammar inside the engine means its test corpus verifies the exact
 //! surface the CLI ships; the interface here owns dispatch and exit codes.
 //!
-//! The subtree is the legacy surface (ADR 0012): superseded by the front
-//! door (`rok init`, `rok gen`) and marked as such in the root help, but
-//! still forwarded to the engine verbatim — the tokens, the help text and
-//! the exit codes are the engine's own. Its removal is deferred to 1.0.
+//! The subtree is the legacy surface (workspace ADR 0012): superseded by
+//! the front door (`rok init`, `rok gen`) and marked as such in the root
+//! help, but still forwarded to the engine verbatim — the tokens, the help
+//! text and the exit codes are the engine's own. Its removal is deferred
+//! to 1.0.
 
 use std::process::ExitCode;
 

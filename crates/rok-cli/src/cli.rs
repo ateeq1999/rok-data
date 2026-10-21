@@ -4,11 +4,12 @@
 //! [`crate::commands::sqlc`]) so its grammar and its tests share one source;
 //! everything below owns the mapping into library calls.
 //!
-//! `rok generate` and `rok sqlc …` are the legacy surfaces (ADR 0012): their
-//! flags, their output and their exit codes are unchanged — `rok sqlc …` is
-//! forwarded verbatim to the engine, and `rok generate` no longer takes the
-//! `generate` subcommand — and the root help marks them as superseded by
-//! the front door (`rok init`, `rok gen`), their removal deferred to 1.0.
+//! `rok generate` and `rok sqlc …` are the legacy surfaces
+//! (workspace ADR 0012): their flags, their output and their exit
+//! codes are unchanged — `rok sqlc …` is forwarded verbatim to the
+//! engine, and `rok generate` no longer takes the `generate`
+//! subcommand — and the root help marks them as superseded by the
+//! front door (`rok init`, `rok gen`), their removal deferred to 1.0.
 
 use clap::{Args, CommandFactory, FromArgMatches, Parser, Subcommand};
 use std::path::PathBuf;
@@ -313,7 +314,8 @@ pub(crate) struct GenCheckOptions {
 }
 
 /// An `--api-framework` value. It mirrors [`ApiFramework`], which stays
-/// free of clap because it is part of the stable library API (ADR 0012).
+/// free of clap because it is part of the stable library API
+/// (engine ADR 0012).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum ApiFrameworkArg {
     /// axum: the routes are a `Router`'s, the handlers take axum's

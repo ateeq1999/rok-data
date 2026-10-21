@@ -138,7 +138,7 @@ refused unless `--allow-destructive` is given; `--rename` records a
 rename instead of a drop and an add.
 
 The next steps name the staged pair's file: apply it with `rok migrate
-up` (`--dir migrations <dir>` when the history dir is not `migrations`).
+up` (with `--dir <path>` when the history dir is not `migrations`).
 An `ALTER TABLE` the truth carries folds into the truth's tables when
 the model can represent it; a clause it cannot rides the pair as an
 extra step with the undo the truth's `-- rok:down` marker supplies.
@@ -149,17 +149,28 @@ numbered next steps. `--json` prints one object instead:
 [{"path": ..., "reason": ...}], "stale": [...], "missing": [...],
 "changed": [...], "skipped": [{"kind": "table"|"query", "name": ...,
 "reason": ...}], "warnings": [...], "migration": {"version": ..., "name":
-..., "up": ..., "down": ..., "reversible": ..., "steps": [...]}, "drift":
-<bool>, "dry_run": <bool>}`.
+..., "up": ..., "down": ..., "reversible": ..., "steps": [...]},
+"pending_migration": {"version": ..., "name": ..., "since": ...} | null,
+"drift": <bool>, "dry_run": <bool>}`. `pending_migration` is the check's
+own finding of an un-staged truth change (null otherwise): the version
+the pair would take, the placeholder name `pending`, and `since` — the
+last staged migration's stem. The check names no file that does not
+exist: the pending pair is not among the `missing` files.
 
 ### `rok gen check [OPTIONS]`
 
 The CI mode: nothing is written, the missing, changed and stale files are
 reported, and the run exits 1 when there is drift (`--json` reports the
-drift and exits 1 as well). The same flags minus `--migration` and
-`--rename`, which belong to the generate run: given to `rok gen` together
-with `check` they are an error, given to `rok gen check` they are a usage
-error. The leaf's flags win over the group's; the booleans OR.
+drift and exits 1 as well). An un-staged truth change — a truth that
+moved on since the last staged pair — is a finding of its own: the prose
+names the migration the truth moved on from (`0001_init`), the command
+that stages it (`rok gen --migration <name>`) and the version the pair
+would take (`0002_pending`); `--json` carries the same in
+`pending_migration`; and the run still exits 1. The same flags
+minus `--migration` and `--rename`, which belong to the generate run:
+given to `rok gen` together with `check` they are an error, given to
+`rok gen check` they are a usage error. The leaf's flags win over the
+group's; the booleans OR.
 
 ## `rok generate` — whole-crate generation (legacy)
 

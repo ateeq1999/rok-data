@@ -3,10 +3,12 @@
 //! NAME`) needs — the diff, the guard rails and the two files, without a
 //! crate.
 //!
-//! The project's SQL is split (workspace ADR 0010) into two directories:
+//! The project's SQL is split (workspace ADR 0004's amendment) into two
+//! directories:
 //!
 //! - the **truth dir**: plain `*.sql` files describing the wanted schema, the
-//!   files the generator reads (and rewrites by hand);
+//!   files the generator reads (and rewrites by hand); it is the project's
+//!   single source of truth (workspace ADR 0010);
 //! - the **history dir**: the staged migration pairs, `NNNN_name.up.sql` and
 //!   the optional `NNNN_name.down.sql`, plus the *snapshot* file they are
 //!   diffed against.
@@ -159,9 +161,7 @@ pub fn stage(options: &StageOptions) -> Result<Staged, Error> {
     let previous = read_snapshot(&options.history)?;
     let pair = truth::migration(&previous, &parsed.schema, &options.renames)?;
     if pair.is_empty() {
-        return Err(Error::new(
-            "the schema hasn't changed since the last migration; nothing to migrate",
-        ));
+        return Err(Error::nothing_to_migrate());
     }
     let name = naming::snake_ident(&options.name);
     if !pair.destructive.is_empty() && !options.allow_destructive {
@@ -350,6 +350,25 @@ mod tests {
         stage(&options(&dir)).expect("the first migration stages");
         let again = message(stage(&options(&dir)));
         assert!(again.contains("hasn't changed"), "{again}");
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The nothing-to-migrate stop is a kind, not a text: the CLI branches
+    /// on [`Error::is_nothing_to_migrate`] and the message stays exactly
+    /// the wording the CLIs report, so this pin has both.
+    #[test]
+    fn the_nothing_to_migrate_stop_keeps_its_message_and_is_a_kind() {
+        let dir = dir("stage-unchanged-stop");
+        fs::write(dir.join("0001_init.sql"), "CREATE TABLE users (id INT);").expect("write");
+        stage(&options(&dir)).expect("the first migration stages");
+
+        let stop = stage(&options(&dir)).expect_err("the unchanged truth has no pair");
+        assert_eq!(
+            stop.to_string(),
+            "the schema hasn't changed since the last migration; nothing to migrate"
+        );
+        assert!(stop.is_nothing_to_migrate());
+        assert!(!Error::new("something else failed").is_nothing_to_migrate());
         fs::remove_dir_all(&dir).ok();
     }
 

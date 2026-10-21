@@ -441,7 +441,7 @@ fn gen_reads_the_engine_config_file() -> Result<()> {
     Ok(())
 }
 
-/// The flags beat the settings file (ADR 0011).
+/// The flags beat the settings file (workspace ADR 0011).
 #[test]
 fn the_flags_beat_the_settings_file() -> Result<()> {
     let dir = project(SCHEMA)?;
@@ -611,6 +611,11 @@ fn the_migration_advice_names_a_moved_history_dir() -> Result<()> {
 
 /// The CI mode guards the staged history too: a truth that moved on since
 /// the last staged pair is drift, and the check writes nothing.
+///
+/// The un-staged truth change is a finding of its own: the prose names
+/// the migration the truth moved on from and the version the pair would
+/// take, and no file that does not exist is reported among the missing
+/// ones.
 #[test]
 fn gen_check_fails_on_a_pending_migration() -> Result<()> {
     let dir = project(SCHEMA)?;
@@ -624,9 +629,15 @@ fn gen_check_fails_on_a_pending_migration() -> Result<()> {
     let output = run_in(dir.path(), &["gen", "check"])?;
     assert_eq!(output.status.code(), Some(1));
     let out = stdout(&output);
+    assert!(out.contains("the truth changed since `0001_init`"), "{out}");
+    assert!(out.contains("rok gen --migration <name>"), "{out}");
     assert!(
-        out.contains("missing migrations/0002_pending.up.sql"),
-        "{out}"
+        out.contains("the check plans `0002_pending`"),
+        "the finding names the version the pair would take: {out}"
+    );
+    assert!(
+        !out.contains("missing migrations/0002_pending.up.sql"),
+        "the check names no file that does not exist: {out}"
     );
     let err = stderr(&output);
     assert!(
@@ -637,6 +648,25 @@ fn gen_check_fails_on_a_pending_migration() -> Result<()> {
         !dir.path().join("migrations/0002_pending.up.sql").exists()
             && !dir.path().join("migrations/0002_pending.down.sql").exists(),
         "the check writes nothing"
+    );
+
+    // The same finding, as JSON: its own field, and no missing file.
+    let output = run_in(dir.path(), &["gen", "check", "--json"])?;
+    assert_eq!(output.status.code(), Some(1));
+    let json_out = stdout(&output);
+    let report: serde_json::Value =
+        serde_json::from_str(json_out.trim()).unwrap_or_else(|e| panic!("{e}: {json_out}"));
+    let pending = &report["pending_migration"];
+    assert_eq!(pending["version"], serde_json::json!(2));
+    assert_eq!(pending["name"], serde_json::json!("pending"));
+    assert_eq!(pending["since"], serde_json::json!("0001_init"));
+    assert!(
+        report["missing"]
+            .as_array()
+            .expect("the missing files")
+            .iter()
+            .all(|path| !path.as_str().expect("a path").contains("0002_pending")),
+        "the pending pair is not among the missing files: {json_out}"
     );
 
     // Staging for real unsticks the check.

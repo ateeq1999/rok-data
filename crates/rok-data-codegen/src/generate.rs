@@ -119,9 +119,7 @@ pub fn generate(options: &Options) -> Result<Generated, Error> {
     let pair = truth::migration(&snapshot, &parsed.schema, &options.renames)?;
     let name = match (&options.migration, pair.is_empty()) {
         (Some(_), true) if options.renames.is_empty() => {
-            return Err(Error::new(
-                "the schema hasn't changed since the last migration; nothing to migrate",
-            ));
+            return Err(Error::nothing_to_migrate());
         }
         (Some(name), _) => Some(naming::snake_ident(name)),
         (None, false) if migrations.is_empty() => Some("init".to_owned()),

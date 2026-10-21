@@ -1,5 +1,6 @@
-//! The `[api]` configuration (ADR 0016): read from the config file, the JSON
-//! payload and `-a/--api-output`, layered like the other options, and
+//! The `[api]` configuration (engine ADR 0016): read from the config file,
+//! the JSON payload and `-a/--api-output`, layered like the other options,
+//! and
 //! checked against the schema. It adds `db/pool.rs` to the data layer and
 //! the shared tools beside the features directory.
 

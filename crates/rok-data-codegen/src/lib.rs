@@ -31,17 +31,40 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Error {
     message: String,
+    nothing_to_migrate: bool,
 }
 
 impl Error {
     pub(crate) fn new(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
+            nothing_to_migrate: false,
         }
     }
 
     pub(crate) fn at(location: &str, message: impl fmt::Display) -> Self {
         Self::new(format!("{location}: {message}"))
+    }
+
+    /// The migration staging's deliberate stop: the diff of the truth
+    /// against the state of the last staged migration is empty, so the
+    /// pair to write is empty. [`Error::new`] builds a plain failure;
+    /// this constructor owns the message, so its exact wording is the
+    /// one to pin and callers branch on [`Error::is_nothing_to_migrate`]
+    /// instead of matching the text.
+    pub(crate) fn nothing_to_migrate() -> Self {
+        Self {
+            message: "the schema hasn't changed since the last migration; nothing to migrate"
+                .to_owned(),
+            nothing_to_migrate: true,
+        }
+    }
+
+    /// Whether the staging found nothing to migrate: the truth equals the
+    /// state of the last staged migration, no pair was written, and a
+    /// caller may treat the run as the clean state instead of a failure.
+    pub fn is_nothing_to_migrate(&self) -> bool {
+        self.nothing_to_migrate
     }
 }
 

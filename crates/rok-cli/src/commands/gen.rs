@@ -11,10 +11,10 @@
 //!    dir** (`--migrations-dir`). The snapshot the next staging diffs
 //!    against lives there too, hidden beside the pairs.
 //!
-//! The truth dir is the project's only source of truth (ADR 0010); the
-//! history dir is what `rok migrate` reads. The two default to one —
-//! `migrations`, the layout `rok init` seeded before the split — so a
-//! project of that layout keeps generating and staging as before.
+//! The truth dir is the project's only source of truth (workspace ADR
+//! 0010); the history dir is what `rok migrate` reads. The two default
+//! to one — `migrations`, the layout `rok init` seeded before the split
+//! — so a project of that layout keeps generating and staging as before.
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -66,9 +66,9 @@ fn generate(options: GenOptions) -> Result<ExitCode, String> {
         Err(error) => {
             // The report says what was known when the run stopped.
             if settings.json {
-                print_json(&settings, error.report(), None, false);
+                print_json(&settings, error.report(), None, None, false);
             } else {
-                print_report(&settings, error.report(), None);
+                print_report(&settings, error.report(), None, None);
             }
             return Err(error.to_string());
         }
@@ -80,9 +80,9 @@ fn generate(options: GenOptions) -> Result<ExitCode, String> {
         None
     };
     if settings.json {
-        print_json(&settings, &report, staged.as_ref(), false);
+        print_json(&settings, &report, staged.as_ref(), None, false);
     } else {
-        print_report(&settings, &report, staged.as_ref());
+        print_report(&settings, &report, staged.as_ref(), None);
         next_steps(&settings, staged.as_ref());
     }
     match strict {
@@ -92,19 +92,19 @@ fn generate(options: GenOptions) -> Result<ExitCode, String> {
 }
 
 /// `rok gen check`: the CI mode. Nothing is written; the drift (missing,
-/// changed, or stale files — the staged pair a moved truth would stage
-/// among them) is reported and fails the run.
+/// changed, or stale files) and an un-staged truth change
+/// ([`staged_drift`]) are reported, and either fails the run.
 fn check(options: GenOptions) -> Result<ExitCode, String> {
     let settings = Settings::resolve(&options, true)?;
-    let mut report = match rok_data_sqlc::generate(&settings.engine) {
+    let report = match rok_data_sqlc::generate(&settings.engine) {
         Ok(report) => report,
         Err(error) => {
             let report = error.report();
             let drift = report.has_drift();
             if settings.json {
-                print_json(&settings, report, None, drift);
+                print_json(&settings, report, None, None, drift);
             } else {
-                print_report(&settings, report, None);
+                print_report(&settings, report, None, None);
             }
             if !drift {
                 // Not a drift: the run failed for another reason.
@@ -115,20 +115,22 @@ fn check(options: GenOptions) -> Result<ExitCode, String> {
         }
     };
     let strict = strict_failure(&settings, &report);
-    if strict.is_none() {
-        staged_drift(&settings, &mut report)?;
-    }
-    if settings.json {
-        print_json(&settings, &report, None, false);
+    let pending = if strict.is_none() {
+        staged_drift(&settings)?
     } else {
-        print_report(&settings, &report, None);
-        if !report.has_drift() {
+        None
+    };
+    if settings.json {
+        print_json(&settings, &report, None, pending.as_ref(), false);
+    } else {
+        print_report(&settings, &report, None, pending.as_ref());
+        if !report.has_drift() && pending.is_none() {
             println!("the generated code is up to date");
         }
     }
     match strict {
         Some(message) => Err(message),
-        None if report.has_drift() => {
+        None if pending.is_some() => {
             eprintln!(
                 "error: the truth has a change that is not staged as a migration; \
                  run `rok gen --migration NAME` in the repo"
@@ -139,41 +141,52 @@ fn check(options: GenOptions) -> Result<ExitCode, String> {
     }
 }
 
-/// The staged pair a moved truth would stage, as the check's drift: a
+/// An un-staged truth change the check reports: the pair a
+/// `rok gen --migration <name>` would stage next. The check cannot know
+/// the user's migration name, so the finding carries the placeholder the
+/// planned staging names its would-be pair — `pending` — instead of a
+/// fabricated path in the report's `missing` files.
+struct Pending {
+    /// The last staged migration's stem (`0001_init`), the shape the
+    /// truth moved on from.
+    base: String,
+    /// The version the pair takes when it is staged: the next free one
+    /// in the history dir.
+    version: i64,
+    /// The pair's placeholder name in the finding.
+    name: String,
+}
+
+/// The un-staged truth change a check reports as a finding of its own: a
 /// staged history base is the last known schema, so a truth that differs
-/// from the snapshot is missing pair files. The run plans the staging only
-/// (dry run; nothing is written) and lists the would-be pair among the
-/// report's missing files.
+/// from the snapshot is a change the history has not taken yet. The run
+/// plans the staging only (dry run; nothing is written) and reports the
+/// would-be pair — its human line names the last staged migration and the
+/// version the pair takes, and the `--json` field `pending_migration`
+/// carries the same — rather than among the report's `missing` files
+/// (deliberate; see `docs/unified-pipeline-plan.md`, ticket (c)).
 ///
-/// There is no pair to look for until the history dir already holds
-/// migrations, and a truth equal to the snapshot stages nothing (the
-/// `hasn't changed` message). Any other staging problem fails the run
-/// with its message.
-fn staged_drift(settings: &Settings, report: &mut Report) -> Result<(), String> {
+/// There is nothing to look for until the history dir holds migrations,
+/// and a truth equal to the snapshot stages nothing: the staging's
+/// `Error::is_nothing_to_migrate` stop is that clean state, not a
+/// failure. Any other staging problem fails the run with its message.
+fn staged_drift(settings: &Settings) -> Result<Option<Pending>, String> {
     let history = rok_data_codegen::existing_migrations(&settings.migrations_dir)
         .map_err(|e| e.to_string())?;
-    if history.is_empty() {
-        return Ok(());
-    }
-    let staged = match rok_data_codegen::stage(&StageOptions {
-        schema: settings.schema_dir.clone(),
-        history: settings.migrations_dir.clone(),
-        // `check` refuses `--migration`; the pair is named for what it is:
-        // a pending change the run did not stage yet.
-        name: PENDING_MIGRATION_NAME.to_owned(),
-        renames: Vec::new(),
-        allow_destructive: settings.allow_destructive,
-        dry_run: true,
-    }) {
-        Ok(staged) => staged,
-        Err(error) if error.to_string().contains("hasn't changed") => return Ok(()),
-        Err(error) => return Err(error.to_string()),
+    let Some(base) = history.last().map(|migration| migration.stem.clone()) else {
+        return Ok(None);
     };
-    report.missing.push(staged.up);
-    if let Some(down) = staged.down {
-        report.missing.push(down);
-    }
-    Ok(())
+    let staged =
+        match rok_data_codegen::stage(&settings.stage_options(PENDING_MIGRATION_NAME, true)) {
+            Ok(staged) => staged,
+            Err(error) if error.is_nothing_to_migrate() => return Ok(None),
+            Err(error) => return Err(error.to_string()),
+        };
+    Ok(Some(Pending {
+        base,
+        version: staged.version,
+        name: PENDING_MIGRATION_NAME.to_owned(),
+    }))
 }
 
 /// The name a check's planned pair carries until it is staged for real.
@@ -215,15 +228,8 @@ fn stage(settings: &Settings) -> Result<Option<Staged>, String> {
             display_path(&settings.schema_dir)
         ));
     }
-    let options = StageOptions {
-        schema: settings.schema_dir.clone(),
-        history: settings.migrations_dir.clone(),
-        name: name.clone(),
-        renames: settings.renames.clone(),
-        allow_destructive: settings.allow_destructive,
-        dry_run: settings.engine.dry_run,
-    };
-    let staged = rok_data_codegen::stage(&options).map_err(|e| e.to_string())?;
+    let staged = rok_data_codegen::stage(&settings.stage_options(name, settings.engine.dry_run))
+        .map_err(|e| e.to_string())?;
     Ok(Some(staged))
 }
 
@@ -261,7 +267,7 @@ impl Settings {
             Some(path) => rok_data_sqlc::load_config(path).map_err(|e| format!("{e:#}"))?,
             None => Config::default(),
         };
-        // The flags beat the file (ADR 0011).
+        // The flags beat the file (workspace ADR 0011).
         if let Some(framework) = options.api_framework {
             let api = engine.api.as_mut().ok_or_else(|| {
                 "`--api-framework` needs the `[api]` section of the settings file \
@@ -323,6 +329,24 @@ impl Settings {
             strict: options.strict,
             json: options.json,
         })
+    }
+
+    /// The staging options both the run's real staging (`--migration`) and
+    /// the check's planned pair build from: the same truth and history
+    /// dirs, the same renames and guard-rails — so the check's planned
+    /// pair models the run it is checking. The name and the dry run are
+    /// the caller's: the run stages `--migration NAME` as it was given,
+    /// and the check plans nothing (`dry_run`), its pair named
+    /// [`PENDING_MIGRATION_NAME`].
+    fn stage_options(&self, name: &str, dry_run: bool) -> StageOptions {
+        StageOptions {
+            schema: self.schema_dir.clone(),
+            history: self.migrations_dir.clone(),
+            name: name.to_owned(),
+            renames: self.renames.clone(),
+            allow_destructive: self.allow_destructive,
+            dry_run,
+        }
     }
 }
 
