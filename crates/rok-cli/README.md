@@ -1,4 +1,4 @@
-# rok-cli
+# rok-data-cli
 
 The `rok` binary — the single command-line interface of the
 [rok-data](https://github.com/ateeq1999/rok-data) workspace. Everything it
@@ -8,9 +8,12 @@ directly; this crate is the thin shell that routes arguments and formats
 output.
 
 ```sh
-cargo install rok-cli
+cargo install rok-data-cli
 rok --help
 ```
+
+The package installs under `rok-data-cli` (`rok-cli` is taken on
+crates.io); the binary it installs is `rok`.
 
 ```text
 rok init [NAME]                   scaffold a project (skeleton or template)

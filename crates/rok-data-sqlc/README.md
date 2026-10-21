@@ -91,7 +91,7 @@ The generator ships inside the workspace's single CLI binary, `rok`
 **From crates.io** with Cargo:
 
 ```sh
-cargo install rok-cli
+cargo install rok-data-cli
 ```
 
 **Prebuilt binaries** for Linux, macOS, and Windows (x86_64 and ARM64)
@@ -120,7 +120,7 @@ Linux binaries are statically linked against musl, so they run on any
 distribution.
 
 To track unreleased changes, install from the repository instead:
-`cargo install --git https://github.com/ateeq1999/rok-data rok-cli`.
+`cargo install --git https://github.com/ateeq1999/rok-data rok-data-cli`.
 
 The whole workspace, generation included, needs Rust 1.94 or newer
 (SQLx 0.9's minimum).

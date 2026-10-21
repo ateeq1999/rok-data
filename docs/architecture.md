@@ -56,17 +56,17 @@ door, and their removal is deferred to 1.0 (ADR 0012).
 | `rok-data`        | facade: re-exports core + macros; the single dependency of applications        | core, macros                        |
 | `rok-data-codegen`| model-crate generator (legacy `rok generate`): reads `.sql`, emits a cargo crate; stages migration pairs (`rok gen --migration`) | core (types), toml                  |
 | `rok-data-sqlc`   | SQLx resource-module generator (legacy `rok sqlc generate|init|check-arch`); the API features have an actix-web and an axum backend   | own pg parser, clap  |
-| `rok-cli`         | the `rok` binary: argument routing, output formats, connection handling        | codegen, core, sqlc, clap, tokio    |
+| `rok-data-cli`    | the `rok` binary: argument routing, output formats, connection handling        | codegen, core, sqlc, clap, tokio    |
 
 ## Dependency rules (enforced by review, and the reason the shape holds)
 
-1. **Runtime crates never depend on `rok-cli`.** The CLI is a leaf; every
+1. **Runtime crates never depend on `rok-data-cli`.** The CLI is a leaf; every
    capability it offers lives in a library (`rok_data_codegen::generate`,
    `rok_data_core::migration_file`, `rok_data_sqlc::cli::run_from`,
    `rok_data_sqlc::init` behind `rok init`). A future GUI, REST daemon or
    test harness would reuse exactly these.
 2. **Only `rok-data-core` depends on sqlx.** Facade, codegen and the SQLc
-   engine consume core's types; `rok-cli` takes its `Db` handle through
+   engine consume core's types; `rok-data-cli` takes its `Db` handle through
    `rok_data::sqlx` re-exports so the sqlx version stays pinned in one
    place.
 3. **The CLI's sqlc subtree is the engine's own clap grammar.**

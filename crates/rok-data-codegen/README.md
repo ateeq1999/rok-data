@@ -7,7 +7,7 @@
 - migrations computed from schema changes.
 
 ```sh
-cargo install rok-cli
+cargo install rok-data-cli
 rok generate                        # db/*.sql -> db-gen/
 rok generate --migration add_slug   # after changing the schema
 rok generate check                  # CI: fail when db-gen/ is stale

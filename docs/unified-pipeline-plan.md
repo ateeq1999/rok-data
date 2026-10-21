@@ -165,7 +165,7 @@ legacy engines keep working as forwarded aliases until 1.0.
 
 ## Phase 3 — front door wiring
 
-- `rok-cli`: `rok init [NAME] [--template axum] [--schema PATH]`
+- `rok-data-cli`: `rok init [NAME] [--template axum] [--schema PATH]`
   scaffolds a Template (complete app incl. `main`/`app`/`config`
   `/error`/OpenAPI wiring), with the scaffolded-file policy (written
   once, never rewritten).

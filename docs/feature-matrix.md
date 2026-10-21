@@ -84,4 +84,4 @@ behavior); runtime command failures → 1.
 | --------------- | ------- | ---- | --- |
 | `rok-data`      | ✔ default set | `--no-default-features` | `--all-features` (chrono, uuid, decimal, json, migrate, serde, axum, metrics, ipnetwork, mac_address) |
 | `rok-data-core` | ✔ default set | ✔ | ✔ |
-| `rok-data-codegen`, `rok-data-sqlc`, `rok-cli`, `rok-data-macros` | plain | ✔ | ✔ |
+| `rok-data-codegen`, `rok-data-sqlc`, `rok-data-cli`, `rok-data-macros` | plain | ✔ | ✔ |

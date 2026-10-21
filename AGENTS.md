@@ -11,7 +11,7 @@ belongs.
 `rok-data-core` (+ `rok-data-macros` + the `rok-data` facade), the model
 crate generator in `rok-data-codegen`, the resource-module generator
 engine in `rok-data-sqlc`, and the only binary is `rok` in `rok-cli`.
-Libraries never depend on `rok-cli`; the CLI delegates to library
+Libraries never depend on `rok-data-cli`; the CLI delegates to library
 functions; sqlx is depended on only by `rok-data-core`.
 
 ## Where changes belong
@@ -72,7 +72,7 @@ functions; sqlx is depended on only by `rok-data-core`.
 ```console
 $ cargo test --workspace --all-targets        # everything, ~2-3 min
 $ cargo test -p rok-data-sqlc --lib           # engine unit suite (240)
-$ cargo test -p rok-cli --test cli            # sqlc CLI suites via the rok binary
+$ cargo test -p rok-data-cli --test cli        # sqlc CLI suites via the rok binary
 $ cargo test -p rok-data-sqlc --test module_fixtures   # corpus (needs rustc ≥ fixture MSRV)
 ```
 
@@ -102,9 +102,9 @@ Before the tag, check that the crates.io names are free: a name that is
 taken cannot be published, and the workflow's publish step fails on it.
 For 0.2.0, `rok-data`, `rok-data-core`, `rok-data-macros`,
 `rok-data-codegen` and `rok-data-sqlc` are free, but `rok-cli` is taken
-by another crate (the CLI of `axum-rok-http`, 0.6.1) — so the CLI needs
-another name, or that name freed; `rok-data-cli` is free. Which of the
-two is the user's call.
+by another crate (the CLI of `axum-rok-http`, 0.6.1) — so the CLI
+publishes as `rok-data-cli` (free, resolved 2026-10-21); the directory
+and the `rok` binary keep their names.
 
 The published crates keep their integration tests, and some of them
 (`rok-data-codegen`'s, `rok-cli`'s) need the repository's own layout

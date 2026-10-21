@@ -1,5 +1,5 @@
 [package]
-name = "rok-cli"
+name = "rok-data-cli"
 description = "Single command-line interface for the rok-data database ecosystem"
 version.workspace = true
 edition.workspace = true
@@ -9,7 +9,7 @@ rust-version.workspace = true
 homepage.workspace = true
 authors.workspace = true
 readme = "README.md"
-documentation = "https://docs.rs/rok-cli"
+documentation = "https://docs.rs/rok-data-cli"
 keywords = ["database", "cli", "orm", "postgres", "migrations"]
 categories = ["database", "development-tools", "command-line-utilities"]
 

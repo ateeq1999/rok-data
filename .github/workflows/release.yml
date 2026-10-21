@@ -4,8 +4,8 @@ name: Release
 # archives, with SHA-256 checksums, as a GitHub release. The install scripts
 # (install.sh, install.ps1) download from these releases. Once the binaries
 # build, it also publishes the workspace's library crates to crates.io with
-# the CARGO_REGISTRY_TOKEN repository secret, rok-cli last (so `cargo
-# install rok-cli` gets the matching binary).
+# the CARGO_REGISTRY_TOKEN repository secret, rok-data-cli last (so `cargo
+# install rok-data-cli` gets the matching binary).
 #
 # Pushing a tag `vX.Y.Z` releases that version: the tag must match the
 # workspace's `version` (the single `[workspace.package] version` every
@@ -213,9 +213,9 @@ jobs:
             exit 1
           fi
           version="${{ needs.prepare.outputs.version }}"
-          # Dependencies first; rok-cli last so `cargo install rok-cli`
-          # resolves the published set.
-          for crate in rok-data-macros rok-data-core rok-data rok-data-codegen rok-data-sqlc rok-cli; do
+          # Dependencies first; the CLI crate last so
+          # `cargo install rok-data-cli` resolves the published set.
+          for crate in rok-data-macros rok-data-core rok-data rok-data-codegen rok-data-sqlc rok-data-cli; do
             status="$(curl -s -o /dev/null -w '%{http_code}' \
               -A "rok-data release workflow (https://github.com/${{ github.repository }})" \
               "https://crates.io/api/v1/crates/$crate/$version")"
