@@ -1,5 +1,8 @@
 //! The managed timestamp columns.
 
+// The tests below need the chrono feature; without it the import would be
+// unused.
+#[cfg(feature = "chrono")]
 use super::*;
 
 #[cfg(feature = "chrono")]

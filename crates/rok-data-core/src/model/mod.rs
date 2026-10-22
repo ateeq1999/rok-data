@@ -5,11 +5,13 @@ use crate::Result;
 mod checked_write;
 mod insert;
 mod row;
+mod scope;
 mod writes;
 
 pub use insert::__insert_sql;
 pub(crate) use insert::{insert_sql, pre_insert, push_columns, push_returning, tenant_override};
 pub use row::Model;
+pub use scope::Scope;
 
 /// Lifecycle hooks, called around the record-level writes of [`Model`]
 /// (`insert`, `insert_all`/`insert_many`, `upsert`, `update`, `delete`,

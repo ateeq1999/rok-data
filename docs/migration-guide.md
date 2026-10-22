@@ -95,6 +95,41 @@ The query holds its connection while the windows are processed, so a
 callback that writes back needs a second one (give the pool more than one
 connection).
 
+### Named scopes
+
+**New in 0.3.0.** A model can declare **named scopes**: reusable
+constraints on a query chain, named by path. The derive gives the model an
+entry (`User::popular()`) and the chain a method
+(`User::popular().active()`), so scopes compose:
+
+```rust
+#[derive(Model)]
+#[rok(scopes(popular = path::to::popular, active = path::to::active))]
+struct User {
+    id: i64,
+    views: i32,
+}
+
+// a scope is a function from a query chain to a query chain
+fn popular(query: &Select<User>) -> Select<User> {
+    query.clone().filter(User::VIEWS.gt(100))
+}
+
+fn active(query: &Select<User>) -> Select<User> {
+    query.clone().filter(User::VIEWS.gt(0))
+}
+
+// the model's entry
+let popular = User::popular();
+// the chain's method — the `UserScopes` trait the derive writes next to
+// the model, so a call site brings it into scope with a `use`
+let popular_and_active = User::popular().active();
+```
+
+Nothing changes for the scopes that already exist: the model's
+`default_scope` (`#[rok(default_scope = …)]`) and `.unscoped()` keep their
+meaning, and the closure-based `Select::scope` still takes a function.
+
 ### The conventions are inferred now
 
 A model's own field names are the signal (workspace ADR 0015):

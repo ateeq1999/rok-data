@@ -224,3 +224,70 @@ fn the_explicit_markers_still_work() {
         "{expanded}"
     );
 }
+
+#[test]
+fn a_scope_without_a_path_fails_the_derive() {
+    let error = the_error(syn::parse_quote! {
+        #[rok(scopes(popular))]
+        struct User {
+            id: i64,
+        }
+    })
+    .expect("the malformed attribute fails the derive");
+    assert!(error.contains("name = path::to::scope"), "{error}");
+}
+
+#[test]
+fn a_scope_that_is_not_a_path_fails_the_derive() {
+    let error = the_error(syn::parse_quote! {
+        #[rok(scopes(popular = 42))]
+        struct User {
+            id: i64,
+        }
+    })
+    .expect("the malformed attribute fails the derive");
+    assert!(error.contains("name = path::to::scope"), "{error}");
+}
+
+#[test]
+fn a_scope_named_after_a_runtime_verb_fails_the_derive() {
+    let error = the_error(syn::parse_quote! {
+        #[rok(scopes(count = path::to::count))]
+        struct User {
+            id: i64,
+        }
+    })
+    .expect("the shadowing name fails the derive");
+    assert!(error.contains("count"), "{error}");
+    assert!(error.contains("verb of the runtime"), "{error}");
+}
+
+#[test]
+fn a_scope_declared_twice_fails_the_derive() {
+    let error = the_error(syn::parse_quote! {
+        #[rok(scopes(popular = path::to::popular, popular = path::to::other))]
+        struct User {
+            id: i64,
+        }
+    })
+    .expect("the repeated name fails the derive");
+    assert!(error.contains("declared twice"), "{error}");
+}
+
+#[test]
+fn the_scopes_reach_the_expansion() {
+    let expanded = expanded(syn::parse_quote! {
+        #[rok(scopes(popular = path::to::popular, active = path::to::active))]
+        struct User {
+            id: i64,
+        }
+    });
+    // The model's entry, the trait, and the signature check.
+    assert!(expanded.contains("fn popular ()"), "{expanded}");
+    assert!(expanded.contains("fn active ()"), "{expanded}");
+    assert!(expanded.contains("UserScopes"), "{expanded}");
+    assert!(
+        expanded.contains("const _ : fn (& :: rok_data :: Select < User >)"),
+        "{expanded}"
+    );
+}

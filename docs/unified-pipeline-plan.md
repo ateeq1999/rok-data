@@ -398,6 +398,16 @@ Task graph, in order:
   attributes derived from the schema's foreign keys (`User::POSTS`,
   `user.posts()`), named scopes (model entry + chain method through the
   runtime's `Scope` trait). Pinned in the module-fixture corpus.
+  - **Done (M3a — the scopes)**: the runtime exports the `Scope` trait
+    (the machinery that applies a scope function to a chain) and the
+    `declare_scopes!` macro; the derive reads
+    `#[rok(scopes(popular = path::to::popular))]` and writes the model's
+    entry (`User::popular()`) and a per-model trait (`UserScopes`) whose
+    methods are the chain's (`User::popular().active()`). A scope
+    function is `fn(&Select<M>) -> Select<M>`; the derive refuses a
+    malformed attribute and a name the runtime already uses. The
+    relation half (M3b) is the next ticket, and the engine's generated
+    code is untouched so far.
 - **M4 — the typed write spine** (spec D5): `User::create(&db, NewUser)`,
   `User::patch(&db, id, UpdateUser)`, `User::destroy(&db, id)`; the
   module's functions stay as thin wrappers.

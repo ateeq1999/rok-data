@@ -64,6 +64,41 @@
 //! [`HasMany`], [`HasOne`]) and lazy query methods. Eager-load related
 //! records for many parents with one extra query: see [`relation`].
 //!
+//! ## Scopes
+//!
+//! A **scope** is a function from a query chain to a query chain. The model
+//! declares its scopes by path, and the derive gives the model an entry and
+//! the chain a method, so scopes compose:
+//!
+//! ```
+//! use rok_data::prelude::*;
+//!
+//! #[derive(Model)]
+//! #[rok(scopes(popular = popular, active = active))]
+//! struct User {
+//!     #[rok(generated)]
+//!     id: i64,
+//!     views: i32,
+//! }
+//!
+//! fn popular(query: &Select<User>) -> Select<User> {
+//!     query.clone().filter(User::VIEWS.gt(100))
+//! }
+//!
+//! fn active(query: &Select<User>) -> Select<User> {
+//!     query.clone().filter(User::VIEWS.gt(0))
+//! }
+//!
+//! // the model's entry
+//! let popular = User::popular();
+//! // the chain's method, from the `UserScopes` trait the derive writes
+//! // next to the model
+//! let popular_and_active = User::popular().active();
+//! ```
+//!
+//! The model's default scope (`#[rok(default_scope = …)]`) and
+//! [`Select::unscoped`] are unchanged.
+//!
 //! ## More features
 //!
 //! - **Streaming**: [`Select::stream`] yields rows one at a time.
@@ -88,7 +123,9 @@
 //!   [`impl_value!`].
 //! - **Validation & hooks**: `#[rok(validate(…))]` rules ([`validate`]) and
 //!   the [`Hooks`] trait.
-//! - **Scopes**: `#[rok(default_scope = …)]`, [`Select::scope`],
+//! - **Scopes**: named scopes (`#[rok(scopes(popular = path::to::popular))]`,
+//!   `User::popular()`, `User::popular().active()`), the model's default
+//!   scope (`#[rok(default_scope = …)]`), [`Select::scope`] and
 //!   [`Select::unscoped`].
 //! - **Retrying transactions**: [`Db::transaction_with`] with [`TxOptions`].
 //! - **Change tracking**: [`Model::track`] / [`Tracked`] and

@@ -85,8 +85,10 @@ fn a_managed_column_is_managed_whatever_its_default() {
         ],
         &["id"],
     );
-    let mut conventions = Conventions::default();
-    conventions.managed_columns = vec!["updated_at".to_owned()];
+    let conventions = Conventions {
+        managed_columns: vec!["updated_at".to_owned()],
+        ..Conventions::default()
+    };
     let rendered = rendered(&users, &conventions);
     assert!(
         rendered.contains("#[rok(table = \"users\")]\n"),
@@ -168,8 +170,10 @@ fn the_soft_delete_convention_names_the_column() {
         vec![column("id", "i64"), timestamp("removed_at", None)],
         &["id"],
     );
-    let mut conventions = Conventions::default();
-    conventions.soft_delete_column = Some("removed_at".to_owned());
+    let conventions = Conventions {
+        soft_delete_column: Some("removed_at".to_owned()),
+        ..Conventions::default()
+    };
     let rendered = rendered(&users, &conventions);
     assert!(
         rendered.contains("#[rok(table = \"users\")]\n"),
@@ -191,8 +195,10 @@ fn the_soft_delete_convention_over_a_deleted_at_column_says_nothing() {
         vec![column("id", "i64"), timestamp("deleted_at", None)],
         &["id"],
     );
-    let mut conventions = Conventions::default();
-    conventions.soft_delete_column = Some("deleted_at".to_owned());
+    let conventions = Conventions {
+        soft_delete_column: Some("deleted_at".to_owned()),
+        ..Conventions::default()
+    };
     let rendered = rendered(&users, &conventions);
     assert!(
         rendered.contains("#[rok(table = \"users\")]\n"),

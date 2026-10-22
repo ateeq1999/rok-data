@@ -45,7 +45,7 @@ pub use exec::Journey;
 pub use expr::{Column, Direction, Expr, IntoProjections, Order, Projection};
 pub use join::{InScope, IntoJoin, JoinOn, Joined};
 pub use key::IntoKey;
-pub use model::{Hooks, Model};
+pub use model::{Hooks, Model, Scope};
 pub use notify::{Change, ChangeOp, ChangeStream, Listener, Notification};
 pub use page::Page;
 pub use query::{Insert, InsertMany, Memoized, Projected, Select, Update, WithSelect};

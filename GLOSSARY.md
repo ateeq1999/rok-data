@@ -53,6 +53,17 @@ state. Typed reads go through the same relation constant that asked
 requested reads as `None`, never a panic.
 _Avoid_: result map, joined rows
 
+### Data layer
+
+**Scope**:
+A named, reusable constraint on a query chain. The model declares its
+scopes by path (`#[rok(scopes(popular = path::to::popular))]`), and the
+data layer gives the model an entry (`User::popular()`) and the chain a
+method (`User::popular().active()`), so scopes compose. The model's
+`default_scope` is the scope every query of that model carries.
+_Avoid_: query filter (when it is named and reusable), global scope (the
+model's `default_scope`)
+
 ### Pipeline pieces (deferred from the engine context)
 
 The terms **Table**, **Resource**, **API feature**, **Template**,

@@ -11,6 +11,7 @@ use rok_data::{Include, raw};
 mod conventions;
 mod memoized;
 mod relations;
+mod scopes;
 mod streaming;
 mod surface;
 mod timestamps;
@@ -67,6 +68,9 @@ CREATE TEMP TABLE posts (
 );
 CREATE TEMP TABLE profiles (
     id BIGSERIAL PRIMARY KEY, user_id BIGINT NOT NULL REFERENCES users (id), bio TEXT NOT NULL
+);
+CREATE TEMP TABLE visitors (
+    id BIGSERIAL PRIMARY KEY, name TEXT NOT NULL, age INT NOT NULL, views INT NOT NULL DEFAULT 0
 );
 "#;
 

@@ -6,6 +6,7 @@ use syn::{Data, DeriveInput, Fields, Ident, LitStr, Path, spanned::Spanned};
 
 use super::conventions::{self, Conventions};
 use super::from_row::from_row_tokens;
+use super::scopes;
 use super::{Field, Relation, Rule, parse_relations, parse_rules};
 use crate::naming::{crate_path, method_ident, pluralize, relation_ident, snake_case, unraw};
 pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
@@ -26,6 +27,7 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     let mut validate_with: Option<Path> = None;
     let mut default_scope: Option<Path> = None;
     let mut relations = Vec::new();
+    let mut named_scopes = Vec::new();
     let mut from_row = true;
     let mut krate: Option<Path> = None;
     for attr in input.attrs.iter().filter(|a| a.path().is_ident("rok")) {
@@ -46,6 +48,8 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
                 validate_with = Some(meta.value()?.parse()?);
             } else if meta.path.is_ident("default_scope") {
                 default_scope = Some(meta.value()?.parse()?);
+            } else if meta.path.is_ident("scopes") {
+                scopes::parse_scopes(&meta, &mut named_scopes)?;
             } else if meta.path.is_ident("has_many") {
                 parse_relations(&meta, "HasMany", &mut relations)?;
             } else if meta.path.is_ident("has_one") {
@@ -56,7 +60,7 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
                 krate = Some(meta.value()?.parse::<LitStr>()?.parse()?);
             } else {
                 return Err(meta.error(
-                    "unknown `rok` attribute; expected `table`, `timestamps`, `no_timestamps`, `soft_delete`, `no_soft_delete`, `hooks`, `validate_with`, `default_scope`, `has_many`, `has_one`, `no_from_row` or `crate`",
+                    "unknown `rok` attribute; expected `table`, `timestamps`, `no_timestamps`, `soft_delete`, `no_soft_delete`, `hooks`, `validate_with`, `default_scope`, `scopes`, `has_many`, `has_one`, `no_from_row` or `crate`",
                 ));
             }
             Ok(())
@@ -272,6 +276,9 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
         }
     });
     let hooks_impl = (!hooks).then(|| quote!(impl #krate::Hooks for #name {}));
+    let scope_entries = scopes::entries(name, &named_scopes, &krate);
+    let scope_trait = scopes::trait_declaration(name, &named_scopes, &krate);
+    let scope_checks = scopes::signature_checks(name, &named_scopes, &krate);
 
     let pk_column = match pks.first() {
         Some(f) => {
@@ -338,11 +345,15 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     Ok(quote! {
         #from_row_impl
         #hooks_impl
+        #(#scope_checks)*
 
         impl #name {
             #(#consts)*
             #(#relation_items)*
+            #(#scope_entries)*
         }
+
+        #scope_trait
 
         impl #krate::Model for #name {
             const TABLE: &'static str = #table;

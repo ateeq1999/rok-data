@@ -38,8 +38,7 @@ pub(crate) fn decide(table: &Table) -> Conventions<'_> {
         // The soft-delete convention is explicit and wins; the inference
         // names the `deleted_at` column, and the opt-out turns it off where
         // the database owns that column.
-        no_soft_delete: soft_delete.is_none()
-            && inferred.is_some_and(|column| the_database_owns(column)),
+        no_soft_delete: soft_delete.is_none() && inferred.is_some_and(the_database_owns),
     }
 }
 
