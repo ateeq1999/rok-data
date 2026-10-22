@@ -29,7 +29,7 @@ framework = "axum"
 
 [api.skip]
 # A loan is returned, not deleted.
-loans = ["remove"]
+loans = ["destroy"]
 
 [api.search]
 # The list endpoints' `q` matches these columns.

@@ -265,7 +265,7 @@ pub(super) async fn composite_keys_arrays_and_numeric(pool: &PgPool) {
         product_id,
     };
     assert_eq!(row.key(), key, "a row hands back its key");
-    let updated = write::update(pool, key, patch).await.unwrap().unwrap();
+    let updated = write::patch(pool, key, patch).await.unwrap().unwrap();
     assert_eq!(updated.weekdays, None);
     assert_eq!(updated.unit_price, Decimal::new(2500, 2));
     assert_eq!(updated.labels, ["a", "b"]);
@@ -280,7 +280,7 @@ pub(super) async fn composite_keys_arrays_and_numeric(pool: &PgPool) {
         !read::exists_by_id(pool, swapped).await.unwrap(),
         "key parts are not interchangeable"
     );
-    assert!(write::delete(pool, key).await.unwrap());
+    assert!(write::destroy(pool, key).await.unwrap() > 0);
     assert!(!read::exists_by_id(pool, key).await.unwrap());
 }
 
@@ -394,7 +394,7 @@ pub(super) async fn text_keys_are_borrowed(pool: &PgPool) {
             .await
             .unwrap()
     );
-    let renamed = db::currencies::write::update(
+    let renamed = db::currencies::write::patch(
         pool,
         &eur,
         UpdateCurrency {
@@ -447,8 +447,13 @@ pub(super) async fn text_keys_are_borrowed(pool: &PgPool) {
         .await
         .unwrap();
     assert_eq!(fetched, Some(rate));
-    assert!(db::currency_rates::write::delete(pool, &key).await.unwrap());
-    assert!(db::currencies::write::delete(pool, &eur).await.unwrap());
+    assert!(
+        db::currency_rates::write::destroy(pool, &key)
+            .await
+            .unwrap()
+            > 0
+    );
+    assert!(db::currencies::write::destroy(pool, &eur).await.unwrap() > 0);
 }
 
 /// `plain_db` is generated with `primary_key_ids = "uuid_v7"`: `create`

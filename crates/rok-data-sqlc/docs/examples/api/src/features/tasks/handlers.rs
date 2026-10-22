@@ -132,7 +132,7 @@ pub async fn get_one(
     patch,
     path = "/api/v1/tasks/{id}",
     tag = "tasks",
-    operation_id = "update",
+    operation_id = "patch",
     params(("id" = uuid::Uuid, Path, description = "Task id")),
     request_body = UpdateTaskDto,
     responses(
@@ -146,39 +146,39 @@ pub async fn get_one(
     ),
     security(("bearer_auth" = [])),
 )]
-pub async fn update(
+pub async fn patch(
     service: web::Data<TasksService>,
     user: AuthUser,
     path: web::Path<TaskId>,
     body: ValidatedJson<UpdateTaskDto>,
 ) -> Result<HttpResponse, AppError> {
     let key = path.into_inner();
-    let row = service.update(user, key, body.into_inner()).await?;
+    let row = service.patch(user, key, body.into_inner()).await?;
     let response = TaskResponse::from(row);
     Ok(HttpResponse::Ok().json(response))
 }
 
-/// `DELETE /api/v1/tasks/{id}`: deletes the row, `204`.
+/// `DELETE /api/v1/tasks/{id}`: destroys the row, `204`.
 #[utoipa::path(
     delete,
     path = "/api/v1/tasks/{id}",
     tag = "tasks",
-    operation_id = "remove",
+    operation_id = "destroy",
     params(("id" = uuid::Uuid, Path, description = "Task id")),
     responses(
-        (status = 204, description = "The row, deleted."),
+        (status = 204, description = "The row, destroyed."),
         (status = 400, description = "A malformed path, query or body.", body = ErrorBody),
         (status = 401, description = "No valid bearer token.", body = ErrorBody),
         (status = 404, description = "No such row, or not the caller's.", body = ErrorBody),
     ),
     security(("bearer_auth" = [])),
 )]
-pub async fn remove(
+pub async fn destroy(
     service: web::Data<TasksService>,
     user: AuthUser,
     path: web::Path<TaskId>,
 ) -> Result<HttpResponse, AppError> {
     let key = path.into_inner();
-    service.remove(user, key).await?;
+    service.destroy(user, key).await?;
     Ok(HttpResponse::NoContent().finish())
 }

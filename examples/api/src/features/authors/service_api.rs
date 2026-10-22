@@ -63,42 +63,52 @@ pub trait AuthorsServiceApi {
     /// `GET /api/v1/authors/{id}`: the row with this key, or `404`.
     async fn get_one(&self, id: AuthorId) -> Result<Author, AppError> {
         let row = repo::get_by_id(self.pool(), id).await?;
-        row.ok_or_else(not_found)
+        match row {
+            Some(row) => Ok(row),
+            None => Err(not_found()),
+        }
     }
 
-    /// What [`update`](Self::update) does, on `conn`: the caller's connection or
+    /// What [`patch`](Self::patch) does, on `conn`: the caller's connection or
     /// transaction. Override this one to change it.
-    async fn update_in(
+    async fn patch_in(
         &self,
         conn: &mut PgConnection,
         id: AuthorId,
         input: UpdateAuthorDto,
     ) -> Result<Author, AppError> {
-        let row = repo::update(&mut *conn, id, input.into()).await?;
-        row.ok_or_else(not_found)
+        let row = repo::patch(&mut *conn, id, input.into()).await?;
+        match row {
+            Some(row) => Ok(row),
+            None => Err(not_found()),
+        }
     }
 
     /// `PATCH /api/v1/authors/{id}`: changes the row with this key and returns it, or `404`.
-    /// Runs [`update_in`](Self::update_in) in a transaction of its own.
-    async fn update(&self, id: AuthorId, input: UpdateAuthorDto) -> Result<Author, AppError> {
+    /// Runs [`patch_in`](Self::patch_in) in a transaction of its own.
+    async fn patch(&self, id: AuthorId, input: UpdateAuthorDto) -> Result<Author, AppError> {
         let mut tx = self.pool().begin().await?;
-        let row = self.update_in(&mut tx, id, input).await?;
+        let row = self.patch_in(&mut tx, id, input).await?;
         tx.commit().await?;
         Ok(row)
     }
 
-    /// What [`remove`](Self::remove) does, on `conn`: the caller's connection or
+    /// What [`destroy`](Self::destroy) does, on `conn`: the caller's connection or
     /// transaction. Override this one to change it.
-    async fn remove_in(&self, conn: &mut PgConnection, id: AuthorId) -> Result<(), AppError> {
-        let deleted = repo::delete(&mut *conn, id).await?;
-        if deleted { Ok(()) } else { Err(not_found()) }
+    async fn destroy_in(&self, conn: &mut PgConnection, id: AuthorId) -> Result<(), AppError> {
+        let deleted = repo::destroy(&mut *conn, id).await?;
+        if deleted > 0 {
+            Ok(())
+        } else {
+            Err(not_found())
+        }
     }
 
     /// `DELETE /api/v1/authors/{id}`: deletes the row with this key, or `404`.
-    /// Runs [`remove_in`](Self::remove_in) in a transaction of its own.
-    async fn remove(&self, id: AuthorId) -> Result<(), AppError> {
+    /// Runs [`destroy_in`](Self::destroy_in) in a transaction of its own.
+    async fn destroy(&self, id: AuthorId) -> Result<(), AppError> {
         let mut tx = self.pool().begin().await?;
-        self.remove_in(&mut tx, id).await?;
+        self.destroy_in(&mut tx, id).await?;
         tx.commit().await?;
         Ok(())
     }
@@ -106,7 +116,10 @@ pub trait AuthorsServiceApi {
     /// `GET /api/v1/authors/by-email/{value}`: the row whose `email` is `value`, or `404`.
     async fn get_by_email(&self, value: String) -> Result<Author, AppError> {
         let row = repo::get_by_email(self.pool(), &value).await?;
-        row.ok_or_else(not_found)
+        match row {
+            Some(row) => Ok(row),
+            None => Err(not_found()),
+        }
     }
 
     /// `GET /api/v1/authors/{id}/books`: the row's `books`, or `404`.

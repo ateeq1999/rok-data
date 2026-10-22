@@ -25,5 +25,5 @@ rok-data-sqlc never touches it again.
 
 | Feature | URL | Endpoints |
 |---|---|---|
-| `users` | `/api/v1/users` | `list`, `get_one`, `update`, `remove` |
+| `users` | `/api/v1/users` | `list`, `get_one`, `patch`, `destroy` |
 | `audit_log_entry` | `/api/v1/audit-log` | `list`, `get_one` |

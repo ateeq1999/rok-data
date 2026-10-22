@@ -84,7 +84,7 @@ pub struct NewProduct {
     pub description: Option<String>,
 }
 
-/// Partial update for `update`: `None` leaves a column unchanged.
+/// Partial update for `patch`: `None` leaves a column unchanged.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct UpdateProduct {
     /// The new value of the `category_id` column.

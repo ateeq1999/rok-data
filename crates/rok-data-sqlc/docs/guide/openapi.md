@@ -61,14 +61,14 @@ scheme (an HTTP bearer JWT, added by the `BearerAuth` modifier):
         projects::handlers::list,
         projects::handlers::create,
         projects::handlers::get_one,
-        projects::handlers::update,
-        projects::handlers::remove,
+        projects::handlers::patch,
+        projects::handlers::destroy,
         projects::handlers::list_tasks,
         tasks::handlers::list,
         tasks::handlers::create,
         tasks::handlers::get_one,
-        tasks::handlers::update,
-        tasks::handlers::remove,
+        tasks::handlers::patch,
+        tasks::handlers::destroy,
     ),
 ```
 

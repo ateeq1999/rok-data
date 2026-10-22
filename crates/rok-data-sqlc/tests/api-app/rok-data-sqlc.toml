@@ -1,5 +1,10 @@
 # What `rok sqlc check-arch` reads (ADR 0016). `tests/fixture_compile/`
 # in rok generates this crate with the same `api.output`, but from its
 # own configuration, not from this file.
+schema = "migrations"
+output = "src/db"
+derive = ["serde", "validate"]
+extractors = ["actix_web"]
+
 [api]
 output = "src/features"

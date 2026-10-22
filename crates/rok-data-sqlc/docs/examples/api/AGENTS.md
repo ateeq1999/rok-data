@@ -51,7 +51,7 @@ rules below follow them.
 
 | I am writing... | It goes in | Never in |
 |---|---|---|
-| A business rule | the feature's `service.rs`, overriding a `service_api.rs` default (`create_in`, `update_in`, ...) | handler, repo |
+| A business rule | the feature's `service.rs`, overriding a `service_api.rs` default (`create_in`, `patch_in`, ...) | handler, repo |
 | A new endpoint, request or response shape | the schema and `rok-data-sqlc.toml` (`[api]`), then `rok sqlc generate` | generated files |
 | SQL query | the data layer: a migration and `rok sqlc generate`, or a query file | service, handler |
 | New DB table or column | `migrations/000N_name.sql`, then `rok sqlc generate` | anywhere else |

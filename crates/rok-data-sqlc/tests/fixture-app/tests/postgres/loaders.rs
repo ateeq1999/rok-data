@@ -125,9 +125,10 @@ pub(super) async fn has_many_loader_stays_in_the_tenant_and_skips_deleted_rows(p
     // The foreign key does not stop another tenant's row from pointing here.
     let foreign = comment(tenant_b, commented.id, "foreign").await;
     assert!(
-        db::comments::write::delete(pool, tenant_a, deleted.id)
+        db::comments::write::destroy(pool, tenant_a, deleted.id)
             .await
             .unwrap()
+            > 0
     );
 
     let posts = vec![commented.clone(), quiet.clone()];
@@ -158,9 +159,10 @@ pub(super) async fn has_many_loader_stays_in_the_tenant_and_skips_deleted_rows(p
     );
 
     assert!(
-        db::posts::write::delete(pool, tenant_a, commented.id)
+        db::posts::write::destroy(pool, tenant_a, commented.id)
             .await
             .unwrap()
+            > 0
     );
     assert!(
         db::comments::relationships::load_post(pool, tenant_a, &comments)

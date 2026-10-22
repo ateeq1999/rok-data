@@ -62,26 +62,32 @@ pub trait LoansServiceApi {
     /// `GET /api/v1/loans/{id}`: the row with this key, or `404`.
     async fn get_one(&self, id: LoanId) -> Result<Loan, AppError> {
         let row = repo::get_by_id(self.pool(), id).await?;
-        row.ok_or_else(not_found)
+        match row {
+            Some(row) => Ok(row),
+            None => Err(not_found()),
+        }
     }
 
-    /// What [`update`](Self::update) does, on `conn`: the caller's connection or
+    /// What [`patch`](Self::patch) does, on `conn`: the caller's connection or
     /// transaction. Override this one to change it.
-    async fn update_in(
+    async fn patch_in(
         &self,
         conn: &mut PgConnection,
         id: LoanId,
         input: UpdateLoanDto,
     ) -> Result<Loan, AppError> {
-        let row = repo::update(&mut *conn, id, input.into()).await?;
-        row.ok_or_else(not_found)
+        let row = repo::patch(&mut *conn, id, input.into()).await?;
+        match row {
+            Some(row) => Ok(row),
+            None => Err(not_found()),
+        }
     }
 
     /// `PATCH /api/v1/loans/{id}`: changes the row with this key and returns it, or `404`.
-    /// Runs [`update_in`](Self::update_in) in a transaction of its own.
-    async fn update(&self, id: LoanId, input: UpdateLoanDto) -> Result<Loan, AppError> {
+    /// Runs [`patch_in`](Self::patch_in) in a transaction of its own.
+    async fn patch(&self, id: LoanId, input: UpdateLoanDto) -> Result<Loan, AppError> {
         let mut tx = self.pool().begin().await?;
-        let row = self.update_in(&mut tx, id, input).await?;
+        let row = self.patch_in(&mut tx, id, input).await?;
         tx.commit().await?;
         Ok(row)
     }

@@ -89,7 +89,7 @@ pub(super) async fn every_partial_update_combination_binds_correctly(pool: &PgPo
                         expected.tag = value.clone();
                     }
 
-                    let updated = write::update(pool, before.id, patch.clone())
+                    let updated = write::patch(pool, before.id, patch.clone())
                         .await
                         .unwrap_or_else(|error| panic!("{patch:?} failed: {error}"))
                         .expect("row exists");
@@ -108,17 +108,17 @@ pub(super) async fn empty_and_missing_updates(pool: &PgPool) {
     use db::patch_targets::write;
 
     let row: PatchTarget = write::create(pool, base_patch_target()).await.unwrap();
-    let unchanged = write::update(pool, row.id, UpdatePatchTarget::default())
+    let unchanged = write::patch(pool, row.id, UpdatePatchTarget::default())
         .await
         .unwrap();
     assert_eq!(unchanged, Some(row), "empty patch returns the current row");
 
     let missing_id = PatchTargetId::from(i64::MAX);
-    let empty_missing = write::update(pool, missing_id, UpdatePatchTarget::default())
+    let empty_missing = write::patch(pool, missing_id, UpdatePatchTarget::default())
         .await
         .unwrap();
     assert_eq!(empty_missing, None);
-    let missing = write::update(
+    let missing = write::patch(
         pool,
         missing_id,
         UpdatePatchTarget {
@@ -131,18 +131,19 @@ pub(super) async fn empty_and_missing_updates(pool: &PgPool) {
     assert_eq!(missing, None, "updating a missing row returns None");
 }
 
-pub(super) async fn delete_reports_existing_and_missing_rows(pool: &PgPool) {
+pub(super) async fn destroy_reports_existing_and_missing_rows(pool: &PgPool) {
     use db::patch_targets::{read, write};
 
     let row = write::create(pool, base_patch_target()).await.unwrap();
     assert!(read::exists_by_id(pool, row.id).await.unwrap());
     assert!(
-        write::delete(pool, row.id).await.unwrap(),
+        write::destroy(pool, row.id).await.unwrap() > 0,
         "existing row is deleted"
     );
-    assert!(
-        !write::delete(pool, row.id).await.unwrap(),
-        "second delete finds nothing"
+    assert_eq!(
+        write::destroy(pool, row.id).await.unwrap(),
+        0,
+        "second destroy finds nothing"
     );
     assert!(!read::exists_by_id(pool, row.id).await.unwrap());
     assert_eq!(read::get_by_id(pool, row.id).await.unwrap(), None);
@@ -163,7 +164,7 @@ pub(super) async fn transactions_stay_with_the_caller(pool: &PgPool) {
         label: Some("in tx".to_owned()),
         ..Default::default()
     };
-    write::update(&mut *tx, committed.id, patch).await.unwrap();
+    write::patch(&mut *tx, committed.id, patch).await.unwrap();
     tx.commit().await.unwrap();
     let stored = read::get_by_id(pool, committed.id).await.unwrap().unwrap();
     assert_eq!(stored.label, "in tx");
@@ -217,7 +218,7 @@ pub(super) async fn reserved_and_quoted_identifiers_round_trip(pool: &PgPool) {
         mixed_case: Some(9),
         ..Default::default()
     };
-    let updated = write::update(pool, row.select, patch)
+    let updated = write::patch(pool, row.select, patch)
         .await
         .unwrap()
         .unwrap();
@@ -228,7 +229,7 @@ pub(super) async fn reserved_and_quoted_identifiers_round_trip(pool: &PgPool) {
 
     assert_eq!(read::count(pool).await.unwrap(), 1);
     assert_eq!(read::list_page(pool, 10, 0).await.unwrap(), vec![updated]);
-    assert!(write::delete(pool, row.select).await.unwrap());
+    assert!(write::destroy(pool, row.select).await.unwrap() > 0);
 }
 
 pub(super) async fn table_without_primary_key(pool: &PgPool) {
@@ -294,7 +295,7 @@ pub(super) async fn patches_from_json_tell_absent_from_null(pool: &PgPool) {
     let untouched: UpdatePatchTarget = serde_json::from_str("{}").unwrap();
     assert!(untouched.is_empty());
     assert_eq!(serde_json::to_string(&untouched).unwrap(), "{}");
-    let row = write::update(pool, before.id, untouched)
+    let row = write::patch(pool, before.id, untouched)
         .await
         .unwrap()
         .expect("row exists");
@@ -307,7 +308,7 @@ pub(super) async fn patches_from_json_tell_absent_from_null(pool: &PgPool) {
         serde_json::to_value(&cleared).unwrap(),
         serde_json::json!({"note": null, "score": 9})
     );
-    let row = write::update(pool, before.id, cleared)
+    let row = write::patch(pool, before.id, cleared)
         .await
         .unwrap()
         .expect("row exists");

@@ -70,7 +70,7 @@ pub struct NewInvoice {
     pub status: Option<types::InvoiceStatus>,
 }
 
-/// Partial update for `update`: `None` leaves a column unchanged.
+/// Partial update for `patch`: `None` leaves a column unchanged.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct UpdateInvoice {
     /// The new value of the `number` column.

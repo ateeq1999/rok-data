@@ -28,7 +28,7 @@ CREATE TABLE tags (
 ";
 
 /// The `rok-data-sqlc.toml` lines skipping all of `tags`' endpoints but its list.
-const LIST_ONLY: &str = "\n[api.skip]\ntags = [\"create\", \"get_one\", \"update\", \"remove\"]\n";
+const LIST_ONLY: &str = "\n[api.skip]\ntags = [\"create\", \"get_one\", \"update\", \"destroy\"]\n";
 
 /// A project as after `cargo new <name>`, then `rok sqlc init`, with the
 /// [`MIGRATION`] truth and `init`'s `rok-data-sqlc.toml` plus [`LIST_ONLY`].

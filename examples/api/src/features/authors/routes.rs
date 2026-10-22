@@ -16,8 +16,8 @@ pub fn routes(service: AuthorsService) -> Router {
         .route("/api/v1/authors", get(handlers::list))
         .route("/api/v1/authors", post(handlers::create))
         .route("/api/v1/authors/{id}", get(handlers::get_one))
-        .route("/api/v1/authors/{id}", patch(handlers::update))
-        .route("/api/v1/authors/{id}", delete(handlers::remove))
+        .route("/api/v1/authors/{id}", patch(handlers::patch))
+        .route("/api/v1/authors/{id}", delete(handlers::destroy))
         .route(
             "/api/v1/authors/by-email/{value}",
             get(handlers::get_by_email),

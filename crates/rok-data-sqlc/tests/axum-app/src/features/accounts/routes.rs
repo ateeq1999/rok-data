@@ -17,8 +17,8 @@ pub fn routes(service: AccountsService) -> Router {
         .route("/api/v1/accounts/search", post(handlers::search))
         .route("/api/v1/accounts", post(handlers::create))
         .route("/api/v1/accounts/{id}", get(handlers::get_one))
-        .route("/api/v1/accounts/{id}", patch(handlers::update))
-        .route("/api/v1/accounts/{id}", delete(handlers::remove))
+        .route("/api/v1/accounts/{id}", patch(handlers::patch))
+        .route("/api/v1/accounts/{id}", delete(handlers::destroy))
         .route(
             "/api/v1/accounts/by-email/{value}",
             get(handlers::get_by_email),

@@ -4,11 +4,11 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Generator emits `create` (already ✅), `patch` (replaces `update`), `destroy` (replaces `delete`) on the generated model struct
-- [ ] `patch` signature: `async fn patch(executor, id: UserId, input: UpdateUser) -> Result<Option<User>>` — returns `None` when row missing; empty patch returns current row
-- [ ] `destroy` signature: `async fn destroy(executor, id: UserId) -> Result<u64>` — returns deleted count (matches `Select::delete()`)
-- [ ] Thin wrapper functions in `write.rs` call the model methods so API features and hand-written services keep compiling
-- [ ] Templates (actix/axum) regenerate with the new method names and pass `cargo clippy -D warnings` under the template lint set
-- [ ] `examples/api` and compile fixtures regenerate, compile, and pass `rok gen check` with no drift
+- [x] Generator emits `create` (already ✅), `patch` (replaces `update`), `destroy` (replaces `delete`) on the generated model struct
+- [x] `patch` signature: `async fn patch(executor, id: UserId, input: UpdateUser) -> Result<Option<User>>` — returns `None` when row missing; empty patch returns current row
+- [x] `destroy` signature: `async fn destroy(executor, id: UserId) -> Result<u64>` — returns deleted count (matches `Select::delete()`)
+- [x] Thin wrapper functions in `write.rs` call the model methods so API features and hand-written services keep compiling
+- [x] Templates (actix/axum) regenerate with the new method names and pass `cargo clippy -D warnings` under the template lint set
+- [x] `examples/api` and compile fixtures regenerate, compile, and pass `rok gen check` with no drift

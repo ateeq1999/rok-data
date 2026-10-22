@@ -106,7 +106,7 @@ pub struct NewApiKey {
     pub revoked_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
-/// Partial update for `update`: `None` leaves a column unchanged.
+/// Partial update for `patch`: `None` leaves a column unchanged.
 ///
 /// From JSON, an absent field is `None` and `null` is `Some(None)`, which sets
 /// the column to `NULL`; serializing skips the `None` fields.

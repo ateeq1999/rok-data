@@ -320,7 +320,7 @@ fn render_resource_mod(table: &Table, modules: ResourceModules) -> String {
              pub mod relationships;\n",
         );
     }
-    output.push_str("/// `create`, `update`, and `delete`.\npub mod write;\n");
+    output.push_str("/// `create`, `patch`, and `destroy`.\npub mod write;\n");
     output
 }
 

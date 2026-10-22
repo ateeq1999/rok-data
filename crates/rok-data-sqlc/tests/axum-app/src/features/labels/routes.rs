@@ -17,8 +17,8 @@ pub fn routes(service: LabelsService) -> Router {
         .route("/api/v1/labels/search", post(handlers::search))
         .route("/api/v1/labels", post(handlers::create))
         .route("/api/v1/labels/{id}", get(handlers::get_one))
-        .route("/api/v1/labels/{id}", patch(handlers::update))
-        .route("/api/v1/labels/{id}", delete(handlers::remove))
+        .route("/api/v1/labels/{id}", patch(handlers::patch))
+        .route("/api/v1/labels/{id}", delete(handlers::destroy))
         .route("/api/v1/labels/by-name/{value}", get(handlers::get_by_name))
         .route("/api/v1/labels/{id}/notes", get(handlers::list_notes))
         .route(

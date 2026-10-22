@@ -366,7 +366,7 @@ fn writing_another_tables_data_is_reported_and_reading_it_is_not() -> Result<()>
         "use crate::db::labels::read::get;\n\
          use crate::db::notes::write::create;\n\
          use crate::db::labels;\n\
-         pub fn f() { labels::write::delete(); crate::db::labels::write::create(); }\n",
+         pub fn f() { labels::write::destroy(); crate::db::labels::write::create(); }\n",
     )?;
     let message = |path: &str| {
         format!(
@@ -382,7 +382,7 @@ fn writing_another_tables_data_is_reported_and_reading_it_is_not() -> Result<()>
             ),
             &format!(
                 "src/features/notes/service.rs:4: cross-feature-write: {}",
-                message("crate::db::labels::write::delete")
+                message("crate::db::labels::write::destroy")
             ),
         ],
     );

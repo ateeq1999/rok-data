@@ -24,7 +24,7 @@ pub fn render_api(feature: &Feature<'_>) -> String {
             Endpoint::List => render_list(&mut body, &mut uses, feature),
             Endpoint::Search => super::search::render_service(&mut body, &mut uses, feature),
             Endpoint::GetOne => render_get_one(&mut body, &mut uses, feature),
-            Endpoint::Create | Endpoint::Update | Endpoint::Remove | Endpoint::Restore => {
+            Endpoint::Create | Endpoint::Update | Endpoint::Destroy | Endpoint::Restore => {
                 render_write(&mut body, &mut uses, feature, *endpoint);
             }
         }
@@ -249,7 +249,10 @@ fn render_get_one(output: &mut String, uses: &mut Uses, feature: &Feature<'_>) {
         "repo::get_by_id"
     };
     push_call(output, 8, "let row = ", callee, &args, ".await?;");
-    output.push_str("        row.ok_or_else(not_found)\n    }\n");
+    output.push_str("        match row {\n");
+    output.push_str("            Some(row) => Ok(row),\n");
+    output.push_str("            None => Err(not_found()),\n");
+    output.push_str("        }\n    }\n");
 }
 
 fn render_lookup(
@@ -282,7 +285,10 @@ fn render_lookup(
     if feature.owner.is_some() {
         output.push_str("        let row = row.filter(|row| repo::owned_by(row, user.id));\n");
     }
-    output.push_str("        row.ok_or_else(not_found)\n    }\n");
+    output.push_str("        match row {\n");
+    output.push_str("            Some(row) => Ok(row),\n");
+    output.push_str("            None => Err(not_found()),\n");
+    output.push_str("        }\n    }\n");
 }
 
 /// An owned feature's check, on `conn`, that the caller owns the row with
@@ -303,8 +309,8 @@ fn push_owned_check(output: &mut String, feature: &Feature<'_>) {
     }
 }
 
-/// `<write>_in` and `<write>`, and for a soft-delete table's `remove`, the
-/// pair of `remove_permanently`.
+/// `<write>_in` and `<write>`, and for a soft-delete table's `destroy`, the
+/// pair of `destroy_permanently`.
 fn render_write(output: &mut String, uses: &mut Uses, feature: &Feature<'_>, endpoint: Endpoint) {
     uses.add("sqlx::PgConnection");
     if endpoint.takes_key() {
@@ -369,7 +375,7 @@ fn render_write(output: &mut String, uses: &mut Uses, feature: &Feature<'_>, end
     let inputs = params[1..].to_vec();
     let name = endpoint.name();
     render_write_pair(output, feature, name, endpoint, &doc, &inputs, &returns);
-    if endpoint == Endpoint::Remove && feature.soft_delete {
+    if endpoint == Endpoint::Destroy && feature.soft_delete {
         let doc = format!(
             "`DELETE {}{key_path}?permanent=true`: deletes the row with this key for good,\nsoft-deleted or not, or `404`.",
             feature.url
@@ -378,7 +384,7 @@ fn render_write(output: &mut String, uses: &mut Uses, feature: &Feature<'_>, end
         render_write_pair(
             output,
             feature,
-            "remove_permanently",
+            "destroy_permanently",
             endpoint,
             &doc,
             &inputs,
@@ -431,7 +437,7 @@ fn render_write_pair(
                     output,
                     8,
                     "let outcome = ",
-                    "repo::update",
+                    "repo::patch",
                     &args,
                     ".await?;",
                 );
@@ -440,42 +446,54 @@ fn render_write_pair(
                 );
             } else {
                 args.push("input.into()".to_owned());
-                push_call(output, 8, "let row = ", "repo::update", &args, ".await?;");
-                output.push_str("        row.ok_or_else(not_found)\n");
+                push_call(output, 8, "let row = ", "repo::patch", &args, ".await?;");
+                output.push_str("        match row {\n");
+                output.push_str("            Some(row) => Ok(row),\n");
+                output.push_str("            None => Err(not_found()),\n");
+                output.push_str("        }\n");
             }
         }
         Endpoint::Restore => {
-            let mut restore = args.clone();
-            restore.push(key_arg(feature));
+            let mut key_args = args.clone();
+            key_args.push(key_arg(feature));
             push_call(
                 output,
                 8,
                 "let restored = ",
                 "repo::restore",
-                &restore,
+                &key_args,
                 ".await?;",
             );
-            push_not_owned(output, "restored");
-            args.push(key_arg(feature));
+            output.push_str("        if restored > 0 {\n");
             push_call(
                 output,
-                8,
+                12,
                 "let row = ",
                 "repo::get_by_id",
-                &args,
+                &key_args,
                 ".await?;",
             );
-            output.push_str("        row.ok_or_else(not_found)\n");
+            output.push_str("            match row {\n");
+            output.push_str("                Some(row) => Ok(row),\n");
+            output.push_str("                None => Err(not_found()),\n");
+            output.push_str("            }\n");
+            output.push_str("        } else {\n");
+            output.push_str("            Err(not_found())\n");
+            output.push_str("        }\n");
         }
         _ => {
             args.push(key_arg(feature));
-            let callee = if name == "remove_permanently" {
+            let callee = if name == "destroy_permanently" {
                 "repo::delete_permanently"
             } else {
-                "repo::delete"
+                "repo::destroy"
             };
             push_call(output, 8, "let deleted = ", callee, &args, ".await?;");
-            output.push_str("        if deleted { Ok(()) } else { Err(not_found()) }\n");
+            output.push_str("        if deleted > 0 {\n");
+            output.push_str("            Ok(())\n");
+            output.push_str("        } else {\n");
+            output.push_str("            Err(not_found())\n");
+            output.push_str("        }\n");
         }
     }
     output.push_str("    }\n\n");

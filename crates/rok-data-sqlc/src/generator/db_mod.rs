@@ -25,7 +25,7 @@ pub struct DbMod<'a> {
 
 /// Renders `db/mod.rs`: the dependency hints, a module per table of
 /// `tables` (generated or kept) and per shared module of `db_mod`, and
-/// `UpdateOutcome` when a table's `update` uses it.
+/// `UpdateOutcome` when a table's `patch` uses it.
 pub fn render_db_mod(tables: &[Table], db_mod: &DbMod<'_>) -> String {
     let DbMod {
         has_types,
@@ -98,16 +98,16 @@ pub fn render_db_mod(tables: &[Table], db_mod: &DbMod<'_>) -> String {
     for module in modules {
         output.push_str(&format!("pub mod {module};\n"));
     }
-    if tables.iter().any(write::has_versioned_update) {
+    if tables.iter().any(write::has_versioned_patch) {
         output.push_str(UPDATE_OUTCOME);
     }
     output
 }
 
-/// The result of every versioned `update` (a table with a version column),
+/// The result of every versioned `patch` (a table with a version column),
 /// defined once in `db/mod.rs`.
 const UPDATE_OUTCOME: &str = "
-/// What an `update` on a table with a version column did.
+/// What a `patch` on a table with a version column did.
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UpdateOutcome<T> {

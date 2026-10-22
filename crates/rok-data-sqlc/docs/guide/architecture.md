@@ -169,8 +169,8 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
             .route("", web::get().to(handlers::list))
             .route("", web::post().to(handlers::create))
             .route("/{id}", web::get().to(handlers::get_one))
-            .route("/{id}", web::patch().to(handlers::update))
-            .route("/{id}", web::delete().to(handlers::remove)),
+            .route("/{id}", web::patch().to(handlers::patch))
+            .route("/{id}", web::delete().to(handlers::destroy)),
     );
 }
 ```

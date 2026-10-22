@@ -42,63 +42,77 @@ pub trait UsersServiceApi {
     /// `GET /api/v1/users/{id}`: the row with this key, or `404`.
     async fn get_one(&self, id: UserId) -> Result<User, AppError> {
         let row = repo::get_by_id(self.pool(), id).await?;
-        row.ok_or_else(not_found)
+        match row {
+            Some(row) => Ok(row),
+            None => Err(not_found()),
+        }
     }
 
-    /// What [`update`](Self::update) does, on `conn`: the caller's connection or
+    /// What [`patch`](Self::patch) does, on `conn`: the caller's connection or
     /// transaction. Override this one to change it.
-    async fn update_in(
+    async fn patch_in(
         &self,
         conn: &mut PgConnection,
         id: UserId,
         input: UpdateUserDto,
     ) -> Result<User, AppError> {
-        let row = repo::update(&mut *conn, id, input.into()).await?;
-        row.ok_or_else(not_found)
+        let row = repo::patch(&mut *conn, id, input.into()).await?;
+        match row {
+            Some(row) => Ok(row),
+            None => Err(not_found()),
+        }
     }
 
     /// `PATCH /api/v1/users/{id}`: changes the row with this key and returns it, or `404`.
-    /// Runs [`update_in`](Self::update_in) in a transaction of its own.
-    async fn update(&self, id: UserId, input: UpdateUserDto) -> Result<User, AppError> {
+    /// Runs [`patch_in`](Self::patch_in) in a transaction of its own.
+    async fn patch(&self, id: UserId, input: UpdateUserDto) -> Result<User, AppError> {
         let mut tx = self.pool().begin().await?;
-        let row = self.update_in(&mut tx, id, input).await?;
+        let row = self.patch_in(&mut tx, id, input).await?;
         tx.commit().await?;
         Ok(row)
     }
 
-    /// What [`remove`](Self::remove) does, on `conn`: the caller's connection or
+    /// What [`destroy`](Self::destroy) does, on `conn`: the caller's connection or
     /// transaction. Override this one to change it.
-    async fn remove_in(&self, conn: &mut PgConnection, id: UserId) -> Result<(), AppError> {
-        let deleted = repo::delete(&mut *conn, id).await?;
-        if deleted { Ok(()) } else { Err(not_found()) }
+    async fn destroy_in(&self, conn: &mut PgConnection, id: UserId) -> Result<(), AppError> {
+        let deleted = repo::destroy(&mut *conn, id).await?;
+        if deleted > 0 {
+            Ok(())
+        } else {
+            Err(not_found())
+        }
     }
 
     /// `DELETE /api/v1/users/{id}`: soft-deletes the row with this key, or `404`.
-    /// Runs [`remove_in`](Self::remove_in) in a transaction of its own.
-    async fn remove(&self, id: UserId) -> Result<(), AppError> {
+    /// Runs [`destroy_in`](Self::destroy_in) in a transaction of its own.
+    async fn destroy(&self, id: UserId) -> Result<(), AppError> {
         let mut tx = self.pool().begin().await?;
-        self.remove_in(&mut tx, id).await?;
+        self.destroy_in(&mut tx, id).await?;
         tx.commit().await?;
         Ok(())
     }
 
-    /// What [`remove_permanently`](Self::remove_permanently) does, on `conn`: the caller's connection or
+    /// What [`destroy_permanently`](Self::destroy_permanently) does, on `conn`: the caller's connection or
     /// transaction. Override this one to change it.
-    async fn remove_permanently_in(
+    async fn destroy_permanently_in(
         &self,
         conn: &mut PgConnection,
         id: UserId,
     ) -> Result<(), AppError> {
         let deleted = repo::delete_permanently(&mut *conn, id).await?;
-        if deleted { Ok(()) } else { Err(not_found()) }
+        if deleted > 0 {
+            Ok(())
+        } else {
+            Err(not_found())
+        }
     }
 
     /// `DELETE /api/v1/users/{id}?permanent=true`: deletes the row with this key for good,
     /// soft-deleted or not, or `404`.
-    /// Runs [`remove_permanently_in`](Self::remove_permanently_in) in a transaction of its own.
-    async fn remove_permanently(&self, id: UserId) -> Result<(), AppError> {
+    /// Runs [`destroy_permanently_in`](Self::destroy_permanently_in) in a transaction of its own.
+    async fn destroy_permanently(&self, id: UserId) -> Result<(), AppError> {
         let mut tx = self.pool().begin().await?;
-        self.remove_permanently_in(&mut tx, id).await?;
+        self.destroy_permanently_in(&mut tx, id).await?;
         tx.commit().await?;
         Ok(())
     }

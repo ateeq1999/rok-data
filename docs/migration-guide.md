@@ -26,6 +26,8 @@ flags, outputs and exit codes are the same.
 | `Model::create()`     | `Model::insert_builder()` | the insert builder: one column at a time, raw expressions, conflict handling |
 | `row.save(&db)`       | `row.update(&db)`         | the row-level update by primary key; returns the stored row |
 | `row.save_only(&db, columns)` | `row.update_only(&db, columns)` | the row-level update of the listed columns only |
+| `write::update(exec, id, input)` | `write::patch(exec, id, input)` | the generated update: returns the patched row, `None` when missing |
+| `write::delete(exec, id)` | `write::destroy(exec, id)` | the generated delete: returns the deleted count (`u64`), not `bool` |
 
 ```rust
 // before
@@ -48,10 +50,15 @@ meaning is ambiguous (insert *or* update), and a non-optional typed key
 leaves the runtime nothing to decide on. Use the explicit verbs — `insert`,
 `update`, `upsert`, `upsert_on` — instead.
 
-The generated data layer changes with the runtime: the generated write
-module calls `insert_builder()` now, so regenerate. The generated
-functions keep their names (`create`, `update`, `delete`); only the model
-verbs they call changed.
+The generated data layer changes with the runtime, and its write helpers
+take the Eloquent-shaped names: `update` becomes `patch` (the instance
+verb `update` already means "write this row"), `delete` becomes `destroy`,
+and `destroy` returns the number of deleted rows (`u64`), not a `bool`:
+an `assert!(write::delete(...).await.unwrap())` becomes
+`assert!(write::destroy(...).await.unwrap() > 0)`. The instance
+`update`, `insert_builder()`, the query builders, `restore` and
+`delete_permanently` keep their names. Regenerate and let the compiler
+find the call sites.
 
 ### New verbs
 

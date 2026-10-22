@@ -35,7 +35,7 @@ openapi = false
 exclude = [\"audit_log\"]
 
 [api.skip]
-posts = [\"remove\", \"restore\"]
+posts = [\"destroy\", \"restore\"]
 
 [api.routes]
 users = \"/members\"
@@ -138,7 +138,7 @@ fn an_api_section_adds_the_features_the_pool_and_the_shared_tools() -> Result<()
         "{routes}"
     );
     let routes = &features[Path::new("posts/routes.rs")];
-    assert!(!routes.contains("handlers::remove"), "{routes}");
+    assert!(!routes.contains("handlers::destroy"), "{routes}");
     Ok(())
 }
 
@@ -377,7 +377,7 @@ fn unknown_skip_and_access_names_list_the_valid_ones() -> Result<()> {
     let cases = [
         (
             "[api.skip]\nusers = [\"delete\"]",
-            "`list`, `get_one`, `create`, `update`, `remove`, `search`, `restore`, `lookups`, `relationships`",
+            "`list`, `get_one`, `create`, `update`, `destroy`, `search`, `restore`, `lookups`, `relationships`",
         ),
         (
             "[api.access]\nusers = \"owner\"",

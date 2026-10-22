@@ -67,7 +67,7 @@ pub(super) async fn interval_bytea_and_timetz_round_trip(pool: &PgPool) {
     let by_badge = read::get_by_badge(pool, &[7]).await.unwrap();
     assert_eq!(by_badge.map(|row| row.id), Some(other.id));
 
-    let updated = write::update(
+    let updated = write::patch(
         pool,
         created.id,
         UpdateTimedBadge {
@@ -213,7 +213,7 @@ pub(super) async fn enums_keep_their_exact_labels(pool: &PgPool) {
     );
 
     // `Archived` exists only because of ALTER TYPE ... ADD VALUE.
-    let archived = write::update(
+    let archived = write::patch(
         pool,
         urgent.id,
         UpdateTicket {
@@ -401,7 +401,7 @@ pub(super) async fn value_list_columns_round_trip(pool: &PgPool) {
         "the database stores each variant's exact value"
     );
 
-    let delivered = write::update(
+    let delivered = write::patch(
         pool,
         moving.id,
         UpdateShipment {
@@ -532,7 +532,7 @@ pub(super) async fn money_range_and_network_types_round_trip(pool: &PgPool) {
         Some(&created)
     );
 
-    let updated = write::update(
+    let updated = write::patch(
         pool,
         created.id,
         UpdateLedgerEntry {

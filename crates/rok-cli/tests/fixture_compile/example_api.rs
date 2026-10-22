@@ -121,7 +121,7 @@ fn the_example_stages_the_migration_pairs_it_checks_in() -> Result<()> {
     std::fs::remove_file(&loans)?;
     let config = dir.join("rok.toml");
     let settings = std::fs::read_to_string(&config)?;
-    let reduced = settings.replace("loans = [\"remove\"]\n", "");
+    let reduced = settings.replace("loans = [\"destroy\"]\n", "");
     ensure!(
         reduced != settings,
         "the example's configuration no longer names the loans' skipped endpoint"

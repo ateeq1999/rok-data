@@ -23,11 +23,11 @@ where
     insert.exec(executor).await
 }
 
-/// Applies a partial update and returns the updated row, or `None` if no row has
+/// Applies a partial patch and returns the patched row, or `None` if no row has
 /// the given primary key. An empty patch issues no `UPDATE` and returns the
 /// current row.
 /// A soft-deleted row is left unchanged and counts as missing.
-pub async fn update<'e, E>(
+pub async fn patch<'e, E>(
     executor: E,
     id: UserId,
     input: UpdateUser,
@@ -56,23 +56,19 @@ where
 }
 
 /// Soft-deletes the row with the given primary key by setting `deleted_at` to
-/// the current time, and returns whether a row changed: `false` when there is no
+/// the current time, and returns the number of rows changed: `0` when there is no
 /// such row or it is already deleted.
-pub async fn delete<'e, E>(executor: E, id: UserId) -> Result<bool, rok_data::Error>
+pub async fn destroy<'e, E>(executor: E, id: UserId) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    User::query()
-        .filter(User::ID.eq(id))
-        .delete(executor)
-        .await
-        .map(|count| count > 0)
+    User::query().filter(User::ID.eq(id)).delete(executor).await
 }
 
 /// Restores the soft-deleted row with the given primary key by clearing `deleted_at`,
-/// and returns whether a row changed: `false` when there is no such row or it is
+/// and returns the number of rows changed: `0` when there is no such row or it is
 /// not deleted.
-pub async fn restore<'e, E>(executor: E, id: UserId) -> Result<bool, rok_data::Error>
+pub async fn restore<'e, E>(executor: E, id: UserId) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
@@ -80,12 +76,11 @@ where
         .filter(User::ID.eq(id))
         .restore(executor)
         .await
-        .map(|count| count > 0)
 }
 
 /// Removes the row with the given primary key from the table, deleted or not, and
-/// returns whether one existed.
-pub async fn delete_permanently<'e, E>(executor: E, id: UserId) -> Result<bool, rok_data::Error>
+/// returns the number of rows that existed.
+pub async fn delete_permanently<'e, E>(executor: E, id: UserId) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
@@ -94,5 +89,4 @@ where
         .with_trashed()
         .force_delete(executor)
         .await
-        .map(|count| count > 0)
 }

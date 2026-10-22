@@ -11,8 +11,8 @@ use std::sync::Arc;
 
 use super::super::{AccountResponse, LabelResponse};
 use super::dto::{
-    CreateNoteDto, GetNoteQuery, ListNotesQuery, NoteInclude, NoteResponse, NoteWithOwnerResponse,
-    RemoveNoteQuery, SearchNotesBody, UpdateNoteDto,
+    CreateNoteDto, DestroyNoteQuery, GetNoteQuery, ListNotesQuery, NoteInclude, NoteResponse,
+    NoteWithOwnerResponse, SearchNotesBody, UpdateNoteDto,
 };
 use super::model::NoteId;
 use super::service::NotesService;
@@ -192,7 +192,7 @@ pub async fn get_one(
     patch,
     path = "/api/v1/notes/{id}",
     tag = "notes",
-    operation_id = "update",
+    operation_id = "patch",
     params(
         ("id" = uuid::Uuid, Path, description = "Note id"),
         ("If-Match" = String, Header, description = "The row's `ETag`."),
@@ -218,7 +218,7 @@ pub async fn get_one(
     ),
     security(("bearer_auth" = [])),
 )]
-pub async fn update(
+pub async fn patch(
     Extension(service): Extension<Arc<NotesService>>,
     user: AuthUser,
     tenant: Tenant<uuid::Uuid>,
@@ -228,7 +228,7 @@ pub async fn update(
 ) -> Result<Response, AppError> {
     let key = path;
     let row = service
-        .update(
+        .patch(
             tenant.into_inner(),
             user,
             key,
@@ -246,13 +246,13 @@ pub async fn update(
     delete,
     path = "/api/v1/notes/{id}",
     tag = "notes",
-    operation_id = "remove",
+    operation_id = "destroy",
     params(
         ("id" = uuid::Uuid, Path, description = "Note id"),
-        RemoveNoteQuery,
+        DestroyNoteQuery,
     ),
     responses(
-        (status = 204, description = "The row, soft-deleted (deleted with `?permanent=true`)."),
+        (status = 204, description = "The row, soft-deleted (destroyed with `?permanent=true`)."),
         (status = 400, description = "A malformed path, query or body.", body = ErrorBody),
         (status = 401, description = "No valid bearer token.", body = ErrorBody),
         (status = 404, description = "No such row, or not the caller's.", body = ErrorBody),
@@ -260,20 +260,20 @@ pub async fn update(
     ),
     security(("bearer_auth" = [])),
 )]
-pub async fn remove(
+pub async fn destroy(
     Extension(service): Extension<Arc<NotesService>>,
     user: AuthUser,
     tenant: Tenant<uuid::Uuid>,
     Path(path): Path<NoteId>,
-    Query(query): Query<RemoveNoteQuery>,
+    Query(query): Query<DestroyNoteQuery>,
 ) -> Result<Response, AppError> {
     let key = path;
     if query.permanent {
         service
-            .remove_permanently(tenant.into_inner(), user, key)
+            .destroy_permanently(tenant.into_inner(), user, key)
             .await?;
     } else {
-        service.remove(tenant.into_inner(), user, key).await?;
+        service.destroy(tenant.into_inner(), user, key).await?;
     }
     Ok(StatusCode::NO_CONTENT.into_response())
 }

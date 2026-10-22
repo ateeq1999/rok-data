@@ -15,7 +15,7 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
             .app_data(query_config())
             .route("", web::get().to(handlers::list))
             .route("/{id}", web::get().to(handlers::get_one))
-            .route("/{id}", web::patch().to(handlers::update))
-            .route("/{id}", web::delete().to(handlers::remove)),
+            .route("/{id}", web::patch().to(handlers::patch))
+            .route("/{id}", web::delete().to(handlers::destroy)),
     );
 }

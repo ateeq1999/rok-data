@@ -21,10 +21,10 @@ where
     insert.exec(executor).await
 }
 
-/// Applies a partial update and returns the updated row, or `None` if no row has
+/// Applies a partial patch and returns the patched row, or `None` if no row has
 /// the given primary key. An empty patch issues no `UPDATE` and returns the
 /// current row.
-pub async fn update<'e, E>(
+pub async fn patch<'e, E>(
     executor: E,
     id: OrganizationId,
     input: UpdateOrganization,
@@ -43,8 +43,8 @@ where
     update.returning_one(executor).await
 }
 
-/// Deletes the row with the given primary key and returns whether one existed.
-pub async fn delete<'e, E>(executor: E, id: OrganizationId) -> Result<bool, rok_data::Error>
+/// Deletes the row with the given primary key and returns the number of rows that existed.
+pub async fn destroy<'e, E>(executor: E, id: OrganizationId) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
@@ -52,5 +52,4 @@ where
         .filter(Organization::ID.eq(id))
         .delete(executor)
         .await
-        .map(|count| count > 0)
 }

@@ -44,7 +44,10 @@ pub trait AuditLogEntryServiceApi {
     /// `GET /api/v1/audit-log/{id}`: the row with this key, or `404`.
     async fn get_one(&self, id: AuditLogEntryId) -> Result<AuditLogEntry, AppError> {
         let row = repo::get_by_id(self.pool(), id).await?;
-        row.ok_or_else(not_found)
+        match row {
+            Some(row) => Ok(row),
+            None => Err(not_found()),
+        }
     }
 }
 

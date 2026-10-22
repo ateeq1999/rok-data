@@ -58,7 +58,7 @@ async fn pay_first_invoice(
         ..UpdateInvoice::default()
     };
     let outcome =
-        db::invoices::write::update(&mut *tx, org, invoice.id, invoice.row_version, patch).await?;
+        db::invoices::write::patch(&mut *tx, org, invoice.id, invoice.row_version, patch).await?;
     match outcome {
         UpdateOutcome::Updated(paid) => assert_eq!(paid.row_version, invoice.row_version + 1),
         UpdateOutcome::NotFound => println!("deleted meanwhile"),
@@ -66,7 +66,7 @@ async fn pay_first_invoice(
     }
 
     // Soft delete: reads skip the row until it is restored.
-    db::invoices::write::delete(&mut *tx, org, invoice.id).await?;
+    db::invoices::write::destroy(&mut *tx, org, invoice.id).await?;
     let hidden = db::invoices::read::get_by_number(&mut *tx, org, "INV-001").await?;
     assert!(hidden.is_none());
     db::invoices::write::restore(&mut *tx, org, invoice.id).await?;

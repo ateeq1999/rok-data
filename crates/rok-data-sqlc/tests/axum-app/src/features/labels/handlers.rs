@@ -135,7 +135,7 @@ pub async fn get_one(
     patch,
     path = "/api/v1/labels/{id}",
     tag = "labels",
-    operation_id = "update",
+    operation_id = "patch",
     params(("id" = i64, Path, description = "Label id")),
     request_body = UpdateLabelDto,
     responses(
@@ -147,37 +147,37 @@ pub async fn get_one(
         (status = 422, description = "The body breaks a rule or a check.", body = ErrorBody),
     ),
 )]
-pub async fn update(
+pub async fn patch(
     Extension(service): Extension<Arc<LabelsService>>,
     Path(path): Path<LabelId>,
     body: ValidatedJson<UpdateLabelDto>,
 ) -> Result<Response, AppError> {
     let key = path;
-    let row = service.update(key, body.into_inner()).await?;
+    let row = service.patch(key, body.into_inner()).await?;
     let response = LabelResponse::from(row);
     Ok(Json(response).into_response())
 }
 
-/// `DELETE /api/v1/labels/{id}`: deletes the row, `204`.
+/// `DELETE /api/v1/labels/{id}`: destroys the row, `204`.
 #[utoipa::path(
     delete,
     path = "/api/v1/labels/{id}",
     tag = "labels",
-    operation_id = "remove",
+    operation_id = "destroy",
     params(("id" = i64, Path, description = "Label id")),
     responses(
-        (status = 204, description = "The row, deleted."),
+        (status = 204, description = "The row, destroyed."),
         (status = 400, description = "A malformed path, query or body.", body = ErrorBody),
         (status = 404, description = "No such row, or not the caller's.", body = ErrorBody),
         (status = 409, description = "A unique or foreign-key violation.", body = ErrorBody),
     ),
 )]
-pub async fn remove(
+pub async fn destroy(
     Extension(service): Extension<Arc<LabelsService>>,
     Path(path): Path<LabelId>,
 ) -> Result<Response, AppError> {
     let key = path;
-    service.remove(key).await?;
+    service.destroy(key).await?;
     Ok(StatusCode::NO_CONTENT.into_response())
 }
 

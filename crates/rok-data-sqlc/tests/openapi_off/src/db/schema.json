@@ -1,0 +1,497 @@
+{
+  "enums": [
+    {
+      "name": "gadget_mood",
+      "values": [
+        "happy",
+        "so-so"
+      ],
+      "module": ""
+    },
+    {
+      "name": "size",
+      "values": [
+        "small",
+        "Large"
+      ],
+      "module": ""
+    }
+  ],
+  "tables": [
+    {
+      "name": "notes",
+      "module": "notes",
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "slug",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "body",
+          "sql_type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "priority",
+          "sql_type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "created_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "uniques": [
+        {
+          "name": "notes_slug_key",
+          "columns": [
+            "slug"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "members",
+      "module": "members",
+      "columns": [
+        {
+          "name": "team",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "note_id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "role",
+          "sql_type": "TEXT",
+          "nullable": false,
+          "default": "'viewer'"
+        }
+      ],
+      "primary_key": [
+        "team",
+        "note_id"
+      ],
+      "foreign_keys": [
+        {
+          "name": "members_note_id_fkey",
+          "columns": [
+            "note_id"
+          ],
+          "ref_table": "notes",
+          "ref_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "audit_events",
+      "module": "audit_events",
+      "columns": [
+        {
+          "name": "action",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "detail",
+          "sql_type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "primary_key": []
+    },
+    {
+      "name": "labels",
+      "module": "labels",
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "BIGSERIAL",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "sql_type": "TEXT",
+          "nullable": false
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "uniques": [
+        {
+          "name": "labels_name_key",
+          "columns": [
+            "name"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "note_labels",
+      "module": "note_labels",
+      "columns": [
+        {
+          "name": "note_id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "label_id",
+          "sql_type": "BIGINT",
+          "nullable": false
+        }
+      ],
+      "primary_key": [
+        "note_id",
+        "label_id"
+      ],
+      "foreign_keys": [
+        {
+          "name": "note_labels_note_id_fkey",
+          "columns": [
+            "note_id"
+          ],
+          "ref_table": "notes",
+          "ref_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "note_labels_label_id_fkey",
+          "columns": [
+            "label_id"
+          ],
+          "ref_table": "labels",
+          "ref_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "drafts",
+      "module": "drafts",
+      "columns": [
+        {
+          "name": "title",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "id",
+          "sql_type": "UUID",
+          "nullable": false
+        }
+      ],
+      "primary_key": [
+        "id"
+      ]
+    },
+    {
+      "name": "accounts",
+      "module": "accounts",
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "password_hash",
+          "sql_type": "TEXT",
+          "nullable": false
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "uniques": [
+        {
+          "name": "accounts_email_key",
+          "columns": [
+            "email"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "tasks",
+      "module": "tasks",
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "owner_id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "done",
+          "sql_type": "BOOLEAN",
+          "nullable": false,
+          "default": "false"
+        },
+        {
+          "name": "created_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "name": "tasks_owner_id_fkey",
+          "columns": [
+            "owner_id"
+          ],
+          "ref_table": "accounts",
+          "ref_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "documents",
+      "module": "documents",
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "owner_id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "label_id",
+          "sql_type": "BIGINT",
+          "nullable": true
+        },
+        {
+          "name": "task_id",
+          "sql_type": "UUID",
+          "nullable": true
+        },
+        {
+          "name": "code",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "secret",
+          "sql_type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "revision",
+          "sql_type": "BIGINT",
+          "nullable": false,
+          "default": "1"
+        },
+        {
+          "name": "deleted_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "uniques": [
+        {
+          "name": "documents_task_id_key",
+          "columns": [
+            "task_id"
+          ]
+        },
+        {
+          "name": "documents_secret_key",
+          "columns": [
+            "secret"
+          ]
+        },
+        {
+          "name": "documents_tenant_id_code_key",
+          "columns": [
+            "tenant_id",
+            "code"
+          ]
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "documents_label_id_fkey",
+          "columns": [
+            "label_id"
+          ],
+          "ref_table": "labels",
+          "ref_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "documents_task_id_fkey",
+          "columns": [
+            "task_id"
+          ],
+          "ref_table": "tasks",
+          "ref_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "task_labels",
+      "module": "task_labels",
+      "columns": [
+        {
+          "name": "task_id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "label_id",
+          "sql_type": "BIGINT",
+          "nullable": false
+        }
+      ],
+      "primary_key": [
+        "task_id",
+        "label_id"
+      ],
+      "foreign_keys": [
+        {
+          "name": "task_labels_task_id_fkey",
+          "columns": [
+            "task_id"
+          ],
+          "ref_table": "tasks",
+          "ref_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "task_labels_label_id_fkey",
+          "columns": [
+            "label_id"
+          ],
+          "ref_table": "labels",
+          "ref_columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "gadgets",
+      "module": "gadgets",
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "mood",
+          "sql_type": "gadget_mood",
+          "nullable": false
+        },
+        {
+          "name": "size",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "price",
+          "sql_type": "NUMERIC(10,2)",
+          "nullable": true
+        },
+        {
+          "name": "specs",
+          "sql_type": "JSONB",
+          "nullable": true
+        },
+        {
+          "name": "host",
+          "sql_type": "inet",
+          "nullable": true
+        },
+        {
+          "name": "made_on",
+          "sql_type": "DATE",
+          "nullable": true
+        }
+      ],
+      "primary_key": [
+        "id"
+      ]
+    }
+  ],
+  "indexes": [],
+  "extras": []
+}
