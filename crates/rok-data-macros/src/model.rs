@@ -2,8 +2,11 @@
 
 use syn::{Ident, Path, spanned::Spanned};
 
+pub(crate) mod conventions;
 pub(crate) mod expand;
 pub(crate) mod from_row;
+#[cfg(test)]
+mod tests;
 pub(crate) struct Field {
     ident: Ident,
     column: String,

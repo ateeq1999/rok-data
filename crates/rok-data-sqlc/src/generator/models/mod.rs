@@ -1,6 +1,7 @@
 //! A table's `models.rs`: its row, its key type, its create input and its
 //! update patch ([`inputs`]), and `db/nullable.rs` ([`nullable`]).
 
+mod conventions;
 mod inputs;
 mod nullable;
 #[cfg(test)]
@@ -10,6 +11,7 @@ mod validate_tests;
 
 use crate::schema::{Column, Table, mentions_generated_type};
 
+use self::conventions::Conventions;
 use self::inputs::{render_insert_input, render_update_patch};
 use super::{
     DeriveOptions, HEADER, doc_name, keys, push_derives, push_doc, serde_derives, sql, use_paths,
@@ -42,7 +44,8 @@ pub fn render(table: &Table, derives: DeriveOptions) -> String {
         output.push('\n');
     }
     keys::render_key_type(&mut output, table, derives);
-    render_row(&mut output, table, derives.serde);
+    let conventions = conventions::decide(table);
+    render_row(&mut output, table, derives.serde, &conventions);
     keys::render_row_key(&mut output, table);
 
     let insert_columns = table.insert_columns();
@@ -64,16 +67,16 @@ pub fn render(table: &Table, derives: DeriveOptions) -> String {
     output
 }
 
-fn render_row(output: &mut String, table: &Table, serde: bool) {
+fn render_row(output: &mut String, table: &Table, serde: bool, conventions: &Conventions) {
     let doc = format!("A row of the `{}` table.", table.display_name());
     push_doc(output, 0, &[&doc]);
     output.push_str("#[derive(Debug, Clone, PartialEq, Model)]\n");
     push_derives(output, serde_derives(serde));
-    push_container_attrs(output, table);
+    push_container_attrs(output, table, conventions);
     output.push_str(&format!("pub struct {} {{\n", table.struct_name));
     for column in &table.columns {
         push_doc(output, 4, &[&column_doc(column)]);
-        push_field_attrs(output, table, column);
+        push_field_attrs(output, column, conventions);
         output.push_str(&format!(
             "    pub {}: {},\n",
             column.rust_name,
@@ -84,27 +87,28 @@ fn render_row(output: &mut String, table: &Table, serde: bool) {
 }
 
 /// The `#[rok(...)]` container attributes of a row's derive: the table (with
-/// its schema), and `soft_delete` when a soft-delete column exists (its own
-/// attribute names the column below).
-fn push_container_attrs(output: &mut String, table: &Table) {
+/// its schema), and the conventions the row carries (workspace ADR 0015).
+/// The markers the inference covers are not written: the column names say
+/// it already. The opt-outs are written where the database owns the column.
+fn push_container_attrs(output: &mut String, table: &Table, conventions: &Conventions) {
     let mut attrs = vec![format!(
         "table = {}",
         sql::str_literal(&qualified_table(table))
     )];
-    if table
-        .columns
-        .iter()
-        .any(|column| table.is_soft_delete_column(column))
-    {
-        attrs.push("soft_delete".to_owned());
+    if conventions.no_timestamps {
+        attrs.push("no_timestamps".to_owned());
+    }
+    if conventions.no_soft_delete {
+        attrs.push("no_soft_delete".to_owned());
     }
     output.push_str(&format!("#[rok({})]\n", attrs.join(", ")));
 }
 
 /// The `#[rok(...)]` attributes of one row field: the column's name when it
 /// differs from the field, the primary key, generated-only columns ("read
-/// but never written"), and the soft-delete column's marker.
-fn push_field_attrs(output: &mut String, table: &Table, column: &Column) {
+/// but never written"), and the soft-delete column's marker (when the
+/// inference cannot name it).
+fn push_field_attrs(output: &mut String, column: &Column, conventions: &Conventions) {
     if column.rust_name != column.sql_name {
         output.push_str(&format!(
             "    #[rok(column = {})]\n",
@@ -117,7 +121,10 @@ fn push_field_attrs(output: &mut String, table: &Table, column: &Column) {
     if column.is_generated {
         output.push_str("    #[rok(generated)]\n");
     }
-    if table.is_soft_delete_column(column) {
+    if conventions
+        .soft_delete
+        .is_some_and(|soft_delete| soft_delete.sql_name == column.sql_name)
+    {
         output.push_str("    #[rok(deleted_at)]\n");
     }
 }

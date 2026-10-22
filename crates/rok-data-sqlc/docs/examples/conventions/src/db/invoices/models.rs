@@ -31,7 +31,7 @@ impl std::fmt::Display for InvoiceId {
 rok_data::impl_value!(InvoiceId);
 /// A row of the `invoices` table.
 #[derive(Debug, Clone, PartialEq, Model)]
-#[rok(table = "invoices", soft_delete)]
+#[rok(table = "invoices")]
 pub struct Invoice {
     /// The `id` column.
     #[rok(primary_key)]
@@ -49,7 +49,6 @@ pub struct Invoice {
     /// The `row_version` column.
     pub row_version: i64,
     /// The `deleted_at` column.
-    #[rok(deleted_at)]
     pub deleted_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 

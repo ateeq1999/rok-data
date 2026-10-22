@@ -433,6 +433,41 @@ tenant_column      = "organization_id"
   caller. A request reaching a tenant-scoped handler without one is a
   `500 internal_error`, logged as a wiring bug.
 
+### The conventions the row infers
+
+The conventions above shape the API. The row itself infers its own, from
+the column names (workspace ADR 0015): a table with `created_at` and
+`updated_at` columns gets ORM-managed timestamps, and a table with a
+`deleted_at` column soft-deletes. The generator writes neither marker — the
+names are the signal — and writes the opt-out only where the database owns
+the column:
+
+| The row carries | When | What it means |
+|---|---|---|
+| `#[rok(no_timestamps)]` | the table's `created_at` and `updated_at` columns do not **both** default to `now()` (`CURRENT_TIMESTAMP`) | the database's value is kept; the row writes no `now()` |
+| `#[rok(no_soft_delete)]` | the `deleted_at` column is the database's | the column is an ordinary one; the row neither marks rows deleted nor skips them |
+
+A column the `managed_columns` convention names is the data layer's, whatever
+its default: it keeps the managed timestamps.
+
+The `deleted_at` column is the database's when it fills the column with a
+value of its own (a default that is not `NULL`), when the database always
+owns it (`GENERATED ALWAYS AS …`, an identity or a serial column), or when
+it cannot carry a soft delete at all (it is not a nullable `TIMESTAMP` or
+`TIMESTAMPTZ`).
+
+A `soft_delete_column` convention names the soft-delete column explicitly,
+and that column is the soft delete whatever its name: the row's field says
+so (`#[rok(deleted_at)]`). It is the convention that gives the API its
+`restore` route and the `include_deleted` filter; the row's own soft delete
+is inferred either way.
+
+A hand-written model uses the same rules and the same two attributes, so a
+model with a `created_at` and an `updated_at` field needs no
+`#[rok(timestamps)]`, and a model with a `deleted_at` field needs no
+`#[rok(soft_delete)]`. The markers still work and mean the same thing; they
+are redundant now, not wrong.
+
 ### Keys the server makes: `primary_key_ids`
 
 ```toml

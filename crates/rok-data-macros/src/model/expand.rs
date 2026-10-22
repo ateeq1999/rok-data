@@ -4,6 +4,7 @@ use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
 use syn::{Data, DeriveInput, Fields, Ident, LitStr, Path, spanned::Spanned};
 
+use super::conventions::{self, Conventions};
 use super::from_row::from_row_tokens;
 use super::{Field, Relation, Rule, parse_relations, parse_rules};
 use crate::naming::{crate_path, method_ident, pluralize, relation_ident, snake_case, unraw};
@@ -19,6 +20,8 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     let mut table = None;
     let mut timestamps = false;
     let mut soft_delete = false;
+    let mut no_timestamps = false;
+    let mut no_soft_delete = false;
     let mut hooks = false;
     let mut validate_with: Option<Path> = None;
     let mut default_scope: Option<Path> = None;
@@ -31,8 +34,12 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
                 table = Some(meta.value()?.parse::<LitStr>()?.value());
             } else if meta.path.is_ident("timestamps") {
                 timestamps = true;
+            } else if meta.path.is_ident("no_timestamps") {
+                no_timestamps = true;
             } else if meta.path.is_ident("soft_delete") {
                 soft_delete = true;
+            } else if meta.path.is_ident("no_soft_delete") {
+                no_soft_delete = true;
             } else if meta.path.is_ident("hooks") {
                 hooks = true;
             } else if meta.path.is_ident("validate_with") {
@@ -48,8 +55,9 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
             } else if meta.path.is_ident("crate") {
                 krate = Some(meta.value()?.parse::<LitStr>()?.parse()?);
             } else {
-                return Err(meta
-                    .error("unknown `rok` attribute; expected `table`, `no_from_row` or `crate`"));
+                return Err(meta.error(
+                    "unknown `rok` attribute; expected `table`, `timestamps`, `no_timestamps`, `soft_delete`, `no_soft_delete`, `hooks`, `validate_with`, `default_scope`, `has_many`, `has_one`, `no_from_row` or `crate`",
+                ));
             }
             Ok(())
         })?;
@@ -63,6 +71,20 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     let fields = parse_fields(&input, "Model")?;
 
     let columns: Vec<&Field> = fields.iter().filter(|f| !f.skip).collect();
+    // The conventions the model carries: the field names are the signal, and
+    // the opt-outs turn the inference off (workspace ADR 0015).
+    let conventions = conventions::decide(
+        name,
+        &columns,
+        timestamps,
+        soft_delete,
+        no_timestamps,
+        no_soft_delete,
+    )?;
+    let Conventions {
+        timestamps,
+        soft_delete,
+    } = conventions;
     let mut pks: Vec<&Field> = columns.iter().filter(|f| f.primary_key).copied().collect();
     if pks.is_empty() {
         // Tables without a primary key are legal: the key constants and
@@ -104,6 +126,26 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     let deleted_at = find_ts(|f| f.deleted_at, "deleted_at", soft_delete, "soft_delete")?;
     let version = find_ts(|f| f.version, "version", false, "")?;
     let tenant = find_ts(|f| f.tenant, "tenant", false, "")?;
+    // A managed column is written by rok-data: the database must not fill it
+    // as well. The columns the conventions infer are managed like the marked
+    // ones, so a `generated` column cannot be one of them.
+    for column in [
+        created_at.as_deref(),
+        updated_at.as_deref(),
+        deleted_at.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        if let Some(field) = columns.iter().find(|f| f.column == column)
+            && field.generated
+        {
+            return Err(syn::Error::new(
+                field.ident.span(),
+                "managed columns (timestamps, `deleted_at`, `version`) are written by rok-data and can't be `generated`",
+            ));
+        }
+    }
     let opt = |v: Option<String>| match v {
         Some(c) => quote!(::core::option::Option::Some(#c)),
         None => quote!(::core::option::Option::None),

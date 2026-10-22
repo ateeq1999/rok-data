@@ -52,7 +52,7 @@ impl UserId {
 rok_data::impl_value!(UserId);
 /// A row of the `users` table.
 #[derive(Debug, Clone, PartialEq, Model, serde::Serialize, serde::Deserialize)]
-#[rok(table = "users", soft_delete)]
+#[rok(table = "users")]
 pub struct User {
     /// The `id` column.
     #[rok(primary_key)]
@@ -87,7 +87,6 @@ pub struct User {
     /// The `updated_at` column.
     pub updated_at: chrono::DateTime<chrono::Utc>,
     /// The `deleted_at` column.
-    #[rok(deleted_at)]
     pub deleted_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 

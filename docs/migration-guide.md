@@ -95,6 +95,34 @@ The query holds its connection while the windows are processed, so a
 callback that writes back needs a second one (give the pool more than one
 connection).
 
+### The conventions are inferred now
+
+A model's own field names are the signal (workspace ADR 0015):
+
+| The model has | It now gets | The opt-out |
+| --- | --- | --- |
+| `created_at` and `updated_at` fields | ORM-managed timestamps: `now()` on insert, `now()` on every update | `#[rok(no_timestamps)]` |
+| a `deleted_at` field | soft deletes: the reads skip the rows where it is set, and `delete` marks the row instead of removing it | `#[rok(no_soft_delete)]` |
+
+**This changes existing models.** A model with a `deleted_at` field that was
+*not* a soft-delete column — an audit trail, a column that means something
+else — now soft-deletes: its reads skip the rows where the column is set,
+and its `delete` marks the row instead of removing it. Add
+`#[rok(no_soft_delete)]` to such a model. The same goes for a model with
+both `created_at` and `updated_at` fields that the application wrote
+itself: it now gets `now()` written on insert and on every update. Add
+`#[rok(no_timestamps)]` to keep the application's values.
+
+The markers `#[rok(timestamps)]` and `#[rok(soft_delete)]` keep working and
+mean the same thing — they are redundant now, not wrong. Carrying a marker
+*and* its opt-out (`#[rok(timestamps)]` with `#[rok(no_timestamps)]`) is a
+contradiction, and the derive refuses to compile it.
+
+The generated rows change with it: the generator stops writing the markers
+and writes the opt-out only where the database owns the column. Regenerate
+and read the diff — a row that now carries `#[rok(no_timestamps)]` or
+`#[rok(no_soft_delete)]` is a table whose columns the database fills.
+
 ### Unchanged on purpose
 
 - `filter` stays the canonical verb (the Diesel/SeaORM convention);

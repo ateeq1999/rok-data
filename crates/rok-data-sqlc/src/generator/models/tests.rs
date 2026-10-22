@@ -1,5 +1,28 @@
 use super::super::test_support::{column, defaulted, generated, nullable, table};
 use super::*;
+use crate::Conventions;
+use crate::generator::conventions::apply;
+
+/// A timestamp column, with the `DEFAULT` expression it declares (none when
+/// the column has no default).
+fn timestamp(name: &str, default: Option<&str>) -> Column {
+    let column = nullable(name, "chrono::DateTime<chrono::Utc>");
+    match default {
+        Some(default) => Column {
+            has_default: true,
+            default: Some(default.to_owned()),
+            ..column
+        },
+        None => column,
+    }
+}
+
+/// The row of `table`, with the conventions applied as the generator does.
+fn rendered(table: &Table, conventions: &Conventions) -> String {
+    let mut tables = [table.clone()];
+    apply(&mut tables, conventions);
+    render(&tables[0])
+}
 
 pub(super) fn render(table: &Table) -> String {
     super::render(
@@ -10,6 +33,206 @@ pub(super) fn render(table: &Table) -> String {
             openapi: false,
         },
     )
+}
+
+/// The timestamps the table's columns default to the current time are the
+/// data layer's: the model manages them, and says nothing.
+#[test]
+fn a_table_with_now_defaults_gets_the_managed_timestamps() {
+    let users = table(
+        vec![
+            column("id", "i64"),
+            timestamp("created_at", Some("now()")),
+            timestamp("updated_at", Some("CURRENT_TIMESTAMP")),
+        ],
+        &["id"],
+    );
+    let rendered = rendered(&users, &Conventions::default());
+    assert!(
+        rendered.contains("#[rok(table = \"users\")]\n"),
+        "{rendered}"
+    );
+}
+
+/// A timestamp column the database fills with something else keeps the
+/// database's value: the model opts out.
+#[test]
+fn a_table_with_another_default_opts_out_of_the_managed_timestamps() {
+    let users = table(
+        vec![
+            column("id", "i64"),
+            timestamp("created_at", Some("now()")),
+            timestamp("updated_at", Some("'epoch'::timestamptz")),
+        ],
+        &["id"],
+    );
+    let rendered = rendered(&users, &Conventions::default());
+    assert!(
+        rendered.contains("#[rok(table = \"users\", no_timestamps)]\n"),
+        "{rendered}"
+    );
+}
+
+/// A column the `managed_columns` convention names is the data layer's,
+/// whatever its default.
+#[test]
+fn a_managed_column_is_managed_whatever_its_default() {
+    let users = table(
+        vec![
+            column("id", "i64"),
+            timestamp("created_at", Some("now()")),
+            timestamp("updated_at", Some("'epoch'::timestamptz")),
+        ],
+        &["id"],
+    );
+    let mut conventions = Conventions::default();
+    conventions.managed_columns = vec!["updated_at".to_owned()];
+    let rendered = rendered(&users, &conventions);
+    assert!(
+        rendered.contains("#[rok(table = \"users\")]\n"),
+        "{rendered}"
+    );
+}
+
+/// A `deleted_at` column is the soft delete: the inference names it, and the
+/// row says nothing.
+#[test]
+fn a_deleted_at_column_is_the_soft_delete() {
+    let users = table(
+        vec![column("id", "i64"), timestamp("deleted_at", None)],
+        &["id"],
+    );
+    let rendered = rendered(&users, &Conventions::default());
+    assert!(
+        rendered.contains("#[rok(table = \"users\")]\n"),
+        "{rendered}"
+    );
+    assert!(!rendered.contains("#[rok(deleted_at)]"), "{rendered}");
+}
+
+/// A `deleted_at` column the database fills is not the data layer's: the row
+/// opts out.
+#[test]
+fn a_deleted_at_column_the_database_fills_opts_out_of_the_soft_delete() {
+    let users = table(
+        vec![column("id", "i64"), timestamp("deleted_at", Some("now()"))],
+        &["id"],
+    );
+    let rendered = rendered(&users, &Conventions::default());
+    assert!(
+        rendered.contains("#[rok(table = \"users\", no_soft_delete)]\n"),
+        "{rendered}"
+    );
+}
+
+/// A `deleted_at` column that cannot carry a soft delete (it is not
+/// nullable) is an ordinary column.
+#[test]
+fn a_deleted_at_column_that_cannot_carry_a_soft_delete_opts_out() {
+    let users = table(
+        vec![
+            column("id", "i64"),
+            column("deleted_at", "chrono::DateTime<chrono::Utc>"),
+        ],
+        &["id"],
+    );
+    let rendered = rendered(&users, &Conventions::default());
+    assert!(
+        rendered.contains("#[rok(table = \"users\", no_soft_delete)]\n"),
+        "{rendered}"
+    );
+}
+
+/// A `deleted_at` column the database always owns is an ordinary column.
+#[test]
+fn a_generated_deleted_at_column_opts_out_of_the_soft_delete() {
+    let users = table(
+        vec![
+            column("id", "i64"),
+            generated(nullable("deleted_at", "chrono::DateTime<chrono::Utc>")),
+        ],
+        &["id"],
+    );
+    let rendered = rendered(&users, &Conventions::default());
+    assert!(
+        rendered.contains("#[rok(table = \"users\", no_soft_delete)]\n"),
+        "{rendered}"
+    );
+}
+
+/// The soft-delete convention names a column the inference cannot: the row's
+/// field names the column.
+#[test]
+fn the_soft_delete_convention_names_the_column() {
+    let users = table(
+        vec![column("id", "i64"), timestamp("removed_at", None)],
+        &["id"],
+    );
+    let mut conventions = Conventions::default();
+    conventions.soft_delete_column = Some("removed_at".to_owned());
+    let rendered = rendered(&users, &conventions);
+    assert!(
+        rendered.contains("#[rok(table = \"users\")]\n"),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains(
+            "    /// The `removed_at` column.\n    #[rok(deleted_at)]\n    pub removed_at: Option<chrono::DateTime<chrono::Utc>>,\n"
+        ),
+        "{rendered}"
+    );
+}
+
+/// The soft-delete convention names the `deleted_at` column: the inference
+/// names it too, so the row says nothing.
+#[test]
+fn the_soft_delete_convention_over_a_deleted_at_column_says_nothing() {
+    let users = table(
+        vec![column("id", "i64"), timestamp("deleted_at", None)],
+        &["id"],
+    );
+    let mut conventions = Conventions::default();
+    conventions.soft_delete_column = Some("deleted_at".to_owned());
+    let rendered = rendered(&users, &conventions);
+    assert!(
+        rendered.contains("#[rok(table = \"users\")]\n"),
+        "{rendered}"
+    );
+    assert!(!rendered.contains("#[rok(deleted_at)]"), "{rendered}");
+}
+
+/// One timestamp column alone is not the convention: the model would manage
+/// a half-pair, so the row says nothing.
+#[test]
+fn one_timestamp_column_alone_says_nothing() {
+    let users = table(
+        vec![column("id", "i64"), timestamp("created_at", Some("now()"))],
+        &["id"],
+    );
+    let rendered = rendered(&users, &Conventions::default());
+    assert!(
+        rendered.contains("#[rok(table = \"users\")]\n"),
+        "{rendered}"
+    );
+}
+
+/// A timestamp column the database always owns is the database's: the row
+/// opts out of the managed timestamps.
+#[test]
+fn a_generated_timestamp_column_opts_out_of_the_managed_timestamps() {
+    let users = table(
+        vec![
+            column("id", "i64"),
+            generated(nullable("created_at", "chrono::DateTime<chrono::Utc>")),
+            timestamp("updated_at", Some("now()")),
+        ],
+        &["id"],
+    );
+    let rendered = rendered(&users, &Conventions::default());
+    assert!(
+        rendered.contains("#[rok(table = \"users\", no_timestamps)]\n"),
+        "{rendered}"
+    );
 }
 
 #[test]

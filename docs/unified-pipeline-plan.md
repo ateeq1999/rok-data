@@ -379,6 +379,21 @@ Task graph, in order:
   timestamps and soft deletes from the field names; `#[rok(no_timestamps)]`
   and `#[rok(no_soft_delete)]` are the opt-outs; the existing markers keep
   working.
+  - **Done (M2)**: the derive infers the conventions from the model's own
+    fields — `created_at` and `updated_at` are managed timestamps, a
+    `deleted_at` is the soft-delete column — and the two opt-outs turn the
+    inference off. A marker with its opt-out (`#[rok(timestamps)]` with
+    `#[rok(no_timestamps)]`) fails the derive instead of guessing, and an
+    inferred managed column cannot be `generated` as well. The generator
+    applies the same rules and stops writing the markers: it writes the
+    opt-out where the database owns the column — a timestamp column whose
+    default is not `now()`, a `deleted_at` the database fills or that
+    cannot carry a soft delete — and nothing where the inference already
+    says the right thing. A `managed_columns` column is the data layer's
+    whatever its default, and the `soft_delete_column` convention still
+    wins: it names the soft-delete column, whatever its name. The corpus
+    was refreshed through the sanctioned `ROK_DATA_SQLC_UPDATE_EXPECTED=1`
+    runs.
 - **M3 — the generated model's shape** (spec D6/D7/D8): relation
   attributes derived from the schema's foreign keys (`User::POSTS`,
   `user.posts()`), named scopes (model entry + chain method through the

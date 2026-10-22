@@ -52,7 +52,7 @@ impl NoteId {
 rok_data::impl_value!(NoteId);
 /// A row of the `notes` table.
 #[derive(Debug, Clone, PartialEq, Model, serde::Serialize, serde::Deserialize)]
-#[rok(table = "notes", soft_delete)]
+#[rok(table = "notes")]
 pub struct Note {
     /// The `id` column.
     #[rok(primary_key)]
@@ -68,7 +68,6 @@ pub struct Note {
     /// The `revision` column.
     pub revision: i64,
     /// The `deleted_at` column.
-    #[rok(deleted_at)]
     pub deleted_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
