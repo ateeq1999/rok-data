@@ -157,6 +157,23 @@ Nothing changes for the scopes that already exist: the model's
 `default_scope` (`#[rok(default_scope = …)]`) and `.unscoped()` keep their
 meaning, and the closure-based `Select::scope` still takes a function.
 
+### Write verbs moved to `ModelWrite`
+
+The `Model` trait's write methods (`insert`, `insert_all`, `copy_in`, `upsert`,
+`upsert_on`, `update`, `update_only`, `delete`, `force_delete`, `restore`)
+are now in a separate `ModelWrite` trait. `Model` stays the read/query
+surface; `ModelWrite` is the write surface. Both are in the prelude so
+`use rok_data::prelude::*;` still brings both into scope. Generated models
+implement both traits automatically. Hand-written models that implement
+`Model` can also implement `ModelWrite` (defaults are provided).
+
+The `Tracked` wrapper now requires `ModelWrite` (it uses `update_only` to
+save only changed columns). Its `new` constructor and the model's `track()`
+method now require the model to implement `ModelWrite` — which all derived
+models do.
+
+`row.rs` is now well under the 600-line gate.
+
 ### The conventions are inferred now
 
 A model's own field names are the signal (workspace ADR 0015):

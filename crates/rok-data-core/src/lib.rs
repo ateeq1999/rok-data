@@ -3,6 +3,8 @@
 //! Most users should depend on the `rok-data` crate, which re-exports
 //! everything here together with the `#[derive(Model)]` macro.
 
+#![allow(async_fn_in_trait)]
+
 #[cfg(feature = "json")]
 pub mod audit;
 mod cache;
@@ -45,7 +47,7 @@ pub use exec::Journey;
 pub use expr::{Column, Direction, Expr, IntoProjections, Order, Projection};
 pub use join::{InScope, IntoJoin, JoinOn, Joined};
 pub use key::IntoKey;
-pub use model::{Hooks, Model, Scope};
+pub use model::{Hooks, Model, ModelWrite, Scope};
 pub use notify::{Change, ChangeOp, ChangeStream, Listener, Notification};
 pub use page::Page;
 pub use query::{Insert, InsertMany, Memoized, Projected, Select, Update, WithSelect};

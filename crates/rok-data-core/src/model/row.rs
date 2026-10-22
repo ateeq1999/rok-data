@@ -1,4 +1,5 @@
-//! The `Model` trait: the columns, the keys, and the single-row operations.
+//! The `Model` trait: the columns, the keys, the read/query surface, and the
+//! write verbs (through `ModelWrite`).
 
 use std::future::Future;
 
@@ -6,7 +7,6 @@ use sqlx::FromRow;
 use sqlx::postgres::PgRow;
 
 use super::Hooks;
-use super::writes;
 use crate::key::{IntoKey, key_expr, key_string};
 use crate::query::{Insert, InsertMany, Select, Update};
 use crate::validate::ValidationErrors;
@@ -283,7 +283,10 @@ pub trait Model:
 
     /// Track changes to this record so [`Tracked::save`](crate::Tracked::save)
     /// writes only modified columns.
-    fn track(self) -> crate::Tracked<Self> {
+    fn track(self) -> crate::Tracked<Self>
+    where
+        Self: crate::ModelWrite,
+    {
         crate::Tracked::new(self)
     }
 
@@ -325,193 +328,5 @@ pub trait Model:
         Self::DELETED_AT_COLUMN
             .and_then(|c| self.value_of(c))
             .is_some_and(|v| !v.is_null())
-    }
-
-    // ----- writes ---------------------------------------------------------
-
-    /// `INSERT` this record (skipping generated columns) and return the stored row.
-    fn insert<'e, E>(&self, executor: E) -> impl Future<Output = Result<Self>> + Send
-    where
-        E: Executor<'e>,
-    {
-        writes::insert(self, executor)
-    }
-
-    /// `INSERT` many records in a single statement and return the stored rows.
-    fn insert_all<'e, E>(
-        executor: E,
-        records: &[Self],
-    ) -> impl Future<Output = Result<Vec<Self>>> + Send
-    where
-        E: Executor<'e>,
-    {
-        Self::insert_many(records).exec(executor)
-    }
-
-    /// Bulk-load `records` with PostgreSQL's binary `COPY`, typically 5–20×
-    /// faster than `INSERT` for large batches. Returns the number of rows
-    /// written.
-    ///
-    /// ```ignore
-    /// User::copy_in(&db, &users).await?;          // borrows a pooled connection
-    /// User::copy_in(&mut *tx, &users).await?;     // inside a transaction
-    /// ```
-    ///
-    /// Records are validated and passed to `before_insert` first;
-    /// `after_insert` is not called and nothing is returned, because `COPY`
-    /// doesn't return rows. Generated columns are skipped; every other value
-    /// (timestamps and `version` included) is written as-is. Binary `COPY`
-    /// needs each field's Rust type to match its column type exactly (e.g.
-    /// `i64` for `BIGINT`). The table's cached query results are invalidated
-    /// (except when copying through a plain `PgConnection`).
-    fn copy_in<'a>(
-        target: impl Into<crate::copy::CopyTarget<'a>>,
-        records: &[Self],
-    ) -> impl Future<Output = Result<u64>> + Send {
-        let target = target.into();
-        async move { crate::copy::copy_in(target, records).await }
-    }
-
-    /// `INSERT` this record, or update every column if its primary key
-    /// already exists (`ON CONFLICT (pk) DO UPDATE`). The primary key is
-    /// always written, even when it is a generated column.
-    fn upsert<'e, E>(&self, executor: E) -> impl Future<Output = Result<Self>> + Send
-    where
-        E: Executor<'e>,
-    {
-        writes::upsert(self, executor)
-    }
-
-    /// `INSERT` this record, or update it if it conflicts on `columns` (a
-    /// unique index), e.g. upsert by email:
-    ///
-    /// ```ignore
-    /// let user = new_user.upsert_on(&db, [User::EMAIL]).await?;
-    /// ```
-    ///
-    /// Every inserted column except `columns`, the primary key and
-    /// `created_at` is overwritten. For other policies use
-    /// [`insert_many`](Model::insert_many) or
-    /// [`insert_builder`](Model::insert_builder).
-    fn upsert_on<'e, E>(
-        &self,
-        executor: E,
-        columns: impl IntoIterator<Item = Column<Self>>,
-    ) -> impl Future<Output = Result<Self>> + Send
-    where
-        E: Executor<'e>,
-    {
-        writes::upsert_on(
-            self,
-            executor,
-            columns.into_iter().map(|c| c.name()).collect(),
-        )
-    }
-
-    /// `UPDATE` every non-generated column of this record by primary key and
-    /// return the stored row. Fails with [`Error::NotFound`] if the row is
-    /// gone, and with [`Error::Conflict`] if its `#[rok(version)]` changed
-    /// since it was loaded.
-    ///
-    /// ```ignore
-    /// user.name = "Ann".into();
-    /// let user = user.update(&db).await?;
-    /// ```
-    fn update<'e, E>(&self, executor: E) -> impl Future<Output = Result<Self>> + Send
-    where
-        E: Executor<'e>,
-    {
-        self.update_only(executor, None)
-    }
-
-    /// Like [`update`](Model::update), but only write `columns` (managed
-    /// columns such as `updated_at` and `version` are still maintained).
-    /// Passing `None` writes every column.
-    ///
-    /// ```ignore
-    /// user.update_only(&db, Some(vec![User::EMAIL])).await?;
-    /// ```
-    ///
-    /// [`Tracked`](crate::Tracked) uses this to write only changed fields.
-    fn update_only<'e, E>(
-        &self,
-        executor: E,
-        columns: Option<Vec<Column<Self>>>,
-    ) -> impl Future<Output = Result<Self>> + Send
-    where
-        E: Executor<'e>,
-    {
-        // The validation and the `before_save` hook run when the call is
-        // made, not when the future is awaited.
-        let pre = self
-            .validate()
-            .map_err(Error::Validation)
-            .and_then(|()| self.before_save());
-        writes::update_only(self, executor, columns, pre)
-    }
-
-    /// Delete this record by primary key. Models with soft deletes are
-    /// marked deleted (`deleted_at = now()`); use
-    /// [`force_delete`](Model::force_delete) to remove the row.
-    ///
-    /// Fails with [`Error::NotFound`] if no row was deleted, and with
-    /// [`Error::Conflict`] if its `#[rok(version)]` changed since it was
-    /// loaded.
-    fn delete<'e, E>(&self, executor: E) -> impl Future<Output = Result<()>> + Send
-    where
-        E: Executor<'e>,
-    {
-        self.delete_by_key(executor, false)
-    }
-
-    /// Permanently `DELETE` this record, even for models with soft deletes.
-    fn force_delete<'e, E>(&self, executor: E) -> impl Future<Output = Result<()>> + Send
-    where
-        E: Executor<'e>,
-    {
-        self.delete_by_key(executor, true)
-    }
-
-    #[doc(hidden)]
-    fn delete_by_key<'e, E>(
-        &self,
-        executor: E,
-        force: bool,
-    ) -> impl Future<Output = Result<()>> + Send
-    where
-        E: Executor<'e>,
-    {
-        // The `before_delete` hook runs when the call is made, not when the
-        // future is awaited.
-        let pre = self.before_delete();
-        writes::delete_by_key(self, executor, force, pre)
-    }
-
-    /// Restore this soft-deleted record (`deleted_at = NULL`) and return the
-    /// stored row.
-    fn restore<'e, E>(&self, executor: E) -> impl Future<Output = Result<Self>> + Send
-    where
-        E: Executor<'e>,
-    {
-        let key = key_string(&self.key_values());
-        let update = Self::DELETED_AT_COLUMN.map(|deleted_at| {
-            Self::filter(self.key_filter())
-                .only_trashed()
-                .unscoped()
-                .update()
-                .set_raw(Column::new(deleted_at), "NULL", [] as [Value; 0])
-        });
-        async move {
-            let Some(update) = update else {
-                return Err(Error::InvalidQuery(format!(
-                    "`{}` has no soft-delete column",
-                    Self::TABLE
-                )));
-            };
-            update
-                .returning_one(executor)
-                .await?
-                .ok_or_else(|| Error::not_found::<Self>(Some(key)))
-        }
     }
 }

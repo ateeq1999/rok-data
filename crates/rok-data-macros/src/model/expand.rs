@@ -384,6 +384,8 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
                 }
             }
         }
+
+        impl #krate::ModelWrite for #name {}
     })
 }
 

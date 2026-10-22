@@ -1,7 +1,7 @@
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 
-use crate::{Column, Executor, Model, Result, Value};
+use crate::{Column, Executor, Model, ModelWrite, Result, Value};
 
 /// A record that remembers its loaded values, so [`save`](Tracked::save)
 /// writes only the columns you changed — or nothing at all.
@@ -27,7 +27,7 @@ pub struct Tracked<M> {
     original: Vec<(&'static str, Value)>,
 }
 
-impl<M: Model> Tracked<M> {
+impl<M: Model + ModelWrite> Tracked<M> {
     /// Start tracking `record` from its current values.
     pub fn new(record: M) -> Self {
         let original = record.values();

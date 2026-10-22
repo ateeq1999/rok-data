@@ -204,7 +204,8 @@ pub use rok_data_macros::test;
 /// Everything you need for day-to-day use: `use rok_data::prelude::*;`
 pub mod prelude {
     pub use crate::{
-        Column, Db, DbEnum, DbNewtype, Executor, Expr, Model, Page, Projection, Select, Tx,
+        Column, Db, DbEnum, DbNewtype, Executor, Expr, Model, ModelWrite, Page, Projection, Select,
+        Tx,
     };
     pub use futures_util_reexports::*;
 
