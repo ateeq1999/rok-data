@@ -1,64 +1,40 @@
 ---
 name: implement-spec
-description: Implement a **spec's task graph** to green gates, ticket by ticket, with **implementer subagents**. Trigger branches the name or the situation — usually invoked as `/implement-spec`: a spec (this repo's unified pipeline plan, an ADR, or a file the user names) is to be implemented; "the remaining Phase X" is asked for; or an interrupted implementation resumes.
-argument-hint: "A spec to implement, or a phase to resume"
+description: "Implement the result of /to-spec and /to-tickets in code."
+disable-model-invocation: true
 ---
 
-Read the spec, derive its **task graph**, and drive it — ticket by
-ticket, **frontier** first — until the whole spec is implemented and
-every gate is green. Specs in this repo usually live as a phase
-section of `docs/unified-pipeline-plan.md`, an ADR under
-`docs/decisions/`, or a markdown file the user names. Tickets may
-already be written down (the plan's bullets, numbered or checkboxed);
-derive them from the prose when not, and state the derived graph back
-to the user before the first implementer runs.
+You have been provided a spec. This spec should have tickets associated with it, describing how to implement the spec.
 
-## Context pointers
+The issue tracker should have been provided to you. If not, tell the user to run `/setup-matt-pocock-skills`.
 
-Communicate to and from subagents sparsely, primarily through
-**context pointers**: the spec, the ADRs, `GLOSSARY.md`, prior
-commits, and per-ticket briefs. Do not duplicate what a pointer
-carries.
+The goal is the entire spec implemented on a single **integration branch**, with every ticket resolved the way the issue tracker closes work.
 
-**Exploration work** (codebase reading, doc research) belongs to an
-exploration subagent that writes notes OUTSIDE the repo (under the
-system temp dir), so implementer subagents inherit pointers, not
-reading lists.
+The tickets are not a list of steps. They are a **task graph** with blocking relationships between them. This means there is always a **frontier** of tickets which are ready to be grabbed.
 
-## Execution modes
+Communication to and from subagents should be sparse. Communicate primarily through **context pointers**: to the spec, tickets, research notes, and previous commits. Don't duplicate information already available via pointers.
 
-Pick by tree state before the first implementer, and say which:
+**Implementer subagents** should be run in the background where possible for maximum concurrency.
 
-- **In-tree** (default; required when the working tree carries
-  uncommitted work — this repo's usual state): one implementer
-  subagent at a time, working in the real tree. No worktrees: a
-  worktree cannot see uncommitted changes and would throw them away.
-- **Worktree** (only when the tree is clean to the user's last
-  commit): each implementer runs in its own worktree, merged back
-  with a merger subagent that resolves conflicts and re-runs the
-  gates.
+## Steps
 
-## Each ticket
+1. Read the spec and tickets to understand the task graph.
 
-1. Name the implementer subagent's scope: the ticket, its
-   dependencies, and pointers. It works like this repo does — the
-   `tdd` skill when a ticket is best built test-first, and until every
-   gate is green: `cargo fmt --all`, `cargo clippy --workspace
-   --all-targets -- -D warnings`, `cargo test --workspace
-   --all-targets`.
-2. Snapshots and expected outputs move only through their sanctioned
-   mechanism (`ROK_DATA_SQLC_UPDATE_EXPECTED = 1`), never by hand.
-   Never push; commits stay with the user unless they have explicitly
-   asked.
-3. On green, state the ticket done in one line each: what changed, how
-   the gates read. Anything that cannot pass the gates goes back into
-   a repair ticket, not into the user as a "mostly done".
+2. (optional) Use an **exploration subagent** to conduct any exploration required by the tickets - relevant codebase files or external documentation. Ensure the exploration subagent can save files - it should save its markdown notes in a directory outside the repo, accessible by all future subagents. This lets **implementer subagents** focus on implementation rather than exploration.
 
-## Closing
+3. Create the integration branch. If the issue tracker closes work through PRs, or the user asks for one, open a draft PR after the first merge in step 5 (a branch with no commits ahead of main can't open one), marked as closing the spec and tickets.
 
-1. When the graph is exhausted, run the `code-review` skill on the
-   spec's change set and fix what it finds in one more implementer
-   subagent.
-2. Report the spec implemented: what landed, what was deferred (with
-   where it was recorded — a backlog bullet or an ADR), and the gate
-   evidence. Leave commits to the user.
+4. Use **implementer subagents** to implement each ticket, each in its own worktree on its own branch. Each implementer subagent:
+   - confirms its worktree is based on the integration branch before starting, and resets onto it if not;
+   - calls the Skill tool with `tdd` to build the ticket;
+   - merges the integration branch tip into its own branch before reporting done
+
+5. Once an **implementer subagent** completes, merge its work to the integration branch with a **merger subagent**.
+
+6. If this changes the **frontier** of available tickets, kick off more **implementer subagents** to work on the new tickets. This allows for maximum concurrency.
+
+7. Once all tickets are complete, call the Skill tool with `code-review` on the integration branch. Fix all issues raised by the code review in a single **implementer subagent**.
+
+8. If a draft PR exists, mark it ready for review. Otherwise, resolve each ticket the way the issue tracker closes work, and report the integration branch.
+
+9. Clean up all **implementer subagent** worktrees.
