@@ -51,7 +51,7 @@ pub async fn quickstart(pool: &PgPool) -> Result<(), rok_data::Error> {
         description: Some(Some("16 oz, fibreglass handle".into())),
         ..UpdateProduct::default()
     };
-    db::products::write::update(&mut *tx, hammer.id, patch).await?;
+    db::products::write::patch(&mut *tx, hammer.id, patch).await?;
     tx.commit().await?;
 
     // Lookups take the table's typed id, or a unique key.

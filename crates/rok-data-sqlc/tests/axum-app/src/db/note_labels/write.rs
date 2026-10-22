@@ -17,10 +17,10 @@ where
         .await
 }
 
-// No updatable columns detected; update is not generated for this table.
+// No updatable columns detected; patch is not generated for this table.
 
-/// Deletes the row with the given primary key and returns whether one existed.
-pub async fn delete<'e, E>(executor: E, key: NoteLabelKey) -> Result<bool, rok_data::Error>
+/// Deletes the row with the given primary key and returns the number of rows that existed.
+pub async fn destroy<'e, E>(executor: E, key: NoteLabelKey) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
@@ -29,7 +29,6 @@ where
         .filter(NoteLabel::LABEL_ID.eq(key.label_id))
         .delete(executor)
         .await
-        .map(|count| count > 0)
 }
 
 /// Pairs the `notes` row with the `labels` row, and returns whether the pair

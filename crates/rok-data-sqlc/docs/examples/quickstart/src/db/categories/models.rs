@@ -54,7 +54,7 @@ pub struct NewCategory {
     pub created_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
-/// Partial update for `update`: `None` leaves a column unchanged.
+/// Partial update for `patch`: `None` leaves a column unchanged.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct UpdateCategory {
     /// The new value of the `name` column.

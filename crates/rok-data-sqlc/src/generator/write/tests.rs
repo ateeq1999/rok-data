@@ -64,7 +64,7 @@ fn dynamic_create_falls_back_to_default_values() {
 }
 
 #[test]
-fn update_uses_query_builder_binds_and_guards_empty_patch() {
+fn patch_uses_query_builder_binds_and_guards_empty_patch() {
     let rendered = render(&table(
         vec![
             column("order_id", "uuid::Uuid"),
@@ -75,7 +75,7 @@ fn update_uses_query_builder_binds_and_guards_empty_patch() {
         &["order_id", "product_id"],
     ));
     assert!(rendered.contains(
-        "pub async fn update<'e, E>(\n    executor: E,\n    key: UserKey,\n    input: UpdateUser,\n) -> Result<Option<User>, rok_data::Error>"
+        "pub async fn patch<'e, E>(\n    executor: E,\n    key: UserKey,\n    input: UpdateUser,\n) -> Result<Option<User>, rok_data::Error>"
     ));
     assert!(rendered.contains("    if input.is_empty() {\n        return super::read::get_by_id(executor, key).await;\n    }\n"));
     assert!(rendered.contains(
@@ -135,17 +135,17 @@ fn quotes_reserved_identifiers_in_dynamic_sql() {
 }
 
 #[test]
-fn delete_reports_whether_a_row_was_removed() {
+fn destroy_returns_the_row_count() {
     let rendered = render(&table(
         vec![column("id", "i64"), column("email", "String")],
         &["id"],
     ));
     assert!(rendered.contains(
-        "pub async fn delete<'e, E>(executor: E, id: i64) -> Result<bool, rok_data::Error>"
+        "pub async fn destroy<'e, E>(executor: E, id: i64) -> Result<u64, rok_data::Error>"
     ));
-    assert!(rendered.contains(
-        "    User::query()\n        .filter(User::ID.eq(id))\n        .delete(executor)\n        .await\n        .map(|count| count > 0)\n"
-    ));
+    assert!(
+        rendered.contains("    User::query().filter(User::ID.eq(id)).delete(executor).await\n")
+    );
 }
 
 #[test]
@@ -153,8 +153,8 @@ fn without_primary_key_only_create() {
     let rendered = render(&table(vec![column("email", "String")], &[]));
     assert!(rendered.contains("use super::models::{NewUser, User};"));
     assert!(rendered.contains("pub async fn create"));
-    assert!(!rendered.contains("pub async fn update"));
-    assert!(!rendered.contains("pub async fn delete"));
+    assert!(!rendered.contains("pub async fn patch"));
+    assert!(!rendered.contains("pub async fn destroy"));
     assert!(rendered.contains("No primary key detected"));
 }
 
@@ -165,7 +165,7 @@ fn without_insertable_columns_skips_create() {
     assert!(!rendered.contains("pub async fn create"));
     assert!(rendered.contains("No insertable columns detected"));
     assert!(rendered.contains("No updatable columns detected"));
-    assert!(rendered.contains("pub async fn delete"));
+    assert!(rendered.contains("pub async fn destroy"));
 }
 
 #[test]

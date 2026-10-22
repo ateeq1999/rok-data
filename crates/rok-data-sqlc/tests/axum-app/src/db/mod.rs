@@ -27,7 +27,7 @@ pub mod pool;
 pub mod schema;
 pub mod search;
 
-/// What an `update` on a table with a version column did.
+/// What a `patch` on a table with a version column did.
 #[must_use]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UpdateOutcome<T> {

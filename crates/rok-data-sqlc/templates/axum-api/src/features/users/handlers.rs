@@ -9,7 +9,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use std::sync::Arc;
 
-use super::dto::{ListUsersQuery, RemoveUserQuery, UpdateUserDto, UserResponse};
+use super::dto::{DestroyUserQuery, ListUsersQuery, UpdateUserDto, UserResponse};
 use super::model::UserId;
 use super::service::UsersService;
 use super::service_api::UsersServiceApi;
@@ -74,7 +74,7 @@ pub async fn get_one(
     patch,
     path = "/api/v1/users/{id}",
     tag = "users",
-    operation_id = "update",
+    operation_id = "patch",
     params(("id" = uuid::Uuid, Path, description = "User id")),
     request_body = UpdateUserDto,
     responses(
@@ -88,14 +88,14 @@ pub async fn get_one(
     ),
     security(("bearer_auth" = [])),
 )]
-pub async fn update(
+pub async fn patch(
     Extension(service): Extension<Arc<UsersService>>,
     _: AdminUser,
     Path(path): Path<UserId>,
     body: ValidatedJson<UpdateUserDto>,
 ) -> Result<Response, AppError> {
     let key = path;
-    let row = service.update(key, body.into_inner()).await?;
+    let row = service.patch(key, body.into_inner()).await?;
     let response = UserResponse::from(row);
     Ok(Json(response).into_response())
 }
@@ -105,13 +105,13 @@ pub async fn update(
     delete,
     path = "/api/v1/users/{id}",
     tag = "users",
-    operation_id = "remove",
+    operation_id = "destroy",
     params(
         ("id" = uuid::Uuid, Path, description = "User id"),
-        RemoveUserQuery,
+        DestroyUserQuery,
     ),
     responses(
-        (status = 204, description = "The row, soft-deleted (deleted with `?permanent=true`)."),
+        (status = 204, description = "The row, soft-deleted (destroyed with `?permanent=true`)."),
         (status = 400, description = "A malformed path, query or body.", body = ErrorBody),
         (status = 401, description = "No valid bearer token.", body = ErrorBody),
         (status = 403, description = "The caller is not an admin.", body = ErrorBody),
@@ -120,17 +120,17 @@ pub async fn update(
     ),
     security(("bearer_auth" = [])),
 )]
-pub async fn remove(
+pub async fn destroy(
     Extension(service): Extension<Arc<UsersService>>,
     _: AdminUser,
     Path(path): Path<UserId>,
-    Query(query): Query<RemoveUserQuery>,
+    Query(query): Query<DestroyUserQuery>,
 ) -> Result<Response, AppError> {
     let key = path;
     if query.permanent {
-        service.remove_permanently(key).await?;
+        service.destroy_permanently(key).await?;
     } else {
-        service.remove(key).await?;
+        service.destroy(key).await?;
     }
     Ok(StatusCode::NO_CONTENT.into_response())
 }

@@ -12,7 +12,7 @@ use super::relations::Relation;
 use super::scope::Caller;
 use crate::generator::relationships::join_pair;
 use crate::generator::search::{SearchApi, filter_relationships};
-use crate::generator::write::{has_versioned_update, version_column};
+use crate::generator::write::{has_versioned_patch, version_column};
 use crate::schema::{BaseType, Column, FilterKind, Table};
 use crate::{ApiAccess, ApiConfig, ApiEndpoint};
 
@@ -29,9 +29,9 @@ pub enum Endpoint {
     GetOne,
     /// `PATCH /{key}`: update a row.
     Update,
-    /// `DELETE /{key}`: delete a row (soft-delete it, on a soft-delete
+    /// `DELETE /{key}`: destroy a row (soft-delete it, on a soft-delete
     /// table, which also takes `?permanent=true`).
-    Remove,
+    Destroy,
     /// `POST /{key}/restore`: undo a soft delete.
     Restore,
 }
@@ -44,7 +44,7 @@ impl Endpoint {
         Endpoint::Create,
         Endpoint::GetOne,
         Endpoint::Update,
-        Endpoint::Remove,
+        Endpoint::Destroy,
         Endpoint::Restore,
     ];
 
@@ -55,8 +55,8 @@ impl Endpoint {
             Endpoint::Search => "search",
             Endpoint::Create => "create",
             Endpoint::GetOne => "get_one",
-            Endpoint::Update => "update",
-            Endpoint::Remove => "remove",
+            Endpoint::Update => "patch",
+            Endpoint::Destroy => "destroy",
             Endpoint::Restore => "restore",
         }
     }
@@ -69,7 +69,7 @@ impl Endpoint {
             Endpoint::Create => ApiEndpoint::Create,
             Endpoint::GetOne => ApiEndpoint::GetOne,
             Endpoint::Update => ApiEndpoint::Update,
-            Endpoint::Remove => ApiEndpoint::Remove,
+            Endpoint::Destroy => ApiEndpoint::Destroy,
             Endpoint::Restore => ApiEndpoint::Restore,
         }
     }
@@ -80,7 +80,7 @@ impl Endpoint {
             Endpoint::List | Endpoint::GetOne => "get",
             Endpoint::Create | Endpoint::Search | Endpoint::Restore => "post",
             Endpoint::Update => "patch",
-            Endpoint::Remove => "delete",
+            Endpoint::Destroy => "delete",
         }
     }
 
@@ -93,7 +93,7 @@ impl Endpoint {
     pub fn takes_key(self) -> bool {
         matches!(
             self,
-            Endpoint::GetOne | Endpoint::Update | Endpoint::Remove | Endpoint::Restore
+            Endpoint::GetOne | Endpoint::Update | Endpoint::Destroy | Endpoint::Restore
         )
     }
 
@@ -102,7 +102,7 @@ impl Endpoint {
         match self {
             Endpoint::List | Endpoint::Create => String::new(),
             Endpoint::Search => "/search".to_owned(),
-            Endpoint::GetOne | Endpoint::Update | Endpoint::Remove => key_path.to_owned(),
+            Endpoint::GetOne | Endpoint::Update | Endpoint::Destroy => key_path.to_owned(),
             Endpoint::Restore => format!("{key_path}/restore"),
         }
     }
@@ -170,10 +170,10 @@ pub struct Feature<'a> {
     /// The tenant column: every handler takes the `Tenant` extractor, and
     /// every data layer call the tenant.
     pub tenant: Option<&'a Column>,
-    /// The version column: reads answer `ETag`, and `update` needs a
+    /// The version column: reads answer `ETag`, and `patch` needs a
     /// matching `If-Match`.
     pub version: Option<&'a Column>,
-    /// Whether rows are soft-deleted: `remove` takes `?permanent=true`.
+    /// Whether rows are soft-deleted: `destroy` takes `?permanent=true`.
     pub soft_delete: bool,
     /// The `GET /by-<column>/{value}` routes.
     pub lookups: Vec<Lookup<'a>>,
@@ -233,7 +233,7 @@ impl<'a> Feature<'a> {
                 Endpoint::List => true,
                 Endpoint::Search => searchable,
                 Endpoint::Create => !table.insert_columns().is_empty(),
-                Endpoint::GetOne | Endpoint::Remove => key.is_some(),
+                Endpoint::GetOne | Endpoint::Destroy => key.is_some(),
                 Endpoint::Update => key.is_some() && has_patch,
                 Endpoint::Restore => key.is_some() && soft_delete,
             })
@@ -249,10 +249,10 @@ impl<'a> Feature<'a> {
         } else {
             lookups(table, &hidden)
         };
-        // A versioned table's `update` takes the version (`If-Match`).
+        // A versioned table's `patch` takes the version (`If-Match`).
         let version = version_column(table)
             .filter(|_| key.is_some())
-            .filter(|_| !endpoints.contains(&Endpoint::Update) || has_versioned_update(table));
+            .filter(|_| !endpoints.contains(&Endpoint::Update) || has_versioned_patch(table));
         let base = entry(&api.routes, table)
             .cloned()
             .unwrap_or_else(|| format!("/{}", table.module_name.to_kebab_case()));
@@ -410,9 +410,9 @@ impl<'a> Feature<'a> {
     }
 
     /// The query string of a soft-delete table's `DELETE`, such as
-    /// `RemoveNoteQuery`.
-    pub fn remove_query(&self) -> String {
-        format!("Remove{}Query", self.row())
+    /// `DestroyNoteQuery`.
+    pub fn destroy_query(&self) -> String {
+        format!("Destroy{}Query", self.row())
     }
 
     /// The query string of `GET /{key}` with `?include=`, such as

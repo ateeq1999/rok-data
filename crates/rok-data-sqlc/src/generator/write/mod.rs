@@ -1,8 +1,8 @@
-//! `create`, `update`, and `delete`; `attach`, `detach`, and `sync` on a join table.
+//! `create`, `patch`, and `destroy`; `attach`, `detach`, and `sync` on a join table.
 //!
 //! Statements whose shape is fixed at generation time are emitted as static
 //! SQL. Statements whose shape depends on which optional fields are present
-//! (an insert with defaulted columns, a partial update) are built at runtime
+//! (an insert with defaulted columns, a partial patch) are built at runtime
 //! with `sqlx::QueryBuilder`, whose `push_bind` allocates each placeholder as
 //! it binds the value, so placeholder numbers and bind order cannot drift
 //! apart. Only identifiers from the schema reach the SQL text.
@@ -17,10 +17,10 @@ mod update;
 use crate::schema::{Column, Table};
 
 use self::create::{render_dynamic_create, render_static_create};
-use self::delete::render_delete;
+use self::delete::render_destroy;
 use self::join::render_join_writes;
-pub use self::update::{has_versioned_update, version_column};
-use self::update::{render_update, render_versioned_update};
+pub use self::update::{has_versioned_patch, version_column};
+use self::update::{render_patch, render_versioned_patch};
 use super::relationships::join_pair;
 use super::{HEADER, types_import, use_list};
 
@@ -65,7 +65,7 @@ pub fn render(table: &Table) -> String {
             .chain(pair_columns.iter().copied()),
         true,
     ));
-    let outcome = if has_versioned_update(table) {
+    let outcome = if has_versioned_patch(table) {
         "use super::super::UpdateOutcome;\n"
     } else {
         ""
@@ -102,7 +102,7 @@ pub fn render(table: &Table) -> String {
     output
 }
 
-/// `update` and `delete` (with `restore` and `delete_permanently` on a
+/// `patch` and `destroy` (with `restore` and `delete_permanently` on a
 /// soft-delete table), for a table with a primary key.
 fn render_key_writes(
     output: &mut String,
@@ -115,16 +115,16 @@ fn render_key_writes(
     if has_update {
         match version_column(table) {
             Some(version) => {
-                render_versioned_update(output, table, version, keys, &update_columns);
+                render_versioned_patch(output, table, version, keys, &update_columns);
             }
-            None => render_update(output, table, &update_columns),
+            None => render_patch(output, table, &update_columns),
         }
     } else {
         output.push_str(
-            "\n// No updatable columns detected; update is not generated for this table.\n",
+            "\n// No updatable columns detected; patch is not generated for this table.\n",
         );
     }
-    render_delete(output, table, key_columns);
+    render_destroy(output, table, key_columns);
 }
 
 /// `use super::models::...;` for sorted `names`, wrapped like rustfmt wraps a

@@ -28,14 +28,14 @@ where
     insert.exec(executor).await
 }
 
-/// Applies a partial update if the row's `row_version` is still `expected_version`.
+/// Applies a partial patch if the row's `row_version` is still `expected_version`.
 ///
-/// Returns the updated row, `NotFound` if no row has the given primary key, or
+/// Returns the patched row, `NotFound` if no row has the given primary key, or
 /// `VersionConflict` if the row is at another version, in which case nothing
 /// changes. An empty patch issues no `UPDATE`: it returns the current row,
 /// unchanged, when the row is at the expected version.
 /// A soft-deleted row is left unchanged and counts as missing.
-pub async fn update<'e, E>(
+pub async fn patch<'e, E>(
     executor: E,
     organization_id: OrganizationId,
     id: InvoiceId,
@@ -107,13 +107,13 @@ where
 }
 
 /// Soft-deletes the row with the given primary key by setting `deleted_at` to
-/// the current time, and returns whether a row changed: `false` when there is no
+/// the current time, and returns the number of rows changed: `0` when there is no
 /// such row or it is already deleted.
-pub async fn delete<'e, E>(
+pub async fn destroy<'e, E>(
     executor: E,
     organization_id: OrganizationId,
     id: InvoiceId,
-) -> Result<bool, rok_data::Error>
+) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
@@ -122,17 +122,16 @@ where
         .filter(Invoice::ID.eq(id))
         .delete(executor)
         .await
-        .map(|count| count > 0)
 }
 
 /// Restores the soft-deleted row with the given primary key by clearing `deleted_at`,
-/// and returns whether a row changed: `false` when there is no such row or it is
+/// and returns the number of rows changed: `0` when there is no such row or it is
 /// not deleted.
 pub async fn restore<'e, E>(
     executor: E,
     organization_id: OrganizationId,
     id: InvoiceId,
-) -> Result<bool, rok_data::Error>
+) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
@@ -141,16 +140,15 @@ where
         .filter(Invoice::ID.eq(id))
         .restore(executor)
         .await
-        .map(|count| count > 0)
 }
 
 /// Removes the row with the given primary key from the table, deleted or not, and
-/// returns whether one existed.
+/// returns the number of rows that existed.
 pub async fn delete_permanently<'e, E>(
     executor: E,
     organization_id: OrganizationId,
     id: InvoiceId,
-) -> Result<bool, rok_data::Error>
+) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
@@ -160,5 +158,4 @@ where
         .with_trashed()
         .force_delete(executor)
         .await
-        .map(|count| count > 0)
 }

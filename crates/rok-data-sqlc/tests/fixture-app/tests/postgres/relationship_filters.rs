@@ -221,9 +221,10 @@ pub(super) async fn relationship_filters_skip_deleted_and_other_tenant_rows(pool
 
     let deleted = create_comment(pool, tenant, &deleted_only, Some(&author)).await;
     assert!(
-        db::comments::write::delete(pool, tenant, deleted.id)
+        db::comments::write::destroy(pool, tenant, deleted.id)
             .await
             .unwrap()
+            > 0
     );
     // The foreign key does not stop another tenant's comment pointing here.
     let foreign = create_comment(pool, other, &foreign_only, Some(&author)).await;
@@ -231,9 +232,10 @@ pub(super) async fn relationship_filters_skip_deleted_and_other_tenant_rows(pool
     let signed = create_comment(pool, tenant, &live, Some(&author)).await;
     let orphaned = create_comment(pool, tenant, &gone, Some(&author)).await;
     assert!(
-        db::posts::write::delete(pool, tenant, gone.id)
+        db::posts::write::destroy(pool, tenant, gone.id)
             .await
             .unwrap()
+            > 0
     );
 
     let commented = PostFilter {

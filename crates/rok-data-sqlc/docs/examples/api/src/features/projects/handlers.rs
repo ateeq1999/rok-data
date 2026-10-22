@@ -111,7 +111,7 @@ pub async fn get_one(
     patch,
     path = "/api/v1/projects/{id}",
     tag = "projects",
-    operation_id = "update",
+    operation_id = "patch",
     params(("id" = uuid::Uuid, Path, description = "Project id")),
     request_body = UpdateProjectDto,
     responses(
@@ -124,27 +124,27 @@ pub async fn get_one(
     ),
     security(("bearer_auth" = [])),
 )]
-pub async fn update(
+pub async fn patch(
     service: web::Data<ProjectsService>,
     user: AuthUser,
     path: web::Path<ProjectId>,
     body: ValidatedJson<UpdateProjectDto>,
 ) -> Result<HttpResponse, AppError> {
     let key = path.into_inner();
-    let row = service.update(user, key, body.into_inner()).await?;
+    let row = service.patch(user, key, body.into_inner()).await?;
     let response = ProjectResponse::from(row);
     Ok(HttpResponse::Ok().json(response))
 }
 
-/// `DELETE /api/v1/projects/{id}`: deletes the row, `204`.
+/// `DELETE /api/v1/projects/{id}`: destroys the row, `204`.
 #[utoipa::path(
     delete,
     path = "/api/v1/projects/{id}",
     tag = "projects",
-    operation_id = "remove",
+    operation_id = "destroy",
     params(("id" = uuid::Uuid, Path, description = "Project id")),
     responses(
-        (status = 204, description = "The row, deleted."),
+        (status = 204, description = "The row, destroyed."),
         (status = 400, description = "A malformed path, query or body.", body = ErrorBody),
         (status = 401, description = "No valid bearer token.", body = ErrorBody),
         (status = 404, description = "No such row, or not the caller's.", body = ErrorBody),
@@ -152,13 +152,13 @@ pub async fn update(
     ),
     security(("bearer_auth" = [])),
 )]
-pub async fn remove(
+pub async fn destroy(
     service: web::Data<ProjectsService>,
     user: AuthUser,
     path: web::Path<ProjectId>,
 ) -> Result<HttpResponse, AppError> {
     let key = path.into_inner();
-    service.remove(user, key).await?;
+    service.destroy(user, key).await?;
     Ok(HttpResponse::NoContent().finish())
 }
 

@@ -12,5 +12,5 @@ pub mod models;
 pub mod read;
 /// Loaders fetching each relationship for many rows in one query.
 pub mod relationships;
-/// `create`, `update`, and `delete`.
+/// `create`, `patch`, and `destroy`.
 pub mod write;

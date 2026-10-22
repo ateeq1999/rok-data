@@ -16,6 +16,6 @@ pub fn routes(service: LoansService) -> Router {
         .route("/api/v1/loans", get(handlers::list))
         .route("/api/v1/loans", post(handlers::create))
         .route("/api/v1/loans/{id}", get(handlers::get_one))
-        .route("/api/v1/loans/{id}", patch(handlers::update))
+        .route("/api/v1/loans/{id}", patch(handlers::patch))
         .layer(Extension(Arc::new(service)))
 }

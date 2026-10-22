@@ -138,11 +138,11 @@ fn every_dto_derives_its_schema() -> Result<()> {
         let item = item(&dto, head);
         assert!(item.contains("utoipa::ToSchema"), "{item}");
     }
-    let remove = item(&dto, "pub struct RemoveNoteQuery {");
-    assert!(remove.contains("utoipa::IntoParams"), "{remove}");
+    let destroy = item(&dto, "pub struct DestroyNoteQuery {");
+    assert!(destroy.contains("utoipa::IntoParams"), "{destroy}");
     assert!(
-        remove.contains("#[into_params(parameter_in = Query)]"),
-        "{remove}"
+        destroy.contains("#[into_params(parameter_in = Query)]"),
+        "{destroy}"
     );
 
     let dto = project.read("src/features/tasks/dto.rs")?;

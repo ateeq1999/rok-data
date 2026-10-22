@@ -223,8 +223,8 @@ impl Table {
     }
 
     /// Whether a caller never supplies `column` in an input or patch: the
-    /// soft-delete column (only `delete` and `restore` set it) and the tenant
-    /// column (set from the tenant parameter, never changed).
+    /// soft-delete column (only the delete and restore paths set it) and the
+    /// tenant column (set from the tenant parameter, never changed).
     fn is_convention_controlled(&self, column: &Column) -> bool {
         self.is_soft_delete_column(column) || self.is_tenant_column(column)
     }

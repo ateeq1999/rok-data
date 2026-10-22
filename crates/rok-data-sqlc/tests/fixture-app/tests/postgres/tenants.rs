@@ -88,7 +88,7 @@ pub(super) async fn tenant_rows_are_invisible_to_other_tenants(pool: &PgPool) {
         body: Some("hijacked".to_owned()),
     };
     assert_eq!(
-        write::update(pool, tenant_b, note.id, 1, patch())
+        write::patch(pool, tenant_b, note.id, 1, patch())
             .await
             .unwrap(),
         UpdateOutcome::NotFound
@@ -98,16 +98,17 @@ pub(super) async fn tenant_rows_are_invisible_to_other_tenants(pool: &PgPool) {
         body: None,
     };
     assert_eq!(
-        write::update(pool, tenant_b, note.id, 1, empty)
+        write::patch(pool, tenant_b, note.id, 1, empty)
             .await
             .unwrap(),
         UpdateOutcome::NotFound
     );
-    assert!(!write::delete(pool, tenant_b, note.id).await.unwrap());
+    assert_eq!(write::destroy(pool, tenant_b, note.id).await.unwrap(), 0);
     assert!(
-        !write::delete_permanently(pool, tenant_b, note.id)
+        write::delete_permanently(pool, tenant_b, note.id)
             .await
             .unwrap()
+            == 0
     );
     assert_eq!(
         read::get_by_id(pool, tenant_a, note.id).await.unwrap(),
@@ -116,16 +117,16 @@ pub(super) async fn tenant_rows_are_invisible_to_other_tenants(pool: &PgPool) {
     );
 
     // Tenant A can, and tenant B still cannot restore what A deleted.
-    let UpdateOutcome::Updated(updated) = write::update(pool, tenant_a, note.id, 1, patch())
+    let UpdateOutcome::Updated(updated) = write::patch(pool, tenant_a, note.id, 1, patch())
         .await
         .unwrap()
     else {
         panic!("tenant A updates its own row");
     };
     assert_eq!(updated.body, "hijacked");
-    assert!(write::delete(pool, tenant_a, note.id).await.unwrap());
-    assert!(!write::restore(pool, tenant_b, note.id).await.unwrap());
-    assert!(write::restore(pool, tenant_a, note.id).await.unwrap());
+    assert!(write::destroy(pool, tenant_a, note.id).await.unwrap() > 0);
+    assert!(write::restore(pool, tenant_b, note.id).await.unwrap() == 0);
+    assert!(write::restore(pool, tenant_a, note.id).await.unwrap() > 0);
     sees(tenant_a, vec![note.id]).await;
     sees(tenant_b, vec![other.id]).await;
 }
@@ -161,7 +162,7 @@ pub(super) async fn a_tenant_in_the_primary_key_is_passed_once(pool: &PgPool) {
     assert_eq!(name(tenant_a).await.as_deref(), Some("Ann"));
     assert_eq!(name(tenant_b).await.as_deref(), Some("Bob"));
 
-    let renamed = write::update(
+    let renamed = write::patch(
         pool,
         tenant_b,
         "M1",
@@ -190,7 +191,7 @@ pub(super) async fn a_tenant_in_the_primary_key_is_passed_once(pool: &PgPool) {
     assert_eq!(page.len(), 1);
     assert_eq!(page[0].tenant_id, tenant_a);
 
-    assert!(write::delete(pool, tenant_a, "M1").await.unwrap());
+    assert!(write::destroy(pool, tenant_a, "M1").await.unwrap() > 0);
     assert_eq!(name(tenant_a).await, None);
     assert_eq!(name(tenant_b).await.as_deref(), Some("Bea"));
 }

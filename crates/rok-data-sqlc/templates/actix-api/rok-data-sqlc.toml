@@ -48,7 +48,7 @@ audit_log = "/audit-log"
 # password; deleted accounts stay deleted.
 users = ["create", "restore", "lookups", "relationships"]
 # Read-only: the application writes it.
-audit_log = ["create", "update", "remove", "relationships"]
+audit_log = ["create", "update", "destroy", "relationships"]
 
 [api.hidden]
 users = [

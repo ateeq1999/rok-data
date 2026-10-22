@@ -96,16 +96,16 @@ fn endpoint_operation(feature: &Feature<'_>, endpoint: Endpoint) -> Operation {
                 .etag(feature)
                 .conflicts(update_conflicts(feature))
         }
-        Endpoint::Remove => {
+        Endpoint::Destroy => {
             let op = op.keyed(feature).errors(&[404]);
             let op = if feature.soft_delete {
-                op.query(feature.remove_query()).answers(
+                op.query(feature.destroy_query()).answers(
                     204,
-                    "The row, soft-deleted (deleted with `?permanent=true`).",
+                    "The row, soft-deleted (destroyed with `?permanent=true`).",
                     None,
                 )
             } else {
-                op.answers(204, "The row, deleted.", None)
+                op.answers(204, "The row, destroyed.", None)
             };
             op.conflicts(delete_conflicts(feature))
         }

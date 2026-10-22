@@ -191,9 +191,10 @@ pub(super) async fn joined_read_respects_soft_delete_and_tenant_on_both_sides(po
     assert_eq!(joined.post, Some(live_post));
 
     assert!(
-        db::posts::write::delete(pool, tenant_a, doomed_post.id)
+        db::posts::write::destroy(pool, tenant_a, doomed_post.id)
             .await
             .unwrap()
+            > 0
     );
     let orphaned = get_with_post(pool, tenant_a, on_doomed.id)
         .await
@@ -214,9 +215,10 @@ pub(super) async fn joined_read_respects_soft_delete_and_tenant_on_both_sides(po
         "the comment is another tenant's"
     );
     assert!(
-        db::comments::write::delete(pool, tenant_a, on_live.id)
+        db::comments::write::destroy(pool, tenant_a, on_live.id)
             .await
             .unwrap()
+            > 0
     );
     assert_eq!(
         get_with_post(pool, tenant_a, on_live.id).await.unwrap(),

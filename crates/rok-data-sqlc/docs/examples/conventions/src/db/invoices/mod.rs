@@ -8,5 +8,5 @@ pub mod filter;
 pub mod models;
 /// Lookups, listing, counting, and search.
 pub mod read;
-/// `create`, `update`, and `delete`.
+/// `create`, `patch`, and `destroy`.
 pub mod write;

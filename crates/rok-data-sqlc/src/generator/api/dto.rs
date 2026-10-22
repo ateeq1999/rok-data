@@ -43,8 +43,8 @@ pub fn render(feature: &Feature<'_>) -> String {
     if let Some(columns) = &update {
         render_update(&mut body, feature, columns);
     }
-    if feature.soft_delete && feature.serves(Endpoint::Remove) {
-        render_remove_query(&mut body, feature);
+    if feature.soft_delete && feature.serves(Endpoint::Destroy) {
+        render_destroy_query(&mut body, feature);
     }
     render_response(&mut body, feature);
     relation_routes::render_dto(&mut body, &mut uses, feature);
@@ -71,7 +71,7 @@ pub fn render(feature: &Feature<'_>) -> String {
 }
 
 /// `DELETE`'s query string on a soft-delete table.
-fn render_remove_query(output: &mut String, feature: &Feature<'_>) {
+fn render_destroy_query(output: &mut String, feature: &Feature<'_>) {
     output.push('\n');
     push_doc(
         output,
@@ -86,7 +86,7 @@ fn render_remove_query(output: &mut String, feature: &Feature<'_>) {
     push_into_params(output, feature.openapi);
     output.push_str(&format!(
         "pub struct {} {{\n    /// Whether to delete the row for good rather than soft-delete it.\n    #[serde(default)]\n    pub permanent: bool,\n}}\n",
-        feature.remove_query()
+        feature.destroy_query()
     ));
 }
 

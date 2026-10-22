@@ -138,7 +138,7 @@ fn a_list_documents_its_route() -> Result<()> {
 fn versioned_admin_routes_document_etag_and_if_match() -> Result<()> {
     let project = Project::generated()?;
     let handlers = project.read("src/features/accounts/handlers.rs")?;
-    let update = annotation(&handlers, "update");
+    let patch = annotation(&handlers, "patch");
     for expected in [
         "    path = \"/api/v1/accounts/{id}\",\n",
         "(\"id\" = uuid::Uuid, Path, description = \"Account id\")",
@@ -147,10 +147,10 @@ fn versioned_admin_routes_document_etag_and_if_match() -> Result<()> {
         "(\"ETag\" = String, description = ",
         "    security((\"bearer_auth\" = [])),\n",
     ] {
-        assert!(update.contains(expected), "{expected}\n{update}");
+        assert!(patch.contains(expected), "{expected}\n{patch}");
     }
     assert_eq!(
-        statuses(update),
+        statuses(patch),
         [200, 400, 401, 403, 404, 409, 412, 413, 422, 428]
     );
     let get = annotation(&handlers, "get_one");
@@ -159,9 +159,9 @@ fn versioned_admin_routes_document_etag_and_if_match() -> Result<()> {
     let create = annotation(&handlers, "create");
     assert!(create.contains("(\"Location\" = String"), "{create}");
     assert_eq!(statuses(create), [201, 400, 401, 403, 409, 413, 422]);
-    // `notes` references accounts, so deleting one can conflict.
+    // `notes` references accounts, so destroying one can conflict.
     assert_eq!(
-        statuses(annotation(&handlers, "remove")),
+        statuses(annotation(&handlers, "destroy")),
         [204, 400, 401, 403, 404, 409]
     );
     // The `by-email` route: text never fails to parse.
@@ -199,9 +199,9 @@ fn public_routes_carry_no_security() -> Result<()> {
         "{get}"
     );
     assert_eq!(statuses(get), [200, 400, 401, 403, 404]);
-    let remove = annotation(&handlers, "remove");
-    assert!(remove.contains("        RemoveNoteQuery,\n"), "{remove}");
-    assert_eq!(statuses(remove), [204, 400, 404]);
+    let destroy = annotation(&handlers, "destroy");
+    assert!(destroy.contains("        DestroyNoteQuery,\n"), "{destroy}");
+    assert_eq!(statuses(destroy), [204, 400, 404]);
     assert_eq!(statuses(annotation(&handlers, "restore")), [200, 400, 404]);
     // The has-many route from accounts takes the stricter access.
     let accounts = project.read("src/features/accounts/handlers.rs")?;
@@ -233,7 +233,7 @@ fn generated_rs_holds_the_api_doc() -> Result<()> {
         "        accounts::handlers::get_by_email,\n",
         "        accounts::handlers::list_notes,\n",
         "        notes::handlers::restore,\n",
-        "        tasks::handlers::remove,\n",
+        "        tasks::handlers::destroy,\n",
         "        crate::shared::pagination::SortOrder,\n",
         "        accounts::dto::AccountSort,\n",
         "        notes::dto::NoteInclude,\n",

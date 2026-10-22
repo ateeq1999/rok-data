@@ -114,12 +114,15 @@ pub trait NotesServiceApi {
         id: NoteId,
     ) -> Result<Note, AppError> {
         let row = repo::get_owned(self.pool(), tenant, id, user.id).await?;
-        row.ok_or_else(not_found)
+        match row {
+            Some(row) => Ok(row),
+            None => Err(not_found()),
+        }
     }
 
-    /// What [`update`](Self::update) does, on `conn`: the caller's connection or
+    /// What [`patch`](Self::patch) does, on `conn`: the caller's connection or
     /// transaction. Override this one to change it.
-    async fn update_in(
+    async fn patch_in(
         &self,
         conn: &mut PgConnection,
         tenant: uuid::Uuid,
@@ -132,7 +135,7 @@ pub trait NotesServiceApi {
         if !owned {
             return Err(not_found());
         }
-        let outcome = repo::update(&mut *conn, tenant, id, version, input.into()).await?;
+        let outcome = repo::patch(&mut *conn, tenant, id, version, input.into()).await?;
         match outcome {
             UpdateOutcome::Updated(row) => Ok(row),
             UpdateOutcome::NotFound => Err(not_found()),
@@ -142,8 +145,8 @@ pub trait NotesServiceApi {
 
     /// `PATCH /api/v1/notes/{id}`: changes the row with this key if it is at `version` and
     /// returns it; `404` if there is none, `412` if it is at another version.
-    /// Runs [`update_in`](Self::update_in) in a transaction of its own.
-    async fn update(
+    /// Runs [`patch_in`](Self::patch_in) in a transaction of its own.
+    async fn patch(
         &self,
         tenant: uuid::Uuid,
         user: AuthUser,
@@ -153,15 +156,15 @@ pub trait NotesServiceApi {
     ) -> Result<Note, AppError> {
         let mut tx = self.pool().begin().await?;
         let row = self
-            .update_in(&mut tx, tenant, user, id, version, input)
+            .patch_in(&mut tx, tenant, user, id, version, input)
             .await?;
         tx.commit().await?;
         Ok(row)
     }
 
-    /// What [`remove`](Self::remove) does, on `conn`: the caller's connection or
+    /// What [`destroy`](Self::destroy) does, on `conn`: the caller's connection or
     /// transaction. Override this one to change it.
-    async fn remove_in(
+    async fn destroy_in(
         &self,
         conn: &mut PgConnection,
         tenant: uuid::Uuid,
@@ -172,22 +175,31 @@ pub trait NotesServiceApi {
         if !owned {
             return Err(not_found());
         }
-        let deleted = repo::delete(&mut *conn, tenant, id).await?;
-        if deleted { Ok(()) } else { Err(not_found()) }
+        let deleted = repo::destroy(&mut *conn, tenant, id).await?;
+        if deleted > 0 {
+            Ok(())
+        } else {
+            Err(not_found())
+        }
     }
 
     /// `DELETE /api/v1/notes/{id}`: soft-deletes the row with this key, or `404`.
-    /// Runs [`remove_in`](Self::remove_in) in a transaction of its own.
-    async fn remove(&self, tenant: uuid::Uuid, user: AuthUser, id: NoteId) -> Result<(), AppError> {
+    /// Runs [`destroy_in`](Self::destroy_in) in a transaction of its own.
+    async fn destroy(
+        &self,
+        tenant: uuid::Uuid,
+        user: AuthUser,
+        id: NoteId,
+    ) -> Result<(), AppError> {
         let mut tx = self.pool().begin().await?;
-        self.remove_in(&mut tx, tenant, user, id).await?;
+        self.destroy_in(&mut tx, tenant, user, id).await?;
         tx.commit().await?;
         Ok(())
     }
 
-    /// What [`remove_permanently`](Self::remove_permanently) does, on `conn`: the caller's connection or
+    /// What [`destroy_permanently`](Self::destroy_permanently) does, on `conn`: the caller's connection or
     /// transaction. Override this one to change it.
-    async fn remove_permanently_in(
+    async fn destroy_permanently_in(
         &self,
         conn: &mut PgConnection,
         tenant: uuid::Uuid,
@@ -199,20 +211,24 @@ pub trait NotesServiceApi {
             return Err(not_found());
         }
         let deleted = repo::delete_permanently(&mut *conn, tenant, id).await?;
-        if deleted { Ok(()) } else { Err(not_found()) }
+        if deleted > 0 {
+            Ok(())
+        } else {
+            Err(not_found())
+        }
     }
 
     /// `DELETE /api/v1/notes/{id}?permanent=true`: deletes the row with this key for good,
     /// soft-deleted or not, or `404`.
-    /// Runs [`remove_permanently_in`](Self::remove_permanently_in) in a transaction of its own.
-    async fn remove_permanently(
+    /// Runs [`destroy_permanently_in`](Self::destroy_permanently_in) in a transaction of its own.
+    async fn destroy_permanently(
         &self,
         tenant: uuid::Uuid,
         user: AuthUser,
         id: NoteId,
     ) -> Result<(), AppError> {
         let mut tx = self.pool().begin().await?;
-        self.remove_permanently_in(&mut tx, tenant, user, id)
+        self.destroy_permanently_in(&mut tx, tenant, user, id)
             .await?;
         tx.commit().await?;
         Ok(())
@@ -232,11 +248,15 @@ pub trait NotesServiceApi {
             return Err(not_found());
         }
         let restored = repo::restore(&mut *conn, tenant, id).await?;
-        if !restored {
-            return Err(not_found());
+        if restored > 0 {
+            let row = repo::get_by_id(&mut *conn, tenant, id).await?;
+            match row {
+                Some(row) => Ok(row),
+                None => Err(not_found()),
+            }
+        } else {
+            Err(not_found())
         }
-        let row = repo::get_by_id(&mut *conn, tenant, id).await?;
-        row.ok_or_else(not_found)
     }
 
     /// `POST /api/v1/notes/{id}/restore`: restores the soft-deleted row with this key and

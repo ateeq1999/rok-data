@@ -70,12 +70,15 @@ pub trait ProjectsServiceApi {
     /// `GET /api/v1/projects/{id}`: the row with this key, or `404`.
     async fn get_one(&self, user: AuthUser, id: ProjectId) -> Result<Project, AppError> {
         let row = repo::get_owned(self.pool(), id, user.id).await?;
-        row.ok_or_else(not_found)
+        match row {
+            Some(row) => Ok(row),
+            None => Err(not_found()),
+        }
     }
 
-    /// What [`update`](Self::update) does, on `conn`: the caller's connection or
+    /// What [`patch`](Self::patch) does, on `conn`: the caller's connection or
     /// transaction. Override this one to change it.
-    async fn update_in(
+    async fn patch_in(
         &self,
         conn: &mut PgConnection,
         user: AuthUser,
@@ -86,27 +89,30 @@ pub trait ProjectsServiceApi {
         if !owned {
             return Err(not_found());
         }
-        let row = repo::update(&mut *conn, id, input.into()).await?;
-        row.ok_or_else(not_found)
+        let row = repo::patch(&mut *conn, id, input.into()).await?;
+        match row {
+            Some(row) => Ok(row),
+            None => Err(not_found()),
+        }
     }
 
     /// `PATCH /api/v1/projects/{id}`: changes the row with this key and returns it, or `404`.
-    /// Runs [`update_in`](Self::update_in) in a transaction of its own.
-    async fn update(
+    /// Runs [`patch_in`](Self::patch_in) in a transaction of its own.
+    async fn patch(
         &self,
         user: AuthUser,
         id: ProjectId,
         input: UpdateProjectDto,
     ) -> Result<Project, AppError> {
         let mut tx = self.pool().begin().await?;
-        let row = self.update_in(&mut tx, user, id, input).await?;
+        let row = self.patch_in(&mut tx, user, id, input).await?;
         tx.commit().await?;
         Ok(row)
     }
 
-    /// What [`remove`](Self::remove) does, on `conn`: the caller's connection or
+    /// What [`destroy`](Self::destroy) does, on `conn`: the caller's connection or
     /// transaction. Override this one to change it.
-    async fn remove_in(
+    async fn destroy_in(
         &self,
         conn: &mut PgConnection,
         user: AuthUser,
@@ -116,15 +122,19 @@ pub trait ProjectsServiceApi {
         if !owned {
             return Err(not_found());
         }
-        let deleted = repo::delete(&mut *conn, id).await?;
-        if deleted { Ok(()) } else { Err(not_found()) }
+        let deleted = repo::destroy(&mut *conn, id).await?;
+        if deleted > 0 {
+            Ok(())
+        } else {
+            Err(not_found())
+        }
     }
 
     /// `DELETE /api/v1/projects/{id}`: deletes the row with this key, or `404`.
-    /// Runs [`remove_in`](Self::remove_in) in a transaction of its own.
-    async fn remove(&self, user: AuthUser, id: ProjectId) -> Result<(), AppError> {
+    /// Runs [`destroy_in`](Self::destroy_in) in a transaction of its own.
+    async fn destroy(&self, user: AuthUser, id: ProjectId) -> Result<(), AppError> {
         let mut tx = self.pool().begin().await?;
-        self.remove_in(&mut tx, user, id).await?;
+        self.destroy_in(&mut tx, user, id).await?;
         tx.commit().await?;
         Ok(())
     }

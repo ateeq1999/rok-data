@@ -48,8 +48,8 @@ fn tenant_tables_take_the_tenant_right_after_the_executor() -> Result<()> {
         write,
         [
             "create(executor: E, organization_id: uuid::Uuid, input: NewNote)",
-            "update(executor: E, organization_id: uuid::Uuid, id: NoteId, input: UpdateNote)",
-            "delete(executor: E, organization_id: uuid::Uuid, id: NoteId)",
+            "patch(executor: E, organization_id: uuid::Uuid, id: NoteId, input: UpdateNote)",
+            "destroy(executor: E, organization_id: uuid::Uuid, id: NoteId)",
         ]
     );
 
@@ -84,8 +84,8 @@ fn a_primary_key_including_the_tenant_takes_the_tenant_once() -> Result<()> {
         write,
         [
             "create(executor: E, organization_id: uuid::Uuid, input: NewMember)",
-            "update(executor: E, organization_id: uuid::Uuid, id: uuid::Uuid, input: UpdateMember)",
-            "delete(executor: E, organization_id: uuid::Uuid, id: uuid::Uuid)",
+            "patch(executor: E, organization_id: uuid::Uuid, id: uuid::Uuid, input: UpdateMember)",
+            "destroy(executor: E, organization_id: uuid::Uuid, id: uuid::Uuid)",
         ]
     );
     let models = models(&dir, "members")?;

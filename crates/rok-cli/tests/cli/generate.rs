@@ -36,9 +36,9 @@ fn generates_resource_modules() -> Result<()> {
     let write = fs::read_to_string(out.join("users/write.rs"))?;
     assert!(write.contains("pub async fn create<'e, E>(executor: E, input: NewUser)"));
     assert!(write.contains(
-        "pub async fn update<'e, E>(\n    executor: E,\n    id: UserId,\n    input: UpdateUser,\n)"
+        "pub async fn patch<'e, E>(\n    executor: E,\n    id: UserId,\n    input: UpdateUser,\n)"
     ));
-    assert!(write.contains("pub async fn delete<'e, E>(executor: E, id: UserId)"));
+    assert!(write.contains("pub async fn destroy<'e, E>(executor: E, id: UserId)"));
 
     for generated in [&read, &write] {
         assert!(

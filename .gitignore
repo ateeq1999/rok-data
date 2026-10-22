@@ -2,3 +2,7 @@
 **/target/
 *.orig
 *.rej
+
+# The api_openapi test's regeneration target for the openapi_off fixture:
+# only its snapshot milestone-1.txt is checked in (sanctioned env-var runs).
+crates/rok-data-sqlc/tests/openapi_off/src/

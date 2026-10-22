@@ -115,7 +115,7 @@ pub(super) fn render_update_patch(
         serde, validate, ..
     } = derives;
     output.push('\n');
-    let mut doc = vec!["Partial update for `update`: `None` leaves a column unchanged."];
+    let mut doc = vec!["Partial update for `patch`: `None` leaves a column unchanged."];
     if serde {
         doc.extend([
             "",

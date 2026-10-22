@@ -1,5 +1,5 @@
-//! `update`: the partial update, and the versioned update that checks a
-//! version column.
+//! `patch`: the partial patch, and the versioned patch that checks a
+//! version column. The generated model's static method is `patch` (not `update`).
 
 use crate::schema::{Column, Table};
 
@@ -8,13 +8,13 @@ use crate::generator::{
     FN_CALL_WIDTH, MAX_WIDTH, keys, push_doc, push_fn_head, push_let_call, push_wide_chain,
 };
 
-pub(super) fn render_update(output: &mut String, table: &Table, columns: &[&Column]) {
+pub(super) fn render_patch(output: &mut String, table: &Table, columns: &[&Column]) {
     let mut params = keys::key_params(table);
     params.push(format!("input: Update{}", table.struct_name));
 
     output.push('\n');
     let mut doc = vec![
-        "Applies a partial update and returns the updated row, or `None` if no row has",
+        "Applies a partial patch and returns the patched row, or `None` if no row has",
         "the given primary key. An empty patch issues no `UPDATE` and returns the",
         "current row.",
     ];
@@ -24,7 +24,7 @@ pub(super) fn render_update(output: &mut String, table: &Table, columns: &[&Colu
     push_doc(output, 0, &doc);
     push_fn_head(
         output,
-        "update",
+        "patch",
         &params,
         &format!("Result<Option<{}>, rok_data::Error>", table.struct_name),
     );
@@ -36,18 +36,18 @@ pub(super) fn render_update(output: &mut String, table: &Table, columns: &[&Colu
     push_update_builder(output, table);
     push_patch_sets(output, table, columns);
     output.push_str("    update.returning_one(executor).await\n");
-    output.push_str("}\n");
+    output.push_str("}\n")
 }
 
-/// Whether `table` gets a versioned `update`, which returns the shared
+/// Whether `table` gets a versioned `patch`, which returns the shared
 /// `UpdateOutcome`.
-pub fn has_versioned_update(table: &Table) -> bool {
+pub fn has_versioned_patch(table: &Table) -> bool {
     !table.primary_key.is_empty()
         && !table.update_columns().is_empty()
         && version_column(table).is_some()
 }
 
-/// The parameter a versioned `update` takes the caller's last-seen version as.
+/// The parameter a versioned `patch` takes the caller's last-seen version as.
 const VERSION_PARAM: &str = "expected_version";
 
 /// The table's version column, when it has one and the column can be
@@ -66,12 +66,12 @@ fn target_key_alias(index: usize) -> String {
     format!("rok_data_sqlc_key_{index}")
 }
 
-/// `update` for a table with a version column (engine ADR 0006): the version check
+/// `patch` for a table with a version column (engine ADR 0006): the version check
 /// is part of the `UPDATE`'s condition, and the same statement reports
-/// whether the row was updated, is at another version, or does not exist, so
+/// whether the row was patched, is at another version, or does not exist, so
 /// the generic executor is used once (the model chains carry one statement
 /// per call; this one stays on the query builder).
-pub(super) fn render_versioned_update(
+pub(super) fn render_versioned_patch(
     output: &mut String,
     table: &Table,
     version: &Column,
@@ -86,13 +86,13 @@ pub(super) fn render_versioned_update(
 
     output.push('\n');
     let first = format!(
-        "Applies a partial update if the row's `{}` is still `{VERSION_PARAM}`.",
+        "Applies a partial patch if the row's `{}` is still `{VERSION_PARAM}`.",
         version.rust_name
     );
     let mut doc = vec![
         first.as_str(),
         "",
-        "Returns the updated row, `NotFound` if no row has the given primary key, or",
+        "Returns the patched row, `NotFound` if no row has the given primary key, or",
         "`VersionConflict` if the row is at another version, in which case nothing",
         "changes. An empty patch issues no `UPDATE`: it returns the current row,",
         "unchanged, when the row is at the expected version.",
@@ -103,7 +103,7 @@ pub(super) fn render_versioned_update(
     push_doc(output, 0, &doc);
     push_fn_head(
         output,
-        "update",
+        "patch",
         &params,
         &format!(
             "Result<UpdateOutcome<{}>, rok_data::Error>",

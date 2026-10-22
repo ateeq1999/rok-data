@@ -72,7 +72,7 @@ async fn generated_crud_against_postgres() {
     writes::insert_applies_defaults_and_explicit_nulls(&pool).await;
     writes::every_partial_update_combination_binds_correctly(&pool).await;
     writes::empty_and_missing_updates(&pool).await;
-    writes::delete_reports_existing_and_missing_rows(&pool).await;
+    writes::destroy_reports_existing_and_missing_rows(&pool).await;
     writes::transactions_stay_with_the_caller(&pool).await;
     writes::all_defaulted_insert_uses_default_values(&pool).await;
     writes::reserved_and_quoted_identifiers_round_trip(&pool).await;

@@ -279,7 +279,7 @@ transaction boundary is always yours.
         description: Some(Some("16 oz, fibreglass handle".into())),
         ..UpdateProduct::default()
     };
-    db::products::write::update(&mut *tx, hammer.id, patch).await?;
+    db::products::write::patch(&mut *tx, hammer.id, patch).await?;
     tx.commit().await?;
 ```
 
@@ -301,7 +301,7 @@ gone: its files stay as they are.
 |---|---|
 | `models.rs` | The typed id (`ProductId`) or key struct, the row struct (`Product`), the create input (`NewProduct`), and the update patch (`UpdateProduct`). |
 | `read.rs` | `get_by_id`, `exists_by_id`, a `get_by_<columns>` lookup per unique key, `list` and `list_page` (ordered by primary key), `count`, `search`, `search_after`. |
-| `write.rs` | `create`, `update`, `delete` (and `restore`/`delete_permanently` with soft delete, `attach`/`detach`/`sync` on join tables). |
+| `write.rs` | `create`, `patch`, `destroy` (and `restore`/`delete_permanently` with soft delete, `attach`/`detach`/`sync` on join tables). |
 | `filter.rs` | The search filter (`ProductFilter`) and sort keys (`ProductSortKey`). |
 | `relationships.rs` | A `load_<name>` loader per relationship, and `get_with_<name>` joined reads for to-one relationships. |
 
@@ -365,7 +365,7 @@ nullable column `Some(None)` sets it to `NULL`. An empty patch issues no
 
 <!-- source: docs/examples/quickstart/src/db/products/write.rs -->
 ```rust
-pub async fn update<'e, E>(
+pub async fn patch<'e, E>(
     executor: E,
     id: ProductId,
     input: UpdateProduct,
@@ -698,11 +698,11 @@ pub struct NewInvoice {
 }
 ```
 
-`update` is scoped to the tenant and versioned:
+`patch` is scoped to the tenant and versioned:
 
 <!-- source: docs/examples/conventions/src/db/invoices/write.rs -->
 ```rust
-pub async fn update<'e, E>(
+pub async fn patch<'e, E>(
     executor: E,
     organization_id: OrganizationId,
     id: InvoiceId,
@@ -737,7 +737,7 @@ pub async fn update<'e, E>(
         ..UpdateInvoice::default()
     };
     let outcome =
-        db::invoices::write::update(&mut *tx, org, invoice.id, invoice.row_version, patch).await?;
+        db::invoices::write::patch(&mut *tx, org, invoice.id, invoice.row_version, patch).await?;
     match outcome {
         UpdateOutcome::Updated(paid) => assert_eq!(paid.row_version, invoice.row_version + 1),
         UpdateOutcome::NotFound => println!("deleted meanwhile"),
@@ -745,7 +745,7 @@ pub async fn update<'e, E>(
     }
 
     // Soft delete: reads skip the row until it is restored.
-    db::invoices::write::delete(&mut *tx, org, invoice.id).await?;
+    db::invoices::write::destroy(&mut *tx, org, invoice.id).await?;
     let hidden = db::invoices::read::get_by_number(&mut *tx, org, "INV-001").await?;
     assert!(hidden.is_none());
     db::invoices::write::restore(&mut *tx, org, invoice.id).await?;
@@ -977,7 +977,7 @@ openapi         = true            # the default: utoipa schemas for the OpenAPI 
 exclude         = ["audit_log"]   # tables with no API feature
 
 [api.skip]                   # by table: endpoints to leave out
-invoices = ["list", "get_one", "create", "update", "remove"]
+invoices = ["list", "get_one", "create", "update", "destroy"]
 users    = ["search", "restore", "lookups", "relationships"]
 
 [api.routes]                 # by table: route base, starting with `/` and unique
@@ -1171,7 +1171,7 @@ route base (`/tasks`), and `[api.skip]` drops any of them:
 | `POST /` | `create` | `201` with `Location` |
 | `GET /{id}` | `get_one` | `200` |
 | `PATCH /{id}` | `update` | `200`; with `If-Match` on a versioned table |
-| `DELETE /{id}` | `remove` | `204`; `?permanent=true` on a soft-delete table |
+| `DELETE /{id}` | `destroy` | `204`; `?permanent=true` on a soft-delete table |
 | `POST /search` (`[api] search_endpoint = true`) | `search` | `200`, a page; body `{filter, sort, order, page, per_page}` |
 | `POST /{id}/restore` (soft-delete tables) | `restore` | `200` |
 | `GET /by-<column>/{value}` (single-column unique keys) | `lookups` | `200` |
