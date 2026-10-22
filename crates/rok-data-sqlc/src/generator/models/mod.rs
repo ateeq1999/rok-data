@@ -1,9 +1,11 @@
 //! A table's `models.rs`: its row, its key type, its create input and its
-//! update patch ([`inputs`]), and `db/nullable.rs` ([`nullable`]).
+//! update patch ([`inputs`]), the row's relation attributes ([`relations`]),
+//! and `db/nullable.rs` ([`nullable`]).
 
 mod conventions;
 mod inputs;
 mod nullable;
+mod relations;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
@@ -13,6 +15,7 @@ use crate::schema::{Column, Table, mentions_generated_type};
 
 use self::conventions::Conventions;
 use self::inputs::{render_insert_input, render_update_patch};
+use self::relations::Relations;
 use super::{
     DeriveOptions, HEADER, doc_name, keys, push_derives, push_doc, serde_derives, sql, use_paths,
 };
@@ -24,7 +27,7 @@ fn column_doc(column: &Column) -> String {
     format!("The {} column.", doc_name(&column.sql_name))
 }
 
-pub fn render(table: &Table, derives: DeriveOptions) -> String {
+pub fn render(table: &Table, derives: DeriveOptions, tables: &[Table]) -> String {
     let mut output = format!("{HEADER}\n");
     let mut imports = keys::id_imports(table, &table.columns, true);
     imports.push("rok_data::Model".to_owned());
@@ -39,13 +42,17 @@ pub fn render(table: &Table, derives: DeriveOptions) -> String {
     }) {
         imports.push("super::super::types".to_owned());
     }
+    let relations = Relations::collect(table, tables);
+    imports.extend(relations.imports().iter().cloned());
+    imports.sort();
+    imports.dedup();
     if !imports.is_empty() {
         output.push_str(&use_paths(&imports));
         output.push('\n');
     }
     keys::render_key_type(&mut output, table, derives);
     let conventions = conventions::decide(table);
-    render_row(&mut output, table, derives.serde, &conventions);
+    render_row(&mut output, table, derives.serde, &conventions, &relations);
     keys::render_row_key(&mut output, table);
 
     let insert_columns = table.insert_columns();
@@ -67,16 +74,26 @@ pub fn render(table: &Table, derives: DeriveOptions) -> String {
     output
 }
 
-fn render_row(output: &mut String, table: &Table, serde: bool, conventions: &Conventions) {
+fn render_row(
+    output: &mut String,
+    table: &Table,
+    serde: bool,
+    conventions: &Conventions,
+    relations: &Relations,
+) {
     let doc = format!("A row of the `{}` table.", table.display_name());
     push_doc(output, 0, &[&doc]);
     output.push_str("#[derive(Debug, Clone, PartialEq, Model)]\n");
     push_derives(output, serde_derives(serde));
     push_container_attrs(output, table, conventions);
+    for attr in relations.container_attrs() {
+        output.push_str(attr);
+        output.push('\n');
+    }
     output.push_str(&format!("pub struct {} {{\n", table.struct_name));
     for column in &table.columns {
         push_doc(output, 4, &[&column_doc(column)]);
-        push_field_attrs(output, column, conventions);
+        push_field_attrs(output, column, conventions, relations);
         output.push_str(&format!(
             "    pub {}: {},\n",
             column.rust_name,
@@ -106,9 +123,15 @@ fn push_container_attrs(output: &mut String, table: &Table, conventions: &Conven
 
 /// The `#[rok(...)]` attributes of one row field: the column's name when it
 /// differs from the field, the primary key, generated-only columns ("read
-/// but never written"), and the soft-delete column's marker (when the
-/// inference cannot name it).
-fn push_field_attrs(output: &mut String, column: &Column, conventions: &Conventions) {
+/// but never written"), the soft-delete column's marker (when the
+/// inference cannot name it), and the belongs-to relation the field's
+/// foreign key holds.
+fn push_field_attrs(
+    output: &mut String,
+    column: &Column,
+    conventions: &Conventions,
+    relations: &Relations,
+) {
     if column.rust_name != column.sql_name {
         output.push_str(&format!(
             "    #[rok(column = {})]\n",
@@ -126,6 +149,11 @@ fn push_field_attrs(output: &mut String, column: &Column, conventions: &Conventi
         .is_some_and(|soft_delete| soft_delete.sql_name == column.sql_name)
     {
         output.push_str("    #[rok(deleted_at)]\n");
+    }
+    if let Some(attr) = relations.field_attr(&column.sql_name) {
+        output.push_str("    ");
+        output.push_str(attr);
+        output.push('\n');
     }
 }
 

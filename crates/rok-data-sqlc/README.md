@@ -325,6 +325,7 @@ pub struct Product {
     #[rok(primary_key)]
     pub id: ProductId,
     /// The `category_id` column.
+    #[rok(belongs_to = Category)]
     pub category_id: CategoryId,
     /// The `sku` column.
     pub sku: String,
@@ -421,6 +422,16 @@ column is unique, the parent gets a has-one instead. A `parent_id`
 self-reference gives `parent` and `children`. A join table (two `NOT NULL`
 foreign keys that together form a unique key) relates its two tables
 many-to-many, and its `write.rs` gains `attach`, `detach` and `sync`.
+
+The row's `models.rs` states both sides on the derive — `#[rok(belongs_to =
+Category)]` on the foreign-key field and `#[rok(has_many(products =
+Product::CATEGORY_ID))]` on the parent — and the derive expands them into
+`Category::PRODUCTS` and `product.category()`, a `Select<Category>` over the
+related rows (soft-deleted ones stay out). Several foreign keys between the
+same two tables keep the edge apart in the name
+(`audit_log_entry_by_actor_user`), and a foreign key whose column does not
+name the relation states it on the attribute (`#[rok(belongs_to(owner =
+User))]`).
 
 A loader takes rows you already fetched and loads one relationship for all of
 them in a single `= ANY($1)` query, which avoids the N+1 pattern:

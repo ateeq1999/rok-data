@@ -4,12 +4,12 @@
 
 **Blocked by:** 01 (the generator's write surface must be stable so relation accessors don't collide with write verbs).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Schema parser's `Relationship` analysis feeds the model emitter: for each FK, emit `belongs_to` on the holding table; for each referenced table, emit `has_many` (or `has_one` when the FK has a unique constraint)
-- [ ] Generated model has `pub const RELATION_NAME: BelongsTo<Self, Target>` / `HasMany<Self, Target>` / `HasOne<Self, Target>` constants and `pub fn relation_name(&self) -> Select<Target>` accessors
-- [ ] Relation names follow the derive's existing rule: `user_id` → `user`; ambiguous names use explicit form `belongs_to(author = User)`
-- [ ] The per-table `relationships.rs` module is retained for its loader functions (batch loads), but generated code uses the model accessors where possible
-- [ ] Soft-deleted related rows are hidden by default (the accessor's base query includes the soft-delete scope)
-- [ ] Templates, fixtures, and `examples/api` regenerate with relations on the model; hand-written service code can call `user.posts()` directly
-- [ ] `rok gen check` passes with no drift; template CI compiles under strict lints
+- [x] Schema parser's `Relationship` analysis feeds the model emitter: for each FK, emit `belongs_to` on the holding table; for each referenced table, emit `has_many` (or `has_one` when the FK has a unique constraint)
+- [x] Generated model has `pub const RELATION_NAME: BelongsTo<Self, Target>` / `HasMany<Self, Target>` / `HasOne<Self, Target>` constants and `pub fn relation_name(&self) -> Select<Target>` accessors
+- [x] Relation names follow the derive's existing rule: `user_id` → `user`; ambiguous names use explicit form `belongs_to(author = User)`
+- [x] The per-table `relationships.rs` module is retained for its loader functions (batch loads), but generated code uses the model accessors where possible
+- [x] Soft-deleted related rows are hidden by default (the accessor's base query includes the soft-delete scope)
+- [x] Templates, fixtures, and `examples/api` regenerate with relations on the model; hand-written service code can call `user.posts()` directly
+- [x] `rok gen check` passes with no drift; template CI compiles under strict lints

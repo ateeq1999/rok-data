@@ -222,7 +222,10 @@ pub fn plan_files_with_queries(
         if let Some(listing) = listing {
             files.push((dir.join("listing.rs"), listing));
         }
-        files.push((dir.join("models.rs"), models::render(table, derives)));
+        files.push((
+            dir.join("models.rs"),
+            models::render(table, derives, tables),
+        ));
         if let Some(filter) = filter {
             files.push((dir.join("filter.rs"), filter));
         }

@@ -2,6 +2,7 @@ use super::super::test_support::{column, defaulted, generated, nullable, table};
 use super::*;
 use crate::Conventions;
 use crate::generator::conventions::apply;
+use crate::schema::{Relationship, RelationshipKind, Through};
 
 /// A timestamp column, with the `DEFAULT` expression it declares (none when
 /// the column has no default).
@@ -21,17 +22,33 @@ fn timestamp(name: &str, default: Option<&str>) -> Column {
 fn rendered(table: &Table, conventions: &Conventions) -> String {
     let mut tables = [table.clone()];
     apply(&mut tables, conventions);
-    render(&tables[0])
-}
-
-pub(super) fn render(table: &Table) -> String {
     super::render(
-        table,
+        &tables[0],
         DeriveOptions {
             serde: false,
             validate: false,
             openapi: false,
         },
+        &tables,
+    )
+}
+
+pub(super) fn render(table: &Table) -> String {
+    rendered(table, &Conventions::default())
+}
+
+/// The row of `tables[0]`, rendered against sibling `tables`: the case the
+/// relation attributes are for.
+fn rendered_pair(mut tables: [Table; 2]) -> String {
+    apply(&mut tables, &Conventions::default());
+    super::render(
+        &tables[0],
+        DeriveOptions {
+            serde: false,
+            validate: false,
+            openapi: false,
+        },
+        &tables,
     )
 }
 
@@ -256,6 +273,7 @@ fn serde_derives_rows_inputs_and_patches_on_request() {
             validate: false,
             openapi: false,
         },
+        std::slice::from_ref(&users),
     );
     for item in ["", "pub struct NewUser {"] {
         assert!(
@@ -299,6 +317,7 @@ fn serde_patches_and_inputs_tell_absent_from_null() {
             validate: false,
             openapi: false,
         },
+        std::slice::from_ref(&users),
     );
     let patch = rendered.split("pub struct UpdateUser {").nth(1).unwrap();
     assert!(patch.contains(
@@ -438,4 +457,231 @@ fn output_is_deterministic() {
         ))
     };
     assert_eq!(build(), build());
+}
+
+/// The module and struct names a related table carries (the helper's
+/// defaults are the `users` ones).
+fn named(mut other: Table, module: &str, struct_name: &str) -> Table {
+    other.module_name = module.to_owned();
+    other.struct_name = struct_name.to_owned();
+    other.sql_name = module.to_owned();
+    other
+}
+
+/// The relationship side a table records, spelled out.
+fn relationship(
+    name: &str,
+    kind: RelationshipKind,
+    target: &str,
+    column: &str,
+    target_column: &str,
+) -> Relationship {
+    Relationship {
+        name: name.to_owned(),
+        kind,
+        target: target.to_owned(),
+        column: column.to_owned(),
+        target_column: target_column.to_owned(),
+        through: None,
+    }
+}
+
+/// The foreign key a test table declares (the parser fills the name).
+fn foreign_key(column: &str, referenced_table: &str) -> crate::schema::ForeignKey {
+    crate::schema::ForeignKey {
+        column: column.to_owned(),
+        name: format!("{referenced_table}_{column}_fkey"),
+        on_delete: None,
+        on_update: None,
+        referenced_schema: None,
+        referenced_table: referenced_table.to_owned(),
+        referenced_column: "id".to_owned(),
+    }
+}
+
+/// A foreign-key field carries its belongs-to: the derive names the
+/// relation off the column, so the attribute only names the target.
+#[test]
+fn a_foreign_key_field_carries_the_belongs_to() {
+    let users = named(table(vec![column("id", "i64")], &["id"]), "users", "User");
+    let mut posts = table(
+        vec![column("id", "i64"), column("author_id", "UserId")],
+        &["id"],
+    );
+    posts = named(posts, "posts", "Post");
+    posts.relationships.push(relationship(
+        "author",
+        RelationshipKind::BelongsTo,
+        "users",
+        "author_id",
+        "id",
+    ));
+    let rendered = rendered_pair([posts, users]);
+    assert!(
+        rendered.contains("#[rok(belongs_to = User)]\n    pub author_id: UserId,"),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains("use super::super::users::models::User;\n"),
+        "{rendered}"
+    );
+}
+
+/// A foreign key whose relation the derive cannot name (`owner`, no `_id`
+/// suffix) states the recorded name itself.
+#[test]
+fn an_underivable_foreign_key_names_its_relation_explicitly() {
+    let users = table(vec![column("id", "i64")], &["id"]);
+    let mut ideas = table(
+        vec![column("id", "i64"), column("owner", "UserId")],
+        &["id"],
+    );
+    ideas = named(ideas, "ideas", "Idea");
+    ideas.relationships.push(relationship(
+        "owner",
+        RelationshipKind::BelongsTo,
+        "users",
+        "owner",
+        "id",
+    ));
+    let rendered = rendered_pair([ideas, users]);
+    assert!(
+        rendered.contains("#[rok(belongs_to(owner = User))]\n    pub owner: UserId,"),
+        "{rendered}"
+    );
+}
+
+/// The referenced table gets the inverse: a `has_many` naming the child's
+/// foreign-key constant, and the child's struct imported.
+#[test]
+fn the_parent_gets_has_many_with_the_foreign_key_constant() {
+    let mut users = table(vec![column("id", "i64")], &["id"]);
+    users.relationships.push(relationship(
+        "posts",
+        RelationshipKind::HasMany,
+        "posts",
+        "id",
+        "author_id",
+    ));
+    let posts = named(
+        table(
+            vec![column("id", "i64"), column("author_id", "UserId")],
+            &["id"],
+        ),
+        "posts",
+        "Post",
+    );
+    let rendered = rendered_pair([users.clone(), posts.clone()]);
+    assert!(
+        rendered.contains("#[rok(has_many(posts = Post::AUTHOR_ID))]"),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains("use super::super::posts::models::Post;\n"),
+        "{rendered}"
+    );
+    // The child's own side comes from the same edge: the schema records the
+    // relationship on the holding table, and the field carries the
+    // belongs-to there.
+    let mut child_of = named(
+        table(
+            vec![column("id", "i64"), column("author_id", "UserId")],
+            &["id"],
+        ),
+        "posts",
+        "Post",
+    );
+    child_of.relationships.push(relationship(
+        "author",
+        RelationshipKind::BelongsTo,
+        "users",
+        "author_id",
+        "id",
+    ));
+    let child = rendered_pair([child_of, users]);
+    assert!(child.contains("#[rok(belongs_to = User)]"), "{child}");
+}
+
+/// A foreign key that alone is a unique key at the child gives the parent a
+/// `has_one`: at most one child row.
+#[test]
+fn a_unique_foreign_key_gives_the_parent_a_has_one() {
+    let mut users = table(vec![column("id", "i64")], &["id"]);
+    users.relationships.push(relationship(
+        "profile",
+        RelationshipKind::HasOne,
+        "profiles",
+        "id",
+        "user_id",
+    ));
+    let profiles = named(
+        table(
+            vec![column("id", "i64"), column("user_id", "UserId")],
+            &["id"],
+        ),
+        "profiles",
+        "Profile",
+    );
+    let rendered = rendered_pair([users, profiles]);
+    assert!(
+        rendered.contains("#[rok(has_one(profile = Profile::USER_ID))]"),
+        "{rendered}"
+    );
+}
+
+/// A many-to-many goes through the join table's own belongs-tos: the
+/// relationship itself carries no attribute (the macro has no join kind).
+#[test]
+fn a_many_to_many_records_no_attribute() {
+    let mut users = table(vec![column("id", "i64")], &["id"]);
+    users.relationships.push(Relationship {
+        through: Some(Through {
+            table: "group_members".to_owned(),
+            column: "user_id".to_owned(),
+            target_column: "group_id".to_owned(),
+        }),
+        name: "groups".to_owned(),
+        kind: RelationshipKind::HasMany,
+        target: "groups".to_owned(),
+        column: "id".to_owned(),
+        target_column: "id".to_owned(),
+    });
+    let rendered = rendered_pair([users, named(table(vec![], &[]), "groups", "Group")]);
+    assert!(!rendered.contains("groups = "), "{rendered}");
+    assert!(!rendered.contains("!ManyToMany"), "{rendered}");
+}
+
+/// A `parent_id` self-reference names the row's own type from inside: the
+/// constants quote the struct, module imports stay out.
+#[test]
+fn a_self_reference_imports_nothing() {
+    let mut users = table(
+        vec![column("id", "i64"), column("parent_id", "UserId")],
+        &["id"],
+    );
+    users.foreign_keys.push(foreign_key("parent_id", "users"));
+    users.relationships.push(relationship(
+        "parent",
+        RelationshipKind::BelongsTo,
+        "users",
+        "parent_id",
+        "id",
+    ));
+    users.relationships.push(relationship(
+        "children",
+        RelationshipKind::HasMany,
+        "users",
+        "id",
+        "parent_id",
+    ));
+    let rendered = render(&users);
+    assert!(
+        rendered.contains("#[rok(belongs_to = User)]\n    pub parent_id: UserId,"),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains("#[rok(has_many(children = User::PARENT_ID))]"),
+        "{rendered}"
+    );
+    assert!(!rendered.contains("super::super::users"), "{rendered}");
 }

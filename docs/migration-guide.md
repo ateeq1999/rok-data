@@ -102,6 +102,26 @@ The query holds its connection while the windows are processed, so a
 callback that writes back needs a second one (give the pool more than one
 connection).
 
+### Relations
+
+**New in 0.3.0.** The schema's foreign keys become relation attributes on
+the model: the holding field carries `#[rok(belongs_to = Target)]`, and the
+referenced table gets `#[rok(has_many(children = Child::FK))]` — or
+`has_one` when the foreign-key column alone is a unique key there. The
+derive expands them into typed relation constants and accessors, so a call
+site reads them off the row:
+
+```rust
+// a post belongs to its author; a user has many posts
+post.author().all(&db).await?;
+user.posts().where_(Post::DRAFT.eq(false)).all(&db).await?;
+```
+
+The relation name follows the column: `author_id` names the relation
+`author`, and a foreign key the schema does not name unambiguously states
+it — `#[rok(belongs_to(author = User))]`. Soft-deleted related rows stay
+out of an accessor's query, like everywhere else a read happens.
+
 ### Named scopes
 
 **New in 0.3.0.** A model can declare **named scopes**: reusable

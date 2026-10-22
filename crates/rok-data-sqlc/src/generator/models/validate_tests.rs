@@ -19,6 +19,7 @@ fn validate_derives_only_inputs_and_patches() {
             validate: true,
             openapi: false,
         },
+        std::slice::from_ref(&users),
     );
     let derive = "serde::Serialize, serde::Deserialize, validator::Validate)]\n";
     assert!(
@@ -40,6 +41,7 @@ fn validate_derives_only_inputs_and_patches() {
                 validate: false,
                 openapi: false,
             },
+            std::slice::from_ref(&users),
         )
         .contains("validat")
     );
@@ -77,6 +79,7 @@ fn validate_puts_length_rules_on_text_fields() {
             validate: true,
             openapi: false,
         },
+        std::slice::from_ref(&users),
     );
     let (input, patch) = rendered
         .split_once("pub struct UpdateUser {")
@@ -118,6 +121,7 @@ fn validate_puts_length_rules_on_text_fields() {
                 validate: false,
                 openapi: false,
             },
+            std::slice::from_ref(&users),
         )
         .contains("validat")
     );
@@ -164,6 +168,7 @@ fn validate_puts_range_rules_on_numeric_fields() {
             validate: true,
             openapi: false,
         },
+        std::slice::from_ref(&users),
     );
     let (input, patch) = rendered
         .split_once("pub struct UpdateUser {")
@@ -231,6 +236,7 @@ fn price_in_range(value: &rust_decimal::Decimal) -> Result<(), validator::Valida
                 validate: false,
                 openapi: false,
             },
+            std::slice::from_ref(&users),
         )
         .contains("validat")
     );
@@ -262,6 +268,7 @@ fn validate_makes_text_typed_ids_measurable() {
             validate: true,
             openapi: false,
         },
+        std::slice::from_ref(&users),
     );
     assert!(
         rendered.contains(
@@ -301,6 +308,7 @@ impl validator::ValidateLength<u64> for UserId {
                 validate: false,
                 openapi: false,
             },
+            std::slice::from_ref(&users),
         )
         .contains("validat")
     );
@@ -314,6 +322,7 @@ impl validator::ValidateLength<u64> for UserId {
             validate: true,
             openapi: false,
         },
+        std::slice::from_ref(&users),
     );
     assert!(!rendered.contains("ValidateLength"), "{rendered}");
     assert!(
