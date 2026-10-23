@@ -5,18 +5,15 @@
 mod support;
 
 use axum::http::{Method, StatusCode};
-use rok_api_example::db::authors::models::NewAuthor;
-use rok_api_example::db::authors::write as write_author;
-use rok_api_example::db::books::models::NewBook;
-use rok_api_example::db::books::write as write_book;
-use rok_api_example::db::loans::models::NewLoan;
-use rok_api_example::db::loans::write;
+use rok_api_example::db::authors::models::{Author, NewAuthor};
+use rok_api_example::db::books::models::{Book, NewBook};
+use rok_api_example::db::loans::models::{Loan, NewLoan};
 use serde_json::json;
 use support::{Database, TestResult, call, user};
 
 /// Inserts an author and a book of theirs, and answers the book's id.
 async fn book(pool: &sqlx::PgPool) -> Result<uuid::Uuid, rok_data::Error> {
-    let author = write_author::create(
+    let author = Author::create(
         pool,
         NewAuthor {
             id: None,
@@ -25,7 +22,7 @@ async fn book(pool: &sqlx::PgPool) -> Result<uuid::Uuid, rok_data::Error> {
         },
     )
     .await?;
-    let book = write_book::create(
+    let book = Book::create(
         pool,
         NewBook {
             id: None,
@@ -68,7 +65,7 @@ async fn a_loan_is_returned_by_an_update() -> TestResult {
     let Some(db) = Database::fresh().await? else {
         return Ok(());
     };
-    let author = write_author::create(
+    let author = Author::create(
         &db.pool,
         NewAuthor {
             id: None,
@@ -77,7 +74,7 @@ async fn a_loan_is_returned_by_an_update() -> TestResult {
         },
     )
     .await?;
-    let book = write_book::create(
+    let book = Book::create(
         &db.pool,
         NewBook {
             id: None,
@@ -88,7 +85,7 @@ async fn a_loan_is_returned_by_an_update() -> TestResult {
         },
     )
     .await?;
-    let loan = write::create(
+    let loan = Loan::create(
         &db.pool,
         NewLoan {
             id: None,

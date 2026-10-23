@@ -3,31 +3,95 @@
 use super::models::{ApiKey, ApiKeyId, NewApiKey, UpdateApiKey};
 use rok_data::Model;
 
-/// Inserts one row and returns it as stored. Defaulted columns left as `None`
-/// are omitted from the `INSERT` so the database default applies.
+impl ApiKey {
+    /// Inserts one row and returns it as stored. Defaulted columns left as `None`
+    /// are omitted from the `INSERT` so the database default applies.
+    pub async fn create<'e, E>(executor: E, input: NewApiKey) -> Result<ApiKey, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        let mut insert = ApiKey::insert_builder();
+        insert = insert.set(ApiKey::ID, input.id.unwrap_or_else(ApiKeyId::generate));
+        insert = insert.set(ApiKey::USER_ID, input.user_id);
+        insert = insert.set(ApiKey::NAME, input.name);
+        insert = insert.set(ApiKey::KEY_PREFIX, input.key_prefix);
+        insert = insert.set(ApiKey::KEY_HASH, input.key_hash);
+        if let Some(value) = input.scope {
+            insert = insert.set(ApiKey::SCOPE, value);
+        }
+        insert = insert.set(ApiKey::EXPIRES_AT, input.expires_at);
+        insert = insert.set(ApiKey::LAST_USED_AT, input.last_used_at);
+        insert = insert.set(ApiKey::REVOKED_AT, input.revoked_at);
+
+        insert.exec(executor).await
+    }
+
+    /// Applies a partial patch and returns the patched row, or `None` if no row has
+    /// the given primary key. An empty patch issues no `UPDATE` and returns the
+    /// current row.
+    pub async fn patch<'e, E>(
+        executor: E,
+        id: ApiKeyId,
+        input: UpdateApiKey,
+    ) -> Result<Option<ApiKey>, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        if input.is_empty() {
+            return super::read::get_by_id(executor, id).await;
+        }
+
+        let mut update = ApiKey::update_all().filter(ApiKey::ID.eq(id));
+        if let Some(value) = input.user_id {
+            update = update.set(ApiKey::USER_ID, value);
+        }
+        if let Some(value) = input.name {
+            update = update.set(ApiKey::NAME, value);
+        }
+        if let Some(value) = input.key_prefix {
+            update = update.set(ApiKey::KEY_PREFIX, value);
+        }
+        if let Some(value) = input.key_hash {
+            update = update.set(ApiKey::KEY_HASH, value);
+        }
+        if let Some(value) = input.scope {
+            update = update.set(ApiKey::SCOPE, value);
+        }
+        if let Some(value) = input.expires_at {
+            update = update.set(ApiKey::EXPIRES_AT, value);
+        }
+        if let Some(value) = input.last_used_at {
+            update = update.set(ApiKey::LAST_USED_AT, value);
+        }
+        if let Some(value) = input.revoked_at {
+            update = update.set(ApiKey::REVOKED_AT, value);
+        }
+        update.returning_one(executor).await
+    }
+
+    /// Deletes the row with the given primary key and returns the number of rows that existed.
+    pub async fn destroy<'e, E>(executor: E, id: ApiKeyId) -> Result<u64, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        ApiKey::query()
+            .filter(ApiKey::ID.eq(id))
+            .delete(executor)
+            .await
+    }
+}
+
+/// Calls [`ApiKey::create`], which this module function forwards to.
+#[deprecated(note = "call `ApiKey::create` instead")]
 pub async fn create<'e, E>(executor: E, input: NewApiKey) -> Result<ApiKey, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    let mut insert = ApiKey::insert_builder();
-    insert = insert.set(ApiKey::ID, input.id.unwrap_or_else(ApiKeyId::generate));
-    insert = insert.set(ApiKey::USER_ID, input.user_id);
-    insert = insert.set(ApiKey::NAME, input.name);
-    insert = insert.set(ApiKey::KEY_PREFIX, input.key_prefix);
-    insert = insert.set(ApiKey::KEY_HASH, input.key_hash);
-    if let Some(value) = input.scope {
-        insert = insert.set(ApiKey::SCOPE, value);
-    }
-    insert = insert.set(ApiKey::EXPIRES_AT, input.expires_at);
-    insert = insert.set(ApiKey::LAST_USED_AT, input.last_used_at);
-    insert = insert.set(ApiKey::REVOKED_AT, input.revoked_at);
-
-    insert.exec(executor).await
+    ApiKey::create(executor, input).await
 }
 
-/// Applies a partial patch and returns the patched row, or `None` if no row has
-/// the given primary key. An empty patch issues no `UPDATE` and returns the
-/// current row.
+/// Calls [`ApiKey::patch`], which this module function forwards to.
+#[deprecated(note = "call `ApiKey::patch` instead")]
 pub async fn patch<'e, E>(
     executor: E,
     id: ApiKeyId,
@@ -36,45 +100,14 @@ pub async fn patch<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    if input.is_empty() {
-        return super::read::get_by_id(executor, id).await;
-    }
-
-    let mut update = ApiKey::update_all().filter(ApiKey::ID.eq(id));
-    if let Some(value) = input.user_id {
-        update = update.set(ApiKey::USER_ID, value);
-    }
-    if let Some(value) = input.name {
-        update = update.set(ApiKey::NAME, value);
-    }
-    if let Some(value) = input.key_prefix {
-        update = update.set(ApiKey::KEY_PREFIX, value);
-    }
-    if let Some(value) = input.key_hash {
-        update = update.set(ApiKey::KEY_HASH, value);
-    }
-    if let Some(value) = input.scope {
-        update = update.set(ApiKey::SCOPE, value);
-    }
-    if let Some(value) = input.expires_at {
-        update = update.set(ApiKey::EXPIRES_AT, value);
-    }
-    if let Some(value) = input.last_used_at {
-        update = update.set(ApiKey::LAST_USED_AT, value);
-    }
-    if let Some(value) = input.revoked_at {
-        update = update.set(ApiKey::REVOKED_AT, value);
-    }
-    update.returning_one(executor).await
+    ApiKey::patch(executor, id, input).await
 }
 
-/// Deletes the row with the given primary key and returns the number of rows that existed.
+/// Calls [`ApiKey::destroy`], which this module function forwards to.
+#[deprecated(note = "call `ApiKey::destroy` instead")]
 pub async fn destroy<'e, E>(executor: E, id: ApiKeyId) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    ApiKey::query()
-        .filter(ApiKey::ID.eq(id))
-        .delete(executor)
-        .await
+    ApiKey::destroy(executor, id).await
 }

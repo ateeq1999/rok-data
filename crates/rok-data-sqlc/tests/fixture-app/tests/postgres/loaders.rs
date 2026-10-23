@@ -10,7 +10,7 @@ pub(super) async fn belongs_to_loader_fetches_every_parent_in_one_query(pool: &P
 
     let mut categories = Vec::new();
     for name in ["loader-a", "loader-b", "loader-c"] {
-        let category = db::categories::write::create(
+        let category = db::categories::models::Category::create(
             pool,
             NewCategory {
                 name: name.to_owned(),
@@ -24,7 +24,7 @@ pub(super) async fn belongs_to_loader_fetches_every_parent_in_one_query(pool: &P
     let mut products = Vec::new();
     for index in 0..50_u128 {
         let category = &categories[usize::try_from(index % 3).unwrap()];
-        let product = db::products::write::create(
+        let product = db::products::models::Product::create(
             pool,
             NewProduct {
                 id: ProductId::from(uuid::Uuid::from_u128(20_000 + index)),
@@ -80,7 +80,7 @@ pub(super) async fn has_many_loader_stays_in_the_tenant_and_skips_deleted_rows(p
     use db::tenants::models::{NewTenant, TenantId};
 
     let tenant = async |id: u128| {
-        db::tenants::write::create(
+        db::tenants::models::Tenant::create(
             pool,
             NewTenant {
                 id: TenantId::from(uuid::Uuid::from_u128(id)),
@@ -94,7 +94,7 @@ pub(super) async fn has_many_loader_stays_in_the_tenant_and_skips_deleted_rows(p
     let tenant_a = tenant(20_101).await;
     let tenant_b = tenant(20_102).await;
     let post = async |tenant, title: &str| {
-        db::posts::write::create(
+        db::posts::models::Post::create(
             pool,
             tenant,
             NewPost {
@@ -107,7 +107,7 @@ pub(super) async fn has_many_loader_stays_in_the_tenant_and_skips_deleted_rows(p
     let commented = post(tenant_a, "commented").await;
     let quiet = post(tenant_a, "quiet").await;
     let comment = async |tenant, post_id, body: &str| {
-        db::comments::write::create(
+        db::comments::models::Comment::create(
             pool,
             tenant,
             NewComment {
@@ -125,7 +125,7 @@ pub(super) async fn has_many_loader_stays_in_the_tenant_and_skips_deleted_rows(p
     // The foreign key does not stop another tenant's row from pointing here.
     let foreign = comment(tenant_b, commented.id, "foreign").await;
     assert!(
-        db::comments::write::destroy(pool, tenant_a, deleted.id)
+        db::comments::models::Comment::destroy(pool, tenant_a, deleted.id)
             .await
             .unwrap()
             > 0
@@ -159,7 +159,7 @@ pub(super) async fn has_many_loader_stays_in_the_tenant_and_skips_deleted_rows(p
     );
 
     assert!(
-        db::posts::write::destroy(pool, tenant_a, commented.id)
+        db::posts::models::Post::destroy(pool, tenant_a, commented.id)
             .await
             .unwrap()
             > 0
@@ -185,7 +185,7 @@ pub(super) async fn several_foreign_keys_to_one_table_get_distinct_names(pool: &
     };
 
     let user = async |email: &str| {
-        db::users::write::create(
+        db::users::models::User::create(
             pool,
             NewUser {
                 email: email.to_owned(),
@@ -197,7 +197,7 @@ pub(super) async fn several_foreign_keys_to_one_table_get_distinct_names(pool: &
     let clerk = user("clerk@example.com").await;
     let manager = user("manager@example.com").await;
     let invoice = async |approved_by_user_id, total_cents| {
-        db::invoices::write::create(
+        db::invoices::models::Invoice::create(
             pool,
             NewInvoice {
                 created_by_user_id: clerk.id,
@@ -239,7 +239,7 @@ pub(super) async fn unique_foreign_key_loads_one_row(pool: &PgPool) {
 
     let mut users = Vec::new();
     for email in ["profiled@example.com", "unprofiled@example.com"] {
-        let user = db::users::write::create(
+        let user = db::users::models::User::create(
             pool,
             NewUser {
                 email: email.to_owned(),
@@ -249,7 +249,7 @@ pub(super) async fn unique_foreign_key_loads_one_row(pool: &PgPool) {
         .unwrap();
         users.push(user);
     }
-    let profile = db::user_profiles::write::create(
+    let profile = db::user_profiles::models::UserProfile::create(
         pool,
         NewUserProfile {
             user_id: users[0].id,
@@ -276,7 +276,7 @@ pub(super) async fn self_reference_loads_parent_and_children(pool: &PgPool) {
     use db::org_units::relationships::{load_children, load_parent};
 
     let unit = async |parent_id, name: &str| {
-        db::org_units::write::create(
+        db::org_units::models::OrgUnit::create(
             pool,
             NewOrgUnit {
                 parent_id,
@@ -316,7 +316,7 @@ pub(super) async fn renamed_relationships_load_under_their_new_names(pool: &PgPo
     use db::users::relationships::load_authored_expense_claims;
 
     let user = async |email: &str| {
-        db::users::write::create(
+        db::users::models::User::create(
             pool,
             NewUser {
                 email: email.to_owned(),
@@ -328,7 +328,7 @@ pub(super) async fn renamed_relationships_load_under_their_new_names(pool: &PgPo
     let author = user("author@example.com").await;
     let approver = user("approver@example.com").await;
     let claim = async |amount_cents| {
-        db::expense_claims::write::create(
+        db::expense_claims::models::ExpenseClaim::create(
             pool,
             NewExpenseClaim {
                 created_by_user_id: author.id,

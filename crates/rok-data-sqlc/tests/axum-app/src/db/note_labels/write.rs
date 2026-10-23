@@ -5,34 +5,133 @@ use super::super::notes::models::NoteId;
 use super::models::{NewNoteLabel, NoteLabel, NoteLabelKey};
 use rok_data::Model;
 
-/// Inserts one row and returns it as stored.
+impl NoteLabel {
+    /// Inserts one row and returns it as stored.
+    pub async fn create<'e, E>(
+        executor: E,
+        input: NewNoteLabel,
+    ) -> Result<NoteLabel, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        NoteLabel::insert_builder()
+            .set(NoteLabel::NOTE_ID, input.note_id)
+            .set(NoteLabel::LABEL_ID, input.label_id)
+            .exec(executor)
+            .await
+    }
+
+    // No updatable columns detected; patch is not generated for this table.
+
+    /// Deletes the row with the given primary key and returns the number of rows that existed.
+    pub async fn destroy<'e, E>(executor: E, key: NoteLabelKey) -> Result<u64, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        NoteLabel::query()
+            .filter(NoteLabel::NOTE_ID.eq(key.note_id))
+            .filter(NoteLabel::LABEL_ID.eq(key.label_id))
+            .delete(executor)
+            .await
+    }
+
+    /// Pairs the `notes` row with the `labels` row, and returns whether the pair
+    /// is new: `false` when they are already paired.
+    pub async fn attach<'e, E>(
+        executor: E,
+        note_id: NoteId,
+        label_id: LabelId,
+    ) -> Result<bool, sqlx::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        let result = sqlx::query(
+            r#"
+            INSERT INTO note_labels (note_id, label_id)
+            VALUES ($1, $2)
+            ON CONFLICT (note_id, label_id) DO NOTHING
+            "#,
+        )
+        .bind(note_id)
+        .bind(label_id)
+        .execute(executor)
+        .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Unpairs the `notes` row from the `labels` row, and returns whether they
+    /// were paired.
+    pub async fn detach<'e, E>(
+        executor: E,
+        note_id: NoteId,
+        label_id: LabelId,
+    ) -> Result<bool, sqlx::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        let result = sqlx::query(
+            r#"
+            DELETE FROM note_labels
+            WHERE note_id = $1 AND label_id = $2
+            "#,
+        )
+        .bind(note_id)
+        .bind(label_id)
+        .execute(executor)
+        .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Replaces the `labels` rows paired with the `notes` row by `label_ids`, in one
+    /// statement: pairs missing from it are removed, and new ones added.
+    pub async fn sync<'e, E>(
+        executor: E,
+        note_id: NoteId,
+        label_ids: &[LabelId],
+    ) -> Result<(), sqlx::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        sqlx::query(
+            r#"
+            WITH rok_data_sqlc_removed AS (
+                DELETE FROM note_labels
+                WHERE note_id = $1 AND label_id <> ALL($2)
+            )
+            INSERT INTO note_labels (note_id, label_id)
+            SELECT DISTINCT $1, rok_data_sqlc_key
+            FROM UNNEST($2) AS rok_data_sqlc_wanted (rok_data_sqlc_key)
+            ON CONFLICT (note_id, label_id) DO NOTHING
+            "#,
+        )
+        .bind(note_id)
+        .bind(label_ids)
+        .execute(executor)
+        .await?;
+        Ok(())
+    }
+}
+
+/// Calls [`NoteLabel::create`], which this module function forwards to.
+#[deprecated(note = "call `NoteLabel::create` instead")]
 pub async fn create<'e, E>(executor: E, input: NewNoteLabel) -> Result<NoteLabel, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    NoteLabel::insert_builder()
-        .set(NoteLabel::NOTE_ID, input.note_id)
-        .set(NoteLabel::LABEL_ID, input.label_id)
-        .exec(executor)
-        .await
+    NoteLabel::create(executor, input).await
 }
 
-// No updatable columns detected; patch is not generated for this table.
-
-/// Deletes the row with the given primary key and returns the number of rows that existed.
+/// Calls [`NoteLabel::destroy`], which this module function forwards to.
+#[deprecated(note = "call `NoteLabel::destroy` instead")]
 pub async fn destroy<'e, E>(executor: E, key: NoteLabelKey) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    NoteLabel::query()
-        .filter(NoteLabel::NOTE_ID.eq(key.note_id))
-        .filter(NoteLabel::LABEL_ID.eq(key.label_id))
-        .delete(executor)
-        .await
+    NoteLabel::destroy(executor, key).await
 }
 
-/// Pairs the `notes` row with the `labels` row, and returns whether the pair
-/// is new: `false` when they are already paired.
+/// Calls [`NoteLabel::attach`], which this module function forwards to.
+#[deprecated(note = "call `NoteLabel::attach` instead")]
 pub async fn attach<'e, E>(
     executor: E,
     note_id: NoteId,
@@ -41,22 +140,11 @@ pub async fn attach<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    let result = sqlx::query(
-        r#"
-        INSERT INTO note_labels (note_id, label_id)
-        VALUES ($1, $2)
-        ON CONFLICT (note_id, label_id) DO NOTHING
-        "#,
-    )
-    .bind(note_id)
-    .bind(label_id)
-    .execute(executor)
-    .await?;
-    Ok(result.rows_affected() > 0)
+    NoteLabel::attach(executor, note_id, label_id).await
 }
 
-/// Unpairs the `notes` row from the `labels` row, and returns whether they
-/// were paired.
+/// Calls [`NoteLabel::detach`], which this module function forwards to.
+#[deprecated(note = "call `NoteLabel::detach` instead")]
 pub async fn detach<'e, E>(
     executor: E,
     note_id: NoteId,
@@ -65,21 +153,11 @@ pub async fn detach<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    let result = sqlx::query(
-        r#"
-        DELETE FROM note_labels
-        WHERE note_id = $1 AND label_id = $2
-        "#,
-    )
-    .bind(note_id)
-    .bind(label_id)
-    .execute(executor)
-    .await?;
-    Ok(result.rows_affected() > 0)
+    NoteLabel::detach(executor, note_id, label_id).await
 }
 
-/// Replaces the `labels` rows paired with the `notes` row by `label_ids`, in one
-/// statement: pairs missing from it are removed, and new ones added.
+/// Calls [`NoteLabel::sync`], which this module function forwards to.
+#[deprecated(note = "call `NoteLabel::sync` instead")]
 pub async fn sync<'e, E>(
     executor: E,
     note_id: NoteId,
@@ -88,21 +166,5 @@ pub async fn sync<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query(
-        r#"
-        WITH rok_data_sqlc_removed AS (
-            DELETE FROM note_labels
-            WHERE note_id = $1 AND label_id <> ALL($2)
-        )
-        INSERT INTO note_labels (note_id, label_id)
-        SELECT DISTINCT $1, rok_data_sqlc_key
-        FROM UNNEST($2) AS rok_data_sqlc_wanted (rok_data_sqlc_key)
-        ON CONFLICT (note_id, label_id) DO NOTHING
-        "#,
-    )
-    .bind(note_id)
-    .bind(label_ids)
-    .execute(executor)
-    .await?;
-    Ok(())
+    NoteLabel::sync(executor, note_id, label_ids).await
 }

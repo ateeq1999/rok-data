@@ -137,7 +137,7 @@ pub async fn attach_notes<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    super::super::note_labels::write::attach(executor, note_id, label_id).await
+    super::super::note_labels::models::NoteLabel::attach(executor, note_id, label_id).await
 }
 
 /// Unpairs the row from the `notes` row, and returns whether they were paired.
@@ -149,5 +149,5 @@ pub async fn detach_notes<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    super::super::note_labels::write::detach(executor, note_id, label_id).await
+    super::super::note_labels::models::NoteLabel::detach(executor, note_id, label_id).await
 }

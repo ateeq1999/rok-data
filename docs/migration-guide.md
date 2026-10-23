@@ -26,8 +26,15 @@ flags, outputs and exit codes are the same.
 | `Model::create()`     | `Model::insert_builder()` | the insert builder: one column at a time, raw expressions, conflict handling |
 | `row.save(&db)`       | `row.update(&db)`         | the row-level update by primary key; returns the stored row |
 | `row.save_only(&db, columns)` | `row.update_only(&db, columns)` | the row-level update of the listed columns only |
-| `write::update(exec, id, input)` | `write::patch(exec, id, input)` | the generated update: returns the patched row, `None` when missing |
-| `write::delete(exec, id)` | `write::destroy(exec, id)` | the generated delete: returns the deleted count (`u64`), not `bool` |
+| `users::write::create(exec, input)` | `User::create(exec, input)` | the generated insert, now on the model |
+| `users::write::update(exec, id, input)` | `User::patch(exec, id, input)` | the generated update: returns the patched row, `None` when missing |
+| `users::write::delete(exec, id)` | `User::destroy(exec, id)` | the generated delete: returns the deleted count (`u64`), not `bool` |
+| `users::write::restore` / `delete_permanently` | `User::restore` / `User::delete_permanently` | the soft-delete pair, now on the model |
+| `user_roles::write::attach` / `detach` / `sync` | `UserRole::attach` / `detach` / `sync` | a join table's pair writes, on the join model |
+
+The module functions (`users::write::create`, …) still compile for one
+release: each forwards to the model verb and is `#[deprecated]`, so the
+compiler points every call site at its replacement.
 
 ```rust
 // before

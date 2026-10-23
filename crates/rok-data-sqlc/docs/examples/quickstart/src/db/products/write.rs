@@ -3,37 +3,101 @@
 use super::models::{NewProduct, Product, ProductId, UpdateProduct};
 use rok_data::Model;
 
-/// Inserts one row and returns it as stored. Defaulted columns left as `None`
-/// are omitted from the `INSERT` so the database default applies.
+impl Product {
+    /// Inserts one row and returns it as stored. Defaulted columns left as `None`
+    /// are omitted from the `INSERT` so the database default applies.
+    pub async fn create<'e, E>(executor: E, input: NewProduct) -> Result<Product, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        let mut insert = Product::insert_builder();
+        if let Some(value) = input.id {
+            insert = insert.set(Product::ID, value);
+        }
+        insert = insert.set(Product::CATEGORY_ID, input.category_id);
+        insert = insert.set(Product::SKU, input.sku);
+        insert = insert.set(Product::NAME, input.name);
+        insert = insert.set(Product::PRICE, input.price);
+        if let Some(value) = input.status {
+            insert = insert.set(Product::STATUS, value);
+        }
+        if let Some(value) = input.tags {
+            insert = insert.set(Product::TAGS, value);
+        }
+        if let Some(value) = input.created_at {
+            insert = insert.set(Product::CREATED_AT, value);
+        }
+        insert = insert.set(Product::DESCRIPTION, input.description);
+
+        insert.exec(executor).await
+    }
+
+    /// Applies a partial patch and returns the patched row, or `None` if no row has
+    /// the given primary key. An empty patch issues no `UPDATE` and returns the
+    /// current row.
+    pub async fn patch<'e, E>(
+        executor: E,
+        id: ProductId,
+        input: UpdateProduct,
+    ) -> Result<Option<Product>, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        if input.is_empty() {
+            return super::read::get_by_id(executor, id).await;
+        }
+
+        let mut update = Product::update_all().filter(Product::ID.eq(id));
+        if let Some(value) = input.category_id {
+            update = update.set(Product::CATEGORY_ID, value);
+        }
+        if let Some(value) = input.sku {
+            update = update.set(Product::SKU, value);
+        }
+        if let Some(value) = input.name {
+            update = update.set(Product::NAME, value);
+        }
+        if let Some(value) = input.price {
+            update = update.set(Product::PRICE, value);
+        }
+        if let Some(value) = input.status {
+            update = update.set(Product::STATUS, value);
+        }
+        if let Some(value) = input.tags {
+            update = update.set(Product::TAGS, value);
+        }
+        if let Some(value) = input.created_at {
+            update = update.set(Product::CREATED_AT, value);
+        }
+        if let Some(value) = input.description {
+            update = update.set(Product::DESCRIPTION, value);
+        }
+        update.returning_one(executor).await
+    }
+
+    /// Deletes the row with the given primary key and returns the number of rows that existed.
+    pub async fn destroy<'e, E>(executor: E, id: ProductId) -> Result<u64, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        Product::query()
+            .filter(Product::ID.eq(id))
+            .delete(executor)
+            .await
+    }
+}
+
+/// Calls [`Product::create`], which this module function forwards to.
+#[deprecated(note = "call `Product::create` instead")]
 pub async fn create<'e, E>(executor: E, input: NewProduct) -> Result<Product, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    let mut insert = Product::insert_builder();
-    if let Some(value) = input.id {
-        insert = insert.set(Product::ID, value);
-    }
-    insert = insert.set(Product::CATEGORY_ID, input.category_id);
-    insert = insert.set(Product::SKU, input.sku);
-    insert = insert.set(Product::NAME, input.name);
-    insert = insert.set(Product::PRICE, input.price);
-    if let Some(value) = input.status {
-        insert = insert.set(Product::STATUS, value);
-    }
-    if let Some(value) = input.tags {
-        insert = insert.set(Product::TAGS, value);
-    }
-    if let Some(value) = input.created_at {
-        insert = insert.set(Product::CREATED_AT, value);
-    }
-    insert = insert.set(Product::DESCRIPTION, input.description);
-
-    insert.exec(executor).await
+    Product::create(executor, input).await
 }
 
-/// Applies a partial patch and returns the patched row, or `None` if no row has
-/// the given primary key. An empty patch issues no `UPDATE` and returns the
-/// current row.
+/// Calls [`Product::patch`], which this module function forwards to.
+#[deprecated(note = "call `Product::patch` instead")]
 pub async fn patch<'e, E>(
     executor: E,
     id: ProductId,
@@ -42,45 +106,14 @@ pub async fn patch<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    if input.is_empty() {
-        return super::read::get_by_id(executor, id).await;
-    }
-
-    let mut update = Product::update_all().filter(Product::ID.eq(id));
-    if let Some(value) = input.category_id {
-        update = update.set(Product::CATEGORY_ID, value);
-    }
-    if let Some(value) = input.sku {
-        update = update.set(Product::SKU, value);
-    }
-    if let Some(value) = input.name {
-        update = update.set(Product::NAME, value);
-    }
-    if let Some(value) = input.price {
-        update = update.set(Product::PRICE, value);
-    }
-    if let Some(value) = input.status {
-        update = update.set(Product::STATUS, value);
-    }
-    if let Some(value) = input.tags {
-        update = update.set(Product::TAGS, value);
-    }
-    if let Some(value) = input.created_at {
-        update = update.set(Product::CREATED_AT, value);
-    }
-    if let Some(value) = input.description {
-        update = update.set(Product::DESCRIPTION, value);
-    }
-    update.returning_one(executor).await
+    Product::patch(executor, id, input).await
 }
 
-/// Deletes the row with the given primary key and returns the number of rows that existed.
+/// Calls [`Product::destroy`], which this module function forwards to.
+#[deprecated(note = "call `Product::destroy` instead")]
 pub async fn destroy<'e, E>(executor: E, id: ProductId) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    Product::query()
-        .filter(Product::ID.eq(id))
-        .delete(executor)
-        .await
+    Product::destroy(executor, id).await
 }

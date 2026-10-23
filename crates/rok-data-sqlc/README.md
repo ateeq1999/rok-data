@@ -248,7 +248,7 @@ transaction boundary is always yours.
 <!-- source: docs/examples/quickstart/src/lib.rs -->
 ```rust
     // Every generated function takes an executor first: here, the pool.
-    let tools = db::categories::write::create(
+    let tools = Category::create(
         pool,
         NewCategory {
             name: "Tools".into(),
@@ -259,7 +259,7 @@ transaction boundary is always yours.
 
     // Several calls in one transaction: pass `&mut *tx` instead.
     let mut tx = pool.begin().await?;
-    let hammer = db::products::write::create(
+    let hammer = Product::create(
         &mut *tx,
         NewProduct {
             id: None,
@@ -279,7 +279,7 @@ transaction boundary is always yours.
         description: Some(Some("16 oz, fibreglass handle".into())),
         ..UpdateProduct::default()
     };
-    db::products::write::patch(&mut *tx, hammer.id, patch).await?;
+    Product::patch(&mut *tx, hammer.id, patch).await?;
     tx.commit().await?;
 ```
 
@@ -730,7 +730,7 @@ pub async fn patch<'e, E>(
     db::session::set_user(&mut tx, user).await?;
 
     // The tenant comes right after the executor, on every function.
-    let invoice = db::invoices::write::create(
+    let invoice = Invoice::create(
         &mut *tx,
         org,
         NewInvoice {
@@ -747,8 +747,7 @@ pub async fn patch<'e, E>(
         status: Some(InvoiceStatus::Paid),
         ..UpdateInvoice::default()
     };
-    let outcome =
-        db::invoices::write::patch(&mut *tx, org, invoice.id, invoice.row_version, patch).await?;
+    let outcome = Invoice::patch(&mut *tx, org, invoice.id, invoice.row_version, patch).await?;
     match outcome {
         UpdateOutcome::Updated(paid) => assert_eq!(paid.row_version, invoice.row_version + 1),
         UpdateOutcome::NotFound => println!("deleted meanwhile"),
@@ -756,10 +755,10 @@ pub async fn patch<'e, E>(
     }
 
     // Soft delete: reads skip the row until it is restored.
-    db::invoices::write::destroy(&mut *tx, org, invoice.id).await?;
+    Invoice::destroy(&mut *tx, org, invoice.id).await?;
     let hidden = db::invoices::read::get_by_number(&mut *tx, org, "INV-001").await?;
     assert!(hidden.is_none());
-    db::invoices::write::restore(&mut *tx, org, invoice.id).await?;
+    Invoice::restore(&mut *tx, org, invoice.id).await?;
     tx.commit().await?;
     Ok(())
 ```
@@ -852,7 +851,7 @@ hand-written request type. The handler runs only for a validated body:
         State(pool): State<PgPool>,
         ValidatedJson(input): ValidatedJson<NewMember>,
     ) -> Result<Json<Member>, StatusCode> {
-        let member = crate::db::members::write::create(&pool, input)
+        let member = Member::create(&pool, input)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         Ok(Json(member))
@@ -868,7 +867,7 @@ and needs no `JsonConfig` error handler:
         pool: web::Data<PgPool>,
         ValidatedJson(input): ValidatedJson<NewMember>,
     ) -> actix_web::Result<web::Json<Member>> {
-        let member = crate::db::members::write::create(pool.get_ref(), input)
+        let member = Member::create(pool.get_ref(), input)
             .await
             .map_err(ErrorInternalServerError)?;
         Ok(web::Json(member))
@@ -1258,7 +1257,7 @@ impl TasksServiceApi for TasksService {
         self.projects
             .task_opened(&mut *conn, user, input.project_id)
             .await?;
-        let row = repo::create(&mut *conn, input.into_new(user.id)).await?;
+        let row = Task::create(&mut *conn, input.into_new(user.id)).await?;
         Ok(row)
     }
 }

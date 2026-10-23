@@ -3,8 +3,76 @@
 use super::models::{AuditLogEntry, AuditLogEntryId, NewAuditLogEntry, UpdateAuditLogEntry};
 use rok_data::Model;
 
-/// Inserts one row and returns it as stored. Defaulted columns left as `None`
-/// are omitted from the `INSERT` so the database default applies.
+impl AuditLogEntry {
+    /// Inserts one row and returns it as stored. Defaulted columns left as `None`
+    /// are omitted from the `INSERT` so the database default applies.
+    pub async fn create<'e, E>(
+        executor: E,
+        input: NewAuditLogEntry,
+    ) -> Result<AuditLogEntry, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        let mut insert = AuditLogEntry::insert_builder();
+        insert = insert.set(
+            AuditLogEntry::ID,
+            input.id.unwrap_or_else(AuditLogEntryId::generate),
+        );
+        insert = insert.set(AuditLogEntry::ACTOR_USER_ID, input.actor_user_id);
+        insert = insert.set(AuditLogEntry::TARGET_USER_ID, input.target_user_id);
+        insert = insert.set(AuditLogEntry::ACTION, input.action);
+        if let Some(value) = input.details {
+            insert = insert.set(AuditLogEntry::DETAILS, value);
+        }
+
+        insert.exec(executor).await
+    }
+
+    /// Applies a partial patch and returns the patched row, or `None` if no row has
+    /// the given primary key. An empty patch issues no `UPDATE` and returns the
+    /// current row.
+    pub async fn patch<'e, E>(
+        executor: E,
+        id: AuditLogEntryId,
+        input: UpdateAuditLogEntry,
+    ) -> Result<Option<AuditLogEntry>, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        if input.is_empty() {
+            return super::read::get_by_id(executor, id).await;
+        }
+
+        let mut update = AuditLogEntry::update_all().filter(AuditLogEntry::ID.eq(id));
+        if let Some(value) = input.actor_user_id {
+            update = update.set(AuditLogEntry::ACTOR_USER_ID, value);
+        }
+        if let Some(value) = input.target_user_id {
+            update = update.set(AuditLogEntry::TARGET_USER_ID, value);
+        }
+        if let Some(value) = input.action {
+            update = update.set(AuditLogEntry::ACTION, value);
+        }
+        if let Some(value) = input.details {
+            update = update.set(AuditLogEntry::DETAILS, value);
+        }
+        update.returning_one(executor).await
+    }
+
+    /// Deletes the row with the given primary key and returns the number of rows that existed.
+    pub async fn destroy<'e, E>(executor: E, id: AuditLogEntryId) -> Result<u64, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        AuditLogEntry::query()
+            .filter(AuditLogEntry::ID.eq(id))
+            .delete(executor)
+            .await
+    }
+}
+
+/// Calls [`AuditLogEntry::create`], which this module function forwards to.
+#[deprecated(note = "call `AuditLogEntry::create` instead")]
 pub async fn create<'e, E>(
     executor: E,
     input: NewAuditLogEntry,
@@ -12,24 +80,11 @@ pub async fn create<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    let mut insert = AuditLogEntry::insert_builder();
-    insert = insert.set(
-        AuditLogEntry::ID,
-        input.id.unwrap_or_else(AuditLogEntryId::generate),
-    );
-    insert = insert.set(AuditLogEntry::ACTOR_USER_ID, input.actor_user_id);
-    insert = insert.set(AuditLogEntry::TARGET_USER_ID, input.target_user_id);
-    insert = insert.set(AuditLogEntry::ACTION, input.action);
-    if let Some(value) = input.details {
-        insert = insert.set(AuditLogEntry::DETAILS, value);
-    }
-
-    insert.exec(executor).await
+    AuditLogEntry::create(executor, input).await
 }
 
-/// Applies a partial patch and returns the patched row, or `None` if no row has
-/// the given primary key. An empty patch issues no `UPDATE` and returns the
-/// current row.
+/// Calls [`AuditLogEntry::patch`], which this module function forwards to.
+#[deprecated(note = "call `AuditLogEntry::patch` instead")]
 pub async fn patch<'e, E>(
     executor: E,
     id: AuditLogEntryId,
@@ -38,33 +93,14 @@ pub async fn patch<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    if input.is_empty() {
-        return super::read::get_by_id(executor, id).await;
-    }
-
-    let mut update = AuditLogEntry::update_all().filter(AuditLogEntry::ID.eq(id));
-    if let Some(value) = input.actor_user_id {
-        update = update.set(AuditLogEntry::ACTOR_USER_ID, value);
-    }
-    if let Some(value) = input.target_user_id {
-        update = update.set(AuditLogEntry::TARGET_USER_ID, value);
-    }
-    if let Some(value) = input.action {
-        update = update.set(AuditLogEntry::ACTION, value);
-    }
-    if let Some(value) = input.details {
-        update = update.set(AuditLogEntry::DETAILS, value);
-    }
-    update.returning_one(executor).await
+    AuditLogEntry::patch(executor, id, input).await
 }
 
-/// Deletes the row with the given primary key and returns the number of rows that existed.
+/// Calls [`AuditLogEntry::destroy`], which this module function forwards to.
+#[deprecated(note = "call `AuditLogEntry::destroy` instead")]
 pub async fn destroy<'e, E>(executor: E, id: AuditLogEntryId) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    AuditLogEntry::query()
-        .filter(AuditLogEntry::ID.eq(id))
-        .delete(executor)
-        .await
+    AuditLogEntry::destroy(executor, id).await
 }

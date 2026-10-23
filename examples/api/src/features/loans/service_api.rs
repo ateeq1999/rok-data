@@ -46,7 +46,7 @@ pub trait LoansServiceApi {
         conn: &mut PgConnection,
         input: CreateLoanDto,
     ) -> Result<Loan, AppError> {
-        let row = repo::create(&mut *conn, input.into()).await?;
+        let row = Loan::create(&mut *conn, input.into()).await?;
         Ok(row)
     }
 
@@ -76,7 +76,7 @@ pub trait LoansServiceApi {
         id: LoanId,
         input: UpdateLoanDto,
     ) -> Result<Loan, AppError> {
-        let row = repo::patch(&mut *conn, id, input.into()).await?;
+        let row = Loan::patch(&mut *conn, id, input.into()).await?;
         match row {
             Some(row) => Ok(row),
             None => Err(not_found()),

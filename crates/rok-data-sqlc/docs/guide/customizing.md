@@ -49,7 +49,7 @@ impl TasksServiceApi for TasksService {
         self.projects
             .task_opened(&mut *conn, user, input.project_id)
             .await?;
-        let row = repo::create(&mut *conn, input.into_new(user.id)).await?;
+        let row = Task::create(&mut *conn, input.into_new(user.id)).await?;
         Ok(row)
     }
 }

@@ -66,7 +66,7 @@ pub trait LabelsServiceApi {
         conn: &mut PgConnection,
         input: CreateLabelDto,
     ) -> Result<Label, AppError> {
-        let row = repo::create(&mut *conn, input.into()).await?;
+        let row = Label::create(&mut *conn, input.into()).await?;
         Ok(row)
     }
 
@@ -96,7 +96,7 @@ pub trait LabelsServiceApi {
         id: LabelId,
         input: UpdateLabelDto,
     ) -> Result<Label, AppError> {
-        let row = repo::patch(&mut *conn, id, input.into()).await?;
+        let row = Label::patch(&mut *conn, id, input.into()).await?;
         match row {
             Some(row) => Ok(row),
             None => Err(not_found()),
@@ -115,7 +115,7 @@ pub trait LabelsServiceApi {
     /// What [`destroy`](Self::destroy) does, on `conn`: the caller's connection or
     /// transaction. Override this one to change it.
     async fn destroy_in(&self, conn: &mut PgConnection, id: LabelId) -> Result<(), AppError> {
-        let deleted = repo::destroy(&mut *conn, id).await?;
+        let deleted = Label::destroy(&mut *conn, id).await?;
         if deleted > 0 {
             Ok(())
         } else {

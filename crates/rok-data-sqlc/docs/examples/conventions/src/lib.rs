@@ -6,8 +6,8 @@
 pub mod db;
 
 use db::UpdateOutcome;
-use db::invoices::models::{NewInvoice, UpdateInvoice};
-use db::organizations::models::{NewOrganization, OrganizationId};
+use db::invoices::models::{Invoice, NewInvoice, UpdateInvoice};
+use db::organizations::models::{NewOrganization, Organization, OrganizationId};
 use db::types::InvoiceStatus;
 use rust_decimal::Decimal;
 use sqlx::PgPool;
@@ -18,7 +18,7 @@ use sqlx::PgPool;
 ///
 /// Any database error.
 pub async fn invoices(pool: &PgPool, user: uuid::Uuid) -> Result<(), rok_data::Error> {
-    let org = db::organizations::write::create(
+    let org = Organization::create(
         pool,
         NewOrganization {
             id: None,
@@ -40,7 +40,7 @@ async fn pay_first_invoice(
     db::session::set_user(&mut tx, user).await?;
 
     // The tenant comes right after the executor, on every function.
-    let invoice = db::invoices::write::create(
+    let invoice = Invoice::create(
         &mut *tx,
         org,
         NewInvoice {
@@ -57,8 +57,7 @@ async fn pay_first_invoice(
         status: Some(InvoiceStatus::Paid),
         ..UpdateInvoice::default()
     };
-    let outcome =
-        db::invoices::write::patch(&mut *tx, org, invoice.id, invoice.row_version, patch).await?;
+    let outcome = Invoice::patch(&mut *tx, org, invoice.id, invoice.row_version, patch).await?;
     match outcome {
         UpdateOutcome::Updated(paid) => assert_eq!(paid.row_version, invoice.row_version + 1),
         UpdateOutcome::NotFound => println!("deleted meanwhile"),
@@ -66,10 +65,10 @@ async fn pay_first_invoice(
     }
 
     // Soft delete: reads skip the row until it is restored.
-    db::invoices::write::destroy(&mut *tx, org, invoice.id).await?;
+    Invoice::destroy(&mut *tx, org, invoice.id).await?;
     let hidden = db::invoices::read::get_by_number(&mut *tx, org, "INV-001").await?;
     assert!(hidden.is_none());
-    db::invoices::write::restore(&mut *tx, org, invoice.id).await?;
+    Invoice::restore(&mut *tx, org, invoice.id).await?;
     tx.commit().await?;
     Ok(())
 }

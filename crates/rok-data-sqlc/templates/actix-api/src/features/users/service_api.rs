@@ -56,7 +56,7 @@ pub trait UsersServiceApi {
         id: UserId,
         input: UpdateUserDto,
     ) -> Result<User, AppError> {
-        let row = repo::patch(&mut *conn, id, input.into()).await?;
+        let row = User::patch(&mut *conn, id, input.into()).await?;
         match row {
             Some(row) => Ok(row),
             None => Err(not_found()),
@@ -75,7 +75,7 @@ pub trait UsersServiceApi {
     /// What [`destroy`](Self::destroy) does, on `conn`: the caller's connection or
     /// transaction. Override this one to change it.
     async fn destroy_in(&self, conn: &mut PgConnection, id: UserId) -> Result<(), AppError> {
-        let deleted = repo::destroy(&mut *conn, id).await?;
+        let deleted = User::destroy(&mut *conn, id).await?;
         if deleted > 0 {
             Ok(())
         } else {
@@ -99,7 +99,7 @@ pub trait UsersServiceApi {
         conn: &mut PgConnection,
         id: UserId,
     ) -> Result<(), AppError> {
-        let deleted = repo::delete_permanently(&mut *conn, id).await?;
+        let deleted = User::delete_permanently(&mut *conn, id).await?;
         if deleted > 0 {
             Ok(())
         } else {

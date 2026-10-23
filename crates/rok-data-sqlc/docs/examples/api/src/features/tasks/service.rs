@@ -11,7 +11,6 @@ use sqlx::{PgConnection, PgPool};
 
 use super::dto::CreateTaskDto;
 use super::model::Task;
-use super::repo;
 use super::service_api::TasksServiceApi;
 use crate::app::ProjectTasksPort;
 use crate::db::projects::models::ProjectId;
@@ -67,7 +66,7 @@ impl TasksServiceApi for TasksService {
         self.projects
             .task_opened(&mut *conn, user, input.project_id)
             .await?;
-        let row = repo::create(&mut *conn, input.into_new(user.id)).await?;
+        let row = Task::create(&mut *conn, input.into_new(user.id)).await?;
         Ok(row)
     }
 }

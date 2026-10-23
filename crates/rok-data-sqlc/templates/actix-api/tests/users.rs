@@ -5,7 +5,7 @@ mod support;
 
 use actix_api::db::types::Role;
 use actix_api::db::users::models::{NewUser, User};
-use actix_api::db::users::{read, write};
+use actix_api::db::users::read;
 use actix_web::http::{Method, StatusCode};
 use serde_json::json;
 use sqlx::PgPool;
@@ -17,7 +17,7 @@ async fn seed(
     email: &str,
     display_name: Option<&str>,
 ) -> Result<User, rok_data::Error> {
-    write::create(
+    User::create(
         pool,
         NewUser {
             id: None,

@@ -5,9 +5,9 @@
 
 pub mod db;
 
-use db::categories::models::NewCategory;
+use db::categories::models::{Category, NewCategory};
 use db::products::filter::{ProductFilter, ProductSortKey};
-use db::products::models::{NewProduct, UpdateProduct};
+use db::products::models::{NewProduct, Product, UpdateProduct};
 use db::search::{Ordered, Page, Sort, Text};
 use db::types::ProductStatus;
 use rust_decimal::Decimal;
@@ -20,7 +20,7 @@ use sqlx::PgPool;
 /// Any database error.
 pub async fn quickstart(pool: &PgPool) -> Result<(), rok_data::Error> {
     // Every generated function takes an executor first: here, the pool.
-    let tools = db::categories::write::create(
+    let tools = Category::create(
         pool,
         NewCategory {
             name: "Tools".into(),
@@ -31,7 +31,7 @@ pub async fn quickstart(pool: &PgPool) -> Result<(), rok_data::Error> {
 
     // Several calls in one transaction: pass `&mut *tx` instead.
     let mut tx = pool.begin().await?;
-    let hammer = db::products::write::create(
+    let hammer = Product::create(
         &mut *tx,
         NewProduct {
             id: None,
@@ -51,7 +51,7 @@ pub async fn quickstart(pool: &PgPool) -> Result<(), rok_data::Error> {
         description: Some(Some("16 oz, fibreglass handle".into())),
         ..UpdateProduct::default()
     };
-    db::products::write::patch(&mut *tx, hammer.id, patch).await?;
+    Product::patch(&mut *tx, hammer.id, patch).await?;
     tx.commit().await?;
 
     // Lookups take the table's typed id, or a unique key.

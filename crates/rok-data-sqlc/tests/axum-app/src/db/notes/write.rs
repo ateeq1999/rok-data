@@ -4,7 +4,160 @@ use super::super::UpdateOutcome;
 use super::models::{NewNote, Note, NoteId, UpdateNote};
 use rok_data::Model;
 
-/// Inserts one row and returns it as stored.
+impl Note {
+    /// Inserts one row and returns it as stored.
+    pub async fn create<'e, E>(
+        executor: E,
+        tenant_id: uuid::Uuid,
+        input: NewNote,
+    ) -> Result<Note, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        Note::insert_builder()
+            .set(Note::TENANT_ID, tenant_id)
+            .set(Note::ID, input.id.unwrap_or_else(NoteId::generate))
+            .set(Note::OWNER_ID, input.owner_id)
+            .set(Note::TITLE, input.title)
+            .set(Note::BODY, input.body)
+            .exec(executor)
+            .await
+    }
+
+    /// Applies a partial patch if the row's `revision` is still `expected_version`.
+    ///
+    /// Returns the patched row, `NotFound` if no row has the given primary key, or
+    /// `VersionConflict` if the row is at another version, in which case nothing
+    /// changes. An empty patch issues no `UPDATE`: it returns the current row,
+    /// unchanged, when the row is at the expected version.
+    /// A soft-deleted row is left unchanged and counts as missing.
+    pub async fn patch<'e, E>(
+        executor: E,
+        tenant_id: uuid::Uuid,
+        id: NoteId,
+        expected_version: i64,
+        input: UpdateNote,
+    ) -> Result<UpdateOutcome<Note>, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        if input.is_empty() {
+            let Some(row) = super::read::get_by_id(executor, tenant_id, id).await? else {
+                return Ok(UpdateOutcome::NotFound);
+            };
+            if row.revision != expected_version {
+                return Ok(UpdateOutcome::VersionConflict);
+            }
+            return Ok(UpdateOutcome::Updated(row));
+        }
+
+        let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new("WITH rok_data_sqlc_target AS (");
+        query.push("SELECT id AS rok_data_sqlc_key_0 FROM notes");
+        query.push(" WHERE tenant_id = ");
+        query.push_bind(tenant_id);
+        query.push(" AND id = ");
+        query.push_bind(id);
+        query.push(" AND deleted_at IS NULL");
+        query.push("), rok_data_sqlc_updated AS (UPDATE notes SET ");
+        let mut assignments = query.separated(", ");
+        if let Some(value) = input.owner_id {
+            assignments.push("owner_id = ");
+            assignments.push_bind_unseparated(value);
+        }
+        if let Some(value) = input.title {
+            assignments.push("title = ");
+            assignments.push_bind_unseparated(value);
+        }
+        if let Some(value) = input.body {
+            assignments.push("body = ");
+            assignments.push_bind_unseparated(value);
+        }
+        query.push(
+            " FROM rok_data_sqlc_target WHERE id = rok_data_sqlc_target.rok_data_sqlc_key_0 AND revision = ",
+        );
+        query.push_bind(expected_version);
+        query.push(
+            r#"
+            RETURNING
+                id,
+                owner_id,
+                tenant_id,
+                title,
+                body,
+                revision,
+                deleted_at
+            )
+            SELECT rok_data_sqlc_updated.*, EXISTS (SELECT 1 FROM rok_data_sqlc_updated) AS rok_data_sqlc_applied
+            FROM rok_data_sqlc_target LEFT JOIN rok_data_sqlc_updated ON TRUE
+            "#,
+        );
+        let Some(row) = query.build().fetch_optional(executor).await? else {
+            return Ok(UpdateOutcome::NotFound);
+        };
+        let applied: bool = sqlx::Row::try_get(&row, "rok_data_sqlc_applied")?;
+        if !applied {
+            return Ok(UpdateOutcome::VersionConflict);
+        }
+        Ok(UpdateOutcome::Updated(sqlx::FromRow::from_row(&row)?))
+    }
+
+    /// Soft-deletes the row with the given primary key by setting `deleted_at` to
+    /// the current time, and returns the number of rows changed: `0` when there is no
+    /// such row or it is already deleted.
+    pub async fn destroy<'e, E>(
+        executor: E,
+        tenant_id: uuid::Uuid,
+        id: NoteId,
+    ) -> Result<u64, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        Note::query()
+            .filter(Note::TENANT_ID.eq(tenant_id))
+            .filter(Note::ID.eq(id))
+            .delete(executor)
+            .await
+    }
+
+    /// Restores the soft-deleted row with the given primary key by clearing `deleted_at`,
+    /// and returns the number of rows changed: `0` when there is no such row or it is
+    /// not deleted.
+    pub async fn restore<'e, E>(
+        executor: E,
+        tenant_id: uuid::Uuid,
+        id: NoteId,
+    ) -> Result<u64, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        Note::query()
+            .filter(Note::TENANT_ID.eq(tenant_id))
+            .filter(Note::ID.eq(id))
+            .restore(executor)
+            .await
+    }
+
+    /// Removes the row with the given primary key from the table, deleted or not, and
+    /// returns the number of rows that existed.
+    pub async fn delete_permanently<'e, E>(
+        executor: E,
+        tenant_id: uuid::Uuid,
+        id: NoteId,
+    ) -> Result<u64, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        Note::query()
+            .filter(Note::TENANT_ID.eq(tenant_id))
+            .filter(Note::ID.eq(id))
+            .with_trashed()
+            .force_delete(executor)
+            .await
+    }
+}
+
+/// Calls [`Note::create`], which this module function forwards to.
+#[deprecated(note = "call `Note::create` instead")]
 pub async fn create<'e, E>(
     executor: E,
     tenant_id: uuid::Uuid,
@@ -13,23 +166,11 @@ pub async fn create<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    Note::insert_builder()
-        .set(Note::TENANT_ID, tenant_id)
-        .set(Note::ID, input.id.unwrap_or_else(NoteId::generate))
-        .set(Note::OWNER_ID, input.owner_id)
-        .set(Note::TITLE, input.title)
-        .set(Note::BODY, input.body)
-        .exec(executor)
-        .await
+    Note::create(executor, tenant_id, input).await
 }
 
-/// Applies a partial patch if the row's `revision` is still `expected_version`.
-///
-/// Returns the patched row, `NotFound` if no row has the given primary key, or
-/// `VersionConflict` if the row is at another version, in which case nothing
-/// changes. An empty patch issues no `UPDATE`: it returns the current row,
-/// unchanged, when the row is at the expected version.
-/// A soft-deleted row is left unchanged and counts as missing.
+/// Calls [`Note::patch`], which this module function forwards to.
+#[deprecated(note = "call `Note::patch` instead")]
 pub async fn patch<'e, E>(
     executor: E,
     tenant_id: uuid::Uuid,
@@ -40,69 +181,11 @@ pub async fn patch<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    if input.is_empty() {
-        let Some(row) = super::read::get_by_id(executor, tenant_id, id).await? else {
-            return Ok(UpdateOutcome::NotFound);
-        };
-        if row.revision != expected_version {
-            return Ok(UpdateOutcome::VersionConflict);
-        }
-        return Ok(UpdateOutcome::Updated(row));
-    }
-
-    let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new("WITH rok_data_sqlc_target AS (");
-    query.push("SELECT id AS rok_data_sqlc_key_0 FROM notes");
-    query.push(" WHERE tenant_id = ");
-    query.push_bind(tenant_id);
-    query.push(" AND id = ");
-    query.push_bind(id);
-    query.push(" AND deleted_at IS NULL");
-    query.push("), rok_data_sqlc_updated AS (UPDATE notes SET ");
-    let mut assignments = query.separated(", ");
-    if let Some(value) = input.owner_id {
-        assignments.push("owner_id = ");
-        assignments.push_bind_unseparated(value);
-    }
-    if let Some(value) = input.title {
-        assignments.push("title = ");
-        assignments.push_bind_unseparated(value);
-    }
-    if let Some(value) = input.body {
-        assignments.push("body = ");
-        assignments.push_bind_unseparated(value);
-    }
-    query.push(
-        " FROM rok_data_sqlc_target WHERE id = rok_data_sqlc_target.rok_data_sqlc_key_0 AND revision = ",
-    );
-    query.push_bind(expected_version);
-    query.push(
-        r#"
-        RETURNING
-            id,
-            owner_id,
-            tenant_id,
-            title,
-            body,
-            revision,
-            deleted_at
-        )
-        SELECT rok_data_sqlc_updated.*, EXISTS (SELECT 1 FROM rok_data_sqlc_updated) AS rok_data_sqlc_applied
-        FROM rok_data_sqlc_target LEFT JOIN rok_data_sqlc_updated ON TRUE
-        "#,
-    );
-    let Some(row) = query.build().fetch_optional(executor).await? else {
-        return Ok(UpdateOutcome::NotFound);
-    };
-    let applied: bool = sqlx::Row::try_get(&row, "rok_data_sqlc_applied")?;
-    if !applied {
-        return Ok(UpdateOutcome::VersionConflict);
-    }
-    Ok(UpdateOutcome::Updated(sqlx::FromRow::from_row(&row)?))
+    Note::patch(executor, tenant_id, id, expected_version, input).await
 }
 
-/// Soft-deletes the row with the given primary key by setting `deleted_at` to
-/// the current time, and returns the number of rows changed: `0` when there is no
-/// such row or it is already deleted.
+/// Calls [`Note::destroy`], which this module function forwards to.
+#[deprecated(note = "call `Note::destroy` instead")]
 pub async fn destroy<'e, E>(
     executor: E,
     tenant_id: uuid::Uuid,
@@ -111,16 +194,11 @@ pub async fn destroy<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    Note::query()
-        .filter(Note::TENANT_ID.eq(tenant_id))
-        .filter(Note::ID.eq(id))
-        .delete(executor)
-        .await
+    Note::destroy(executor, tenant_id, id).await
 }
 
-/// Restores the soft-deleted row with the given primary key by clearing `deleted_at`,
-/// and returns the number of rows changed: `0` when there is no such row or it is
-/// not deleted.
+/// Calls [`Note::restore`], which this module function forwards to.
+#[deprecated(note = "call `Note::restore` instead")]
 pub async fn restore<'e, E>(
     executor: E,
     tenant_id: uuid::Uuid,
@@ -129,15 +207,11 @@ pub async fn restore<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    Note::query()
-        .filter(Note::TENANT_ID.eq(tenant_id))
-        .filter(Note::ID.eq(id))
-        .restore(executor)
-        .await
+    Note::restore(executor, tenant_id, id).await
 }
 
-/// Removes the row with the given primary key from the table, deleted or not, and
-/// returns the number of rows that existed.
+/// Calls [`Note::delete_permanently`], which this module function forwards to.
+#[deprecated(note = "call `Note::delete_permanently` instead")]
 pub async fn delete_permanently<'e, E>(
     executor: E,
     tenant_id: uuid::Uuid,
@@ -146,10 +220,5 @@ pub async fn delete_permanently<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    Note::query()
-        .filter(Note::TENANT_ID.eq(tenant_id))
-        .filter(Note::ID.eq(id))
-        .with_trashed()
-        .force_delete(executor)
-        .await
+    Note::delete_permanently(executor, tenant_id, id).await
 }

@@ -155,7 +155,7 @@ async fn scans_in_transaction(tx: &mut sqlx::PgConnection, table: &str) -> i64 {
 }
 
 async fn create_user(pool: &PgPool, email: &str) -> db::users::models::User {
-    db::users::write::create(
+    db::users::models::User::create(
         pool,
         db::users::models::NewUser {
             email: email.to_owned(),

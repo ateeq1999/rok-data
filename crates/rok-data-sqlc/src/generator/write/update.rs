@@ -5,7 +5,7 @@ use crate::schema::{Column, Table};
 
 use crate::generator::sql::{self, column_clause, ident, live_condition, str_literal, table_ref};
 use crate::generator::{
-    FN_CALL_WIDTH, MAX_WIDTH, keys, push_doc, push_fn_head, push_let_call, push_wide_chain,
+    FN_CALL_WIDTH, keys, max_width, push_doc, push_fn_head, push_let_call, push_wide_chain,
 };
 
 pub(super) fn render_patch(output: &mut String, table: &Table, columns: &[&Column]) {
@@ -211,7 +211,7 @@ fn push_patch_sets(output: &mut String, table: &Table, columns: &[&Column]) {
             column.rust_name.to_uppercase()
         );
         let one_line = format!("        update = update.set({args});");
-        if args.len() <= FN_CALL_WIDTH && one_line.len() <= MAX_WIDTH {
+        if args.len() <= FN_CALL_WIDTH && one_line.len() <= max_width() {
             output.push_str(&one_line);
             output.push('\n');
         } else {
@@ -276,10 +276,10 @@ fn push_query_push(output: &mut String, text: &str) {
     let literal = str_literal(text);
     let one_line = format!("    query.push({literal});");
     let chained = format!("        .push({literal});");
-    if one_line.len() <= MAX_WIDTH {
+    if one_line.len() <= max_width() {
         output.push_str(&one_line);
         output.push('\n');
-    } else if chained.len() <= MAX_WIDTH {
+    } else if chained.len() <= max_width() {
         output.push_str(&format!("    query\n{chained}\n"));
     } else {
         output.push_str(&format!("    query.push(\n        {literal},\n    );\n"));
@@ -322,7 +322,7 @@ fn push_get_by_id(
     args.extend(keys::key_args(table));
     let call = format!("super::read::get_by_id({}).await{trail}", args.join(", "));
     let else_open = else_open.unwrap_or("");
-    let fits = |line: &str| line.len() <= MAX_WIDTH;
+    let fits = |line: &str| line.len() <= max_width();
 
     let one_line = format!("        {lead}{call}{else_open}");
     if fits(&one_line) {

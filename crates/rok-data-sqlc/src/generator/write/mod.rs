@@ -10,9 +10,13 @@
 mod create;
 mod delete;
 mod join;
+mod on_model;
 #[cfg(test)]
 mod tests;
 mod update;
+
+pub use self::on_model::MODEL_VERBS;
+use self::on_model::on_the_model;
 
 use crate::schema::{Column, Table};
 
@@ -22,7 +26,7 @@ use self::join::render_join_writes;
 pub use self::update::{has_versioned_patch, version_column};
 use self::update::{render_patch, render_versioned_patch};
 use super::relationships::join_pair;
-use super::{HEADER, types_import, use_list};
+use super::{HEADER, indented, types_import, use_list};
 
 pub fn render(table: &Table) -> String {
     let insert_columns = table.insert_columns();
@@ -76,30 +80,56 @@ pub fn render(table: &Table) -> String {
     // use-list, so rustfmt's order — super-paths first — stays stable.
     output.push_str("use rok_data::Model;\n");
 
+    // The verbs render at column 0, laid out for the model's `impl`, then
+    // move onto the model.
+    let items = indented(4, || {
+        render_items(
+            table,
+            &insert_columns,
+            &keys,
+            &key_columns,
+            has_update,
+            join.as_ref(),
+        )
+    });
+    output.push_str(&on_the_model(&table.struct_name, &items));
+    output
+}
+
+/// `create`, the key writes, and a join table's pair writes, at column 0.
+fn render_items(
+    table: &Table,
+    insert_columns: &[&Column],
+    keys: &[&Column],
+    key_columns: &[&Column],
+    has_update: bool,
+    join: Option<&super::relationships::JoinPair<'_>>,
+) -> String {
+    let mut items = String::new();
     if insert_columns.is_empty() {
-        output.push_str(
+        items.push_str(
             "\n// No insertable columns detected; create is not generated for this table.\n",
         );
     } else if insert_columns
         .iter()
         .any(|column| column.is_omittable_on_insert())
     {
-        render_dynamic_create(&mut output, table, &insert_columns);
+        render_dynamic_create(&mut items, table, insert_columns);
     } else {
-        render_static_create(&mut output, table, &insert_columns);
+        render_static_create(&mut items, table, insert_columns);
     }
 
     if keys.is_empty() {
-        output.push_str(
+        items.push_str(
             "\n// No primary key detected; update and delete are not generated for this table.\n",
         );
     } else {
-        render_key_writes(&mut output, table, &keys, &key_columns, has_update);
+        render_key_writes(&mut items, table, keys, key_columns, has_update);
     }
-    if let Some(pair) = &join {
-        render_join_writes(&mut output, table, pair);
+    if let Some(pair) = join {
+        render_join_writes(&mut items, table, pair);
     }
-    output
+    items
 }
 
 /// `patch` and `destroy` (with `restore` and `delete_permanently` on a

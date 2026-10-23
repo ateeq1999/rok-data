@@ -3,7 +3,7 @@
 use crate::schema::{Column, Table};
 
 use crate::generator::{
-    FN_CALL_WIDTH, MAX_WIDTH, insert_bind, keys, param_name, push_doc, push_fn_head,
+    FN_CALL_WIDTH, insert_bind, keys, max_width, param_name, push_doc, push_fn_head,
     push_wide_chain,
 };
 
@@ -21,7 +21,7 @@ fn push_set_line(
     let pad = " ".repeat(indent);
     let args = format!("{}::{}, {value}", table.struct_name, const_name(column));
     let one_line = format!("{pad}{builder} = {builder}.set({args});");
-    if args.len() <= FN_CALL_WIDTH && one_line.len() <= MAX_WIDTH {
+    if args.len() <= FN_CALL_WIDTH && one_line.len() <= max_width() {
         output.push_str(&one_line);
         output.push('\n');
     } else {

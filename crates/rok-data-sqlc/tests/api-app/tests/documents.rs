@@ -95,7 +95,11 @@ async fn rows_are_scoped_to_the_tenant_and_the_owning_admin() {
     let fetched = get(&db, &alice, &one).await;
     assert_eq!(fetched.status, StatusCode::OK, "{fetched:?}");
     assert_eq!(fetched.etag.as_deref(), Some("\"1\""));
-    assert_error(&get(&db, &bob, &one).await, StatusCode::NOT_FOUND, "not_found");
+    assert_error(
+        &get(&db, &bob, &one).await,
+        StatusCode::NOT_FOUND,
+        "not_found",
+    );
     assert_error(
         &get(&db, &elsewhere, &one).await,
         StatusCode::NOT_FOUND,
@@ -111,7 +115,11 @@ async fn rows_are_scoped_to_the_tenant_and_the_owning_admin() {
         token: Some(common::token(Uuid::now_v7(), Role::User)),
         ..alice.clone()
     };
-    assert_error(&get(&db, &user, &one).await, StatusCode::FORBIDDEN, "forbidden");
+    assert_error(
+        &get(&db, &user, &one).await,
+        StatusCode::FORBIDDEN,
+        "forbidden",
+    );
     db.drop().await;
 }
 
@@ -160,11 +168,25 @@ async fn update_needs_the_current_version_in_if_match() {
         let answer = call_with(&db, &matching(&alice, stale), Method::PATCH, &one, patch()).await;
         assert_error(&answer, StatusCode::PRECONDITION_FAILED, "version_conflict");
     }
-    let updated = call_with(&db, &matching(&alice, "\"1\""), Method::PATCH, &one, patch()).await;
+    let updated = call_with(
+        &db,
+        &matching(&alice, "\"1\""),
+        Method::PATCH,
+        &one,
+        patch(),
+    )
+    .await;
     assert_eq!(updated.status, StatusCode::OK, "{updated:?}");
     assert_eq!(updated.body["title"], "Final");
     assert_eq!(updated.etag.as_deref(), Some("\"2\""));
-    let again = call_with(&db, &matching(&alice, "\"1\""), Method::PATCH, &one, patch()).await;
+    let again = call_with(
+        &db,
+        &matching(&alice, "\"1\""),
+        Method::PATCH,
+        &one,
+        patch(),
+    )
+    .await;
     assert_error(&again, StatusCode::PRECONDITION_FAILED, "version_conflict");
 
     // Another admin's row stays a 404, whatever the version.
@@ -189,7 +211,11 @@ async fn delete_soft_deletes_restore_undoes_it_and_permanent_purges() {
 
     let deleted = call_with(&db, &alice, Method::DELETE, &one, None).await;
     assert_eq!(deleted.status, StatusCode::NO_CONTENT, "{deleted:?}");
-    assert_error(&get(&db, &alice, &one).await, StatusCode::NOT_FOUND, "not_found");
+    assert_error(
+        &get(&db, &alice, &one).await,
+        StatusCode::NOT_FOUND,
+        "not_found",
+    );
     assert_eq!(get(&db, &alice, DOCUMENTS).await.body["total"], 0);
     let gone = call_with(&db, &alice, Method::DELETE, &one, None).await;
     assert_error(&gone, StatusCode::NOT_FOUND, "not_found");
@@ -244,11 +270,19 @@ async fn search_is_scoped_and_rejects_hidden_columns() {
 
     let hidden = json!({"filter": {"secret": [{"eq": "s-a"}]}});
     let answer = call_with(&db, &alice, Method::POST, &search, Some(hidden)).await;
-    assert_error(&answer, StatusCode::UNPROCESSABLE_ENTITY, "validation_failed");
+    assert_error(
+        &answer,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "validation_failed",
+    );
     assert!(answer.body.to_string().contains("secret"), "{answer:?}");
     let sorted = json!({"sort": "secret"});
     let answer = call_with(&db, &alice, Method::POST, &search, Some(sorted)).await;
-    assert_error(&answer, StatusCode::UNPROCESSABLE_ENTITY, "validation_failed");
+    assert_error(
+        &answer,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "validation_failed",
+    );
     assert!(answer.body.to_string().contains("sort"), "{answer:?}");
     db.drop().await;
 }
@@ -271,9 +305,15 @@ async fn relationships_reach_documents_only_in_the_tenant_and_for_their_owner() 
         if_match: None,
     };
     let label = common::create(&db, "/api/v1/labels", json!({"name": "red"})).await;
-    let task = call_with(&db, &alice, Method::POST, "/api/v1/tasks", Some(json!({"title": "t"})))
-        .await
-        .body;
+    let task = call_with(
+        &db,
+        &alice,
+        Method::POST,
+        "/api/v1/tasks",
+        Some(json!({"title": "t"})),
+    )
+    .await
+    .body;
     let body = json!({
         "code": "a",
         "title": "Draft",
@@ -282,7 +322,10 @@ async fn relationships_reach_documents_only_in_the_tenant_and_for_their_owner() 
     });
     let created = call_with(&db, &alice, Method::POST, DOCUMENTS, Some(body)).await;
     assert_eq!(created.status, StatusCode::CREATED, "{created:?}");
-    let one = format!("{DOCUMENTS}/{}", created.body["id"].as_str().expect("an id"));
+    let one = format!(
+        "{DOCUMENTS}/{}",
+        created.body["id"].as_str().expect("an id")
+    );
 
     // Belongs-to, embedded.
     let included = get(&db, &alice, &format!("{one}?include=label")).await;
@@ -292,7 +335,10 @@ async fn relationships_reach_documents_only_in_the_tenant_and_for_their_owner() 
     assert_eq!(included.body["task"]["title"], "t", "{included:?}");
 
     // Has-one, from the task: `documents` is admin only and tenant-scoped.
-    let task_uri = format!("/api/v1/tasks/{}?include=document", task["id"].as_str().expect("an id"));
+    let task_uri = format!(
+        "/api/v1/tasks/{}?include=document",
+        task["id"].as_str().expect("an id")
+    );
     let found = get(&db, &alice, &task_uri).await;
     assert_eq!(found.status, StatusCode::OK, "{found:?}");
     assert_eq!(found.body["document"]["code"], "a");
@@ -311,7 +357,11 @@ async fn relationships_reach_documents_only_in_the_tenant_and_for_their_owner() 
         token: Some(common::token(id, Role::User)),
         ..alice.clone()
     };
-    assert_error(&get(&db, &as_user, &task_uri).await, StatusCode::FORBIDDEN, "forbidden");
+    assert_error(
+        &get(&db, &as_user, &task_uri).await,
+        StatusCode::FORBIDDEN,
+        "forbidden",
+    );
 
     // Has-many, from the public label: only the owning admin, in the tenant.
     let documents = format!("/api/v1/labels/{}/documents", label["id"]);

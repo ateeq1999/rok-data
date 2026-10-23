@@ -150,10 +150,15 @@ let recent = Note::filter(Note::CREATED_AT.gt(a_week_ago))
     .all(&db)
     .await?;
 
-// writes: the row-level verbs of `ModelWrite` (generated models also
-// carry the module verbs: `create`, `patch`, `destroy`)
+// writes: the row-level verbs of `ModelWrite`
 let stored = draft.insert(&db).await?;
 stored.delete(&db).await?;
+
+// generated models also take their input types by key: `create`, `patch`,
+// `destroy` (and `restore` / `delete_permanently` with soft delete)
+let note = Note::create(&db, NewNote { text: "hello".into() }).await?;
+Note::patch(&db, note.id, UpdateNote { text: Some("hi".into()) }).await?;
+Note::destroy(&db, note.id).await?;
 
 // relations: the generated accessors (one batched query per include)
 let author = Post::find(&db, post_id).await?;

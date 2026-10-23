@@ -44,6 +44,11 @@ pub fn check(tables: &[Table], scopes: &Scopes) -> Result<(), String> {
                     "{at} in the configuration names the scope `{name}`, which is not a snake_case Rust identifier"
                 ));
             }
+            if super::write::MODEL_VERBS.contains(&name.as_str()) {
+                return Err(format!(
+                    "{at} in the configuration names the scope `{name}`, a write verb the generated model already has; name the scope differently"
+                ));
+            }
             if path.trim() != path || path.is_empty() || path.contains(char::is_whitespace) {
                 return Err(format!(
                     "{at} in the configuration names the scope function `{path}`, which is not a Rust path"
@@ -130,6 +135,20 @@ mod tests {
                 name: "famous".to_owned(),
                 path: "crate::scopes::users::famous".to_owned(),
             }]
+        );
+    }
+
+    #[test]
+    fn a_scope_named_like_a_model_verb_fails() {
+        let mut scopes: Scopes = BTreeMap::new();
+        let mut named = BTreeMap::new();
+        named.insert("create".to_owned(), "x::y::create".to_owned());
+        scopes.insert("users".to_owned(), named);
+
+        let error = check(&[users()], &scopes).unwrap_err();
+        assert!(
+            error.contains("a write verb the generated model already has"),
+            "{error}"
         );
     }
 

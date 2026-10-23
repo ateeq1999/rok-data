@@ -21,6 +21,19 @@ fn signatures(source: &str) -> Vec<String> {
         .collect()
 }
 
+/// The model's `impl` block in a `write.rs`: the verbs themselves, without
+/// the module's forwarding wrappers that repeat their signatures.
+fn model_impl(source: &str) -> &str {
+    let start = source
+        .find("\nimpl ")
+        .expect("write.rs puts the verbs on the model");
+    let end = start
+        + source[start..]
+            .find("\n}\n")
+            .expect("the impl block closes");
+    &source[start..end]
+}
+
 const TENANT: &str = "[conventions]\ntenant_column = \"organization_id\"\n";
 
 #[test]
@@ -30,7 +43,7 @@ fn tenant_tables_take_the_tenant_right_after_the_executor() -> Result<()> {
     generate(&config)?;
 
     let read = signatures(&resource_file(&dir, "notes", "read.rs")?);
-    let write = signatures(&resource_file(&dir, "notes", "write.rs")?);
+    let write = signatures(model_impl(&resource_file(&dir, "notes", "write.rs")?));
     assert_eq!(
         read,
         [
@@ -79,7 +92,7 @@ fn a_primary_key_including_the_tenant_takes_the_tenant_once() -> Result<()> {
             .all(|signature| signature.matches("organization_id").count() == 1),
         "{read:?}"
     );
-    let write = signatures(&resource_file(&dir, "members", "write.rs")?);
+    let write = signatures(model_impl(&resource_file(&dir, "members", "write.rs")?));
     assert_eq!(
         write,
         [

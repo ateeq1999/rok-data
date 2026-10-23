@@ -91,7 +91,10 @@ fn enums_keep_their_exact_labels() {
 fn an_update_body_requires_nothing_and_takes_null() {
     let update = schema::<UpdateGadgetDto>();
     assert_eq!(update.get("required"), None, "{update}");
-    assert_eq!(update["properties"]["host"]["type"], json!(["string", "null"]));
+    assert_eq!(
+        update["properties"]["host"]["type"],
+        json!(["string", "null"])
+    );
 }
 
 #[test]

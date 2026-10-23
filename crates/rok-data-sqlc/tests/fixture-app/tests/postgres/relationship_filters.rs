@@ -13,7 +13,7 @@ pub(super) async fn belongs_to_filter_matches_each_row_once(pool: &PgPool) {
 
     let mut categories = Vec::new();
     for name in ["rel-tools", "rel-toys", "rel-tools-extra"] {
-        let category = db::categories::write::create(
+        let category = db::categories::models::Category::create(
             pool,
             NewCategory {
                 name: name.to_owned(),
@@ -25,7 +25,7 @@ pub(super) async fn belongs_to_filter_matches_each_row_once(pool: &PgPool) {
         categories.push(category);
     }
     for (index, category) in [0, 0, 1, 2, 0].into_iter().enumerate() {
-        db::products::write::create(
+        db::products::models::Product::create(
             pool,
             NewProduct {
                 id: ProductId::from(uuid::Uuid::from_u128(22_000 + index as u128)),
@@ -78,7 +78,7 @@ pub(super) async fn belongs_to_filter_matches_each_row_once(pool: &PgPool) {
 async fn create_tenant(pool: &PgPool, id: u128) -> db::tenants::models::TenantId {
     use db::tenants::models::{NewTenant, TenantId};
 
-    db::tenants::write::create(
+    db::tenants::models::Tenant::create(
         pool,
         NewTenant {
             id: TenantId::from(uuid::Uuid::from_u128(id)),
@@ -95,7 +95,7 @@ async fn create_post(
     tenant: db::tenants::models::TenantId,
     title: &str,
 ) -> db::posts::models::Post {
-    db::posts::write::create(
+    db::posts::models::Post::create(
         pool,
         tenant,
         db::posts::models::NewPost {
@@ -112,7 +112,7 @@ async fn create_comment(
     post: &db::posts::models::Post,
     author: Option<&db::users::models::User>,
 ) -> db::comments::models::Comment {
-    db::comments::write::create(
+    db::comments::models::Comment::create(
         pool,
         tenant,
         db::comments::models::NewComment {
@@ -221,7 +221,7 @@ pub(super) async fn relationship_filters_skip_deleted_and_other_tenant_rows(pool
 
     let deleted = create_comment(pool, tenant, &deleted_only, Some(&author)).await;
     assert!(
-        db::comments::write::destroy(pool, tenant, deleted.id)
+        db::comments::models::Comment::destroy(pool, tenant, deleted.id)
             .await
             .unwrap()
             > 0
@@ -232,7 +232,7 @@ pub(super) async fn relationship_filters_skip_deleted_and_other_tenant_rows(pool
     let signed = create_comment(pool, tenant, &live, Some(&author)).await;
     let orphaned = create_comment(pool, tenant, &gone, Some(&author)).await;
     assert!(
-        db::posts::write::destroy(pool, tenant, gone.id)
+        db::posts::models::Post::destroy(pool, tenant, gone.id)
             .await
             .unwrap()
             > 0
@@ -303,7 +303,7 @@ pub(super) async fn self_reference_filters_and_nesting_depth(pool: &PgPool) {
     use db::search::{MAX_RELATIONSHIP_DEPTH, Page, Sort, Text};
 
     let unit = async |parent_id, name: &str| {
-        db::org_units::write::create(
+        db::org_units::models::OrgUnit::create(
             pool,
             NewOrgUnit {
                 parent_id,
@@ -376,7 +376,7 @@ pub(super) async fn renamed_relationships_filter_under_their_new_names(pool: &Pg
 
     let writer = create_user(pool, "writer@claims.example").await;
     let reviewer = create_user(pool, "reviewer@claims.example").await;
-    let claim = db::expense_claims::write::create(
+    let claim = db::expense_claims::models::ExpenseClaim::create(
         pool,
         NewExpenseClaim {
             created_by_user_id: writer.id,

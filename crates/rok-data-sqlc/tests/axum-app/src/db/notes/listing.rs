@@ -270,7 +270,7 @@ pub async fn attach_labels<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    super::super::note_labels::write::attach(executor, note_id, label_id).await
+    super::super::note_labels::models::NoteLabel::attach(executor, note_id, label_id).await
 }
 
 /// Unpairs the row from the `labels` row, and returns whether they were paired.
@@ -282,7 +282,7 @@ pub async fn detach_labels<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    super::super::note_labels::write::detach(executor, note_id, label_id).await
+    super::super::note_labels::models::NoteLabel::detach(executor, note_id, label_id).await
 }
 
 /// Pairs the row with exactly the `labels` rows `ids` names, through
@@ -295,5 +295,5 @@ pub async fn sync_labels<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    super::super::note_labels::write::sync(executor, note_id, ids).await
+    super::super::note_labels::models::NoteLabel::sync(executor, note_id, ids).await
 }

@@ -175,12 +175,13 @@ fn generates_write_helpers_with_defaults_and_serial() -> Result<()> {
 
     let write = fs::read_to_string(out.join("events/write.rs"))?;
     assert!(!write.contains("columns.push(\"id\")"));
-    assert!(write.contains("    insert = insert.set(Event::NAME, input.name);\n"));
+    // The verbs sit in the model's `impl`, one level in.
+    assert!(write.contains("        insert = insert.set(Event::NAME, input.name);\n"));
     assert!(write.contains(
-        "    if let Some(value) = input.is_active {\n        insert = insert.set(Event::IS_ACTIVE, value);\n    }"
+        "        if let Some(value) = input.is_active {\n            insert = insert.set(Event::IS_ACTIVE, value);\n        }"
     ));
     assert!(write.contains(
-        "    if let Some(value) = input.is_active {\n        update = update.set(Event::IS_ACTIVE, value);\n    }"
+        "        if let Some(value) = input.is_active {\n            update = update.set(Event::IS_ACTIVE, value);\n        }"
     ));
     // `name` is required, so the column list is never empty.
     assert!(!write.contains("DEFAULT VALUES"));
@@ -302,11 +303,13 @@ pub struct Product {
     ));
 
     let write = fs::read_to_string(out.join("products/write.rs"))?;
+    // The verbs sit in the model's `impl`, one level in.
     assert!(
-        write.contains("    let mut update = Product::update_all().filter(Product::ID.eq(id));")
+        write
+            .contains("        let mut update = Product::update_all().filter(Product::ID.eq(id));")
     );
     assert!(write.contains(
-        "    Product::query()\n        .filter(Product::ID.eq(id))\n        .delete(executor)\n"
+        "        Product::query()\n            .filter(Product::ID.eq(id))\n            .delete(executor)\n"
     ));
     Ok(())
 }

@@ -3,8 +3,61 @@
 use super::models::{NewOrganization, Organization, OrganizationId, UpdateOrganization};
 use rok_data::Model;
 
-/// Inserts one row and returns it as stored. Defaulted columns left as `None`
-/// are omitted from the `INSERT` so the database default applies.
+impl Organization {
+    /// Inserts one row and returns it as stored. Defaulted columns left as `None`
+    /// are omitted from the `INSERT` so the database default applies.
+    pub async fn create<'e, E>(
+        executor: E,
+        input: NewOrganization,
+    ) -> Result<Organization, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        let mut insert = Organization::insert_builder();
+        if let Some(value) = input.id {
+            insert = insert.set(Organization::ID, value);
+        }
+        insert = insert.set(Organization::NAME, input.name);
+
+        insert.exec(executor).await
+    }
+
+    /// Applies a partial patch and returns the patched row, or `None` if no row has
+    /// the given primary key. An empty patch issues no `UPDATE` and returns the
+    /// current row.
+    pub async fn patch<'e, E>(
+        executor: E,
+        id: OrganizationId,
+        input: UpdateOrganization,
+    ) -> Result<Option<Organization>, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        if input.is_empty() {
+            return super::read::get_by_id(executor, id).await;
+        }
+
+        let mut update = Organization::update_all().filter(Organization::ID.eq(id));
+        if let Some(value) = input.name {
+            update = update.set(Organization::NAME, value);
+        }
+        update.returning_one(executor).await
+    }
+
+    /// Deletes the row with the given primary key and returns the number of rows that existed.
+    pub async fn destroy<'e, E>(executor: E, id: OrganizationId) -> Result<u64, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        Organization::query()
+            .filter(Organization::ID.eq(id))
+            .delete(executor)
+            .await
+    }
+}
+
+/// Calls [`Organization::create`], which this module function forwards to.
+#[deprecated(note = "call `Organization::create` instead")]
 pub async fn create<'e, E>(
     executor: E,
     input: NewOrganization,
@@ -12,18 +65,11 @@ pub async fn create<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    let mut insert = Organization::insert_builder();
-    if let Some(value) = input.id {
-        insert = insert.set(Organization::ID, value);
-    }
-    insert = insert.set(Organization::NAME, input.name);
-
-    insert.exec(executor).await
+    Organization::create(executor, input).await
 }
 
-/// Applies a partial patch and returns the patched row, or `None` if no row has
-/// the given primary key. An empty patch issues no `UPDATE` and returns the
-/// current row.
+/// Calls [`Organization::patch`], which this module function forwards to.
+#[deprecated(note = "call `Organization::patch` instead")]
 pub async fn patch<'e, E>(
     executor: E,
     id: OrganizationId,
@@ -32,24 +78,14 @@ pub async fn patch<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    if input.is_empty() {
-        return super::read::get_by_id(executor, id).await;
-    }
-
-    let mut update = Organization::update_all().filter(Organization::ID.eq(id));
-    if let Some(value) = input.name {
-        update = update.set(Organization::NAME, value);
-    }
-    update.returning_one(executor).await
+    Organization::patch(executor, id, input).await
 }
 
-/// Deletes the row with the given primary key and returns the number of rows that existed.
+/// Calls [`Organization::destroy`], which this module function forwards to.
+#[deprecated(note = "call `Organization::destroy` instead")]
 pub async fn destroy<'e, E>(executor: E, id: OrganizationId) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    Organization::query()
-        .filter(Organization::ID.eq(id))
-        .delete(executor)
-        .await
+    Organization::destroy(executor, id).await
 }

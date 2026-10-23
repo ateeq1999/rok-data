@@ -3,25 +3,80 @@
 use super::models::{Media, MediaId, NewMedia, UpdateMedia};
 use rok_data::Model;
 
-/// Inserts one row and returns it as stored.
+impl Media {
+    /// Inserts one row and returns it as stored.
+    pub async fn create<'e, E>(executor: E, input: NewMedia) -> Result<Media, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        Media::insert_builder()
+            .set(Media::ID, input.id.unwrap_or_else(MediaId::generate))
+            .set(Media::OWNER_ID, input.owner_id)
+            .set(Media::CONTENT_TYPE, input.content_type)
+            .set(Media::SIZE_BYTES, input.size_bytes)
+            .set(Media::ORIGINAL_FILENAME, input.original_filename)
+            .set(Media::STORAGE_KEY, input.storage_key)
+            .exec(executor)
+            .await
+    }
+
+    /// Applies a partial patch and returns the patched row, or `None` if no row has
+    /// the given primary key. An empty patch issues no `UPDATE` and returns the
+    /// current row.
+    pub async fn patch<'e, E>(
+        executor: E,
+        id: MediaId,
+        input: UpdateMedia,
+    ) -> Result<Option<Media>, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        if input.is_empty() {
+            return super::read::get_by_id(executor, id).await;
+        }
+
+        let mut update = Media::update_all().filter(Media::ID.eq(id));
+        if let Some(value) = input.owner_id {
+            update = update.set(Media::OWNER_ID, value);
+        }
+        if let Some(value) = input.content_type {
+            update = update.set(Media::CONTENT_TYPE, value);
+        }
+        if let Some(value) = input.size_bytes {
+            update = update.set(Media::SIZE_BYTES, value);
+        }
+        if let Some(value) = input.original_filename {
+            update = update.set(Media::ORIGINAL_FILENAME, value);
+        }
+        if let Some(value) = input.storage_key {
+            update = update.set(Media::STORAGE_KEY, value);
+        }
+        update.returning_one(executor).await
+    }
+
+    /// Deletes the row with the given primary key and returns the number of rows that existed.
+    pub async fn destroy<'e, E>(executor: E, id: MediaId) -> Result<u64, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        Media::query()
+            .filter(Media::ID.eq(id))
+            .delete(executor)
+            .await
+    }
+}
+
+/// Calls [`Media::create`], which this module function forwards to.
+#[deprecated(note = "call `Media::create` instead")]
 pub async fn create<'e, E>(executor: E, input: NewMedia) -> Result<Media, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    Media::insert_builder()
-        .set(Media::ID, input.id.unwrap_or_else(MediaId::generate))
-        .set(Media::OWNER_ID, input.owner_id)
-        .set(Media::CONTENT_TYPE, input.content_type)
-        .set(Media::SIZE_BYTES, input.size_bytes)
-        .set(Media::ORIGINAL_FILENAME, input.original_filename)
-        .set(Media::STORAGE_KEY, input.storage_key)
-        .exec(executor)
-        .await
+    Media::create(executor, input).await
 }
 
-/// Applies a partial patch and returns the patched row, or `None` if no row has
-/// the given primary key. An empty patch issues no `UPDATE` and returns the
-/// current row.
+/// Calls [`Media::patch`], which this module function forwards to.
+#[deprecated(note = "call `Media::patch` instead")]
 pub async fn patch<'e, E>(
     executor: E,
     id: MediaId,
@@ -30,36 +85,14 @@ pub async fn patch<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    if input.is_empty() {
-        return super::read::get_by_id(executor, id).await;
-    }
-
-    let mut update = Media::update_all().filter(Media::ID.eq(id));
-    if let Some(value) = input.owner_id {
-        update = update.set(Media::OWNER_ID, value);
-    }
-    if let Some(value) = input.content_type {
-        update = update.set(Media::CONTENT_TYPE, value);
-    }
-    if let Some(value) = input.size_bytes {
-        update = update.set(Media::SIZE_BYTES, value);
-    }
-    if let Some(value) = input.original_filename {
-        update = update.set(Media::ORIGINAL_FILENAME, value);
-    }
-    if let Some(value) = input.storage_key {
-        update = update.set(Media::STORAGE_KEY, value);
-    }
-    update.returning_one(executor).await
+    Media::patch(executor, id, input).await
 }
 
-/// Deletes the row with the given primary key and returns the number of rows that existed.
+/// Calls [`Media::destroy`], which this module function forwards to.
+#[deprecated(note = "call `Media::destroy` instead")]
 pub async fn destroy<'e, E>(executor: E, id: MediaId) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    Media::query()
-        .filter(Media::ID.eq(id))
-        .delete(executor)
-        .await
+    Media::destroy(executor, id).await
 }

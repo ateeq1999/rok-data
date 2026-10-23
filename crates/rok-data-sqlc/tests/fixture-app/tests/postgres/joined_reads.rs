@@ -9,7 +9,7 @@ pub(super) async fn joined_read_fetches_a_row_with_its_parent_in_one_query(pool:
     use db::products::models::{NewProduct, ProductId};
     use db::products::relationships::{ProductWithCategory, get_with_category};
 
-    let category = db::categories::write::create(
+    let category = db::categories::models::Category::create(
         pool,
         NewCategory {
             name: "joined category".to_owned(),
@@ -18,7 +18,7 @@ pub(super) async fn joined_read_fetches_a_row_with_its_parent_in_one_query(pool:
     )
     .await
     .unwrap();
-    let product = db::products::write::create(
+    let product = db::products::models::Product::create(
         pool,
         NewProduct {
             id: ProductId::from(uuid::Uuid::from_u128(21_000)),
@@ -84,7 +84,7 @@ pub(super) async fn joined_read_of_a_nullable_foreign_key_without_a_parent(pool:
     use db::users::relationships::get_with_user_profile;
 
     let unit = async |parent_id, name: &str| {
-        db::org_units::write::create(
+        db::org_units::models::OrgUnit::create(
             pool,
             NewOrgUnit {
                 parent_id,
@@ -104,7 +104,7 @@ pub(super) async fn joined_read_of_a_nullable_foreign_key_without_a_parent(pool:
     assert_eq!(joined.org_unit, child);
     assert_eq!(joined.parent, Some(root));
 
-    let user = db::users::write::create(
+    let user = db::users::models::User::create(
         pool,
         NewUser {
             email: "joined@example.com".to_owned(),
@@ -115,7 +115,7 @@ pub(super) async fn joined_read_of_a_nullable_foreign_key_without_a_parent(pool:
     let alone = get_with_user_profile(pool, user.id).await.unwrap().unwrap();
     assert_eq!(alone.user, user);
     assert_eq!(alone.user_profile, None);
-    let profile = db::user_profiles::write::create(
+    let profile = db::user_profiles::models::UserProfile::create(
         pool,
         NewUserProfile {
             user_id: user.id,
@@ -138,7 +138,7 @@ pub(super) async fn joined_read_respects_soft_delete_and_tenant_on_both_sides(po
     use db::tenants::models::{NewTenant, TenantId};
 
     let tenant = async |id: u128| {
-        db::tenants::write::create(
+        db::tenants::models::Tenant::create(
             pool,
             NewTenant {
                 id: TenantId::from(uuid::Uuid::from_u128(id)),
@@ -152,7 +152,7 @@ pub(super) async fn joined_read_respects_soft_delete_and_tenant_on_both_sides(po
     let tenant_a = tenant(21_101).await;
     let tenant_b = tenant(21_102).await;
     let post = async |tenant, title: &str| {
-        db::posts::write::create(
+        db::posts::models::Post::create(
             pool,
             tenant,
             NewPost {
@@ -163,7 +163,7 @@ pub(super) async fn joined_read_respects_soft_delete_and_tenant_on_both_sides(po
         .unwrap()
     };
     let comment = async |tenant, post_id, body: &str| {
-        db::comments::write::create(
+        db::comments::models::Comment::create(
             pool,
             tenant,
             NewComment {
@@ -191,7 +191,7 @@ pub(super) async fn joined_read_respects_soft_delete_and_tenant_on_both_sides(po
     assert_eq!(joined.post, Some(live_post));
 
     assert!(
-        db::posts::write::destroy(pool, tenant_a, doomed_post.id)
+        db::posts::models::Post::destroy(pool, tenant_a, doomed_post.id)
             .await
             .unwrap()
             > 0
@@ -215,7 +215,7 @@ pub(super) async fn joined_read_respects_soft_delete_and_tenant_on_both_sides(po
         "the comment is another tenant's"
     );
     assert!(
-        db::comments::write::destroy(pool, tenant_a, on_live.id)
+        db::comments::models::Comment::destroy(pool, tenant_a, on_live.id)
             .await
             .unwrap()
             > 0
@@ -235,7 +235,7 @@ pub(super) async fn joined_read_of_columns_near_the_identifier_limit(pool: &PgPo
     use db::calibration_readings::relationships::get_with_calibration_station;
     use db::calibration_stations::models::NewCalibrationStation;
 
-    let station = db::calibration_stations::write::create(
+    let station = db::calibration_stations::models::CalibrationStation::create(
         pool,
         NewCalibrationStation {
             reading_taken_by_the_long_running_calibration_station_number_a: "station a".to_owned(),
@@ -244,7 +244,7 @@ pub(super) async fn joined_read_of_columns_near_the_identifier_limit(pool: &PgPo
     )
     .await
     .unwrap();
-    let reading = db::calibration_readings::write::create(
+    let reading = db::calibration_readings::models::CalibrationReading::create(
         pool,
         NewCalibrationReading {
             calibration_station_id: station.id,

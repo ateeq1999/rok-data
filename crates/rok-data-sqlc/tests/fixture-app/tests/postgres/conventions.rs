@@ -8,9 +8,10 @@ use super::*;
 /// default and the `touch_row` trigger give them.
 pub(super) async fn managed_columns_are_left_to_the_database(pool: &PgPool) {
     use db::touched_notes::models::{NewTouchedNote, UpdateTouchedNote};
-    use db::touched_notes::{read, write};
+    use db::touched_notes::models::TouchedNote;
+    use db::touched_notes::read;
 
-    let created = write::create(
+    let created = TouchedNote::create(
         pool,
         NewTouchedNote {
             body: "first".to_owned(),
@@ -20,7 +21,7 @@ pub(super) async fn managed_columns_are_left_to_the_database(pool: &PgPool) {
     .unwrap();
     assert_eq!(created.row_version, 1, "the column default applies");
 
-    let updated = write::patch(
+    let updated = TouchedNote::patch(
         pool,
         created.id,
         UpdateTouchedNote {
@@ -53,9 +54,10 @@ pub(super) async fn versioned_updates_detect_concurrent_edits(pool: &PgPool) {
     use db::versioned_documents::models::{
         NewVersionedDocument, UpdateVersionedDocument, VersionedDocumentId,
     };
-    use db::versioned_documents::{read, write};
+    use db::versioned_documents::models::VersionedDocument;
+    use db::versioned_documents::read;
 
-    let created = write::create(
+    let created = VersionedDocument::create(
         pool,
         NewVersionedDocument {
             title: "draft".to_owned(),
@@ -67,7 +69,7 @@ pub(super) async fn versioned_updates_detect_concurrent_edits(pool: &PgPool) {
     assert_eq!(created.revision, 1);
 
     // Two editors both saw revision 1; the first one to save wins.
-    let first = write::patch(
+    let first = VersionedDocument::patch(
         pool,
         created.id,
         1,
@@ -84,7 +86,7 @@ pub(super) async fn versioned_updates_detect_concurrent_edits(pool: &PgPool) {
     assert_eq!(saved.title, "first editor");
     assert_eq!(saved.revision, 2, "the trigger advanced the revision");
 
-    let second = write::patch(
+    let second = VersionedDocument::patch(
         pool,
         created.id,
         1,
@@ -105,7 +107,7 @@ pub(super) async fn versioned_updates_detect_concurrent_edits(pool: &PgPool) {
 
     // Inside a caller-owned transaction, with the current revision.
     let mut tx = pool.begin().await.unwrap();
-    let retried = write::patch(
+    let retried = VersionedDocument::patch(
         &mut *tx,
         created.id,
         2,
@@ -124,11 +126,11 @@ pub(super) async fn versioned_updates_detect_concurrent_edits(pool: &PgPool) {
 
     // An empty patch returns the current row without bumping the revision,
     // and still reports a stale revision as a conflict.
-    let unchanged = write::patch(pool, created.id, 3, UpdateVersionedDocument::default())
+    let unchanged = VersionedDocument::patch(pool, created.id, 3, UpdateVersionedDocument::default())
         .await
         .unwrap();
     assert_eq!(unchanged, UpdateOutcome::Updated(retried.clone()));
-    let stale_empty = write::patch(pool, created.id, 2, UpdateVersionedDocument::default())
+    let stale_empty = VersionedDocument::patch(pool, created.id, 2, UpdateVersionedDocument::default())
         .await
         .unwrap();
     assert_eq!(stale_empty, UpdateOutcome::VersionConflict);
@@ -137,7 +139,7 @@ pub(super) async fn versioned_updates_detect_concurrent_edits(pool: &PgPool) {
 
     // A key no row has is not found, with or without a patch.
     let missing = VersionedDocumentId::from(i64::from(created.id) + 1_000);
-    let patched_missing = write::patch(
+    let patched_missing = VersionedDocument::patch(
         pool,
         missing,
         1,
@@ -149,14 +151,14 @@ pub(super) async fn versioned_updates_detect_concurrent_edits(pool: &PgPool) {
     .await
     .unwrap();
     assert_eq!(patched_missing, UpdateOutcome::NotFound);
-    let empty_missing = write::patch(pool, missing, 1, UpdateVersionedDocument::default())
+    let empty_missing = VersionedDocument::patch(pool, missing, 1, UpdateVersionedDocument::default())
         .await
         .unwrap();
     assert_eq!(empty_missing, UpdateOutcome::NotFound);
 
     // A soft-deleted row counts as missing, even at its current revision,
     // and the update leaves it unchanged.
-    assert!(write::destroy(pool, created.id).await.unwrap() > 0);
+    assert!(VersionedDocument::destroy(pool, created.id).await.unwrap() > 0);
     let deleted = read::search(
         pool,
         VersionedDocumentFilter {
@@ -170,7 +172,7 @@ pub(super) async fn versioned_updates_detect_concurrent_edits(pool: &PgPool) {
     .unwrap()
     .remove(0);
     assert!(deleted.deleted_at.is_some());
-    let patched_deleted = write::patch(
+    let patched_deleted = VersionedDocument::patch(
         pool,
         created.id,
         deleted.revision,
@@ -182,7 +184,7 @@ pub(super) async fn versioned_updates_detect_concurrent_edits(pool: &PgPool) {
     .await
     .unwrap();
     assert_eq!(patched_deleted, UpdateOutcome::NotFound);
-    let empty_deleted = write::patch(
+    let empty_deleted = VersionedDocument::patch(
         pool,
         created.id,
         deleted.revision,
@@ -191,7 +193,7 @@ pub(super) async fn versioned_updates_detect_concurrent_edits(pool: &PgPool) {
     .await
     .unwrap();
     assert_eq!(empty_deleted, UpdateOutcome::NotFound);
-    assert!(write::restore(pool, created.id).await.unwrap() > 0);
+    assert!(VersionedDocument::restore(pool, created.id).await.unwrap() > 0);
     let restored = read::get_by_id(pool, created.id).await.unwrap().unwrap();
     assert_eq!(
         restored.title, "second editor",
@@ -207,10 +209,10 @@ pub(super) async fn soft_deleted_rows_are_hidden_restored_and_removed(pool: &PgP
     use db::search::{Limit, Page, Sort};
     use db::soft_notes::filter::{SoftNoteFilter, SoftNoteSortKey};
     use db::soft_notes::models::{NewSoftNote, SoftNote, UpdateSoftNote};
-    use db::soft_notes::{read, write};
+    use db::soft_notes::read;
 
     let create = |code: &str| {
-        write::create(
+        SoftNote::create(
             pool,
             NewSoftNote {
                 code: code.to_owned(),
@@ -266,9 +268,9 @@ pub(super) async fn soft_deleted_rows_are_hidden_restored_and_removed(pool: &PgP
     };
     assert_visible(true).await;
 
-    assert!(write::destroy(pool, note.id).await.unwrap() > 0);
+    assert!(SoftNote::destroy(pool, note.id).await.unwrap() > 0);
     assert_eq!(
-        write::destroy(pool, note.id).await.unwrap(),
+        SoftNote::destroy(pool, note.id).await.unwrap(),
         0,
         "an already-deleted row does not change"
     );
@@ -277,12 +279,12 @@ pub(super) async fn soft_deleted_rows_are_hidden_restored_and_removed(pool: &PgP
         code: None,
         body: Some("edited".to_owned()),
     };
-    assert_eq!(write::patch(pool, note.id, patch).await.unwrap(), None);
+    assert_eq!(SoftNote::patch(pool, note.id, patch).await.unwrap(), None);
     let empty = UpdateSoftNote {
         code: None,
         body: None,
     };
-    assert_eq!(write::patch(pool, note.id, empty).await.unwrap(), None);
+    assert_eq!(SoftNote::patch(pool, note.id, empty).await.unwrap(), None);
 
     let with_deleted = search(SoftNoteFilter {
         include_deleted: true,
@@ -294,13 +296,13 @@ pub(super) async fn soft_deleted_rows_are_hidden_restored_and_removed(pool: &PgP
     assert!(with_deleted[0].deleted_at.is_some());
     assert_eq!(with_deleted[0].body, "note A", "the update changed nothing");
 
-    assert!(write::restore(pool, note.id).await.unwrap() > 0);
-    assert_eq!(write::restore(pool, note.id).await.unwrap(), 0);
+    assert!(SoftNote::restore(pool, note.id).await.unwrap() > 0);
+    assert_eq!(SoftNote::restore(pool, note.id).await.unwrap(), 0);
     assert_visible(true).await;
 
     // The partial unique index holds among live rows only: a deleted row and
     // a live row share a code, and `get_by_code` finds the live one.
-    assert!(write::destroy(pool, note.id).await.unwrap() > 0);
+    assert!(SoftNote::destroy(pool, note.id).await.unwrap() > 0);
     let replacement = create("A").await.unwrap();
     assert_eq!(
         read::get_by_code(pool, "A")
@@ -310,8 +312,8 @@ pub(super) async fn soft_deleted_rows_are_hidden_restored_and_removed(pool: &PgP
         Some(replacement.id)
     );
 
-    assert!(write::delete_permanently(pool, note.id).await.unwrap() > 0);
-    assert_eq!(write::delete_permanently(pool, note.id).await.unwrap(), 0);
+    assert!(SoftNote::delete_permanently(pool, note.id).await.unwrap() > 0);
+    assert_eq!(SoftNote::delete_permanently(pool, note.id).await.unwrap(), 0);
     let remaining = search(SoftNoteFilter {
         include_deleted: true,
         ..SoftNoteFilter::default()

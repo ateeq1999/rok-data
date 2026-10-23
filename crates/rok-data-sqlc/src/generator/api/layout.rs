@@ -184,9 +184,11 @@ pub fn push_call(
             output.push_str(&format!("{pad}{}\n{inner}{call}\n", lead.trim_end()));
             return;
         }
-        // The call alone fits below the `=`, its `.await?` below it.
+        // The call alone fits below the `=`, its `.await?` below it — with
+        // a column to spare: at exactly `MAX_WIDTH` rustfmt breaks the
+        // arguments instead (probed with rustfmt).
         let bare = format!("{callee}({joined})");
-        if tail.starts_with('.') && inner.len() + bare.len() <= MAX_WIDTH {
+        if tail.starts_with('.') && inner.len() + bare.len() < MAX_WIDTH {
             output.push_str(&format!(
                 "{pad}{}\n{inner}{bare}\n{inner}    {tail}\n",
                 lead.trim_end()

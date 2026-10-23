@@ -5,14 +5,14 @@ mod support;
 
 use axum::http::{Method, StatusCode};
 use rok_api_example::db::authors::models::{Author, NewAuthor};
-use rok_api_example::db::authors::{read, write};
+use rok_api_example::db::authors::read;
 use serde_json::json;
 use sqlx::PgPool;
 use support::{Database, TestResult, call, user};
 
 /// Inserts an author with `name` and `email`.
 async fn seed(pool: &PgPool, name: &str, email: &str) -> Result<Author, rok_data::Error> {
-    write::create(
+    Author::create(
         pool,
         NewAuthor {
             id: None,

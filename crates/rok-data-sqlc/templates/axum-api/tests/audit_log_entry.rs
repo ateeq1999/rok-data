@@ -4,10 +4,8 @@
 mod support;
 
 use axum::http::{Method, StatusCode};
-use axum_api::db::audit_log_entry::models::NewAuditLogEntry;
-use axum_api::db::audit_log_entry::write as entries;
-use axum_api::db::users::models::NewUser;
-use axum_api::db::users::write as users;
+use axum_api::db::audit_log_entry::models::{AuditLogEntry, NewAuditLogEntry};
+use axum_api::db::users::models::{NewUser, User};
 use serde_json::json;
 use support::{Database, TestResult, admin, call, user};
 
@@ -16,7 +14,7 @@ async fn an_admin_lists_the_log_newest_first() -> TestResult {
     let Some(db) = Database::fresh().await? else {
         return Ok(());
     };
-    let actor = users::create(
+    let actor = User::create(
         &db.pool,
         NewUser {
             id: None,
@@ -27,7 +25,7 @@ async fn an_admin_lists_the_log_newest_first() -> TestResult {
         },
     )
     .await?;
-    let older = entries::create(
+    let older = AuditLogEntry::create(
         &db.pool,
         NewAuditLogEntry {
             id: None,
@@ -42,7 +40,7 @@ async fn an_admin_lists_the_log_newest_first() -> TestResult {
         .bind(older.id)
         .execute(&db.pool)
         .await?;
-    entries::create(
+    AuditLogEntry::create(
         &db.pool,
         NewAuditLogEntry {
             id: None,

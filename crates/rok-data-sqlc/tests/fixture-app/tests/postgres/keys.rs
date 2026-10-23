@@ -17,7 +17,7 @@ pub(super) async fn enum_keys_get_a_typed_id(pool: &PgPool) {
         (TicketPriority::Low, "later"),
         (TicketPriority::High, "now"),
     ] {
-        db::priority_notes::write::create(
+        db::priority_notes::models::PriorityNote::create(
             pool,
             NewPriorityNote {
                 priority: PriorityNoteId::from(priority),
@@ -27,7 +27,7 @@ pub(super) async fn enum_keys_get_a_typed_id(pool: &PgPool) {
         .await
         .unwrap();
     }
-    let escalation = db::priority_escalations::write::create(
+    let escalation = db::priority_escalations::models::PriorityEscalation::create(
         pool,
         NewPriorityEscalation {
             priority: PriorityNoteId(TicketPriority::High),
@@ -64,7 +64,7 @@ pub(super) async fn typed_ids_flow_from_rows_to_foreign_keys(pool: &PgPool) {
     use db::products::models::{NewProduct, ProductId};
     use db::search::{Ordered, Page, Sort};
 
-    let category = db::categories::write::create(
+    let category = db::categories::models::Category::create(
         pool,
         NewCategory {
             name: "typed".to_owned(),
@@ -74,7 +74,7 @@ pub(super) async fn typed_ids_flow_from_rows_to_foreign_keys(pool: &PgPool) {
     .await
     .unwrap();
     let product_id = ProductId::from(uuid::Uuid::from_u128(7_001));
-    let product = db::products::write::create(
+    let product = db::products::models::Product::create(
         pool,
         NewProduct {
             id: product_id,
@@ -143,7 +143,7 @@ pub(super) async fn foreign_keys_resolve_to_the_table_in_their_schema(pool: &PgP
     use db::patch_links::models::NewPatchLink;
     use db::patch_targets::models::PatchTargetId;
 
-    let target = db::patch_targets::write::create(pool, base_patch_target())
+    let target = db::patch_targets::models::PatchTarget::create(pool, base_patch_target())
         .await
         .unwrap();
     sqlx::raw_sql("INSERT INTO legacy.patch_targets (id) VALUES (42)")
@@ -152,7 +152,7 @@ pub(super) async fn foreign_keys_resolve_to_the_table_in_their_schema(pool: &PgP
         .unwrap();
     let target_id: PatchTargetId = target.id;
     let legacy_target_id: Option<i64> = Some(42);
-    let link = db::patch_links::write::create(
+    let link = db::patch_links::models::PatchLink::create(
         pool,
         NewPatchLink {
             target_id,
@@ -168,9 +168,10 @@ pub(super) async fn foreign_keys_resolve_to_the_table_in_their_schema(pool: &PgP
 pub(super) async fn uuid_keys_listing_and_pagination(pool: &PgPool) {
     use db::categories::models::NewCategory;
     use db::products::models::NewProduct;
-    use db::products::{read, write};
+    use db::products::models::Product;
+    use db::products::read;
 
-    let category = db::categories::write::create(
+    let category = db::categories::models::Category::create(
         pool,
         NewCategory {
             name: "tools".to_owned(),
@@ -182,7 +183,7 @@ pub(super) async fn uuid_keys_listing_and_pagination(pool: &PgPool) {
 
     // Inserted out of key order; list and list_page must return key order.
     for (index, id) in [3u128, 1, 4, 2, 5].into_iter().enumerate() {
-        let product = write::create(
+        let product = Product::create(
             pool,
             NewProduct {
                 id: uuid::Uuid::from_u128(id).into(),
@@ -235,11 +236,12 @@ pub(super) async fn composite_keys_arrays_and_numeric(pool: &PgPool) {
     use db::feature_line_items::models::{
         FeatureLineItemKey, NewFeatureLineItem, UpdateFeatureLineItem,
     };
-    use db::feature_line_items::{read, write};
+    use db::feature_line_items::models::FeatureLineItem;
+    use db::feature_line_items::read;
 
     let order_id = uuid::Uuid::from_u128(10);
     let product_id = uuid::Uuid::from_u128(20);
-    let row = write::create(
+    let row = FeatureLineItem::create(
         pool,
         NewFeatureLineItem {
             order_id,
@@ -265,7 +267,7 @@ pub(super) async fn composite_keys_arrays_and_numeric(pool: &PgPool) {
         product_id,
     };
     assert_eq!(row.key(), key, "a row hands back its key");
-    let updated = write::patch(pool, key, patch).await.unwrap().unwrap();
+    let updated = FeatureLineItem::patch(pool, key, patch).await.unwrap().unwrap();
     assert_eq!(updated.weekdays, None);
     assert_eq!(updated.unit_price, Decimal::new(2500, 2));
     assert_eq!(updated.labels, ["a", "b"]);
@@ -280,7 +282,7 @@ pub(super) async fn composite_keys_arrays_and_numeric(pool: &PgPool) {
         !read::exists_by_id(pool, swapped).await.unwrap(),
         "key parts are not interchangeable"
     );
-    assert!(write::destroy(pool, key).await.unwrap() > 0);
+    assert!(FeatureLineItem::destroy(pool, key).await.unwrap() > 0);
     assert!(!read::exists_by_id(pool, key).await.unwrap());
 }
 
@@ -292,7 +294,7 @@ pub(super) async fn unique_key_lookups_find_one_row_or_none(pool: &PgPool) {
     use db::categories::models::NewCategory;
     use db::products::models::{NewProduct, ProductId};
 
-    let category = db::categories::write::create(
+    let category = db::categories::models::Category::create(
         pool,
         NewCategory {
             name: "unique".to_owned(),
@@ -302,7 +304,7 @@ pub(super) async fn unique_key_lookups_find_one_row_or_none(pool: &PgPool) {
     .await
     .unwrap();
     for (n, sku) in [(8_001, "U-1"), (8_002, "U-2")] {
-        db::products::write::create(
+        db::products::models::Product::create(
             pool,
             NewProduct {
                 id: ProductId::from(uuid::Uuid::from_u128(n)),
@@ -339,7 +341,7 @@ pub(super) async fn unique_key_lookups_find_one_row_or_none(pool: &PgPool) {
         (globex, "HQ", "Globex head office"),
         (acme, "WEST", "Acme west"),
     ] {
-        db::branches::write::create(
+        db::branches::models::Branch::create(
             pool,
             NewBranch {
                 organization_id,
@@ -376,7 +378,7 @@ pub(super) async fn text_keys_are_borrowed(pool: &PgPool) {
 
     let eur = CurrencyId::from("EUR".to_owned());
     for code in ["CHF", "EUR"] {
-        db::currencies::write::create(
+        db::currencies::models::Currency::create(
             pool,
             NewCurrency {
                 code: CurrencyId::from(code.to_owned()),
@@ -394,7 +396,7 @@ pub(super) async fn text_keys_are_borrowed(pool: &PgPool) {
             .await
             .unwrap()
     );
-    let renamed = db::currencies::write::patch(
+    let renamed = db::currencies::models::Currency::patch(
         pool,
         &eur,
         UpdateCurrency {
@@ -421,7 +423,7 @@ pub(super) async fn text_keys_are_borrowed(pool: &PgPool) {
     assert_eq!(next.iter().map(|row| &row.code).collect::<Vec<_>>(), [&eur]);
 
     let day = chrono::NaiveDate::from_ymd_opt(2026, 1, 2).unwrap();
-    let rate = db::currency_rates::write::create(
+    let rate = db::currency_rates::models::CurrencyRate::create(
         pool,
         NewCurrencyRate {
             currency_code: eur.clone(),
@@ -448,12 +450,12 @@ pub(super) async fn text_keys_are_borrowed(pool: &PgPool) {
         .unwrap();
     assert_eq!(fetched, Some(rate));
     assert!(
-        db::currency_rates::write::destroy(pool, &key)
+        db::currency_rates::models::CurrencyRate::destroy(pool, &key)
             .await
             .unwrap()
             > 0
     );
-    assert!(db::currencies::write::destroy(pool, &eur).await.unwrap() > 0);
+    assert!(db::currencies::models::Currency::destroy(pool, &eur).await.unwrap() > 0);
 }
 
 /// `plain_db` is generated with `primary_key_ids = "uuid_v7"`: `create`
@@ -464,7 +466,7 @@ pub(super) async fn generated_uuid_v7_keys(pool: &PgPool) {
     use plain_db::ordered_events::models::{NewOrderedEvent, OrderedEventId};
     use rok_data_sqlc_fixture_app::plain_db;
 
-    let made = plain_db::ordered_events::write::create(
+    let made = plain_db::ordered_events::models::OrderedEvent::create(
         pool,
         NewOrderedEvent {
             id: None,
@@ -474,7 +476,7 @@ pub(super) async fn generated_uuid_v7_keys(pool: &PgPool) {
     .await
     .unwrap();
     assert_eq!(made.id.0.get_version_num(), 7);
-    let later = plain_db::ordered_events::write::create(
+    let later = plain_db::ordered_events::models::OrderedEvent::create(
         pool,
         NewOrderedEvent {
             id: None,
@@ -486,7 +488,7 @@ pub(super) async fn generated_uuid_v7_keys(pool: &PgPool) {
     assert!(later.id > made.id, "version 7 ids follow creation order");
 
     let given = OrderedEventId(uuid::Uuid::from_u128(7));
-    let kept = plain_db::ordered_events::write::create(
+    let kept = plain_db::ordered_events::models::OrderedEvent::create(
         pool,
         NewOrderedEvent {
             id: Some(given),
@@ -499,7 +501,7 @@ pub(super) async fn generated_uuid_v7_keys(pool: &PgPool) {
     assert_eq!(OrderedEventId::generate().0.get_version_num(), 7);
 
     // `gen_random_uuid()` would make a version 4 id.
-    let defaulted = plain_db::defaulted_events::write::create(
+    let defaulted = plain_db::defaulted_events::models::DefaultedEvent::create(
         pool,
         NewDefaultedEvent {
             id: None,
@@ -520,7 +522,7 @@ pub(super) async fn generated_cuid2_keys(pool: &PgPool) {
     use cuid_db::sessions::models::{NewSession, SessionId};
     use rok_data_sqlc_fixture_app::cuid_db;
 
-    let made = cuid_db::badges::write::create(
+    let made = cuid_db::badges::models::Badge::create(
         pool,
         NewBadge {
             id: None,
@@ -537,7 +539,7 @@ pub(super) async fn generated_cuid2_keys(pool: &PgPool) {
     assert_eq!(fetched, Some(made.clone()));
 
     let given = BadgeId("given-badge".to_owned());
-    let kept = cuid_db::badges::write::create(
+    let kept = cuid_db::badges::models::Badge::create(
         pool,
         NewBadge {
             id: Some(given.clone()),
@@ -551,7 +553,7 @@ pub(super) async fn generated_cuid2_keys(pool: &PgPool) {
 
     // A `UUID` key gets no CUID2: the input must give it.
     let id = SessionId(uuid::Uuid::from_u128(2));
-    let session = cuid_db::sessions::write::create(
+    let session = cuid_db::sessions::models::Session::create(
         pool,
         NewSession {
             id,

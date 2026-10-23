@@ -6,9 +6,9 @@ use super::*;
 /// alter_schema.sql; the generated model carries only the final columns.
 pub(super) async fn altered_table_has_its_final_columns(pool: &PgPool) {
     use db::revised_notes::models::{NewRevisedNote, RevisedNote};
-    use db::revised_notes::{read, write};
+    use db::revised_notes::read;
 
-    let created = write::create(
+    let created = RevisedNote::create(
         pool,
         NewRevisedNote {
             headline: "renamed".to_owned(),
@@ -17,7 +17,7 @@ pub(super) async fn altered_table_has_its_final_columns(pool: &PgPool) {
     )
     .await
     .unwrap();
-    let defaulted = write::create(
+    let defaulted = RevisedNote::create(
         pool,
         NewRevisedNote {
             headline: "default body".to_owned(),
@@ -45,12 +45,12 @@ pub(super) async fn altered_table_has_its_final_columns(pool: &PgPool) {
 /// with no default, a nullable `note`, and a defaulted `views`.
 pub(super) async fn altered_columns_round_trip_in_their_final_shape(pool: &PgPool) {
     use db::meter_readings::models::{MeterReading, MeterReadingId, NewMeterReading};
-    use db::meter_readings::{read, write};
+    use db::meter_readings::read;
 
     // Both exceed `i32`, which the columns were created as.
     let id = MeterReadingId::from(5_000_000_001_i64);
     let amount = 9_000_000_000_i64;
-    let created = write::create(
+    let created = MeterReading::create(
         pool,
         NewMeterReading {
             id,

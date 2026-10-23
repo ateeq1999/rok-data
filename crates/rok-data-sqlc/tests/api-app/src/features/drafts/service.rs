@@ -14,7 +14,6 @@ use sqlx::{PgConnection, PgPool};
 
 use super::dto::CreateDraftDto;
 use super::model::Draft;
-use super::repo;
 use super::service_api::DraftsServiceApi;
 use crate::error::AppError;
 
@@ -50,6 +49,6 @@ impl DraftsServiceApi for DraftsService {
                 details: None,
             });
         }
-        Ok(repo::create(conn, CreateDraftDto { title }.into()).await?)
+        Ok(Draft::create(conn, CreateDraftDto { title }.into()).await?)
     }
 }

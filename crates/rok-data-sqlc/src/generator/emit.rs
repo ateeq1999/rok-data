@@ -9,6 +9,29 @@ use crate::schema::{Table, mentions_generated_type};
 /// rustfmt-stable so regenerated files diff cleanly.
 pub(super) const MAX_WIDTH: usize = 100;
 
+thread_local! {
+    /// The columns the caller of [`indented`] adds in front of every line.
+    static INDENT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// The width a line rendered at column 0 may take: [`MAX_WIDTH`], less the
+/// indent the caller adds afterwards (inside [`indented`]). Rendering at
+/// `MAX_WIDTH - indent` and then indenting breaks exactly the lines rustfmt
+/// breaks at `MAX_WIDTH`; the chain and call widths measure content, not
+/// indent, so they stay as they are.
+pub(super) fn max_width() -> usize {
+    MAX_WIDTH - INDENT.with(std::cell::Cell::get)
+}
+
+/// Runs `render` laid out for lines its caller indents by `indent` columns,
+/// such as items placed in an `impl` block afterwards.
+pub(super) fn indented<T>(indent: usize, render: impl FnOnce() -> T) -> T {
+    let before = INDENT.with(|cell| cell.replace(indent));
+    let rendered = render();
+    INDENT.with(|cell| cell.set(before));
+    rendered
+}
+
 /// rustfmt's default `chain_width`: a method chain longer than this goes one
 /// call per line.
 pub(super) const CHAIN_WIDTH: usize = 60;
@@ -48,7 +71,7 @@ pub fn push_wide_chain(
 ) {
     let pad = " ".repeat(indent);
     let chain = format!("{head}{}", calls.concat());
-    let line_fits = pad.len() + lead.len() + chain.len() + trail.len() <= MAX_WIDTH;
+    let line_fits = pad.len() + lead.len() + chain.len() + trail.len() <= max_width();
     // The chain's width budget covers the whole expression, `.await`
     // included; the statement's lead and trail punctuation do not count.
     let wide = calls.len() <= 1;
@@ -65,7 +88,7 @@ pub fn push_wide_chain(
     // and keeps the chain intact on the continuation line.
     if wide && lead.ends_with("= ") {
         let continuation = indent + 4;
-        if continuation + chain.len() + trail.len() <= MAX_WIDTH {
+        if continuation + chain.len() + trail.len() <= max_width() {
             output.push_str(&format!("{pad}{}\n", lead.trim_end()));
             output.push_str(&format!("{}{chain}{trail}\n", " ".repeat(continuation)));
             return;
@@ -135,7 +158,7 @@ fn push_chain_call(output: &mut String, pad: usize, call: &str, suffix: &str) {
     let framed = if args.len() > 1 {
         call_argument_width(call) > FN_CALL_WIDTH
     } else {
-        pad.len() + call.len() + suffix.len() > MAX_WIDTH
+        pad.len() + call.len() + suffix.len() > max_width()
     };
     if !framed {
         output.push_str(&format!("{pad}{call}{suffix}\n"));
@@ -162,7 +185,7 @@ fn call_argument_width(call: &str) -> usize {
 /// when that line would overflow, its head followed by one `.link` per
 /// line.
 fn push_chain_argument(output: &mut String, pad: &str, arg: &str) {
-    if pad.len() + 4 + arg.len() <= MAX_WIDTH {
+    if pad.len() + 4 + arg.len() <= max_width() {
         output.push_str(&format!("{pad}    {arg},\n"));
         return;
     }
@@ -279,10 +302,10 @@ pub fn push_derives(output: &mut String, extra: &[&str]) {
     // indented line up to 100, then one per line.
     let one_line = format!("#[derive({derives})]");
     let packed = format!("    {derives},");
-    if one_line.len() <= MAX_WIDTH - 4 {
+    if one_line.len() <= max_width() - 4 {
         output.push_str(&one_line);
         output.push('\n');
-    } else if packed.len() <= MAX_WIDTH {
+    } else if packed.len() <= max_width() {
         output.push_str(&format!("#[derive(\n{packed}\n)]\n"));
     } else {
         output.push_str("#[derive(\n");
@@ -310,13 +333,13 @@ pub fn use_list(prefix: &str, names: &[String]) -> String {
     let one_line = format!("use {prefix}::{{{}}};", names.join(", "));
     // rustfmt keeps a use list on one line only up to 98 columns, and packs
     // the wrapped items greedily into lines of up to 99 columns.
-    if one_line.len() < MAX_WIDTH - 1 {
+    if one_line.len() < max_width() - 1 {
         return format!("{one_line}\n");
     }
     let mut output = format!("use {prefix}::{{\n");
     let mut line = String::new();
     for name in names {
-        if !line.is_empty() && line.len() + 1 + name.len() + 1 > MAX_WIDTH - 1 {
+        if !line.is_empty() && line.len() + 1 + name.len() + 1 > max_width() - 1 {
             output.push_str(&line);
             output.push('\n');
             line.clear();
@@ -384,7 +407,7 @@ pub fn push_fn_head(output: &mut String, name: &str, params: &[String], returns:
     let open = format!("pub async fn {name}<'e, E>(");
     let close = format!(") -> {returns}");
     let one_line = format!("{open}{}{close}", all_params.join(", "));
-    if one_line.len() <= MAX_WIDTH {
+    if one_line.len() <= max_width() {
         output.push_str(&one_line);
         output.push('\n');
     } else {
@@ -411,7 +434,7 @@ pub fn push_and_chain(
 ) {
     let pad = " ".repeat(indent);
     let one_line = format!("{pad}{lead}{}{trail}", terms.join(" && "));
-    if one_line.len() <= MAX_WIDTH {
+    if one_line.len() <= max_width() {
         output.push_str(&one_line);
         output.push('\n');
         return;
@@ -439,10 +462,10 @@ pub fn push_let_call(
     let pad = " ".repeat(indent);
     let one_line = format!("{pad}{binding} = {call}({argument});");
     let below = format!("{pad}    {call}({argument});");
-    if one_line.len() <= MAX_WIDTH {
+    if one_line.len() <= max_width() {
         output.push_str(&one_line);
         output.push('\n');
-    } else if below.len() <= MAX_WIDTH {
+    } else if below.len() <= max_width() {
         output.push_str(&format!("{pad}{binding} =\n{below}\n"));
     } else {
         output.push_str(&format!(

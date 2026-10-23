@@ -18,7 +18,7 @@ async fn seed_roles(
 
     let mut tenants = Vec::new();
     for id in [first_tenant, first_tenant + 1] {
-        let tenant = db::tenants::write::create(
+        let tenant = db::tenants::models::Tenant::create(
             pool,
             NewTenant {
                 id: TenantId::from(uuid::Uuid::from_u128(id)),
@@ -31,7 +31,7 @@ async fn seed_roles(
     }
     let mut roles = Vec::new();
     for name in ["admin", "clerk"] {
-        let role = db::roles::write::create(
+        let role = db::roles::models::Role::create(
             pool,
             tenants[0],
             NewRole {
@@ -45,7 +45,7 @@ async fn seed_roles(
     let mut permissions = Vec::new();
     for code in ["read", "refund", "write"] {
         let code = format!("{code}-{first_tenant}");
-        let permission = db::permissions::write::create(
+        let permission = db::permissions::models::Permission::create(
             pool,
             NewPermission {
                 code: PermissionId::from(code.clone()),
@@ -64,20 +64,20 @@ async fn seed_roles(
 /// removes all), and both loaders see the result, inside the tenant.
 pub(super) async fn many_to_many_attach_detach_and_sync(pool: &PgPool) {
     use db::permissions::relationships::load_roles;
-    use db::role_permissions::write::{attach, detach, sync};
+    use db::role_permissions::models::RolePermission;
     use db::roles::relationships::load_permissions;
 
     let ([tenant, other_tenant], roles, permissions) = seed_roles(pool, 23_001).await;
     let [admin, clerk] = [&roles[0], &roles[1]];
     let [read, refund, write] = [&permissions[0], &permissions[1], &permissions[2]];
 
-    assert!(attach(pool, tenant, admin.id, &read.code).await.unwrap());
+    assert!(RolePermission::attach(pool, tenant, admin.id, &read.code).await.unwrap());
     assert!(
-        !attach(pool, tenant, admin.id, &read.code).await.unwrap(),
+        !RolePermission::attach(pool, tenant, admin.id, &read.code).await.unwrap(),
         "already attached"
     );
-    assert!(attach(pool, tenant, admin.id, &write.code).await.unwrap());
-    assert!(attach(pool, tenant, clerk.id, &read.code).await.unwrap());
+    assert!(RolePermission::attach(pool, tenant, admin.id, &write.code).await.unwrap());
+    assert!(RolePermission::attach(pool, tenant, clerk.id, &read.code).await.unwrap());
     assert_eq!(
         db::role_permissions::read::count(pool, tenant)
             .await
@@ -87,7 +87,7 @@ pub(super) async fn many_to_many_attach_detach_and_sync(pool: &PgPool) {
     );
     // Another tenant's pairing of the same rows stays in that tenant.
     assert!(
-        attach(pool, other_tenant, clerk.id, &refund.code)
+        RolePermission::attach(pool, other_tenant, clerk.id, &refund.code)
             .await
             .unwrap()
     );
@@ -104,9 +104,9 @@ pub(super) async fn many_to_many_attach_detach_and_sync(pool: &PgPool) {
     assert_eq!(elsewhere[&clerk.id], vec![refund.clone()]);
     assert_eq!(elsewhere[&admin.id], Vec::new());
 
-    assert!(detach(pool, tenant, admin.id, &write.code).await.unwrap());
+    assert!(RolePermission::detach(pool, tenant, admin.id, &write.code).await.unwrap());
     assert!(
-        !detach(pool, tenant, admin.id, &write.code).await.unwrap(),
+        !RolePermission::detach(pool, tenant, admin.id, &write.code).await.unwrap(),
         "already detached"
     );
     let loaded = load_permissions(pool, tenant, &roles).await.unwrap();
@@ -115,14 +115,14 @@ pub(super) async fn many_to_many_attach_detach_and_sync(pool: &PgPool) {
     // `sync` runs in the caller's transaction: rolled back, nothing changes.
     let mut tx = pool.begin().await.unwrap();
     let codes = [refund.code.clone(), write.code.clone(), write.code.clone()];
-    sync(&mut *tx, tenant, admin.id, &codes).await.unwrap();
+    RolePermission::sync(&mut *tx, tenant, admin.id, &codes).await.unwrap();
     let inside = load_permissions(&mut *tx, tenant, &roles).await.unwrap();
     assert_eq!(inside[&admin.id], vec![refund.clone(), write.clone()]);
     tx.rollback().await.unwrap();
     let loaded = load_permissions(pool, tenant, &roles).await.unwrap();
     assert_eq!(loaded[&admin.id], vec![read.clone()]);
 
-    sync(pool, tenant, admin.id, &codes).await.unwrap();
+    RolePermission::sync(pool, tenant, admin.id, &codes).await.unwrap();
     let loaded = load_permissions(pool, tenant, &roles).await.unwrap();
     assert_eq!(loaded[&admin.id], vec![refund.clone(), write.clone()]);
     assert_eq!(
@@ -131,7 +131,7 @@ pub(super) async fn many_to_many_attach_detach_and_sync(pool: &PgPool) {
         "other roles keep theirs"
     );
 
-    sync(pool, tenant, admin.id, &[]).await.unwrap();
+    RolePermission::sync(pool, tenant, admin.id, &[]).await.unwrap();
     let loaded = load_permissions(pool, tenant, &roles).await.unwrap();
     assert_eq!(loaded[&admin.id], Vec::new(), "an empty slice removes all");
     assert_eq!(loaded[&clerk.id], vec![read.clone()]);
@@ -143,7 +143,7 @@ pub(super) async fn many_to_many_attach_detach_and_sync(pool: &PgPool) {
 /// `attach` (or `sync`) restores that same row instead of inserting another.
 pub(super) async fn soft_delete_join_rows_are_restored_not_duplicated(pool: &PgPool) {
     use db::permissions::models::PermissionId;
-    use db::role_permissions::write::{attach, detach, sync};
+    use db::role_permissions::models::RolePermission;
     use db::roles::relationships::load_permissions;
 
     let ([tenant, _], roles, permissions) = seed_roles(pool, 23_101).await;
@@ -158,15 +158,15 @@ pub(super) async fn soft_delete_join_rows_are_restored_not_duplicated(pool: &PgP
             .collect::<Vec<_>>()
     };
 
-    assert!(attach(pool, tenant, role.id, &read.code).await.unwrap());
+    assert!(RolePermission::attach(pool, tenant, role.id, &read.code).await.unwrap());
     let original = pairing(&read.code).await;
     assert_eq!(original.len(), 1);
-    assert!(detach(pool, tenant, role.id, &read.code).await.unwrap());
+    assert!(RolePermission::detach(pool, tenant, role.id, &read.code).await.unwrap());
     assert_eq!(pairing(&read.code).await, Vec::new(), "soft-deleted");
     let loaded = load_permissions(pool, tenant, &roles).await.unwrap();
     assert_eq!(loaded[&role.id], Vec::new());
 
-    assert!(attach(pool, tenant, role.id, &read.code).await.unwrap());
+    assert!(RolePermission::attach(pool, tenant, role.id, &read.code).await.unwrap());
     let restored = pairing(&read.code).await;
     assert_eq!(restored.len(), 1);
     assert_eq!(
@@ -177,13 +177,13 @@ pub(super) async fn soft_delete_join_rows_are_restored_not_duplicated(pool: &PgP
     assert_eq!(restored[0].deleted_at, None);
 
     // `sync` soft-deletes what it drops and restores what it brings back.
-    sync(pool, tenant, role.id, std::slice::from_ref(&write.code))
+    RolePermission::sync(pool, tenant, role.id, std::slice::from_ref(&write.code))
         .await
         .unwrap();
     let written = pairing(&write.code).await;
     assert_eq!(pairing(&read.code).await, Vec::new());
     let codes = [read.code.clone(), refund.code.clone(), write.code.clone()];
-    sync(pool, tenant, role.id, &codes).await.unwrap();
+    RolePermission::sync(pool, tenant, role.id, &codes).await.unwrap();
     assert_eq!(pairing(&read.code).await[0].id, original[0].id);
     assert_eq!(pairing(&write.code).await, written);
     assert_eq!(pairing(&refund.code).await.len(), 1);
@@ -197,13 +197,13 @@ pub(super) async fn soft_delete_join_rows_are_restored_not_duplicated(pool: &PgP
 /// `group_members` has no soft-delete column, so detaching and syncing
 /// delete rows; its key is the pair itself.
 pub(super) async fn plain_join_table_deletes_detached_pairs(pool: &PgPool) {
-    use db::group_members::write::{attach, detach, sync};
+    use db::group_members::models::GroupMember;
     use db::member_groups::models::NewMemberGroup;
     use db::member_groups::relationships::load_users;
     use db::users::models::NewUser;
     use db::users::relationships::load_member_groups;
 
-    let group = db::member_groups::write::create(
+    let group = db::member_groups::models::MemberGroup::create(
         pool,
         NewMemberGroup {
             name: "night shift".to_owned(),
@@ -217,7 +217,7 @@ pub(super) async fn plain_join_table_deletes_detached_pairs(pool: &PgPool) {
         "bo@groups.example",
         "cy@groups.example",
     ] {
-        let user = db::users::write::create(
+        let user = db::users::models::User::create(
             pool,
             NewUser {
                 email: email.to_owned(),
@@ -229,23 +229,23 @@ pub(super) async fn plain_join_table_deletes_detached_pairs(pool: &PgPool) {
     }
     let groups = [group.clone()];
 
-    assert!(attach(pool, group.id, users[0].id).await.unwrap());
-    assert!(!attach(pool, group.id, users[0].id).await.unwrap());
-    assert!(attach(pool, group.id, users[1].id).await.unwrap());
+    assert!(GroupMember::attach(pool, group.id, users[0].id).await.unwrap());
+    assert!(!GroupMember::attach(pool, group.id, users[0].id).await.unwrap());
+    assert!(GroupMember::attach(pool, group.id, users[1].id).await.unwrap());
     let members = load_users(pool, &groups).await.unwrap();
     assert_eq!(members[&group.id], vec![users[0].clone(), users[1].clone()]);
     let memberships = load_member_groups(pool, &users).await.unwrap();
     assert_eq!(memberships[&users[0].id], vec![group.clone()]);
     assert_eq!(memberships[&users[2].id], Vec::new());
 
-    assert!(detach(pool, group.id, users[0].id).await.unwrap());
-    assert!(!detach(pool, group.id, users[0].id).await.unwrap());
-    sync(pool, group.id, &[users[1].id, users[2].id])
+    assert!(GroupMember::detach(pool, group.id, users[0].id).await.unwrap());
+    assert!(!GroupMember::detach(pool, group.id, users[0].id).await.unwrap());
+    GroupMember::sync(pool, group.id, &[users[1].id, users[2].id])
         .await
         .unwrap();
     let members = load_users(pool, &groups).await.unwrap();
     assert_eq!(members[&group.id], vec![users[1].clone(), users[2].clone()]);
-    sync(pool, group.id, &[]).await.unwrap();
+    GroupMember::sync(pool, group.id, &[]).await.unwrap();
     let members = load_users(pool, &groups).await.unwrap();
     assert_eq!(members[&group.id], Vec::new());
 }
@@ -263,7 +263,7 @@ pub(super) async fn many_to_many_filters_go_through_the_join_table(pool: &PgPool
     let ([tenant, other_tenant], roles, permissions) = seed_roles(pool, 23_201).await;
     let [admin, clerk] = [&roles[0], &roles[1]];
     let [read, refund, _] = [&permissions[0], &permissions[1], &permissions[2]];
-    let attach = db::role_permissions::write::attach;
+    let attach = db::role_permissions::models::RolePermission::attach;
     assert!(attach(pool, tenant, admin.id, &refund.code).await.unwrap());
     assert!(attach(pool, tenant, clerk.id, &read.code).await.unwrap());
     // Paired in another tenant only, or no longer paired: neither matches.
@@ -274,7 +274,7 @@ pub(super) async fn many_to_many_filters_go_through_the_join_table(pool: &PgPool
     );
     assert!(attach(pool, tenant, clerk.id, &refund.code).await.unwrap());
     assert!(
-        db::role_permissions::write::detach(pool, tenant, clerk.id, &refund.code)
+        db::role_permissions::models::RolePermission::detach(pool, tenant, clerk.id, &refund.code)
             .await
             .unwrap()
     );
@@ -296,7 +296,7 @@ pub(super) async fn many_to_many_filters_go_through_the_join_table(pool: &PgPool
     .unwrap();
     assert_eq!(refunders, vec![admin.clone()]);
 
-    let group = db::member_groups::write::create(
+    let group = db::member_groups::models::MemberGroup::create(
         pool,
         NewMemberGroup {
             name: "filtered group".to_owned(),
@@ -307,7 +307,7 @@ pub(super) async fn many_to_many_filters_go_through_the_join_table(pool: &PgPool
     let member = create_user(pool, "member@filters.example").await;
     let outsider = create_user(pool, "outsider@filters.example").await;
     assert!(
-        db::group_members::write::attach(pool, group.id, member.id)
+        db::group_members::models::GroupMember::attach(pool, group.id, member.id)
             .await
             .unwrap()
     );

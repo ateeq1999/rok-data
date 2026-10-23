@@ -3,9 +3,8 @@
 use super::*;
 
 pub(super) async fn insert_applies_defaults_and_explicit_nulls(pool: &PgPool) {
-    use db::patch_targets::write::create;
 
-    let defaults = create(
+    let defaults = PatchTarget::create(
         pool,
         NewPatchTarget {
             label: "defaults".to_owned(),
@@ -29,7 +28,7 @@ pub(super) async fn insert_applies_defaults_and_explicit_nulls(pool: &PgPool) {
         "generated column is computed by the database"
     );
 
-    let explicit = create(
+    let explicit = PatchTarget::create(
         pool,
         NewPatchTarget {
             label: "explicit".to_owned(),
@@ -54,7 +53,7 @@ pub(super) async fn insert_applies_defaults_and_explicit_nulls(pool: &PgPool) {
 /// or bind-order mistake surfaces as a value landing in the wrong column or
 /// as a type error from PostgreSQL.
 pub(super) async fn every_partial_update_combination_binds_correctly(pool: &PgPool) {
-    use db::patch_targets::{read, write};
+    use db::patch_targets::read;
 
     let labels = [None, Some("L".to_owned())];
     let notes = [None, Some(Some("N".to_owned())), Some(None)];
@@ -66,7 +65,7 @@ pub(super) async fn every_partial_update_combination_binds_correctly(pool: &PgPo
         for note in &notes {
             for score in &scores {
                 for tag in &tags {
-                    let before = write::create(pool, base_patch_target()).await.unwrap();
+                    let before = PatchTarget::create(pool, base_patch_target()).await.unwrap();
                     let patch = UpdatePatchTarget {
                         label: label.clone(),
                         note: note.clone(),
@@ -89,7 +88,7 @@ pub(super) async fn every_partial_update_combination_binds_correctly(pool: &PgPo
                         expected.tag = value.clone();
                     }
 
-                    let updated = write::patch(pool, before.id, patch.clone())
+                    let updated = PatchTarget::patch(pool, before.id, patch.clone())
                         .await
                         .unwrap_or_else(|error| panic!("{patch:?} failed: {error}"))
                         .expect("row exists");
@@ -105,20 +104,19 @@ pub(super) async fn every_partial_update_combination_binds_correctly(pool: &PgPo
 }
 
 pub(super) async fn empty_and_missing_updates(pool: &PgPool) {
-    use db::patch_targets::write;
 
-    let row: PatchTarget = write::create(pool, base_patch_target()).await.unwrap();
-    let unchanged = write::patch(pool, row.id, UpdatePatchTarget::default())
+    let row: PatchTarget = PatchTarget::create(pool, base_patch_target()).await.unwrap();
+    let unchanged = PatchTarget::patch(pool, row.id, UpdatePatchTarget::default())
         .await
         .unwrap();
     assert_eq!(unchanged, Some(row), "empty patch returns the current row");
 
     let missing_id = PatchTargetId::from(i64::MAX);
-    let empty_missing = write::patch(pool, missing_id, UpdatePatchTarget::default())
+    let empty_missing = PatchTarget::patch(pool, missing_id, UpdatePatchTarget::default())
         .await
         .unwrap();
     assert_eq!(empty_missing, None);
-    let missing = write::patch(
+    let missing = PatchTarget::patch(
         pool,
         missing_id,
         UpdatePatchTarget {
@@ -132,16 +130,16 @@ pub(super) async fn empty_and_missing_updates(pool: &PgPool) {
 }
 
 pub(super) async fn destroy_reports_existing_and_missing_rows(pool: &PgPool) {
-    use db::patch_targets::{read, write};
+    use db::patch_targets::read;
 
-    let row = write::create(pool, base_patch_target()).await.unwrap();
+    let row = PatchTarget::create(pool, base_patch_target()).await.unwrap();
     assert!(read::exists_by_id(pool, row.id).await.unwrap());
     assert!(
-        write::destroy(pool, row.id).await.unwrap() > 0,
+        PatchTarget::destroy(pool, row.id).await.unwrap() > 0,
         "existing row is deleted"
     );
     assert_eq!(
-        write::destroy(pool, row.id).await.unwrap(),
+        PatchTarget::destroy(pool, row.id).await.unwrap(),
         0,
         "second destroy finds nothing"
     );
@@ -150,21 +148,21 @@ pub(super) async fn destroy_reports_existing_and_missing_rows(pool: &PgPool) {
 }
 
 pub(super) async fn transactions_stay_with_the_caller(pool: &PgPool) {
-    use db::patch_targets::{read, write};
+    use db::patch_targets::read;
 
     let mut tx = pool.begin().await.unwrap();
-    let rolled_back = write::create(&mut *tx, base_patch_target()).await.unwrap();
+    let rolled_back = PatchTarget::create(&mut *tx, base_patch_target()).await.unwrap();
     assert!(read::exists_by_id(&mut *tx, rolled_back.id).await.unwrap());
     tx.rollback().await.unwrap();
     assert!(!read::exists_by_id(pool, rolled_back.id).await.unwrap());
 
     let mut tx = pool.begin().await.unwrap();
-    let committed = write::create(&mut *tx, base_patch_target()).await.unwrap();
+    let committed = PatchTarget::create(&mut *tx, base_patch_target()).await.unwrap();
     let patch = UpdatePatchTarget {
         label: Some("in tx".to_owned()),
         ..Default::default()
     };
-    write::patch(&mut *tx, committed.id, patch).await.unwrap();
+    PatchTarget::patch(&mut *tx, committed.id, patch).await.unwrap();
     tx.commit().await.unwrap();
     let stored = read::get_by_id(pool, committed.id).await.unwrap().unwrap();
     assert_eq!(stored.label, "in tx");
@@ -172,11 +170,11 @@ pub(super) async fn transactions_stay_with_the_caller(pool: &PgPool) {
 
 pub(super) async fn all_defaulted_insert_uses_default_values(pool: &PgPool) {
     use db::counters::models::NewCounter;
-    use db::counters::write::create;
+    use db::counters::models::Counter;
 
-    let empty = create(pool, NewCounter::default()).await.unwrap();
+    let empty = Counter::create(pool, NewCounter::default()).await.unwrap();
     assert_eq!(empty.hits, 0);
-    let set = create(
+    let set = Counter::create(
         pool,
         NewCounter {
             hits: Some(3),
@@ -191,9 +189,10 @@ pub(super) async fn all_defaulted_insert_uses_default_values(pool: &PgPool) {
 
 pub(super) async fn reserved_and_quoted_identifiers_round_trip(pool: &PgPool) {
     use db::reserved_words::models::{NewReservedWord, UpdateReservedWord};
-    use db::reserved_words::{read, write};
+    use db::reserved_words::models::ReservedWord;
+    use db::reserved_words::read;
 
-    let row = write::create(
+    let row = ReservedWord::create(
         pool,
         NewReservedWord {
             from: "origin".to_owned(),
@@ -218,7 +217,7 @@ pub(super) async fn reserved_and_quoted_identifiers_round_trip(pool: &PgPool) {
         mixed_case: Some(9),
         ..Default::default()
     };
-    let updated = write::patch(pool, row.select, patch)
+    let updated = ReservedWord::patch(pool, row.select, patch)
         .await
         .unwrap()
         .unwrap();
@@ -229,15 +228,16 @@ pub(super) async fn reserved_and_quoted_identifiers_round_trip(pool: &PgPool) {
 
     assert_eq!(read::count(pool).await.unwrap(), 1);
     assert_eq!(read::list_page(pool, 10, 0).await.unwrap(), vec![updated]);
-    assert!(write::destroy(pool, row.select).await.unwrap() > 0);
+    assert!(ReservedWord::destroy(pool, row.select).await.unwrap() > 0);
 }
 
 pub(super) async fn table_without_primary_key(pool: &PgPool) {
     use db::audit_log::models::NewAuditLog;
-    use db::audit_log::{read, write};
+    use db::audit_log::models::AuditLog;
+    use db::audit_log::read;
 
     for event in ["first", "second"] {
-        write::create(
+        AuditLog::create(
             pool,
             NewAuditLog {
                 event: event.to_owned(),
@@ -287,15 +287,14 @@ pub(super) async fn rows_round_trip_through_json(pool: &PgPool) {
 /// A patch deserialized from JSON leaves the columns absent from it alone
 /// and sets those given as `null` to `NULL`; serializing skips absent fields.
 pub(super) async fn patches_from_json_tell_absent_from_null(pool: &PgPool) {
-    use db::patch_targets::write;
 
-    let before = write::create(pool, base_patch_target()).await.unwrap();
+    let before = PatchTarget::create(pool, base_patch_target()).await.unwrap();
     assert_eq!(before.note.as_deref(), Some("n0"));
 
     let untouched: UpdatePatchTarget = serde_json::from_str("{}").unwrap();
     assert!(untouched.is_empty());
     assert_eq!(serde_json::to_string(&untouched).unwrap(), "{}");
-    let row = write::patch(pool, before.id, untouched)
+    let row = PatchTarget::patch(pool, before.id, untouched)
         .await
         .unwrap()
         .expect("row exists");
@@ -308,7 +307,7 @@ pub(super) async fn patches_from_json_tell_absent_from_null(pool: &PgPool) {
         serde_json::to_value(&cleared).unwrap(),
         serde_json::json!({"note": null, "score": 9})
     );
-    let row = write::patch(pool, before.id, cleared)
+    let row = PatchTarget::patch(pool, before.id, cleared)
         .await
         .unwrap()
         .expect("row exists");

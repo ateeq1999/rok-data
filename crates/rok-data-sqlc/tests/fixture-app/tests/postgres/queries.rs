@@ -12,7 +12,7 @@ pub(super) async fn annotated_queries(pool: &PgPool) {
     assert_eq!(category.name, "query-cat");
     assert_eq!(category.description, None);
 
-    let supplier = db::suppliers::write::create(
+    let supplier = db::suppliers::models::Supplier::create(
         pool,
         db::suppliers::models::NewSupplier {
             id: uuid::Uuid::from_u128(900).into(),
@@ -169,7 +169,7 @@ pub(super) async fn partial_index_upserts_and_recursive_ctes(pool: &PgPool) {
     assert_eq!(second.body, "second");
     // A soft-deleted row is outside the index, so the code is free again.
     assert!(
-        db::soft_notes::write::destroy(pool, first.id)
+        db::soft_notes::models::SoftNote::destroy(pool, first.id)
             .await
             .unwrap()
             > 0
@@ -181,7 +181,7 @@ pub(super) async fn partial_index_upserts_and_recursive_ctes(pool: &PgPool) {
     // Later scenarios count every `soft_notes` row.
     for id in [first.id, third.id] {
         assert!(
-            db::soft_notes::write::delete_permanently(pool, id)
+            db::soft_notes::models::SoftNote::delete_permanently(pool, id)
                 .await
                 .unwrap()
                 > 0
@@ -189,7 +189,7 @@ pub(super) async fn partial_index_upserts_and_recursive_ctes(pool: &PgPool) {
     }
 
     let unit = async |parent_id, name: &str| {
-        db::org_units::write::create(
+        db::org_units::models::OrgUnit::create(
             pool,
             NewOrgUnit {
                 parent_id,

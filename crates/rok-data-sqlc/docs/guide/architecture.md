@@ -276,7 +276,7 @@ layer. Its only required method is `pool`. Every write comes in two parts:
         user: AuthUser,
         input: CreateTaskDto,
     ) -> Result<Task, AppError> {
-        let row = repo::create(&mut *conn, input.into_new(user.id)).await?;
+        let row = Task::create(&mut *conn, input.into_new(user.id)).await?;
         Ok(row)
     }
 
@@ -351,7 +351,7 @@ the task:
         self.projects
             .task_opened(&mut *conn, user, input.project_id)
             .await?;
-        let row = repo::create(&mut *conn, input.into_new(user.id)).await?;
+        let row = Task::create(&mut *conn, input.into_new(user.id)).await?;
         Ok(row)
     }
 ```

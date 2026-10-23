@@ -31,7 +31,7 @@ use crate::schema::{BaseType, Column, EnumType, Table};
 use crate::{Config, Conventions};
 
 use self::checks::{check_imports, check_serde};
-use self::emit::{CHAIN_WIDTH, FN_CALL_WIDTH, MAX_WIDTH};
+use self::emit::{CHAIN_WIDTH, FN_CALL_WIDTH, MAX_WIDTH, indented, max_width};
 
 pub use self::api::owned_dirs as api_owned_dirs;
 pub use self::db_mod::{DbMod, render_db_mod, render_schema_snapshot};

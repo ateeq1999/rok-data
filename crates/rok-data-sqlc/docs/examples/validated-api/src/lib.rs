@@ -32,7 +32,7 @@ pub mod with_axum {
         State(pool): State<PgPool>,
         ValidatedJson(input): ValidatedJson<NewMember>,
     ) -> Result<Json<Member>, StatusCode> {
-        let member = crate::db::members::write::create(&pool, input)
+        let member = Member::create(&pool, input)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         Ok(Json(member))
@@ -59,7 +59,7 @@ pub mod with_actix_web {
         pool: web::Data<PgPool>,
         ValidatedJson(input): ValidatedJson<NewMember>,
     ) -> actix_web::Result<web::Json<Member>> {
-        let member = crate::db::members::write::create(pool.get_ref(), input)
+        let member = Member::create(pool.get_ref(), input)
             .await
             .map_err(ErrorInternalServerError)?;
         Ok(web::Json(member))

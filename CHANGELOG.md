@@ -18,6 +18,14 @@ compiler finds the call sites.
 
 **What changed**
 
+- **The write verbs live on the generated model** (dx-first ticket 03,
+  as 0.3.0 spec D5 and engine ADR 0018 promised): `Book::create(&db,
+  input)`, `Book::patch(&db, id, patch)`, `Book::destroy(&db, id)`, and
+  `restore` / `delete_permanently` / `attach` / `detach` / `sync` where
+  they apply. The module functions (`books::write::create`) remain for one
+  release as `#[deprecated]` wrappers that forward to the model verb.
+  Generated services call the model verbs. A `[generate.scopes]` entry
+  named like one of these verbs is rejected (it would collide).
 - **One import**: the generated `db/mod.rs` writes a `prelude` module.
   `use crate::db::prelude::*;` brings rok-data's prelude, every model,
   and each model's `{Model}Scopes` trait, so chained scopes no longer

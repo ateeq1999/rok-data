@@ -426,27 +426,22 @@ fn render_write_pair(
             } else {
                 "input.into()".to_owned()
             });
-            push_call(output, 8, "let row = ", "repo::create", &args, ".await?;");
+            let create = format!("{}::create", feature.row());
+            push_call(output, 8, "let row = ", &create, &args, ".await?;");
             output.push_str("        Ok(row)\n");
         }
         Endpoint::Update => {
             args.push(key_arg(feature));
+            let patch = format!("{}::patch", feature.row());
             if feature.version.is_some() {
                 args.extend(["version".to_owned(), "input.into()".to_owned()]);
-                push_call(
-                    output,
-                    8,
-                    "let outcome = ",
-                    "repo::patch",
-                    &args,
-                    ".await?;",
-                );
+                push_call(output, 8, "let outcome = ", &patch, &args, ".await?;");
                 output.push_str(
                     "        match outcome {\n            UpdateOutcome::Updated(row) => Ok(row),\n            UpdateOutcome::NotFound => Err(not_found()),\n            UpdateOutcome::VersionConflict => Err(stale()),\n        }\n",
                 );
             } else {
                 args.push("input.into()".to_owned());
-                push_call(output, 8, "let row = ", "repo::patch", &args, ".await?;");
+                push_call(output, 8, "let row = ", &patch, &args, ".await?;");
                 output.push_str("        match row {\n");
                 output.push_str("            Some(row) => Ok(row),\n");
                 output.push_str("            None => Err(not_found()),\n");
@@ -456,11 +451,12 @@ fn render_write_pair(
         Endpoint::Restore => {
             let mut key_args = args.clone();
             key_args.push(key_arg(feature));
+            let restore = format!("{}::restore", feature.row());
             push_call(
                 output,
                 8,
                 "let restored = ",
-                "repo::restore",
+                &restore,
                 &key_args,
                 ".await?;",
             );
@@ -483,12 +479,13 @@ fn render_write_pair(
         }
         _ => {
             args.push(key_arg(feature));
-            let callee = if name == "destroy_permanently" {
-                "repo::delete_permanently"
+            let verb = if name == "destroy_permanently" {
+                "delete_permanently"
             } else {
-                "repo::destroy"
+                "destroy"
             };
-            push_call(output, 8, "let deleted = ", callee, &args, ".await?;");
+            let callee = format!("{}::{verb}", feature.row());
+            push_call(output, 8, "let deleted = ", &callee, &args, ".await?;");
             output.push_str("        if deleted > 0 {\n");
             output.push_str("            Ok(())\n");
             output.push_str("        } else {\n");

@@ -5,17 +5,15 @@
 mod support;
 
 use axum::http::{Method, StatusCode};
-use rok_api_example::db::authors::models::NewAuthor;
-use rok_api_example::db::authors::write as write_author;
+use rok_api_example::db::authors::models::{Author, NewAuthor};
 use rok_api_example::db::books::models::{Book, NewBook};
-use rok_api_example::db::books::write;
 use serde_json::json;
 use sqlx::PgPool;
 use support::{Database, TestResult, call, user};
 
 /// Inserts an author with `name` and `email`.
 async fn author(pool: &PgPool, name: &str, email: &str) -> Result<uuid::Uuid, rok_data::Error> {
-    let row = write_author::create(
+    let row = Author::create(
         pool,
         NewAuthor {
             id: None,
@@ -34,7 +32,7 @@ async fn book(
     title: &str,
     isbn: &str,
 ) -> Result<Book, rok_data::Error> {
-    write::create(
+    Book::create(
         pool,
         NewBook {
             id: None,

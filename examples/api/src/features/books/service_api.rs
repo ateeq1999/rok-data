@@ -48,7 +48,7 @@ pub trait BooksServiceApi {
         conn: &mut PgConnection,
         input: CreateBookDto,
     ) -> Result<Book, AppError> {
-        let row = repo::create(&mut *conn, input.into()).await?;
+        let row = Book::create(&mut *conn, input.into()).await?;
         Ok(row)
     }
 
@@ -78,7 +78,7 @@ pub trait BooksServiceApi {
         id: BookId,
         input: UpdateBookDto,
     ) -> Result<Book, AppError> {
-        let row = repo::patch(&mut *conn, id, input.into()).await?;
+        let row = Book::patch(&mut *conn, id, input.into()).await?;
         match row {
             Some(row) => Ok(row),
             None => Err(not_found()),
@@ -97,7 +97,7 @@ pub trait BooksServiceApi {
     /// What [`destroy`](Self::destroy) does, on `conn`: the caller's connection or
     /// transaction. Override this one to change it.
     async fn destroy_in(&self, conn: &mut PgConnection, id: BookId) -> Result<(), AppError> {
-        let deleted = repo::destroy(&mut *conn, id).await?;
+        let deleted = Book::destroy(&mut *conn, id).await?;
         if deleted > 0 {
             Ok(())
         } else {

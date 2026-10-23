@@ -89,7 +89,11 @@ async fn create_failures() {
         Some(json!({"slug": "long", "title": "x".repeat(81), "priority": 10})),
     )
     .await;
-    assert_eq!(answer.status, StatusCode::UNPROCESSABLE_ENTITY, "{answer:?}");
+    assert_eq!(
+        answer.status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{answer:?}"
+    );
     assert_eq!(answer.code(), "validation_failed");
     let details = &answer.body["error"]["details"];
     assert!(details["title"].is_array(), "{answer:?}");
@@ -156,7 +160,11 @@ async fn update_failures() {
     let answer = call(&db, Method::PATCH, &missing, Some(json!({"title": "x"}))).await;
     assert_error(&answer, StatusCode::NOT_FOUND, "not_found");
     let answer = call(&db, Method::PATCH, &uri, Some(json!({"title": ""}))).await;
-    assert_eq!(answer.status, StatusCode::UNPROCESSABLE_ENTITY, "{answer:?}");
+    assert_eq!(
+        answer.status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{answer:?}"
+    );
     assert_eq!(answer.code(), "validation_failed");
     let answer = call(&db, Method::PATCH, &uri, Some(json!({"slug": "two"}))).await;
     assert_error(&answer, StatusCode::CONFLICT, "conflict");
@@ -291,7 +299,10 @@ async fn list_q_matches_the_search_columns_literally_ignoring_case() {
         }
     };
     // `title` or `body`, ignoring case.
-    assert_eq!(matched("alp").await, (vec![json!("alpha"), json!("pct")], json!(2)));
+    assert_eq!(
+        matched("alp").await,
+        (vec![json!("alpha"), json!("pct")], json!(2))
+    );
     // `%`, `_` and `\` match themselves.
     assert_eq!(matched("%25").await, (vec![json!("pct")], json!(1)));
     assert_eq!(matched("_").await, (vec![json!("under")], json!(1)));

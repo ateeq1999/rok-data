@@ -5,8 +5,165 @@ use super::super::organizations::models::OrganizationId;
 use super::models::{Invoice, InvoiceId, NewInvoice, UpdateInvoice};
 use rok_data::Model;
 
-/// Inserts one row and returns it as stored. Defaulted columns left as `None`
-/// are omitted from the `INSERT` so the database default applies.
+impl Invoice {
+    /// Inserts one row and returns it as stored. Defaulted columns left as `None`
+    /// are omitted from the `INSERT` so the database default applies.
+    pub async fn create<'e, E>(
+        executor: E,
+        organization_id: OrganizationId,
+        input: NewInvoice,
+    ) -> Result<Invoice, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        let mut insert = Invoice::insert_builder().set(Invoice::ORGANIZATION_ID, organization_id);
+        if let Some(value) = input.id {
+            insert = insert.set(Invoice::ID, value);
+        }
+        insert = insert.set(Invoice::NUMBER, input.number);
+        insert = insert.set(Invoice::TOTAL, input.total);
+        if let Some(value) = input.status {
+            insert = insert.set(Invoice::STATUS, value);
+        }
+
+        insert.exec(executor).await
+    }
+
+    /// Applies a partial patch if the row's `row_version` is still `expected_version`.
+    ///
+    /// Returns the patched row, `NotFound` if no row has the given primary key, or
+    /// `VersionConflict` if the row is at another version, in which case nothing
+    /// changes. An empty patch issues no `UPDATE`: it returns the current row,
+    /// unchanged, when the row is at the expected version.
+    /// A soft-deleted row is left unchanged and counts as missing.
+    pub async fn patch<'e, E>(
+        executor: E,
+        organization_id: OrganizationId,
+        id: InvoiceId,
+        expected_version: i64,
+        input: UpdateInvoice,
+    ) -> Result<UpdateOutcome<Invoice>, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        if input.is_empty() {
+            let Some(row) = super::read::get_by_id(executor, organization_id, id).await? else {
+                return Ok(UpdateOutcome::NotFound);
+            };
+            if row.row_version != expected_version {
+                return Ok(UpdateOutcome::VersionConflict);
+            }
+            return Ok(UpdateOutcome::Updated(row));
+        }
+
+        let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new("WITH rok_data_sqlc_target AS (");
+        query.push("SELECT id AS rok_data_sqlc_key_0 FROM invoices");
+        query.push(" WHERE organization_id = ");
+        query.push_bind(organization_id);
+        query.push(" AND id = ");
+        query.push_bind(id);
+        query.push(" AND deleted_at IS NULL");
+        query.push("), rok_data_sqlc_updated AS (UPDATE invoices SET ");
+        let mut assignments = query.separated(", ");
+        if let Some(value) = input.number {
+            assignments.push("number = ");
+            assignments.push_bind_unseparated(value);
+        }
+        if let Some(value) = input.total {
+            assignments.push("total = ");
+            assignments.push_bind_unseparated(value);
+        }
+        if let Some(value) = input.status {
+            assignments.push("status = ");
+            assignments.push_bind_unseparated(value);
+        }
+        query.push(
+            " FROM rok_data_sqlc_target WHERE id = rok_data_sqlc_target.rok_data_sqlc_key_0 AND row_version = ",
+        );
+        query.push_bind(expected_version);
+        query.push(
+            r#"
+            RETURNING
+                id,
+                organization_id,
+                number,
+                total,
+                status,
+                updated_at,
+                row_version,
+                deleted_at
+            )
+            SELECT rok_data_sqlc_updated.*, EXISTS (SELECT 1 FROM rok_data_sqlc_updated) AS rok_data_sqlc_applied
+            FROM rok_data_sqlc_target LEFT JOIN rok_data_sqlc_updated ON TRUE
+            "#,
+        );
+        let Some(row) = query.build().fetch_optional(executor).await? else {
+            return Ok(UpdateOutcome::NotFound);
+        };
+        let applied: bool = sqlx::Row::try_get(&row, "rok_data_sqlc_applied")?;
+        if !applied {
+            return Ok(UpdateOutcome::VersionConflict);
+        }
+        Ok(UpdateOutcome::Updated(sqlx::FromRow::from_row(&row)?))
+    }
+
+    /// Soft-deletes the row with the given primary key by setting `deleted_at` to
+    /// the current time, and returns the number of rows changed: `0` when there is no
+    /// such row or it is already deleted.
+    pub async fn destroy<'e, E>(
+        executor: E,
+        organization_id: OrganizationId,
+        id: InvoiceId,
+    ) -> Result<u64, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        Invoice::query()
+            .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
+            .filter(Invoice::ID.eq(id))
+            .delete(executor)
+            .await
+    }
+
+    /// Restores the soft-deleted row with the given primary key by clearing `deleted_at`,
+    /// and returns the number of rows changed: `0` when there is no such row or it is
+    /// not deleted.
+    pub async fn restore<'e, E>(
+        executor: E,
+        organization_id: OrganizationId,
+        id: InvoiceId,
+    ) -> Result<u64, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        Invoice::query()
+            .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
+            .filter(Invoice::ID.eq(id))
+            .restore(executor)
+            .await
+    }
+
+    /// Removes the row with the given primary key from the table, deleted or not, and
+    /// returns the number of rows that existed.
+    pub async fn delete_permanently<'e, E>(
+        executor: E,
+        organization_id: OrganizationId,
+        id: InvoiceId,
+    ) -> Result<u64, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        Invoice::query()
+            .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
+            .filter(Invoice::ID.eq(id))
+            .with_trashed()
+            .force_delete(executor)
+            .await
+    }
+}
+
+/// Calls [`Invoice::create`], which this module function forwards to.
+#[deprecated(note = "call `Invoice::create` instead")]
 pub async fn create<'e, E>(
     executor: E,
     organization_id: OrganizationId,
@@ -15,26 +172,11 @@ pub async fn create<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    let mut insert = Invoice::insert_builder().set(Invoice::ORGANIZATION_ID, organization_id);
-    if let Some(value) = input.id {
-        insert = insert.set(Invoice::ID, value);
-    }
-    insert = insert.set(Invoice::NUMBER, input.number);
-    insert = insert.set(Invoice::TOTAL, input.total);
-    if let Some(value) = input.status {
-        insert = insert.set(Invoice::STATUS, value);
-    }
-
-    insert.exec(executor).await
+    Invoice::create(executor, organization_id, input).await
 }
 
-/// Applies a partial patch if the row's `row_version` is still `expected_version`.
-///
-/// Returns the patched row, `NotFound` if no row has the given primary key, or
-/// `VersionConflict` if the row is at another version, in which case nothing
-/// changes. An empty patch issues no `UPDATE`: it returns the current row,
-/// unchanged, when the row is at the expected version.
-/// A soft-deleted row is left unchanged and counts as missing.
+/// Calls [`Invoice::patch`], which this module function forwards to.
+#[deprecated(note = "call `Invoice::patch` instead")]
 pub async fn patch<'e, E>(
     executor: E,
     organization_id: OrganizationId,
@@ -45,70 +187,11 @@ pub async fn patch<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    if input.is_empty() {
-        let Some(row) = super::read::get_by_id(executor, organization_id, id).await? else {
-            return Ok(UpdateOutcome::NotFound);
-        };
-        if row.row_version != expected_version {
-            return Ok(UpdateOutcome::VersionConflict);
-        }
-        return Ok(UpdateOutcome::Updated(row));
-    }
-
-    let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new("WITH rok_data_sqlc_target AS (");
-    query.push("SELECT id AS rok_data_sqlc_key_0 FROM invoices");
-    query.push(" WHERE organization_id = ");
-    query.push_bind(organization_id);
-    query.push(" AND id = ");
-    query.push_bind(id);
-    query.push(" AND deleted_at IS NULL");
-    query.push("), rok_data_sqlc_updated AS (UPDATE invoices SET ");
-    let mut assignments = query.separated(", ");
-    if let Some(value) = input.number {
-        assignments.push("number = ");
-        assignments.push_bind_unseparated(value);
-    }
-    if let Some(value) = input.total {
-        assignments.push("total = ");
-        assignments.push_bind_unseparated(value);
-    }
-    if let Some(value) = input.status {
-        assignments.push("status = ");
-        assignments.push_bind_unseparated(value);
-    }
-    query.push(
-        " FROM rok_data_sqlc_target WHERE id = rok_data_sqlc_target.rok_data_sqlc_key_0 AND row_version = ",
-    );
-    query.push_bind(expected_version);
-    query.push(
-        r#"
-        RETURNING
-            id,
-            organization_id,
-            number,
-            total,
-            status,
-            updated_at,
-            row_version,
-            deleted_at
-        )
-        SELECT rok_data_sqlc_updated.*, EXISTS (SELECT 1 FROM rok_data_sqlc_updated) AS rok_data_sqlc_applied
-        FROM rok_data_sqlc_target LEFT JOIN rok_data_sqlc_updated ON TRUE
-        "#,
-    );
-    let Some(row) = query.build().fetch_optional(executor).await? else {
-        return Ok(UpdateOutcome::NotFound);
-    };
-    let applied: bool = sqlx::Row::try_get(&row, "rok_data_sqlc_applied")?;
-    if !applied {
-        return Ok(UpdateOutcome::VersionConflict);
-    }
-    Ok(UpdateOutcome::Updated(sqlx::FromRow::from_row(&row)?))
+    Invoice::patch(executor, organization_id, id, expected_version, input).await
 }
 
-/// Soft-deletes the row with the given primary key by setting `deleted_at` to
-/// the current time, and returns the number of rows changed: `0` when there is no
-/// such row or it is already deleted.
+/// Calls [`Invoice::destroy`], which this module function forwards to.
+#[deprecated(note = "call `Invoice::destroy` instead")]
 pub async fn destroy<'e, E>(
     executor: E,
     organization_id: OrganizationId,
@@ -117,16 +200,11 @@ pub async fn destroy<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    Invoice::query()
-        .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
-        .filter(Invoice::ID.eq(id))
-        .delete(executor)
-        .await
+    Invoice::destroy(executor, organization_id, id).await
 }
 
-/// Restores the soft-deleted row with the given primary key by clearing `deleted_at`,
-/// and returns the number of rows changed: `0` when there is no such row or it is
-/// not deleted.
+/// Calls [`Invoice::restore`], which this module function forwards to.
+#[deprecated(note = "call `Invoice::restore` instead")]
 pub async fn restore<'e, E>(
     executor: E,
     organization_id: OrganizationId,
@@ -135,15 +213,11 @@ pub async fn restore<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    Invoice::query()
-        .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
-        .filter(Invoice::ID.eq(id))
-        .restore(executor)
-        .await
+    Invoice::restore(executor, organization_id, id).await
 }
 
-/// Removes the row with the given primary key from the table, deleted or not, and
-/// returns the number of rows that existed.
+/// Calls [`Invoice::delete_permanently`], which this module function forwards to.
+#[deprecated(note = "call `Invoice::delete_permanently` instead")]
 pub async fn delete_permanently<'e, E>(
     executor: E,
     organization_id: OrganizationId,
@@ -152,10 +226,5 @@ pub async fn delete_permanently<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    Invoice::query()
-        .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
-        .filter(Invoice::ID.eq(id))
-        .with_trashed()
-        .force_delete(executor)
-        .await
+    Invoice::delete_permanently(executor, organization_id, id).await
 }

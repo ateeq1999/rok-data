@@ -3,20 +3,63 @@
 use super::models::{Label, LabelId, NewLabel, UpdateLabel};
 use rok_data::Model;
 
-/// Inserts one row and returns it as stored.
+impl Label {
+    /// Inserts one row and returns it as stored.
+    pub async fn create<'e, E>(executor: E, input: NewLabel) -> Result<Label, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        Label::insert_builder()
+            .set(Label::NAME, input.name)
+            .exec(executor)
+            .await
+    }
+
+    /// Applies a partial patch and returns the patched row, or `None` if no row has
+    /// the given primary key. An empty patch issues no `UPDATE` and returns the
+    /// current row.
+    pub async fn patch<'e, E>(
+        executor: E,
+        id: LabelId,
+        input: UpdateLabel,
+    ) -> Result<Option<Label>, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        if input.is_empty() {
+            return super::read::get_by_id(executor, id).await;
+        }
+
+        let mut update = Label::update_all().filter(Label::ID.eq(id));
+        if let Some(value) = input.name {
+            update = update.set(Label::NAME, value);
+        }
+        update.returning_one(executor).await
+    }
+
+    /// Deletes the row with the given primary key and returns the number of rows that existed.
+    pub async fn destroy<'e, E>(executor: E, id: LabelId) -> Result<u64, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        Label::query()
+            .filter(Label::ID.eq(id))
+            .delete(executor)
+            .await
+    }
+}
+
+/// Calls [`Label::create`], which this module function forwards to.
+#[deprecated(note = "call `Label::create` instead")]
 pub async fn create<'e, E>(executor: E, input: NewLabel) -> Result<Label, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    Label::insert_builder()
-        .set(Label::NAME, input.name)
-        .exec(executor)
-        .await
+    Label::create(executor, input).await
 }
 
-/// Applies a partial patch and returns the patched row, or `None` if no row has
-/// the given primary key. An empty patch issues no `UPDATE` and returns the
-/// current row.
+/// Calls [`Label::patch`], which this module function forwards to.
+#[deprecated(note = "call `Label::patch` instead")]
 pub async fn patch<'e, E>(
     executor: E,
     id: LabelId,
@@ -25,24 +68,14 @@ pub async fn patch<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    if input.is_empty() {
-        return super::read::get_by_id(executor, id).await;
-    }
-
-    let mut update = Label::update_all().filter(Label::ID.eq(id));
-    if let Some(value) = input.name {
-        update = update.set(Label::NAME, value);
-    }
-    update.returning_one(executor).await
+    Label::patch(executor, id, input).await
 }
 
-/// Deletes the row with the given primary key and returns the number of rows that existed.
+/// Calls [`Label::destroy`], which this module function forwards to.
+#[deprecated(note = "call `Label::destroy` instead")]
 pub async fn destroy<'e, E>(executor: E, id: LabelId) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    Label::query()
-        .filter(Label::ID.eq(id))
-        .delete(executor)
-        .await
+    Label::destroy(executor, id).await
 }

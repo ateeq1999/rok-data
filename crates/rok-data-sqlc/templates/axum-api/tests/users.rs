@@ -6,7 +6,7 @@ mod support;
 use axum::http::{Method, StatusCode};
 use axum_api::db::types::Role;
 use axum_api::db::users::models::{NewUser, User};
-use axum_api::db::users::{read, write};
+use axum_api::db::users::read;
 use serde_json::json;
 use sqlx::PgPool;
 use support::{Database, TestResult, admin, call, user};
@@ -17,7 +17,7 @@ async fn seed(
     email: &str,
     display_name: Option<&str>,
 ) -> Result<User, rok_data::Error> {
-    write::create(
+    User::create(
         pool,
         NewUser {
             id: None,

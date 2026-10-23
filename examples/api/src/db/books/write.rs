@@ -3,24 +3,73 @@
 use super::models::{Book, BookId, NewBook, UpdateBook};
 use rok_data::Model;
 
-/// Inserts one row and returns it as stored.
+impl Book {
+    /// Inserts one row and returns it as stored.
+    pub async fn create<'e, E>(executor: E, input: NewBook) -> Result<Book, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        Book::insert_builder()
+            .set(Book::ID, input.id.unwrap_or_else(BookId::generate))
+            .set(Book::AUTHOR_ID, input.author_id)
+            .set(Book::TITLE, input.title)
+            .set(Book::ISBN, input.isbn)
+            .set(Book::PUBLISHED_AT, input.published_at)
+            .exec(executor)
+            .await
+    }
+
+    /// Applies a partial patch and returns the patched row, or `None` if no row has
+    /// the given primary key. An empty patch issues no `UPDATE` and returns the
+    /// current row.
+    pub async fn patch<'e, E>(
+        executor: E,
+        id: BookId,
+        input: UpdateBook,
+    ) -> Result<Option<Book>, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        if input.is_empty() {
+            return super::read::get_by_id(executor, id).await;
+        }
+
+        let mut update = Book::update_all().filter(Book::ID.eq(id));
+        if let Some(value) = input.author_id {
+            update = update.set(Book::AUTHOR_ID, value);
+        }
+        if let Some(value) = input.title {
+            update = update.set(Book::TITLE, value);
+        }
+        if let Some(value) = input.isbn {
+            update = update.set(Book::ISBN, value);
+        }
+        if let Some(value) = input.published_at {
+            update = update.set(Book::PUBLISHED_AT, value);
+        }
+        update.returning_one(executor).await
+    }
+
+    /// Deletes the row with the given primary key and returns the number of rows that existed.
+    pub async fn destroy<'e, E>(executor: E, id: BookId) -> Result<u64, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        Book::query().filter(Book::ID.eq(id)).delete(executor).await
+    }
+}
+
+/// Calls [`Book::create`], which this module function forwards to.
+#[deprecated(note = "call `Book::create` instead")]
 pub async fn create<'e, E>(executor: E, input: NewBook) -> Result<Book, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    Book::insert_builder()
-        .set(Book::ID, input.id.unwrap_or_else(BookId::generate))
-        .set(Book::AUTHOR_ID, input.author_id)
-        .set(Book::TITLE, input.title)
-        .set(Book::ISBN, input.isbn)
-        .set(Book::PUBLISHED_AT, input.published_at)
-        .exec(executor)
-        .await
+    Book::create(executor, input).await
 }
 
-/// Applies a partial patch and returns the patched row, or `None` if no row has
-/// the given primary key. An empty patch issues no `UPDATE` and returns the
-/// current row.
+/// Calls [`Book::patch`], which this module function forwards to.
+#[deprecated(note = "call `Book::patch` instead")]
 pub async fn patch<'e, E>(
     executor: E,
     id: BookId,
@@ -29,30 +78,14 @@ pub async fn patch<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    if input.is_empty() {
-        return super::read::get_by_id(executor, id).await;
-    }
-
-    let mut update = Book::update_all().filter(Book::ID.eq(id));
-    if let Some(value) = input.author_id {
-        update = update.set(Book::AUTHOR_ID, value);
-    }
-    if let Some(value) = input.title {
-        update = update.set(Book::TITLE, value);
-    }
-    if let Some(value) = input.isbn {
-        update = update.set(Book::ISBN, value);
-    }
-    if let Some(value) = input.published_at {
-        update = update.set(Book::PUBLISHED_AT, value);
-    }
-    update.returning_one(executor).await
+    Book::patch(executor, id, input).await
 }
 
-/// Deletes the row with the given primary key and returns the number of rows that existed.
+/// Calls [`Book::destroy`], which this module function forwards to.
+#[deprecated(note = "call `Book::destroy` instead")]
 pub async fn destroy<'e, E>(executor: E, id: BookId) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    Book::query().filter(Book::ID.eq(id)).delete(executor).await
+    Book::destroy(executor, id).await
 }

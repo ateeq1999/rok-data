@@ -1,6 +1,20 @@
 use super::super::test_support::{column, defaulted, generated, nullable, table};
 use super::*;
 
+/// `write.rs` for `table`, dedented one level: the verbs read as rendered,
+/// at column 0, though they sit in the model's `impl` (and the module's
+/// forwarding wrappers lose their bodies' indent, which no test reads).
+fn render(table: &Table) -> String {
+    super::render(table)
+        .lines()
+        .map(|line| line.strip_prefix("    ").unwrap_or(line))
+        .fold(String::new(), |mut output, line| {
+            output.push_str(line);
+            output.push('\n');
+            output
+        })
+}
+
 #[test]
 fn static_create_when_no_column_has_a_default() {
     let rendered = render(&table(

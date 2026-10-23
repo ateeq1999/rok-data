@@ -54,7 +54,7 @@ pub trait ProjectsServiceApi {
         user: AuthUser,
         input: CreateProjectDto,
     ) -> Result<Project, AppError> {
-        let row = repo::create(&mut *conn, input.into_new(user.id)).await?;
+        let row = Project::create(&mut *conn, input.into_new(user.id)).await?;
         Ok(row)
     }
 
@@ -89,7 +89,7 @@ pub trait ProjectsServiceApi {
         if !owned {
             return Err(not_found());
         }
-        let row = repo::patch(&mut *conn, id, input.into()).await?;
+        let row = Project::patch(&mut *conn, id, input.into()).await?;
         match row {
             Some(row) => Ok(row),
             None => Err(not_found()),
@@ -122,7 +122,7 @@ pub trait ProjectsServiceApi {
         if !owned {
             return Err(not_found());
         }
-        let deleted = repo::destroy(&mut *conn, id).await?;
+        let deleted = Project::destroy(&mut *conn, id).await?;
         if deleted > 0 {
             Ok(())
         } else {

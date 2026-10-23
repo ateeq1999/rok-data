@@ -12,12 +12,12 @@ pub(super) async fn tenant_rows_are_invisible_to_other_tenants(pool: &PgPool) {
     use db::search::{Limit, Page, Sort};
     use db::tenant_notes::filter::{TenantNoteFilter, TenantNoteSortKey};
     use db::tenant_notes::models::{NewTenantNote, TenantNote, UpdateTenantNote};
-    use db::tenant_notes::{read, write};
+    use db::tenant_notes::read;
 
     let tenant_a = uuid::Uuid::from_u128(18_001);
     let tenant_b = uuid::Uuid::from_u128(18_002);
     let create = |tenant, body: &str| {
-        write::create(
+        TenantNote::create(
             pool,
             tenant,
             NewTenantNote {
@@ -88,7 +88,7 @@ pub(super) async fn tenant_rows_are_invisible_to_other_tenants(pool: &PgPool) {
         body: Some("hijacked".to_owned()),
     };
     assert_eq!(
-        write::patch(pool, tenant_b, note.id, 1, patch())
+        TenantNote::patch(pool, tenant_b, note.id, 1, patch())
             .await
             .unwrap(),
         UpdateOutcome::NotFound
@@ -98,14 +98,14 @@ pub(super) async fn tenant_rows_are_invisible_to_other_tenants(pool: &PgPool) {
         body: None,
     };
     assert_eq!(
-        write::patch(pool, tenant_b, note.id, 1, empty)
+        TenantNote::patch(pool, tenant_b, note.id, 1, empty)
             .await
             .unwrap(),
         UpdateOutcome::NotFound
     );
-    assert_eq!(write::destroy(pool, tenant_b, note.id).await.unwrap(), 0);
+    assert_eq!(TenantNote::destroy(pool, tenant_b, note.id).await.unwrap(), 0);
     assert!(
-        write::delete_permanently(pool, tenant_b, note.id)
+        TenantNote::delete_permanently(pool, tenant_b, note.id)
             .await
             .unwrap()
             == 0
@@ -117,16 +117,16 @@ pub(super) async fn tenant_rows_are_invisible_to_other_tenants(pool: &PgPool) {
     );
 
     // Tenant A can, and tenant B still cannot restore what A deleted.
-    let UpdateOutcome::Updated(updated) = write::patch(pool, tenant_a, note.id, 1, patch())
+    let UpdateOutcome::Updated(updated) = TenantNote::patch(pool, tenant_a, note.id, 1, patch())
         .await
         .unwrap()
     else {
         panic!("tenant A updates its own row");
     };
     assert_eq!(updated.body, "hijacked");
-    assert!(write::destroy(pool, tenant_a, note.id).await.unwrap() > 0);
-    assert!(write::restore(pool, tenant_b, note.id).await.unwrap() == 0);
-    assert!(write::restore(pool, tenant_a, note.id).await.unwrap() > 0);
+    assert!(TenantNote::destroy(pool, tenant_a, note.id).await.unwrap() > 0);
+    assert!(TenantNote::restore(pool, tenant_b, note.id).await.unwrap() == 0);
+    assert!(TenantNote::restore(pool, tenant_a, note.id).await.unwrap() > 0);
     sees(tenant_a, vec![note.id]).await;
     sees(tenant_b, vec![other.id]).await;
 }
@@ -137,12 +137,13 @@ pub(super) async fn a_tenant_in_the_primary_key_is_passed_once(pool: &PgPool) {
     use db::search::Limit;
     use db::tenant_members::filter::TenantMemberFilter;
     use db::tenant_members::models::{NewTenantMember, UpdateTenantMember};
-    use db::tenant_members::{read, write};
+    use db::tenant_members::models::TenantMember;
+    use db::tenant_members::read;
 
     let tenant_a = uuid::Uuid::from_u128(18_011);
     let tenant_b = uuid::Uuid::from_u128(18_012);
     for (tenant, name) in [(tenant_a, "Ann"), (tenant_b, "Bob")] {
-        write::create(
+        TenantMember::create(
             pool,
             tenant,
             NewTenantMember {
@@ -162,7 +163,7 @@ pub(super) async fn a_tenant_in_the_primary_key_is_passed_once(pool: &PgPool) {
     assert_eq!(name(tenant_a).await.as_deref(), Some("Ann"));
     assert_eq!(name(tenant_b).await.as_deref(), Some("Bob"));
 
-    let renamed = write::patch(
+    let renamed = TenantMember::patch(
         pool,
         tenant_b,
         "M1",
@@ -191,7 +192,7 @@ pub(super) async fn a_tenant_in_the_primary_key_is_passed_once(pool: &PgPool) {
     assert_eq!(page.len(), 1);
     assert_eq!(page[0].tenant_id, tenant_a);
 
-    assert!(write::destroy(pool, tenant_a, "M1").await.unwrap() > 0);
+    assert!(TenantMember::destroy(pool, tenant_a, "M1").await.unwrap() > 0);
     assert_eq!(name(tenant_a).await, None);
     assert_eq!(name(tenant_b).await.as_deref(), Some("Bea"));
 }
@@ -202,7 +203,8 @@ pub(super) async fn a_tenant_in_the_primary_key_is_passed_once(pool: &PgPool) {
 /// `app.user_id` the same way.
 pub(super) async fn row_level_security_sees_the_session_tenant(pool: &PgPool) {
     use db::rls_notes::models::NewRlsNote;
-    use db::rls_notes::{read, write};
+    use db::rls_notes::models::RlsNote;
+    use db::rls_notes::read;
     use db::session;
 
     // Superusers bypass row-level security, so the reads run as a role the
@@ -226,7 +228,7 @@ pub(super) async fn row_level_security_sees_the_session_tenant(pool: &PgPool) {
     for tenant in [tenant_a, tenant_b] {
         let body = format!("note of {tenant}");
         created.push(
-            write::create(pool, tenant, NewRlsNote { body })
+            RlsNote::create(pool, tenant, NewRlsNote { body })
                 .await
                 .unwrap(),
         );

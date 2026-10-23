@@ -3,22 +3,68 @@
 use super::models::{Author, AuthorId, NewAuthor, UpdateAuthor};
 use rok_data::Model;
 
-/// Inserts one row and returns it as stored.
+impl Author {
+    /// Inserts one row and returns it as stored.
+    pub async fn create<'e, E>(executor: E, input: NewAuthor) -> Result<Author, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        Author::insert_builder()
+            .set(Author::ID, input.id.unwrap_or_else(AuthorId::generate))
+            .set(Author::NAME, input.name)
+            .set(Author::EMAIL, input.email)
+            .exec(executor)
+            .await
+    }
+
+    /// Applies a partial patch and returns the patched row, or `None` if no row has
+    /// the given primary key. An empty patch issues no `UPDATE` and returns the
+    /// current row.
+    pub async fn patch<'e, E>(
+        executor: E,
+        id: AuthorId,
+        input: UpdateAuthor,
+    ) -> Result<Option<Author>, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        if input.is_empty() {
+            return super::read::get_by_id(executor, id).await;
+        }
+
+        let mut update = Author::update_all().filter(Author::ID.eq(id));
+        if let Some(value) = input.name {
+            update = update.set(Author::NAME, value);
+        }
+        if let Some(value) = input.email {
+            update = update.set(Author::EMAIL, value);
+        }
+        update.returning_one(executor).await
+    }
+
+    /// Deletes the row with the given primary key and returns the number of rows that existed.
+    pub async fn destroy<'e, E>(executor: E, id: AuthorId) -> Result<u64, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        Author::query()
+            .filter(Author::ID.eq(id))
+            .delete(executor)
+            .await
+    }
+}
+
+/// Calls [`Author::create`], which this module function forwards to.
+#[deprecated(note = "call `Author::create` instead")]
 pub async fn create<'e, E>(executor: E, input: NewAuthor) -> Result<Author, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    Author::insert_builder()
-        .set(Author::ID, input.id.unwrap_or_else(AuthorId::generate))
-        .set(Author::NAME, input.name)
-        .set(Author::EMAIL, input.email)
-        .exec(executor)
-        .await
+    Author::create(executor, input).await
 }
 
-/// Applies a partial patch and returns the patched row, or `None` if no row has
-/// the given primary key. An empty patch issues no `UPDATE` and returns the
-/// current row.
+/// Calls [`Author::patch`], which this module function forwards to.
+#[deprecated(note = "call `Author::patch` instead")]
 pub async fn patch<'e, E>(
     executor: E,
     id: AuthorId,
@@ -27,27 +73,14 @@ pub async fn patch<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    if input.is_empty() {
-        return super::read::get_by_id(executor, id).await;
-    }
-
-    let mut update = Author::update_all().filter(Author::ID.eq(id));
-    if let Some(value) = input.name {
-        update = update.set(Author::NAME, value);
-    }
-    if let Some(value) = input.email {
-        update = update.set(Author::EMAIL, value);
-    }
-    update.returning_one(executor).await
+    Author::patch(executor, id, input).await
 }
 
-/// Deletes the row with the given primary key and returns the number of rows that existed.
+/// Calls [`Author::destroy`], which this module function forwards to.
+#[deprecated(note = "call `Author::destroy` instead")]
 pub async fn destroy<'e, E>(executor: E, id: AuthorId) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    Author::query()
-        .filter(Author::ID.eq(id))
-        .delete(executor)
-        .await
+    Author::destroy(executor, id).await
 }

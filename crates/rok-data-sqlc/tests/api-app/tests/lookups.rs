@@ -53,7 +53,11 @@ async fn a_lookup_takes_the_features_access() {
     assert_eq!(found.status, StatusCode::OK, "{found:?}");
     assert_eq!(found.body, created.body);
     assert!(found.body.get("password_hash").is_none());
-    assert_error(&get(&db, uri).await, StatusCode::UNAUTHORIZED, "unauthorized");
+    assert_error(
+        &get(&db, uri).await,
+        StatusCode::UNAUTHORIZED,
+        "unauthorized",
+    );
     let user = token(Uuid::now_v7(), Role::User);
     let forbidden = call_as(&db, Some(&user), Method::GET, uri, None).await;
     assert_error(&forbidden, StatusCode::FORBIDDEN, "forbidden");
@@ -89,7 +93,10 @@ async fn search_filters_sorts_and_pages_like_list() {
     // An empty filter matches every row, one page at a time.
     let all = json!({"sort": "title"});
     let all = call(&db, Method::POST, &search, Some(all)).await;
-    assert_eq!(column(&all.body, "slug"), [json!("c"), json!("b"), json!("a")]);
+    assert_eq!(
+        column(&all.body, "slug"),
+        [json!("c"), json!("b"), json!("a")]
+    );
     let second = json!({"sort": "title", "page": 2, "per_page": 2});
     let second = call(&db, Method::POST, &search, Some(second)).await;
     assert_eq!(column(&second.body, "slug"), [json!("a")]);
@@ -102,7 +109,11 @@ async fn search_filters_sorts_and_pages_like_list() {
         json!({"filter": {"priority": [{"ge": "x"}]}}),
     ] {
         let answer = call(&db, Method::POST, &search, Some(body)).await;
-        assert_error(&answer, StatusCode::UNPROCESSABLE_ENTITY, "validation_failed");
+        assert_error(
+            &answer,
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "validation_failed",
+        );
     }
     db.drop().await;
 }
@@ -116,7 +127,11 @@ async fn search_rejects_a_hidden_column_by_name() {
     let search = "/api/v1/accounts/search";
     let body = Some(json!({"filter": {"password_hash": [{"eq": "x"}]}}));
     let answer = call_as(&db, Some(&admin), Method::POST, search, body).await;
-    assert_error(&answer, StatusCode::UNPROCESSABLE_ENTITY, "validation_failed");
+    assert_error(
+        &answer,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "validation_failed",
+    );
     assert!(
         answer.body["error"]["details"]
             .to_string()
@@ -125,7 +140,11 @@ async fn search_rejects_a_hidden_column_by_name() {
     );
     let body = Some(json!({"sort": "password_hash"}));
     let answer = call_as(&db, Some(&admin), Method::POST, search, body).await;
-    assert_error(&answer, StatusCode::UNPROCESSABLE_ENTITY, "validation_failed");
+    assert_error(
+        &answer,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "validation_failed",
+    );
     assert!(
         answer.body["error"]["details"].to_string().contains("sort"),
         "{answer:?}"
@@ -156,7 +175,14 @@ async fn search_sees_only_the_callers_rows() {
         tokens.push(token);
     }
     let body = Some(json!({"filter": {"title": [{"eq": "same"}]}}));
-    let answer = call_as(&db, Some(&tokens[0]), Method::POST, "/api/v1/tasks/search", body).await;
+    let answer = call_as(
+        &db,
+        Some(&tokens[0]),
+        Method::POST,
+        "/api/v1/tasks/search",
+        body,
+    )
+    .await;
     assert_eq!(answer.status, StatusCode::OK, "{answer:?}");
     assert_eq!(answer.body["total"], 1);
     db.drop().await;

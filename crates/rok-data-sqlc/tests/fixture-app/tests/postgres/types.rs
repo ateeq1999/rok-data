@@ -11,7 +11,8 @@ pub(super) async fn interval_bytea_and_timetz_round_trip(pool: &PgPool) {
     use plain_db::search::{Equality, Page, Sort};
     use plain_db::timed_badges::filter::{TimedBadgeFilter, TimedBadgeSortKey};
     use plain_db::timed_badges::models::{NewTimedBadge, UpdateTimedBadge};
-    use plain_db::timed_badges::{read, write};
+    use plain_db::timed_badges::models::TimedBadge;
+    use plain_db::timed_badges::read;
     use rok_data_sqlc_fixture_app::plain_db;
     use sqlx::postgres::types::{PgInterval, PgTimeTz};
 
@@ -25,7 +26,7 @@ pub(super) async fn interval_bytea_and_timetz_round_trip(pool: &PgPool) {
         offset: FixedOffset::east_opt(offset_hours * 3600).unwrap(),
     };
 
-    let created = write::create(
+    let created = TimedBadge::create(
         pool,
         NewTimedBadge {
             span: interval(2, 1_500_000),
@@ -44,7 +45,7 @@ pub(super) async fn interval_bytea_and_timetz_round_trip(pool: &PgPool) {
     assert_eq!(created.photos, Some(vec![vec![1, 2], Vec::new()]));
     assert_eq!(created.opens, time_tz(9, 2));
     assert_eq!(created.slots, Some(vec![time_tz(10, -5)]));
-    let other = write::create(
+    let other = TimedBadge::create(
         pool,
         NewTimedBadge {
             span: interval(5, 0),
@@ -67,7 +68,7 @@ pub(super) async fn interval_bytea_and_timetz_round_trip(pool: &PgPool) {
     let by_badge = read::get_by_badge(pool, &[7]).await.unwrap();
     assert_eq!(by_badge.map(|row| row.id), Some(other.id));
 
-    let updated = write::patch(
+    let updated = TimedBadge::patch(
         pool,
         created.id,
         UpdateTimedBadge {
@@ -160,10 +161,10 @@ pub(super) async fn enums_keep_their_exact_labels(pool: &PgPool) {
     use db::search::{Equality, Page, Sort};
     use db::tickets::filter::{TicketFilter, TicketSortKey};
     use db::tickets::models::{NewTicket, Ticket, UpdateTicket};
-    use db::tickets::{read, write};
+    use db::tickets::read;
     use db::types::{TicketPriority, TicketState};
 
-    let urgent = write::create(
+    let urgent = Ticket::create(
         pool,
         NewTicket {
             priority: TicketPriority::VeryHigh,
@@ -173,7 +174,7 @@ pub(super) async fn enums_keep_their_exact_labels(pool: &PgPool) {
     )
     .await
     .unwrap();
-    let routine = write::create(
+    let routine = Ticket::create(
         pool,
         NewTicket {
             priority: TicketPriority::High,
@@ -213,7 +214,7 @@ pub(super) async fn enums_keep_their_exact_labels(pool: &PgPool) {
     );
 
     // `Archived` exists only because of ALTER TYPE ... ADD VALUE.
-    let archived = write::patch(
+    let archived = Ticket::patch(
         pool,
         urgent.id,
         UpdateTicket {
@@ -295,10 +296,10 @@ pub(super) async fn enums_keep_their_exact_labels(pool: &PgPool) {
 pub(super) async fn renamed_enum_types_use_their_new_name(pool: &PgPool) {
     use db::queries::tickets::contacts_on_channel;
     use db::ticket_contacts::models::{NewTicketContact, TicketContact};
-    use db::ticket_contacts::{read, write};
+    use db::ticket_contacts::read;
     use db::types::ContactChannel;
 
-    let phone = write::create(
+    let phone = TicketContact::create(
         pool,
         NewTicketContact {
             channel: ContactChannel::Phone,
@@ -307,7 +308,7 @@ pub(super) async fn renamed_enum_types_use_their_new_name(pool: &PgPool) {
     )
     .await
     .unwrap();
-    let email = write::create(
+    let email = TicketContact::create(
         pool,
         NewTicketContact {
             channel: ContactChannel::Email,
@@ -352,10 +353,10 @@ pub(super) async fn value_list_columns_round_trip(pool: &PgPool) {
     use db::search::{Equality, Page, Sort};
     use db::shipments::filter::{ShipmentFilter, ShipmentSortKey};
     use db::shipments::models::{NewShipment, Shipment, UpdateShipment};
-    use db::shipments::{read, write};
+    use db::shipments::read;
     use db::types::{RefundReason, RefundStatus, ShipmentCarrier, ShipmentStatus};
 
-    let defaulted = write::create(
+    let defaulted = Shipment::create(
         pool,
         NewShipment {
             status: None,
@@ -371,7 +372,7 @@ pub(super) async fn value_list_columns_round_trip(pool: &PgPool) {
     );
     assert_eq!(defaulted.carrier, None);
 
-    let moving = write::create(
+    let moving = Shipment::create(
         pool,
         NewShipment {
             status: Some(ShipmentStatus::InTransit),
@@ -401,7 +402,7 @@ pub(super) async fn value_list_columns_round_trip(pool: &PgPool) {
         "the database stores each variant's exact value"
     );
 
-    let delivered = write::patch(
+    let delivered = Shipment::patch(
         pool,
         moving.id,
         UpdateShipment {
@@ -452,7 +453,7 @@ pub(super) async fn value_list_columns_round_trip(pool: &PgPool) {
     assert!(decoded.is_err(), "an unknown value does not decode");
 
     // Same column name, different table: a distinct enum.
-    let refund = db::refunds::write::create(
+    let refund = db::refunds::models::Refund::create(
         pool,
         NewRefund {
             status: RefundStatus::Requested,
@@ -474,7 +475,8 @@ pub(super) async fn money_range_and_network_types_round_trip(pool: &PgPool) {
     use mac_address::MacAddress;
     use plain_db::ledger_entries::filter::{LedgerEntryFilter, LedgerEntrySortKey};
     use plain_db::ledger_entries::models::{NewLedgerEntry, UpdateLedgerEntry};
-    use plain_db::ledger_entries::{read, write};
+    use plain_db::ledger_entries::models::LedgerEntry;
+    use plain_db::ledger_entries::read;
     use plain_db::queries::{EntriesInSubnetParams, entries_in_subnet};
     use plain_db::search::{Equality, Page, Sort};
     use rok_data_sqlc_fixture_app::plain_db;
@@ -484,7 +486,7 @@ pub(super) async fn money_range_and_network_types_round_trip(pool: &PgPool) {
     let date = |day| NaiveDate::from_ymd_opt(2026, 10, day).unwrap();
     let device = MacAddress::new([0x02, 0, 0, 0, 0, 0x2a]);
 
-    let created = write::create(
+    let created = LedgerEntry::create(
         pool,
         NewLedgerEntry {
             amount: PgMoney(12_345),
@@ -510,7 +512,7 @@ pub(super) async fn money_range_and_network_types_round_trip(pool: &PgPool) {
     assert_eq!(created.seats, Some(PgRange::from(1..10)));
     assert_eq!(created.subnet, Some(ip("10.0.0.0/24")));
     assert_eq!(created.device, Some(device));
-    let other = write::create(
+    let other = LedgerEntry::create(
         pool,
         NewLedgerEntry {
             amount: PgMoney(50),
@@ -532,7 +534,7 @@ pub(super) async fn money_range_and_network_types_round_trip(pool: &PgPool) {
         Some(&created)
     );
 
-    let updated = write::patch(
+    let updated = LedgerEntry::patch(
         pool,
         created.id,
         UpdateLedgerEntry {

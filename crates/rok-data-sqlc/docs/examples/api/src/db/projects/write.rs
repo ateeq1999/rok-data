@@ -3,29 +3,81 @@
 use super::models::{NewProject, Project, ProjectId, UpdateProject};
 use rok_data::Model;
 
-/// Inserts one row and returns it as stored. Defaulted columns left as `None`
-/// are omitted from the `INSERT` so the database default applies.
+impl Project {
+    /// Inserts one row and returns it as stored. Defaulted columns left as `None`
+    /// are omitted from the `INSERT` so the database default applies.
+    pub async fn create<'e, E>(executor: E, input: NewProject) -> Result<Project, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        let mut insert = Project::insert_builder();
+        insert = insert.set(Project::ID, input.id.unwrap_or_else(ProjectId::generate));
+        insert = insert.set(Project::OWNER_ID, input.owner_id);
+        insert = insert.set(Project::NAME, input.name);
+        if let Some(value) = input.open_tasks {
+            insert = insert.set(Project::OPEN_TASKS, value);
+        }
+        if let Some(value) = input.created_at {
+            insert = insert.set(Project::CREATED_AT, value);
+        }
+
+        insert.exec(executor).await
+    }
+
+    /// Applies a partial patch and returns the patched row, or `None` if no row has
+    /// the given primary key. An empty patch issues no `UPDATE` and returns the
+    /// current row.
+    pub async fn patch<'e, E>(
+        executor: E,
+        id: ProjectId,
+        input: UpdateProject,
+    ) -> Result<Option<Project>, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        if input.is_empty() {
+            return super::read::get_by_id(executor, id).await;
+        }
+
+        let mut update = Project::update_all().filter(Project::ID.eq(id));
+        if let Some(value) = input.owner_id {
+            update = update.set(Project::OWNER_ID, value);
+        }
+        if let Some(value) = input.name {
+            update = update.set(Project::NAME, value);
+        }
+        if let Some(value) = input.open_tasks {
+            update = update.set(Project::OPEN_TASKS, value);
+        }
+        if let Some(value) = input.created_at {
+            update = update.set(Project::CREATED_AT, value);
+        }
+        update.returning_one(executor).await
+    }
+
+    /// Deletes the row with the given primary key and returns the number of rows that existed.
+    pub async fn destroy<'e, E>(executor: E, id: ProjectId) -> Result<u64, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        Project::query()
+            .filter(Project::ID.eq(id))
+            .delete(executor)
+            .await
+    }
+}
+
+/// Calls [`Project::create`], which this module function forwards to.
+#[deprecated(note = "call `Project::create` instead")]
 pub async fn create<'e, E>(executor: E, input: NewProject) -> Result<Project, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    let mut insert = Project::insert_builder();
-    insert = insert.set(Project::ID, input.id.unwrap_or_else(ProjectId::generate));
-    insert = insert.set(Project::OWNER_ID, input.owner_id);
-    insert = insert.set(Project::NAME, input.name);
-    if let Some(value) = input.open_tasks {
-        insert = insert.set(Project::OPEN_TASKS, value);
-    }
-    if let Some(value) = input.created_at {
-        insert = insert.set(Project::CREATED_AT, value);
-    }
-
-    insert.exec(executor).await
+    Project::create(executor, input).await
 }
 
-/// Applies a partial patch and returns the patched row, or `None` if no row has
-/// the given primary key. An empty patch issues no `UPDATE` and returns the
-/// current row.
+/// Calls [`Project::patch`], which this module function forwards to.
+#[deprecated(note = "call `Project::patch` instead")]
 pub async fn patch<'e, E>(
     executor: E,
     id: ProjectId,
@@ -34,33 +86,14 @@ pub async fn patch<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    if input.is_empty() {
-        return super::read::get_by_id(executor, id).await;
-    }
-
-    let mut update = Project::update_all().filter(Project::ID.eq(id));
-    if let Some(value) = input.owner_id {
-        update = update.set(Project::OWNER_ID, value);
-    }
-    if let Some(value) = input.name {
-        update = update.set(Project::NAME, value);
-    }
-    if let Some(value) = input.open_tasks {
-        update = update.set(Project::OPEN_TASKS, value);
-    }
-    if let Some(value) = input.created_at {
-        update = update.set(Project::CREATED_AT, value);
-    }
-    update.returning_one(executor).await
+    Project::patch(executor, id, input).await
 }
 
-/// Deletes the row with the given primary key and returns the number of rows that existed.
+/// Calls [`Project::destroy`], which this module function forwards to.
+#[deprecated(note = "call `Project::destroy` instead")]
 pub async fn destroy<'e, E>(executor: E, id: ProjectId) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    Project::query()
-        .filter(Project::ID.eq(id))
-        .delete(executor)
-        .await
+    Project::destroy(executor, id).await
 }

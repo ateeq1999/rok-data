@@ -96,7 +96,14 @@ async fn include_applies_the_related_tables_access_and_hides_its_columns() {
     let uri = format!("{TASKS}/{theirs}?include=owner");
     let forbidden = call_as(&db, Some(&user), Method::GET, &uri, None).await;
     assert_error(&forbidden, StatusCode::FORBIDDEN, "forbidden");
-    let plain = call_as(&db, Some(&user), Method::GET, &format!("{TASKS}/{theirs}"), None).await;
+    let plain = call_as(
+        &db,
+        Some(&user),
+        Method::GET,
+        &format!("{TASKS}/{theirs}"),
+        None,
+    )
+    .await;
     assert_eq!(plain.status, StatusCode::OK, "{plain:?}");
     // An admin reads their own task's owner, without `password_hash`, and
     // still can't reach another caller's task.
@@ -174,7 +181,10 @@ async fn many_to_many_reads_syncs_attaches_and_detaches() {
 
     let synced = call(&db, Method::PUT, &labels, Some(json!({"ids": [red, blue]}))).await;
     assert_eq!(synced.status, StatusCode::NO_CONTENT, "{synced:?}");
-    assert_eq!(names(&get(&db, &labels).await.body), [json!("red"), json!("blue")]);
+    assert_eq!(
+        names(&get(&db, &labels).await.body),
+        [json!("red"), json!("blue")]
+    );
     let synced = call(&db, Method::PUT, &labels, Some(json!({"ids": [blue]}))).await;
     assert_eq!(synced.status, StatusCode::NO_CONTENT, "{synced:?}");
     assert_eq!(names(&get(&db, &labels).await.body), [json!("blue")]);
@@ -198,7 +208,11 @@ async fn many_to_many_reads_syncs_attaches_and_detaches() {
     assert_eq!(names(&get(&db, &labels).await.body), [json!("green")]);
 
     let missing = format!("{NOTES}/{}/labels", Uuid::now_v7());
-    assert_error(&get(&db, &missing).await, StatusCode::NOT_FOUND, "not_found");
+    assert_error(
+        &get(&db, &missing).await,
+        StatusCode::NOT_FOUND,
+        "not_found",
+    );
     let no_label = call(&db, Method::PUT, &format!("{labels}/999999"), None).await;
     assert_error(&no_label, StatusCode::CONFLICT, "conflict");
     let bad = call(&db, Method::PUT, &labels, Some(json!({"ids": "red"}))).await;
@@ -219,7 +233,11 @@ async fn many_to_many_keeps_other_owners_rows_out_of_reach() {
     let tasks = format!("{LABELS}/{red}/tasks");
 
     // `tasks` needs a caller, even from public `labels`.
-    assert_error(&get(&db, &tasks).await, StatusCode::UNAUTHORIZED, "unauthorized");
+    assert_error(
+        &get(&db, &tasks).await,
+        StatusCode::UNAUTHORIZED,
+        "unauthorized",
+    );
     for (token, id) in [(&alice, &hers), (&bob, &his)] {
         let uri = format!("{tasks}/{id}");
         let answer = call_as(&db, Some(token), Method::PUT, &uri, None).await;

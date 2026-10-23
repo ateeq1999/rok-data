@@ -8,7 +8,7 @@ async fn seed_search_products(pool: &PgPool) -> CategoryId {
     use db::categories::models::NewCategory;
     use db::products::models::NewProduct;
 
-    let category = db::categories::write::create(
+    let category = db::categories::models::Category::create(
         pool,
         NewCategory {
             name: "search".to_owned(),
@@ -22,7 +22,7 @@ async fn seed_search_products(pool: &PgPool) -> CategoryId {
         .enumerate()
     {
         let n = index as i64 + 1;
-        db::products::write::create(
+        db::products::models::Product::create(
             pool,
             NewProduct {
                 // Keys descend as rows are inserted, so physical order differs from key order.
@@ -185,7 +185,7 @@ async fn keyset_pagination_follows_the_primary_key(pool: &PgPool, category: Cate
 
     let id = uuid::Uuid::from_u128;
     for (order_id, product_id) in [(1, 2), (1, 1), (2, 1)] {
-        db::feature_line_items::write::create(
+        db::feature_line_items::models::FeatureLineItem::create(
             pool,
             NewFeatureLineItem {
                 order_id: id(order_id),

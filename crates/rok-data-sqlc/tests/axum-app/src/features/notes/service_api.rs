@@ -88,7 +88,7 @@ pub trait NotesServiceApi {
         user: AuthUser,
         input: CreateNoteDto,
     ) -> Result<Note, AppError> {
-        let row = repo::create(&mut *conn, tenant, input.into_new(user.id)).await?;
+        let row = Note::create(&mut *conn, tenant, input.into_new(user.id)).await?;
         Ok(row)
     }
 
@@ -135,7 +135,7 @@ pub trait NotesServiceApi {
         if !owned {
             return Err(not_found());
         }
-        let outcome = repo::patch(&mut *conn, tenant, id, version, input.into()).await?;
+        let outcome = Note::patch(&mut *conn, tenant, id, version, input.into()).await?;
         match outcome {
             UpdateOutcome::Updated(row) => Ok(row),
             UpdateOutcome::NotFound => Err(not_found()),
@@ -175,7 +175,7 @@ pub trait NotesServiceApi {
         if !owned {
             return Err(not_found());
         }
-        let deleted = repo::destroy(&mut *conn, tenant, id).await?;
+        let deleted = Note::destroy(&mut *conn, tenant, id).await?;
         if deleted > 0 {
             Ok(())
         } else {
@@ -210,7 +210,7 @@ pub trait NotesServiceApi {
         if !owned {
             return Err(not_found());
         }
-        let deleted = repo::delete_permanently(&mut *conn, tenant, id).await?;
+        let deleted = Note::delete_permanently(&mut *conn, tenant, id).await?;
         if deleted > 0 {
             Ok(())
         } else {
@@ -247,7 +247,7 @@ pub trait NotesServiceApi {
         if !owned {
             return Err(not_found());
         }
-        let restored = repo::restore(&mut *conn, tenant, id).await?;
+        let restored = Note::restore(&mut *conn, tenant, id).await?;
         if restored > 0 {
             let row = repo::get_by_id(&mut *conn, tenant, id).await?;
             match row {

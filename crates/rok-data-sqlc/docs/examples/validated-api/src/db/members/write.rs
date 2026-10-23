@@ -3,27 +3,82 @@
 use super::models::{Member, MemberId, NewMember, UpdateMember};
 use rok_data::Model;
 
-/// Inserts one row and returns it as stored. Defaulted columns left as `None`
-/// are omitted from the `INSERT` so the database default applies.
+impl Member {
+    /// Inserts one row and returns it as stored. Defaulted columns left as `None`
+    /// are omitted from the `INSERT` so the database default applies.
+    pub async fn create<'e, E>(executor: E, input: NewMember) -> Result<Member, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        let mut insert = Member::insert_builder();
+        insert = insert.set(Member::NAME, input.name);
+        insert = insert.set(Member::HANDLE, input.handle);
+        insert = insert.set(Member::AGE, input.age);
+        if let Some(value) = input.balance {
+            insert = insert.set(Member::BALANCE, value);
+        }
+        insert = insert.set(Member::BIO, input.bio);
+
+        insert.exec(executor).await
+    }
+
+    /// Applies a partial patch and returns the patched row, or `None` if no row has
+    /// the given primary key. An empty patch issues no `UPDATE` and returns the
+    /// current row.
+    pub async fn patch<'e, E>(
+        executor: E,
+        id: MemberId,
+        input: UpdateMember,
+    ) -> Result<Option<Member>, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        if input.is_empty() {
+            return super::read::get_by_id(executor, id).await;
+        }
+
+        let mut update = Member::update_all().filter(Member::ID.eq(id));
+        if let Some(value) = input.name {
+            update = update.set(Member::NAME, value);
+        }
+        if let Some(value) = input.handle {
+            update = update.set(Member::HANDLE, value);
+        }
+        if let Some(value) = input.age {
+            update = update.set(Member::AGE, value);
+        }
+        if let Some(value) = input.balance {
+            update = update.set(Member::BALANCE, value);
+        }
+        if let Some(value) = input.bio {
+            update = update.set(Member::BIO, value);
+        }
+        update.returning_one(executor).await
+    }
+
+    /// Deletes the row with the given primary key and returns the number of rows that existed.
+    pub async fn destroy<'e, E>(executor: E, id: MemberId) -> Result<u64, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        Member::query()
+            .filter(Member::ID.eq(id))
+            .delete(executor)
+            .await
+    }
+}
+
+/// Calls [`Member::create`], which this module function forwards to.
+#[deprecated(note = "call `Member::create` instead")]
 pub async fn create<'e, E>(executor: E, input: NewMember) -> Result<Member, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    let mut insert = Member::insert_builder();
-    insert = insert.set(Member::NAME, input.name);
-    insert = insert.set(Member::HANDLE, input.handle);
-    insert = insert.set(Member::AGE, input.age);
-    if let Some(value) = input.balance {
-        insert = insert.set(Member::BALANCE, value);
-    }
-    insert = insert.set(Member::BIO, input.bio);
-
-    insert.exec(executor).await
+    Member::create(executor, input).await
 }
 
-/// Applies a partial patch and returns the patched row, or `None` if no row has
-/// the given primary key. An empty patch issues no `UPDATE` and returns the
-/// current row.
+/// Calls [`Member::patch`], which this module function forwards to.
+#[deprecated(note = "call `Member::patch` instead")]
 pub async fn patch<'e, E>(
     executor: E,
     id: MemberId,
@@ -32,36 +87,14 @@ pub async fn patch<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    if input.is_empty() {
-        return super::read::get_by_id(executor, id).await;
-    }
-
-    let mut update = Member::update_all().filter(Member::ID.eq(id));
-    if let Some(value) = input.name {
-        update = update.set(Member::NAME, value);
-    }
-    if let Some(value) = input.handle {
-        update = update.set(Member::HANDLE, value);
-    }
-    if let Some(value) = input.age {
-        update = update.set(Member::AGE, value);
-    }
-    if let Some(value) = input.balance {
-        update = update.set(Member::BALANCE, value);
-    }
-    if let Some(value) = input.bio {
-        update = update.set(Member::BIO, value);
-    }
-    update.returning_one(executor).await
+    Member::patch(executor, id, input).await
 }
 
-/// Deletes the row with the given primary key and returns the number of rows that existed.
+/// Calls [`Member::destroy`], which this module function forwards to.
+#[deprecated(note = "call `Member::destroy` instead")]
 pub async fn destroy<'e, E>(executor: E, id: MemberId) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    Member::query()
-        .filter(Member::ID.eq(id))
-        .delete(executor)
-        .await
+    Member::destroy(executor, id).await
 }

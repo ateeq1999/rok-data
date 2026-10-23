@@ -305,7 +305,12 @@ pub fn render_pair_writes(output: &mut String, relation: &Relation<'_>) {
         return;
     };
     let join = writes.join;
-    let call = |name: &str| format!("super::super::{}::write::{name}", join.module_name);
+    let call = |name: &str| {
+        format!(
+            "super::super::{}::models::{}::{name}",
+            join.module_name, join.struct_name
+        )
+    };
     let tenant = keys::tenant_params(join);
     let mut leading = vec!["executor".to_owned()];
     leading.extend(join.tenant().map(param_name));

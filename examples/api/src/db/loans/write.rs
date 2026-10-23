@@ -3,23 +3,69 @@
 use super::models::{Loan, LoanId, NewLoan, UpdateLoan};
 use rok_data::Model;
 
-/// Inserts one row and returns it as stored.
+impl Loan {
+    /// Inserts one row and returns it as stored.
+    pub async fn create<'e, E>(executor: E, input: NewLoan) -> Result<Loan, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        Loan::insert_builder()
+            .set(Loan::ID, input.id.unwrap_or_else(LoanId::generate))
+            .set(Loan::BOOK_ID, input.book_id)
+            .set(Loan::BORROWER, input.borrower)
+            .set(Loan::RETURNED_AT, input.returned_at)
+            .exec(executor)
+            .await
+    }
+
+    /// Applies a partial patch and returns the patched row, or `None` if no row has
+    /// the given primary key. An empty patch issues no `UPDATE` and returns the
+    /// current row.
+    pub async fn patch<'e, E>(
+        executor: E,
+        id: LoanId,
+        input: UpdateLoan,
+    ) -> Result<Option<Loan>, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        if input.is_empty() {
+            return super::read::get_by_id(executor, id).await;
+        }
+
+        let mut update = Loan::update_all().filter(Loan::ID.eq(id));
+        if let Some(value) = input.book_id {
+            update = update.set(Loan::BOOK_ID, value);
+        }
+        if let Some(value) = input.borrower {
+            update = update.set(Loan::BORROWER, value);
+        }
+        if let Some(value) = input.returned_at {
+            update = update.set(Loan::RETURNED_AT, value);
+        }
+        update.returning_one(executor).await
+    }
+
+    /// Deletes the row with the given primary key and returns the number of rows that existed.
+    pub async fn destroy<'e, E>(executor: E, id: LoanId) -> Result<u64, rok_data::Error>
+    where
+        E: rok_data::Executor<'e>,
+    {
+        Loan::query().filter(Loan::ID.eq(id)).delete(executor).await
+    }
+}
+
+/// Calls [`Loan::create`], which this module function forwards to.
+#[deprecated(note = "call `Loan::create` instead")]
 pub async fn create<'e, E>(executor: E, input: NewLoan) -> Result<Loan, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    Loan::insert_builder()
-        .set(Loan::ID, input.id.unwrap_or_else(LoanId::generate))
-        .set(Loan::BOOK_ID, input.book_id)
-        .set(Loan::BORROWER, input.borrower)
-        .set(Loan::RETURNED_AT, input.returned_at)
-        .exec(executor)
-        .await
+    Loan::create(executor, input).await
 }
 
-/// Applies a partial patch and returns the patched row, or `None` if no row has
-/// the given primary key. An empty patch issues no `UPDATE` and returns the
-/// current row.
+/// Calls [`Loan::patch`], which this module function forwards to.
+#[deprecated(note = "call `Loan::patch` instead")]
 pub async fn patch<'e, E>(
     executor: E,
     id: LoanId,
@@ -28,27 +74,14 @@ pub async fn patch<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    if input.is_empty() {
-        return super::read::get_by_id(executor, id).await;
-    }
-
-    let mut update = Loan::update_all().filter(Loan::ID.eq(id));
-    if let Some(value) = input.book_id {
-        update = update.set(Loan::BOOK_ID, value);
-    }
-    if let Some(value) = input.borrower {
-        update = update.set(Loan::BORROWER, value);
-    }
-    if let Some(value) = input.returned_at {
-        update = update.set(Loan::RETURNED_AT, value);
-    }
-    update.returning_one(executor).await
+    Loan::patch(executor, id, input).await
 }
 
-/// Deletes the row with the given primary key and returns the number of rows that existed.
+/// Calls [`Loan::destroy`], which this module function forwards to.
+#[deprecated(note = "call `Loan::destroy` instead")]
 pub async fn destroy<'e, E>(executor: E, id: LoanId) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    Loan::query().filter(Loan::ID.eq(id)).delete(executor).await
+    Loan::destroy(executor, id).await
 }
