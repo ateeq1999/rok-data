@@ -61,10 +61,7 @@ impl Member {
     where
         E: rok_data::Executor<'e>,
     {
-        Member::query()
-            .filter(Member::ID.eq(id))
-            .delete(executor)
-            .await
+        Member::filter(Member::ID.eq(id)).delete(executor).await
     }
 }
 

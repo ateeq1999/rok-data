@@ -47,10 +47,7 @@ impl Account {
     where
         E: rok_data::Executor<'e>,
     {
-        Account::query()
-            .filter(Account::ID.eq(id))
-            .delete(executor)
-            .await
+        Account::filter(Account::ID.eq(id)).delete(executor).await
     }
 }
 

@@ -31,10 +31,8 @@ impl std::fmt::Display for InvoiceId {
 rok_data::impl_value!(InvoiceId);
 /// A row of the `invoices` table.
 #[derive(Debug, Clone, PartialEq, Model)]
-#[rok(table = "invoices")]
 pub struct Invoice {
     /// The `id` column.
-    #[rok(primary_key)]
     pub id: InvoiceId,
     /// The `organization_id` column.
     pub organization_id: OrganizationId,

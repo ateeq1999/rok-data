@@ -13,10 +13,7 @@ pub async fn get_by_id<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    Category::query()
-        .filter(Category::ID.eq(id))
-        .first(executor)
-        .await
+    Category::filter(Category::ID.eq(id)).first(executor).await
 }
 
 /// Returns whether a row with the given primary key exists.
@@ -24,8 +21,7 @@ pub async fn exists_by_id<'e, E>(executor: E, id: CategoryId) -> Result<bool, ro
 where
     E: rok_data::Executor<'e>,
 {
-    Category::query()
-        .filter(Category::ID.eq(id))
+    Category::filter(Category::ID.eq(id))
         .count(executor)
         .await
         .map(|count| count > 0)
@@ -39,8 +35,7 @@ pub async fn get_by_name<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    Category::query()
-        .filter(Category::NAME.eq(name))
+    Category::filter(Category::NAME.eq(name))
         .first(executor)
         .await
 }

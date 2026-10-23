@@ -13,7 +13,7 @@ fn renders_get_by_id_with_explicit_columns() {
         &["id"],
     ));
     assert!(rendered.contains(
-            "pub async fn get_by_id<'e, E>(executor: E, id: i64) -> Result<Option<User>, rok_data::Error>\nwhere\n    E: rok_data::Executor<'e>,\n{\n    User::query().filter(User::ID.eq(id)).first(executor).await\n}\n"
+            "pub async fn get_by_id<'e, E>(executor: E, id: i64) -> Result<Option<User>, rok_data::Error>\nwhere\n    E: rok_data::Executor<'e>,\n{\n    User::filter(User::ID.eq(id)).first(executor).await\n}\n"
         ));
 }
 
@@ -27,7 +27,7 @@ fn renders_exists_list_page_and_count() {
         "pub async fn exists_by_id<'e, E>(executor: E, id: i64) -> Result<bool, rok_data::Error>"
     ));
     assert!(rendered.contains(
-        "    User::query()\n        .filter(User::ID.eq(id))\n        .count(executor)\n        .await\n        .map(|count| count > 0)\n"
+        "    User::filter(User::ID.eq(id))\n        .count(executor)\n        .await\n        .map(|count| count > 0)\n"
     ));
     assert!(rendered.contains("    User::query().order_by(User::ID).all(executor).await\n"));
     assert!(rendered.contains(
@@ -53,7 +53,7 @@ fn composite_key_parameters_follow_key_order() {
         .iter()
         .map(|name| {
             rendered
-                .find(&format!(".filter(User::{name}.eq(key."))
+                .find(&format!("filter(User::{name}.eq(key."))
                 .unwrap()
         })
         .collect();
@@ -61,8 +61,8 @@ fn composite_key_parameters_follow_key_order() {
         filters.windows(2).all(|pair| pair[0] < pair[1]),
         "filters follow key order: {rendered}"
     );
-    assert!(rendered.contains(".filter(User::ORDER_ID.eq(key.order_id))"));
-    assert!(rendered.contains(".filter(User::PRODUCT_ID.eq(key.product_id))"));
+    assert!(rendered.contains("filter(User::ORDER_ID.eq(key.order_id))"));
+    assert!(rendered.contains("filter(User::PRODUCT_ID.eq(key.product_id))"));
     assert!(rendered.contains(".order_by(User::ORDER_ID)"));
     assert!(rendered.contains(".order_by(User::PRODUCT_ID)"));
 }
@@ -77,7 +77,7 @@ fn quotes_reserved_and_mixed_case_identifiers_and_keeps_schema() {
     let rendered = render_alone(&users);
     // The chains name columns by Rust field name; the reserved or
     // mixed-case SQL name is quoted in the row's model derive.
-    assert!(rendered.contains(".filter(User::SELECT.eq(select))"));
+    assert!(rendered.contains("filter(User::SELECT.eq(select))"));
     assert!(rendered.contains("FROM \"Auth\".users"));
 }
 
@@ -85,7 +85,7 @@ fn quotes_reserved_and_mixed_case_identifiers_and_keeps_schema() {
 fn key_params_avoid_local_name_collisions() {
     let rendered = render_alone(&table(vec![column("limit", "i64")], &["limit"]));
     assert!(rendered.contains("get_by_id<'e, E>(executor: E, limit_key: i64)"));
-    assert!(rendered.contains("        .filter(User::LIMIT.eq(limit_key))"));
+    assert!(rendered.contains("filter(User::LIMIT.eq(limit_key))"));
 }
 
 #[test]
@@ -122,7 +122,7 @@ fn text_keys_are_borrowed() {
     let rendered = render_alone(&table(vec![code, column("email", "String")], &["code"]));
     assert!(rendered.contains("get_by_id<'e, E>(executor: E, code: &UserId)"));
     assert!(rendered.contains("exists_by_id<'e, E>(executor: E, code: &UserId)"));
-    assert!(rendered.contains(".filter(User::CODE.eq(code))"));
+    assert!(rendered.contains("filter(User::CODE.eq(code))"));
     assert!(
         rendered.contains("    after: Option<&UserId>,\n"),
         "{rendered}"
@@ -151,7 +151,7 @@ fn byte_keys_are_borrowed_as_slices() {
         rendered.contains("    after: Option<&[u8]>,\n"),
         "{rendered}"
     );
-    assert!(rendered.contains(".filter(User::DIGEST.eq(digest))"));
+    assert!(rendered.contains("filter(User::DIGEST.eq(digest))"));
 }
 
 #[test]

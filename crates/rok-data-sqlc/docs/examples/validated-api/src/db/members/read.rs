@@ -10,10 +10,7 @@ pub async fn get_by_id<'e, E>(executor: E, id: MemberId) -> Result<Option<Member
 where
     E: rok_data::Executor<'e>,
 {
-    Member::query()
-        .filter(Member::ID.eq(id))
-        .first(executor)
-        .await
+    Member::filter(Member::ID.eq(id)).first(executor).await
 }
 
 /// Returns whether a row with the given primary key exists.
@@ -21,8 +18,7 @@ pub async fn exists_by_id<'e, E>(executor: E, id: MemberId) -> Result<bool, rok_
 where
     E: rok_data::Executor<'e>,
 {
-    Member::query()
-        .filter(Member::ID.eq(id))
+    Member::filter(Member::ID.eq(id))
         .count(executor)
         .await
         .map(|count| count > 0)
@@ -36,8 +32,7 @@ pub async fn get_by_handle<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    Member::query()
-        .filter(Member::HANDLE.eq(handle))
+    Member::filter(Member::HANDLE.eq(handle))
         .first(executor)
         .await
 }

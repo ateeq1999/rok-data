@@ -34,8 +34,7 @@ where
     if keys.is_empty() {
         return Ok(HashMap::new());
     }
-    let related = Note::query()
-        .filter(Note::TENANT_ID.eq(tenant_id))
+    let related = Note::filter(Note::TENANT_ID.eq(tenant_id))
         .filter(Note::ID.is_in(keys))
         .all(executor)
         .await?;
@@ -62,10 +61,7 @@ where
     if keys.is_empty() {
         return Ok(HashMap::new());
     }
-    let related = Label::query()
-        .filter(Label::ID.is_in(keys))
-        .all(executor)
-        .await?;
+    let related = Label::filter(Label::ID.is_in(keys)).all(executor).await?;
     let mut loaded = HashMap::new();
     for row in related {
         loaded.insert(row.id, row);

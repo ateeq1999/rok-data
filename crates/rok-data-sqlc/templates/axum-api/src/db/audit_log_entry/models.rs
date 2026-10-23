@@ -56,7 +56,6 @@ rok_data::impl_value!(AuditLogEntryId);
 #[rok(table = "audit_log")]
 pub struct AuditLogEntry {
     /// The `id` column.
-    #[rok(primary_key)]
     pub id: AuditLogEntryId,
     /// The `actor_user_id` column.
     #[rok(belongs_to = User)]

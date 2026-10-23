@@ -10,10 +10,7 @@ pub async fn get_by_id<'e, E>(executor: E, id: LabelId) -> Result<Option<Label>,
 where
     E: rok_data::Executor<'e>,
 {
-    Label::query()
-        .filter(Label::ID.eq(id))
-        .first(executor)
-        .await
+    Label::filter(Label::ID.eq(id)).first(executor).await
 }
 
 /// Returns whether a row with the given primary key exists.
@@ -21,8 +18,7 @@ pub async fn exists_by_id<'e, E>(executor: E, id: LabelId) -> Result<bool, rok_d
 where
     E: rok_data::Executor<'e>,
 {
-    Label::query()
-        .filter(Label::ID.eq(id))
+    Label::filter(Label::ID.eq(id))
         .count(executor)
         .await
         .map(|count| count > 0)
@@ -33,10 +29,7 @@ pub async fn get_by_name<'e, E>(executor: E, name: &str) -> Result<Option<Label>
 where
     E: rok_data::Executor<'e>,
 {
-    Label::query()
-        .filter(Label::NAME.eq(name))
-        .first(executor)
-        .await
+    Label::filter(Label::NAME.eq(name)).first(executor).await
 }
 
 /// Fetches every row, ordered by primary key.

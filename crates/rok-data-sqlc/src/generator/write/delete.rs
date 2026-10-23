@@ -4,7 +4,7 @@
 use crate::schema::{Column, Table};
 
 use crate::generator::{
-    filter_call, keys, push_doc, push_fn_head, push_wide_chain, tenant_filter_call,
+    filter_call, keys, model_chain, push_doc, push_fn_head, push_wide_chain, tenant_filter_call,
 };
 
 pub(super) fn render_destroy(output: &mut String, table: &Table, _key_columns: &[&Column]) {
@@ -103,7 +103,7 @@ fn render_key_statement(
         output,
         4,
         "",
-        &format!("{}::query()", table.struct_name),
+        &model_chain(&table.struct_name, &mut calls, 4, ""),
         &calls,
         "",
     );

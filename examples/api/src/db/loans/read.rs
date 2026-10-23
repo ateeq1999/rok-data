@@ -10,7 +10,7 @@ pub async fn get_by_id<'e, E>(executor: E, id: LoanId) -> Result<Option<Loan>, r
 where
     E: rok_data::Executor<'e>,
 {
-    Loan::query().filter(Loan::ID.eq(id)).first(executor).await
+    Loan::filter(Loan::ID.eq(id)).first(executor).await
 }
 
 /// Returns whether a row with the given primary key exists.
@@ -18,8 +18,7 @@ pub async fn exists_by_id<'e, E>(executor: E, id: LoanId) -> Result<bool, rok_da
 where
     E: rok_data::Executor<'e>,
 {
-    Loan::query()
-        .filter(Loan::ID.eq(id))
+    Loan::filter(Loan::ID.eq(id))
         .count(executor)
         .await
         .map(|count| count > 0)

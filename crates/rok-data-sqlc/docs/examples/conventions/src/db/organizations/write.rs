@@ -49,8 +49,7 @@ impl Organization {
     where
         E: rok_data::Executor<'e>,
     {
-        Organization::query()
-            .filter(Organization::ID.eq(id))
+        Organization::filter(Organization::ID.eq(id))
             .delete(executor)
             .await
     }

@@ -31,8 +31,7 @@ where
     if keys.is_empty() {
         return Ok(loaded);
     }
-    let related = Note::query()
-        .filter(Note::TENANT_ID.eq(tenant_id))
+    let related = Note::filter(Note::TENANT_ID.eq(tenant_id))
         .filter(Note::OWNER_ID.is_in(keys))
         .order_by(Note::ID)
         .all(executor)

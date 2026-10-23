@@ -10,10 +10,7 @@ pub async fn get_by_id<'e, E>(executor: E, id: MediaId) -> Result<Option<Media>,
 where
     E: rok_data::Executor<'e>,
 {
-    Media::query()
-        .filter(Media::ID.eq(id))
-        .first(executor)
-        .await
+    Media::filter(Media::ID.eq(id)).first(executor).await
 }
 
 /// Returns whether a row with the given primary key exists.
@@ -21,8 +18,7 @@ pub async fn exists_by_id<'e, E>(executor: E, id: MediaId) -> Result<bool, rok_d
 where
     E: rok_data::Executor<'e>,
 {
-    Media::query()
-        .filter(Media::ID.eq(id))
+    Media::filter(Media::ID.eq(id))
         .count(executor)
         .await
         .map(|count| count > 0)

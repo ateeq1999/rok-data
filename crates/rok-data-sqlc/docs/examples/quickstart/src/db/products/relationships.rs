@@ -30,8 +30,7 @@ where
     if keys.is_empty() {
         return Ok(HashMap::new());
     }
-    let related = Category::query()
-        .filter(Category::ID.is_in(keys))
+    let related = Category::filter(Category::ID.is_in(keys))
         .all(executor)
         .await?;
     let mut loaded = HashMap::new();

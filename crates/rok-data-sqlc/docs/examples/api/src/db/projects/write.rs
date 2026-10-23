@@ -60,10 +60,7 @@ impl Project {
     where
         E: rok_data::Executor<'e>,
     {
-        Project::query()
-            .filter(Project::ID.eq(id))
-            .delete(executor)
-            .await
+        Project::filter(Project::ID.eq(id)).delete(executor).await
     }
 }
 

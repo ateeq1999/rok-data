@@ -52,10 +52,8 @@ impl validator::ValidateRange<i64> for MemberId {
 
 /// A row of the `members` table.
 #[derive(Debug, Clone, PartialEq, Model, serde::Serialize, serde::Deserialize)]
-#[rok(table = "members")]
 pub struct Member {
     /// The `id` column.
-    #[rok(primary_key)]
     #[rok(generated)]
     pub id: MemberId,
     /// The `name` column.

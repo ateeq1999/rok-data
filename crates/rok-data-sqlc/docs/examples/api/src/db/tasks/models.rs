@@ -53,10 +53,8 @@ impl TaskId {
 rok_data::impl_value!(TaskId);
 /// A row of the `tasks` table.
 #[derive(Debug, Clone, PartialEq, Model, serde::Serialize, serde::Deserialize)]
-#[rok(table = "tasks")]
 pub struct Task {
     /// The `id` column.
-    #[rok(primary_key)]
     pub id: TaskId,
     /// The `owner_id` column.
     pub owner_id: uuid::Uuid,

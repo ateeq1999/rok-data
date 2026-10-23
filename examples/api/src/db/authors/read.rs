@@ -10,10 +10,7 @@ pub async fn get_by_id<'e, E>(executor: E, id: AuthorId) -> Result<Option<Author
 where
     E: rok_data::Executor<'e>,
 {
-    Author::query()
-        .filter(Author::ID.eq(id))
-        .first(executor)
-        .await
+    Author::filter(Author::ID.eq(id)).first(executor).await
 }
 
 /// Returns whether a row with the given primary key exists.
@@ -21,8 +18,7 @@ pub async fn exists_by_id<'e, E>(executor: E, id: AuthorId) -> Result<bool, rok_
 where
     E: rok_data::Executor<'e>,
 {
-    Author::query()
-        .filter(Author::ID.eq(id))
+    Author::filter(Author::ID.eq(id))
         .count(executor)
         .await
         .map(|count| count > 0)
@@ -36,8 +32,7 @@ pub async fn get_by_email<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    Author::query()
-        .filter(Author::EMAIL.eq(email))
+    Author::filter(Author::EMAIL.eq(email))
         .first(executor)
         .await
 }

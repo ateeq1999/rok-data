@@ -30,10 +30,7 @@ where
     if keys.is_empty() {
         return Ok(HashMap::new());
     }
-    let related = Book::query()
-        .filter(Book::ID.is_in(keys))
-        .all(executor)
-        .await?;
+    let related = Book::filter(Book::ID.is_in(keys)).all(executor).await?;
     let mut loaded = HashMap::new();
     for row in related {
         loaded.insert(row.id, row);

@@ -118,8 +118,7 @@ impl Invoice {
     where
         E: rok_data::Executor<'e>,
     {
-        Invoice::query()
-            .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
+        Invoice::filter(Invoice::ORGANIZATION_ID.eq(organization_id))
             .filter(Invoice::ID.eq(id))
             .delete(executor)
             .await
@@ -136,8 +135,7 @@ impl Invoice {
     where
         E: rok_data::Executor<'e>,
     {
-        Invoice::query()
-            .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
+        Invoice::filter(Invoice::ORGANIZATION_ID.eq(organization_id))
             .filter(Invoice::ID.eq(id))
             .restore(executor)
             .await
@@ -153,8 +151,7 @@ impl Invoice {
     where
         E: rok_data::Executor<'e>,
     {
-        Invoice::query()
-            .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
+        Invoice::filter(Invoice::ORGANIZATION_ID.eq(organization_id))
             .filter(Invoice::ID.eq(id))
             .with_trashed()
             .force_delete(executor)

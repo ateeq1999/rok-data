@@ -63,7 +63,7 @@ impl User {
     where
         E: rok_data::Executor<'e>,
     {
-        User::query().filter(User::ID.eq(id)).delete(executor).await
+        User::filter(User::ID.eq(id)).delete(executor).await
     }
 
     /// Restores the soft-deleted row with the given primary key by clearing `deleted_at`,
@@ -73,10 +73,7 @@ impl User {
     where
         E: rok_data::Executor<'e>,
     {
-        User::query()
-            .filter(User::ID.eq(id))
-            .restore(executor)
-            .await
+        User::filter(User::ID.eq(id)).restore(executor).await
     }
 
     /// Removes the row with the given primary key from the table, deleted or not, and
@@ -85,8 +82,7 @@ impl User {
     where
         E: rok_data::Executor<'e>,
     {
-        User::query()
-            .filter(User::ID.eq(id))
+        User::filter(User::ID.eq(id))
             .with_trashed()
             .force_delete(executor)
             .await

@@ -55,14 +55,12 @@ impl UserId {
 rok_data::impl_value!(UserId);
 /// A row of the `users` table.
 #[derive(Debug, Clone, PartialEq, Model, serde::Serialize, serde::Deserialize)]
-#[rok(table = "users")]
 #[rok(has_many(audit_log_entry_by_actor_user = AuditLogEntry::ACTOR_USER_ID))]
 #[rok(has_many(audit_log_entry_by_target_user = AuditLogEntry::TARGET_USER_ID))]
 #[rok(has_many(media = Media::OWNER_ID))]
 #[rok(has_many(api_keys = ApiKey::USER_ID))]
 pub struct User {
     /// The `id` column.
-    #[rok(primary_key)]
     pub id: UserId,
     /// The `email` column.
     pub email: String,

@@ -30,8 +30,7 @@ where
     if keys.is_empty() {
         return Ok(loaded);
     }
-    let related = AuditLogEntry::query()
-        .filter(AuditLogEntry::ACTOR_USER_ID.is_in(keys))
+    let related = AuditLogEntry::filter(AuditLogEntry::ACTOR_USER_ID.is_in(keys))
         .order_by(AuditLogEntry::ID)
         .all(executor)
         .await?;
@@ -62,8 +61,7 @@ where
     if keys.is_empty() {
         return Ok(loaded);
     }
-    let related = AuditLogEntry::query()
-        .filter(AuditLogEntry::TARGET_USER_ID.is_in(keys))
+    let related = AuditLogEntry::filter(AuditLogEntry::TARGET_USER_ID.is_in(keys))
         .order_by(AuditLogEntry::ID)
         .all(executor)
         .await?;
@@ -97,8 +95,7 @@ where
     if keys.is_empty() {
         return Ok(loaded);
     }
-    let related = Media::query()
-        .filter(Media::OWNER_ID.is_in(keys))
+    let related = Media::filter(Media::OWNER_ID.is_in(keys))
         .order_by(Media::ID)
         .all(executor)
         .await?;
@@ -129,8 +126,7 @@ where
     if keys.is_empty() {
         return Ok(loaded);
     }
-    let related = ApiKey::query()
-        .filter(ApiKey::USER_ID.is_in(keys))
+    let related = ApiKey::filter(ApiKey::USER_ID.is_in(keys))
         .order_by(ApiKey::ID)
         .all(executor)
         .await?;

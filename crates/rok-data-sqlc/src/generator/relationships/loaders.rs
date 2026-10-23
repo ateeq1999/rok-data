@@ -11,8 +11,8 @@ use crate::generator::sql::{
     first_placeholder, ident, live_condition, table_ref, tenant_condition,
 };
 use crate::generator::{
-    HEADER, StaticQuery, doc_name, keys, push_doc, push_fn_head, push_wide_chain, types_import,
-    use_list,
+    HEADER, StaticQuery, doc_name, keys, model_chain, push_doc, push_fn_head, push_wide_chain,
+    types_import, use_list,
 };
 
 /// Renders `table`'s `relationships.rs`, or `None` when it has no
@@ -389,7 +389,8 @@ impl<'a> Loader<'a> {
         }
         calls.push(".all(executor)".to_owned());
         calls.push(".await".to_owned());
-        push_wide_chain(output, 4, lead, &format!("{row}::query()"), &calls, "?;");
+        let head = model_chain(row, &mut calls, 4, lead);
+        push_wide_chain(output, 4, lead, &head, &calls, "?;");
     }
 
     fn render_to_one(&self, output: &mut String) {

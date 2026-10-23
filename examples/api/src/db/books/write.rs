@@ -55,7 +55,7 @@ impl Book {
     where
         E: rok_data::Executor<'e>,
     {
-        Book::query().filter(Book::ID.eq(id)).delete(executor).await
+        Book::filter(Book::ID.eq(id)).delete(executor).await
     }
 }
 

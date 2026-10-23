@@ -4,12 +4,12 @@
 
 **Blocked by:** 02
 
-**Status:** in-progress — the verbs are on the model (commit below); items 4–6 remain
+**Status:** done
 
 - [x] Generator emits an inherent impl on each model with `create`, `patch`, `destroy` (and the permanent-delete variant where soft delete applies)
 - [x] Module functions delegate to the model methods and carry `#[deprecated]` pointing at them
 - [x] Generated services call `Model::verb`, not `repo::verb`
-- [ ] Generated code uses `Book::filter(..)` / `Book::find(..)` instead of `Book::query().filter(Book::ID.eq(id))`
-- [ ] D4: the generator writes only opt-outs — no redundant `#[rok(primary_key)]` on `id`, no `#[rok(table = "...")]` matching the convention
-- [ ] `examples/api` hand-written code uses the model surface (0.3.0 maintainer story 5)
+- [x] Generated code uses `Book::filter(..)` / `Book::find(..)` instead of `Book::query().filter(Book::ID.eq(id))`
+- [x] D4: the generator writes only opt-outs — no redundant `#[rok(primary_key)]` on `id`, no `#[rok(table = "...")]` matching the convention
+- [x] `examples/api` hand-written code uses the model surface (0.3.0 maintainer story 5) — its services make no data-layer calls (they keep the generated defaults); its tests call `Author::create`, `Book::create`, `Loan::create`
 - [x] Snapshots, module corpus and fixture compile gates refreshed and green

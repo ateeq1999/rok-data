@@ -26,6 +26,13 @@ compiler finds the call sites.
   release as `#[deprecated]` wrappers that forward to the model verb.
   Generated services call the model verbs. A `[generate.scopes]` entry
   named like one of these verbs is rejected (it would collide).
+- **Generated code reads like hand-written code** (dx-first ticket 03):
+  chains start at the model (`Book::filter(Book::ID.eq(id))` instead of
+  `Book::query().filter(…)`), and a row carries only the attributes the
+  derive cannot infer (0.3.0 spec D4) — no `#[rok(table = …)]` when the
+  table is the struct's pluralized snake_case name, no
+  `#[rok(primary_key)]` on a lone `id` key. Schema-qualified tables and
+  other keys keep theirs.
 - **One import**: the generated `db/mod.rs` writes a `prelude` module.
   `use crate::db::prelude::*;` brings rok-data's prelude, every model,
   and each model's `{Model}Scopes` trait, so chained scopes no longer

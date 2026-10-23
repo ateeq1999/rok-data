@@ -16,8 +16,7 @@ pub async fn get_by_id<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    Invoice::query()
-        .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
+    Invoice::filter(Invoice::ORGANIZATION_ID.eq(organization_id))
         .filter(Invoice::ID.eq(id))
         .first(executor)
         .await
@@ -33,8 +32,7 @@ pub async fn exists_by_id<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    Invoice::query()
-        .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
+    Invoice::filter(Invoice::ORGANIZATION_ID.eq(organization_id))
         .filter(Invoice::ID.eq(id))
         .count(executor)
         .await
@@ -51,8 +49,7 @@ pub async fn get_by_number<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    Invoice::query()
-        .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
+    Invoice::filter(Invoice::ORGANIZATION_ID.eq(organization_id))
         .filter(Invoice::NUMBER.eq(number))
         .first(executor)
         .await
@@ -67,8 +64,7 @@ pub async fn list<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    Invoice::query()
-        .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
+    Invoice::filter(Invoice::ORGANIZATION_ID.eq(organization_id))
         .order_by(Invoice::ID)
         .all(executor)
         .await
@@ -86,8 +82,7 @@ pub async fn list_page<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    Invoice::query()
-        .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
+    Invoice::filter(Invoice::ORGANIZATION_ID.eq(organization_id))
         .order_by(Invoice::ID)
         .limit(limit as u64)
         .offset(offset as u64)
@@ -104,8 +99,7 @@ pub async fn count<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    Invoice::query()
-        .filter(Invoice::ORGANIZATION_ID.eq(organization_id))
+    Invoice::filter(Invoice::ORGANIZATION_ID.eq(organization_id))
         .count(executor)
         .await
 }

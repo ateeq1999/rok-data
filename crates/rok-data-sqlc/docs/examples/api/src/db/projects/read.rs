@@ -13,10 +13,7 @@ pub async fn get_by_id<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    Project::query()
-        .filter(Project::ID.eq(id))
-        .first(executor)
-        .await
+    Project::filter(Project::ID.eq(id)).first(executor).await
 }
 
 /// Returns whether a row with the given primary key exists.
@@ -24,8 +21,7 @@ pub async fn exists_by_id<'e, E>(executor: E, id: ProjectId) -> Result<bool, rok
 where
     E: rok_data::Executor<'e>,
 {
-    Project::query()
-        .filter(Project::ID.eq(id))
+    Project::filter(Project::ID.eq(id))
         .count(executor)
         .await
         .map(|count| count > 0)

@@ -52,11 +52,9 @@ impl ProjectId {
 rok_data::impl_value!(ProjectId);
 /// A row of the `projects` table.
 #[derive(Debug, Clone, PartialEq, Model, serde::Serialize, serde::Deserialize)]
-#[rok(table = "projects")]
 #[rok(has_many(tasks = Task::PROJECT_ID))]
 pub struct Project {
     /// The `id` column.
-    #[rok(primary_key)]
     pub id: ProjectId,
     /// The `owner_id` column.
     pub owner_id: uuid::Uuid,

@@ -40,6 +40,28 @@ pub(super) const CHAIN_WIDTH: usize = 60;
 /// per line.
 pub(super) const FN_CALL_WIDTH: usize = 60;
 
+/// The head of a chain on `model` written at `indent` after `lead`:
+/// `Book::filter(…)` when the first call is a filter (taken out of
+/// `calls`), else `Book::query()` — the model's own entry, the way a
+/// hand-written call site reads. The filter folds in only while the head
+/// stays on one line with a column to spare and its argument within
+/// `fn_call_width`; past that rustfmt would break the head's arguments,
+/// and `Book::query()` keeps the layout simple.
+pub fn model_chain(model: &str, calls: &mut Vec<String>, indent: usize, lead: &str) -> String {
+    if let Some(argument) = calls
+        .first()
+        .and_then(|first| first.strip_prefix(".filter("))
+        .and_then(|rest| rest.strip_suffix(')'))
+    {
+        let head = format!("{model}::filter({argument})");
+        if argument.len() <= FN_CALL_WIDTH && indent + lead.len() + head.len() < max_width() {
+            calls.remove(0);
+            return head;
+        }
+    }
+    format!("{model}::query()")
+}
+
 /// Appends the method chain `{head}{calls}` at `indent`, after `lead` (such
 /// as `"&& "`): on one line when the chain fits [`CHAIN_WIDTH`], otherwise
 /// with `head` on the first line and each call on its own line below,
@@ -72,14 +94,11 @@ pub fn push_wide_chain(
     let pad = " ".repeat(indent);
     let chain = format!("{head}{}", calls.concat());
     let line_fits = pad.len() + lead.len() + chain.len() + trail.len() <= max_width();
-    // The chain's width budget covers the whole expression, `.await`
-    // included; the statement's lead and trail punctuation do not count.
+    // The chain's width budget covers the whole expression, `.await` and a
+    // trailing `?` included; the statement's lead and `;` do not count.
     let wide = calls.len() <= 1;
-    let one_line = line_fits && (wide || chain.len() <= CHAIN_WIDTH);
-    if one_line {
-        output.push_str(&format!("{pad}{lead}{chain}{trail}\n"));
-        return;
-    }
+    let try_width = usize::from(trail.starts_with('?'));
+    let one_line = line_fits && (wide || chain.len() + try_width <= CHAIN_WIDTH);
     if one_line {
         output.push_str(&format!("{pad}{lead}{chain}{trail}\n"));
         return;
@@ -98,8 +117,16 @@ pub fn push_wide_chain(
     // per line when the arguments, as written inside its parentheses,
     // exceed the chain width; a framed argument that would still overflow
     // breaks as its own chain (head, then one link per line).
-    let link_pad = indent + 4;
-    output.push_str(&format!("{pad}{lead}{head}\n"));
+    let mut link_pad = indent + 4;
+    if lead.ends_with("= ") && pad.len() + lead.len() + head.len() >= max_width() {
+        // The head leaves no column to spare after `let … =`: rustfmt
+        // moves the whole chain below the `=`, one level in (probed).
+        output.push_str(&format!("{pad}{}\n", lead.trim_end()));
+        output.push_str(&format!("{}{head}\n", " ".repeat(indent + 4)));
+        link_pad += 4;
+    } else {
+        output.push_str(&format!("{pad}{lead}{head}\n"));
+    }
     for (index, call) in calls.iter().enumerate() {
         let suffix = if index + 1 == calls.len() { trail } else { "" };
         push_chain_call(output, link_pad, call, suffix);

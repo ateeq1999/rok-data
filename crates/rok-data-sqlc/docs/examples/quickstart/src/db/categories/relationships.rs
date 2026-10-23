@@ -28,8 +28,7 @@ where
     if keys.is_empty() {
         return Ok(loaded);
     }
-    let related = Product::query()
-        .filter(Product::CATEGORY_ID.is_in(keys))
+    let related = Product::filter(Product::CATEGORY_ID.is_in(keys))
         .order_by(Product::ID)
         .all(executor)
         .await?;

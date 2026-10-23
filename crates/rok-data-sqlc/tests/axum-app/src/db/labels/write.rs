@@ -42,10 +42,7 @@ impl Label {
     where
         E: rok_data::Executor<'e>,
     {
-        Label::query()
-            .filter(Label::ID.eq(id))
-            .delete(executor)
-            .await
+        Label::filter(Label::ID.eq(id)).delete(executor).await
     }
 }
 

@@ -13,8 +13,7 @@ pub async fn get_by_id<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    AuditLogEntry::query()
-        .filter(AuditLogEntry::ID.eq(id))
+    AuditLogEntry::filter(AuditLogEntry::ID.eq(id))
         .first(executor)
         .await
 }
@@ -24,8 +23,7 @@ pub async fn exists_by_id<'e, E>(executor: E, id: AuditLogEntryId) -> Result<boo
 where
     E: rok_data::Executor<'e>,
 {
-    AuditLogEntry::query()
-        .filter(AuditLogEntry::ID.eq(id))
+    AuditLogEntry::filter(AuditLogEntry::ID.eq(id))
         .count(executor)
         .await
         .map(|count| count > 0)

@@ -64,8 +64,7 @@ impl AuditLogEntry {
     where
         E: rok_data::Executor<'e>,
     {
-        AuditLogEntry::query()
-            .filter(AuditLogEntry::ID.eq(id))
+        AuditLogEntry::filter(AuditLogEntry::ID.eq(id))
             .delete(executor)
             .await
     }

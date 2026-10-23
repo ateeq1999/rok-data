@@ -10,10 +10,7 @@ pub async fn get_by_id<'e, E>(executor: E, id: ApiKeyId) -> Result<Option<ApiKey
 where
     E: rok_data::Executor<'e>,
 {
-    ApiKey::query()
-        .filter(ApiKey::ID.eq(id))
-        .first(executor)
-        .await
+    ApiKey::filter(ApiKey::ID.eq(id)).first(executor).await
 }
 
 /// Returns whether a row with the given primary key exists.
@@ -21,8 +18,7 @@ pub async fn exists_by_id<'e, E>(executor: E, id: ApiKeyId) -> Result<bool, rok_
 where
     E: rok_data::Executor<'e>,
 {
-    ApiKey::query()
-        .filter(ApiKey::ID.eq(id))
+    ApiKey::filter(ApiKey::ID.eq(id))
         .count(executor)
         .await
         .map(|count| count > 0)

@@ -59,10 +59,7 @@ impl Media {
     where
         E: rok_data::Executor<'e>,
     {
-        Media::query()
-            .filter(Media::ID.eq(id))
-            .delete(executor)
-            .await
+        Media::filter(Media::ID.eq(id)).delete(executor).await
     }
 }
 

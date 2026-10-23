@@ -28,8 +28,7 @@ where
     if keys.is_empty() {
         return Ok(loaded);
     }
-    let related = Book::query()
-        .filter(Book::AUTHOR_ID.is_in(keys))
+    let related = Book::filter(Book::AUTHOR_ID.is_in(keys))
         .order_by(Book::ID)
         .all(executor)
         .await?;

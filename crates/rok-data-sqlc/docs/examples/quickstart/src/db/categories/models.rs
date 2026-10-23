@@ -30,11 +30,9 @@ impl std::fmt::Display for CategoryId {
 rok_data::impl_value!(CategoryId);
 /// A row of the `categories` table.
 #[derive(Debug, Clone, PartialEq, Model)]
-#[rok(table = "categories")]
 #[rok(has_many(products = Product::CATEGORY_ID))]
 pub struct Category {
     /// The `id` column.
-    #[rok(primary_key)]
     #[rok(generated)]
     pub id: CategoryId,
     /// The `name` column.

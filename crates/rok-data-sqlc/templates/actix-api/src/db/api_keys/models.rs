@@ -54,10 +54,8 @@ impl ApiKeyId {
 rok_data::impl_value!(ApiKeyId);
 /// A row of the `api_keys` table.
 #[derive(Debug, Clone, PartialEq, Model, serde::Serialize, serde::Deserialize)]
-#[rok(table = "api_keys")]
 pub struct ApiKey {
     /// The `id` column.
-    #[rok(primary_key)]
     pub id: ApiKeyId,
     /// The `user_id` column.
     #[rok(belongs_to = User)]

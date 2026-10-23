@@ -29,8 +29,7 @@ where
     if keys.is_empty() {
         return Ok(loaded);
     }
-    let related = NoteLabel::query()
-        .filter(NoteLabel::LABEL_ID.is_in(keys))
+    let related = NoteLabel::filter(NoteLabel::LABEL_ID.is_in(keys))
         .order_by(NoteLabel::NOTE_ID)
         .order_by(NoteLabel::LABEL_ID)
         .all(executor)

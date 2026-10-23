@@ -51,7 +51,7 @@ impl Loan {
     where
         E: rok_data::Executor<'e>,
     {
-        Loan::query().filter(Loan::ID.eq(id)).delete(executor).await
+        Loan::filter(Loan::ID.eq(id)).delete(executor).await
     }
 }
 

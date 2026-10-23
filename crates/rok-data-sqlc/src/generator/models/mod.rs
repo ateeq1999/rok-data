@@ -3,6 +3,7 @@
 //! and `db/nullable.rs` ([`nullable`]).
 
 mod conventions;
+mod inferred;
 mod inputs;
 mod nullable;
 mod relations;
@@ -92,9 +93,11 @@ fn render_row(
     }
     push_scope_attrs(output, table);
     output.push_str(&format!("pub struct {} {{\n", table.struct_name));
+    // A lone `id` key is the derive's inference; any other key is marked.
+    let marks_key = !inferred::infers_primary_key(table);
     for column in &table.columns {
         push_doc(output, 4, &[&column_doc(column)]);
-        push_field_attrs(output, column, conventions, relations);
+        push_field_attrs(output, column, marks_key, conventions, relations);
         output.push_str(&format!(
             "    pub {}: {},\n",
             column.rust_name,
@@ -109,17 +112,23 @@ fn render_row(
 /// The markers the inference covers are not written: the column names say
 /// it already. The opt-outs are written where the database owns the column.
 fn push_container_attrs(output: &mut String, table: &Table, conventions: &Conventions) {
-    let mut attrs = vec![format!(
-        "table = {}",
-        sql::str_literal(&qualified_table(table))
-    )];
+    let mut attrs = Vec::new();
+    // The table is written only where the derive would infer another name.
+    if !inferred::infers_table(table) {
+        attrs.push(format!(
+            "table = {}",
+            sql::str_literal(&qualified_table(table))
+        ));
+    }
     if conventions.no_timestamps {
         attrs.push("no_timestamps".to_owned());
     }
     if conventions.no_soft_delete {
         attrs.push("no_soft_delete".to_owned());
     }
-    output.push_str(&format!("#[rok({})]\n", attrs.join(", ")));
+    if !attrs.is_empty() {
+        output.push_str(&format!("#[rok({})]\n", attrs.join(", ")));
+    }
 }
 
 /// The `#[rok(scopes(...))]` attribute of a row's derive: the scopes the
@@ -143,6 +152,7 @@ fn push_scope_attrs(output: &mut String, table: &Table) {
 fn push_field_attrs(
     output: &mut String,
     column: &Column,
+    marks_key: bool,
     conventions: &Conventions,
     relations: &Relations,
 ) {
@@ -152,7 +162,7 @@ fn push_field_attrs(
             sql::str_literal(&column.sql_name)
         ));
     }
-    if column.is_primary_key {
+    if column.is_primary_key && marks_key {
         output.push_str("    #[rok(primary_key)]\n");
     }
     if column.is_generated {

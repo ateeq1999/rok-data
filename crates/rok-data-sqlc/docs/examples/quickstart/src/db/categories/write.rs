@@ -49,10 +49,7 @@ impl Category {
     where
         E: rok_data::Executor<'e>,
     {
-        Category::query()
-            .filter(Category::ID.eq(id))
-            .delete(executor)
-            .await
+        Category::filter(Category::ID.eq(id)).delete(executor).await
     }
 }
 

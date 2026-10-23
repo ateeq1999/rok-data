@@ -28,8 +28,7 @@ where
     if keys.is_empty() {
         return Ok(loaded);
     }
-    let related = Task::query()
-        .filter(Task::PROJECT_ID.is_in(keys))
+    let related = Task::filter(Task::PROJECT_ID.is_in(keys))
         .order_by(Task::ID)
         .all(executor)
         .await?;

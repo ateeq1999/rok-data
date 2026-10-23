@@ -52,11 +52,9 @@ impl AccountId {
 rok_data::impl_value!(AccountId);
 /// A row of the `accounts` table.
 #[derive(Debug, Clone, PartialEq, Model, serde::Serialize, serde::Deserialize)]
-#[rok(table = "accounts")]
 #[rok(has_many(notes = Note::OWNER_ID))]
 pub struct Account {
     /// The `id` column.
-    #[rok(primary_key)]
     pub id: AccountId,
     /// The `email` column.
     pub email: String,

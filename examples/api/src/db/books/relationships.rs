@@ -31,10 +31,7 @@ where
     if keys.is_empty() {
         return Ok(HashMap::new());
     }
-    let related = Author::query()
-        .filter(Author::ID.is_in(keys))
-        .all(executor)
-        .await?;
+    let related = Author::filter(Author::ID.is_in(keys)).all(executor).await?;
     let mut loaded = HashMap::new();
     for row in related {
         loaded.insert(row.id, row);
@@ -61,8 +58,7 @@ where
     if keys.is_empty() {
         return Ok(loaded);
     }
-    let related = Loan::query()
-        .filter(Loan::BOOK_ID.is_in(keys))
+    let related = Loan::filter(Loan::BOOK_ID.is_in(keys))
         .order_by(Loan::ID)
         .all(executor)
         .await?;

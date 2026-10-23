@@ -291,9 +291,7 @@ fn unique_keys_get_lookups_but_expression_and_partial_indexes_do_not() -> Result
         "{read}"
     );
     assert!(
-        read.contains(
-            "    Product::query()\n        .filter(Product::SKU.eq(sku))\n        .first(executor)\n        .await\n"
-        ),
+        read.contains("    Product::filter(Product::SKU.eq(sku)).first(executor).await\n"),
         "{read}"
     );
     assert!(
@@ -304,7 +302,7 @@ fn unique_keys_get_lookups_but_expression_and_partial_indexes_do_not() -> Result
     );
     assert!(
         read.contains(
-            "    Product::query()\n        .filter(Product::ORGANIZATION_ID.eq(organization_id))\n        .filter(Product::CODE.eq(code))\n        .first(executor)\n        .await\n"
+            "    Product::filter(Product::ORGANIZATION_ID.eq(organization_id))\n        .filter(Product::CODE.eq(code))\n        .first(executor)\n        .await\n"
         ),
         "{read}"
     );

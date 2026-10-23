@@ -19,7 +19,6 @@ pub struct NoteLabelKey {
 
 /// A row of the `note_labels` table.
 #[derive(Debug, Clone, PartialEq, Model, serde::Serialize, serde::Deserialize)]
-#[rok(table = "note_labels")]
 pub struct NoteLabel {
     /// The `note_id` column.
     #[rok(primary_key)]

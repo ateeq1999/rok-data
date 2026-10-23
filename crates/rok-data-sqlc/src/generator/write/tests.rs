@@ -157,9 +157,7 @@ fn destroy_returns_the_row_count() {
     assert!(rendered.contains(
         "pub async fn destroy<'e, E>(executor: E, id: i64) -> Result<u64, rok_data::Error>"
     ));
-    assert!(
-        rendered.contains("    User::query().filter(User::ID.eq(id)).delete(executor).await\n")
-    );
+    assert!(rendered.contains("    User::filter(User::ID.eq(id)).delete(executor).await\n"));
 }
 
 #[test]

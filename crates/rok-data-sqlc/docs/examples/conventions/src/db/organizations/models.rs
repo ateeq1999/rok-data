@@ -29,10 +29,8 @@ impl std::fmt::Display for OrganizationId {
 rok_data::impl_value!(OrganizationId);
 /// A row of the `organizations` table.
 #[derive(Debug, Clone, PartialEq, Model)]
-#[rok(table = "organizations")]
 pub struct Organization {
     /// The `id` column.
-    #[rok(primary_key)]
     pub id: OrganizationId,
     /// The `name` column.
     pub name: String,

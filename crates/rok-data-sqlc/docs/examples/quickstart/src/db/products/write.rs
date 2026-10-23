@@ -80,10 +80,7 @@ impl Product {
     where
         E: rok_data::Executor<'e>,
     {
-        Product::query()
-            .filter(Product::ID.eq(id))
-            .delete(executor)
-            .await
+        Product::filter(Product::ID.eq(id)).delete(executor).await
     }
 }
 

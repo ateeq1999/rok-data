@@ -28,8 +28,7 @@ impl NoteLabel {
     where
         E: rok_data::Executor<'e>,
     {
-        NoteLabel::query()
-            .filter(NoteLabel::NOTE_ID.eq(key.note_id))
+        NoteLabel::filter(NoteLabel::NOTE_ID.eq(key.note_id))
             .filter(NoteLabel::LABEL_ID.eq(key.label_id))
             .delete(executor)
             .await

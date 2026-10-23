@@ -31,10 +31,7 @@ where
     if keys.is_empty() {
         return Ok(HashMap::new());
     }
-    let related = User::query()
-        .filter(User::ID.is_in(keys))
-        .all(executor)
-        .await?;
+    let related = User::filter(User::ID.is_in(keys)).all(executor).await?;
     let mut loaded = HashMap::new();
     for row in related {
         loaded.insert(row.id, row);

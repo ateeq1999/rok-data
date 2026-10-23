@@ -65,10 +65,7 @@ fn a_table_with_now_defaults_gets_the_managed_timestamps() {
         &["id"],
     );
     let rendered = rendered(&users, &Conventions::default());
-    assert!(
-        rendered.contains("#[rok(table = \"users\")]\n"),
-        "{rendered}"
-    );
+    assert!(!rendered.contains("\n#[rok("), "{rendered}");
 }
 
 /// A timestamp column the database fills with something else keeps the
@@ -84,10 +81,7 @@ fn a_table_with_another_default_opts_out_of_the_managed_timestamps() {
         &["id"],
     );
     let rendered = rendered(&users, &Conventions::default());
-    assert!(
-        rendered.contains("#[rok(table = \"users\", no_timestamps)]\n"),
-        "{rendered}"
-    );
+    assert!(rendered.contains("#[rok(no_timestamps)]\n"), "{rendered}");
 }
 
 /// A column the `managed_columns` convention names is the data layer's,
@@ -107,10 +101,7 @@ fn a_managed_column_is_managed_whatever_its_default() {
         ..Conventions::default()
     };
     let rendered = rendered(&users, &conventions);
-    assert!(
-        rendered.contains("#[rok(table = \"users\")]\n"),
-        "{rendered}"
-    );
+    assert!(!rendered.contains("\n#[rok("), "{rendered}");
 }
 
 /// A `deleted_at` column is the soft delete: the inference names it, and the
@@ -122,10 +113,7 @@ fn a_deleted_at_column_is_the_soft_delete() {
         &["id"],
     );
     let rendered = rendered(&users, &Conventions::default());
-    assert!(
-        rendered.contains("#[rok(table = \"users\")]\n"),
-        "{rendered}"
-    );
+    assert!(!rendered.contains("\n#[rok("), "{rendered}");
     assert!(!rendered.contains("#[rok(deleted_at)]"), "{rendered}");
 }
 
@@ -138,10 +126,7 @@ fn a_deleted_at_column_the_database_fills_opts_out_of_the_soft_delete() {
         &["id"],
     );
     let rendered = rendered(&users, &Conventions::default());
-    assert!(
-        rendered.contains("#[rok(table = \"users\", no_soft_delete)]\n"),
-        "{rendered}"
-    );
+    assert!(rendered.contains("#[rok(no_soft_delete)]\n"), "{rendered}");
 }
 
 /// A `deleted_at` column that cannot carry a soft delete (it is not
@@ -156,10 +141,7 @@ fn a_deleted_at_column_that_cannot_carry_a_soft_delete_opts_out() {
         &["id"],
     );
     let rendered = rendered(&users, &Conventions::default());
-    assert!(
-        rendered.contains("#[rok(table = \"users\", no_soft_delete)]\n"),
-        "{rendered}"
-    );
+    assert!(rendered.contains("#[rok(no_soft_delete)]\n"), "{rendered}");
 }
 
 /// A `deleted_at` column the database always owns is an ordinary column.
@@ -173,10 +155,7 @@ fn a_generated_deleted_at_column_opts_out_of_the_soft_delete() {
         &["id"],
     );
     let rendered = rendered(&users, &Conventions::default());
-    assert!(
-        rendered.contains("#[rok(table = \"users\", no_soft_delete)]\n"),
-        "{rendered}"
-    );
+    assert!(rendered.contains("#[rok(no_soft_delete)]\n"), "{rendered}");
 }
 
 /// The soft-delete convention names a column the inference cannot: the row's
@@ -192,10 +171,7 @@ fn the_soft_delete_convention_names_the_column() {
         ..Conventions::default()
     };
     let rendered = rendered(&users, &conventions);
-    assert!(
-        rendered.contains("#[rok(table = \"users\")]\n"),
-        "{rendered}"
-    );
+    assert!(!rendered.contains("\n#[rok("), "{rendered}");
     assert!(
         rendered.contains(
             "    /// The `removed_at` column.\n    #[rok(deleted_at)]\n    pub removed_at: Option<chrono::DateTime<chrono::Utc>>,\n"
@@ -217,10 +193,7 @@ fn the_soft_delete_convention_over_a_deleted_at_column_says_nothing() {
         ..Conventions::default()
     };
     let rendered = rendered(&users, &conventions);
-    assert!(
-        rendered.contains("#[rok(table = \"users\")]\n"),
-        "{rendered}"
-    );
+    assert!(!rendered.contains("\n#[rok("), "{rendered}");
     assert!(!rendered.contains("#[rok(deleted_at)]"), "{rendered}");
 }
 
@@ -233,10 +206,7 @@ fn one_timestamp_column_alone_says_nothing() {
         &["id"],
     );
     let rendered = rendered(&users, &Conventions::default());
-    assert!(
-        rendered.contains("#[rok(table = \"users\")]\n"),
-        "{rendered}"
-    );
+    assert!(!rendered.contains("\n#[rok("), "{rendered}");
 }
 
 /// A timestamp column the database always owns is the database's: the row
@@ -252,10 +222,7 @@ fn a_generated_timestamp_column_opts_out_of_the_managed_timestamps() {
         &["id"],
     );
     let rendered = rendered(&users, &Conventions::default());
-    assert!(
-        rendered.contains("#[rok(table = \"users\", no_timestamps)]\n"),
-        "{rendered}"
-    );
+    assert!(rendered.contains("#[rok(no_timestamps)]\n"), "{rendered}");
 }
 
 #[test]
@@ -285,7 +252,7 @@ fn serde_derives_rows_inputs_and_patches_on_request() {
     // the same `#[derive(...)]`.
     assert!(
         rendered.contains(
-            "#[derive(Debug, Clone, PartialEq, Model, serde::Serialize, serde::Deserialize)]\n#[rok(table = \"users\")]\npub struct User {"
+            "#[derive(Debug, Clone, PartialEq, Model, serde::Serialize, serde::Deserialize)]\npub struct User {"
         ),
         "{rendered}"
     );
@@ -351,7 +318,7 @@ fn renders_row_struct_with_from_row() {
     let rendered = render(&table(vec![column("email", "String")], &[]));
     assert!(rendered.starts_with("// @generated by rok-data-sqlc. Do not edit by hand.\n"));
     assert!(rendered.contains(
-            "/// A row of the `users` table.\n#[derive(Debug, Clone, PartialEq, Model)]\n#[rok(table = \"users\")]\npub struct User {\n    /// The `email` column.\n    pub email: String,\n}"
+            "/// A row of the `users` table.\n#[derive(Debug, Clone, PartialEq, Model)]\npub struct User {\n    /// The `email` column.\n    pub email: String,\n}"
         ));
 }
 

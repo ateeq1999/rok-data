@@ -13,10 +13,7 @@ pub async fn get_by_id<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    Account::query()
-        .filter(Account::ID.eq(id))
-        .first(executor)
-        .await
+    Account::filter(Account::ID.eq(id)).first(executor).await
 }
 
 /// Returns whether a row with the given primary key exists.
@@ -24,8 +21,7 @@ pub async fn exists_by_id<'e, E>(executor: E, id: AccountId) -> Result<bool, rok
 where
     E: rok_data::Executor<'e>,
 {
-    Account::query()
-        .filter(Account::ID.eq(id))
+    Account::filter(Account::ID.eq(id))
         .count(executor)
         .await
         .map(|count| count > 0)
@@ -39,8 +35,7 @@ pub async fn get_by_email<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    Account::query()
-        .filter(Account::EMAIL.eq(email))
+    Account::filter(Account::EMAIL.eq(email))
         .first(executor)
         .await
 }

@@ -13,10 +13,7 @@ pub async fn get_by_id<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    Product::query()
-        .filter(Product::ID.eq(id))
-        .first(executor)
-        .await
+    Product::filter(Product::ID.eq(id)).first(executor).await
 }
 
 /// Returns whether a row with the given primary key exists.
@@ -24,8 +21,7 @@ pub async fn exists_by_id<'e, E>(executor: E, id: ProductId) -> Result<bool, rok
 where
     E: rok_data::Executor<'e>,
 {
-    Product::query()
-        .filter(Product::ID.eq(id))
+    Product::filter(Product::ID.eq(id))
         .count(executor)
         .await
         .map(|count| count > 0)
@@ -36,10 +32,7 @@ pub async fn get_by_sku<'e, E>(executor: E, sku: &str) -> Result<Option<Product>
 where
     E: rok_data::Executor<'e>,
 {
-    Product::query()
-        .filter(Product::SKU.eq(sku))
-        .first(executor)
-        .await
+    Product::filter(Product::SKU.eq(sku)).first(executor).await
 }
 
 /// Fetches every row, ordered by primary key.

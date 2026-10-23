@@ -31,7 +31,7 @@ fn generates_resource_modules() -> Result<()> {
     assert!(models.contains("pub email: String,"));
 
     let read = fs::read_to_string(out.join("users/read.rs"))?;
-    assert!(read.contains("    User::query().filter(User::ID.eq(id)).first(executor).await\n"));
+    assert!(read.contains("    User::filter(User::ID.eq(id)).first(executor).await\n"));
 
     let write = fs::read_to_string(out.join("users/write.rs"))?;
     assert!(write.contains("pub async fn create<'e, E>(executor: E, input: NewUser)"));
@@ -89,8 +89,7 @@ fn generates_composite_keys_arrays_and_time() -> Result<()> {
 
     let read = fs::read_to_string(out.join("line_items/read.rs"))?;
     assert!(read.contains("get_by_id<'e, E>(\n    executor: E,\n    key: LineItemKey,\n)"));
-    assert!(read.contains("    LineItem::query()\n"));
-    assert!(read.contains("        .filter(LineItem::ORDER_ID.eq(key.order_id))\n"));
+    assert!(read.contains("    LineItem::filter(LineItem::ORDER_ID.eq(key.order_id))\n"));
     assert!(read.contains("        .filter(LineItem::PRODUCT_ID.eq(key.product_id))\n"));
     assert!(read.contains("    after: Option<LineItemKey>,\n"));
     Ok(())
@@ -264,7 +263,6 @@ fn generates_products_fixture_with_singular_names_and_schema_qualified_sql() -> 
 #[rok(table = \"catalog.products\")]
 pub struct Product {
     /// The `id` column.
-    #[rok(primary_key)]
     pub id: ProductId,
     /// The `sku` column.
     pub sku: String,
@@ -298,9 +296,7 @@ pub struct Product {
     assert!(read.contains(
         "pub async fn get_by_id<'e, E>(\n    executor: E,\n    id: ProductId,\n) -> Result<Option<Product>, rok_data::Error>"
     ));
-    assert!(read.contains(
-        "    Product::query()\n        .filter(Product::ID.eq(id))\n        .first(executor)\n        .await\n"
-    ));
+    assert!(read.contains("    Product::filter(Product::ID.eq(id)).first(executor).await\n"));
 
     let write = fs::read_to_string(out.join("products/write.rs"))?;
     // The verbs sit in the model's `impl`, one level in.
@@ -308,9 +304,7 @@ pub struct Product {
         write
             .contains("        let mut update = Product::update_all().filter(Product::ID.eq(id));")
     );
-    assert!(write.contains(
-        "        Product::query()\n            .filter(Product::ID.eq(id))\n            .delete(executor)\n"
-    ));
+    assert!(write.contains("        Product::filter(Product::ID.eq(id)).delete(executor).await\n"));
     Ok(())
 }
 

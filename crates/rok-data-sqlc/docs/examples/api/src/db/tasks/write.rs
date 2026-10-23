@@ -64,7 +64,7 @@ impl Task {
     where
         E: rok_data::Executor<'e>,
     {
-        Task::query().filter(Task::ID.eq(id)).delete(executor).await
+        Task::filter(Task::ID.eq(id)).delete(executor).await
     }
 }
 

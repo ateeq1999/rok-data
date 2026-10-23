@@ -112,8 +112,7 @@ impl Note {
     where
         E: rok_data::Executor<'e>,
     {
-        Note::query()
-            .filter(Note::TENANT_ID.eq(tenant_id))
+        Note::filter(Note::TENANT_ID.eq(tenant_id))
             .filter(Note::ID.eq(id))
             .delete(executor)
             .await
@@ -130,8 +129,7 @@ impl Note {
     where
         E: rok_data::Executor<'e>,
     {
-        Note::query()
-            .filter(Note::TENANT_ID.eq(tenant_id))
+        Note::filter(Note::TENANT_ID.eq(tenant_id))
             .filter(Note::ID.eq(id))
             .restore(executor)
             .await
@@ -147,8 +145,7 @@ impl Note {
     where
         E: rok_data::Executor<'e>,
     {
-        Note::query()
-            .filter(Note::TENANT_ID.eq(tenant_id))
+        Note::filter(Note::TENANT_ID.eq(tenant_id))
             .filter(Note::ID.eq(id))
             .with_trashed()
             .force_delete(executor)

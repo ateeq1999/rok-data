@@ -74,10 +74,7 @@ impl ApiKey {
     where
         E: rok_data::Executor<'e>,
     {
-        ApiKey::query()
-            .filter(ApiKey::ID.eq(id))
-            .delete(executor)
-            .await
+        ApiKey::filter(ApiKey::ID.eq(id)).delete(executor).await
     }
 }
 

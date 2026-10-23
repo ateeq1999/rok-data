@@ -11,7 +11,7 @@ pub async fn get_by_id<'e, E>(executor: E, id: UserId) -> Result<Option<User>, r
 where
     E: rok_data::Executor<'e>,
 {
-    User::query().filter(User::ID.eq(id)).first(executor).await
+    User::filter(User::ID.eq(id)).first(executor).await
 }
 
 /// Returns whether a row with the given primary key exists.
@@ -20,8 +20,7 @@ pub async fn exists_by_id<'e, E>(executor: E, id: UserId) -> Result<bool, rok_da
 where
     E: rok_data::Executor<'e>,
 {
-    User::query()
-        .filter(User::ID.eq(id))
+    User::filter(User::ID.eq(id))
         .count(executor)
         .await
         .map(|count| count > 0)

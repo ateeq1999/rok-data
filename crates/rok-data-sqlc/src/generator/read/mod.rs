@@ -3,8 +3,8 @@ use crate::schema::{Column, Table};
 
 use super::search::SearchApi;
 use super::{
-    HEADER, filter_call, keys, param_name, param_type, push_build_and_fetch, push_chain, push_doc,
-    push_fn_head, tenant_filter_call, types_import, use_list, use_paths,
+    HEADER, filter_call, keys, model_chain, param_name, param_type, push_build_and_fetch,
+    push_chain, push_doc, push_fn_head, tenant_filter_call, types_import, use_list, use_paths,
 };
 
 pub fn render(table: &Table, tables: &[Table]) -> String {
@@ -210,7 +210,7 @@ fn render_unique_lookup(output: &mut String, table: &Table, lookup: &Lookup<'_>)
         output,
         4,
         "",
-        &format!("{}::query()", table.struct_name),
+        &model_chain(&table.struct_name, &mut calls, 4, ""),
         &calls,
     );
     output.push_str("}\n");
@@ -384,7 +384,7 @@ fn render_get_by_id(output: &mut String, table: &Table) {
         output,
         4,
         "",
-        &format!("{}::query()", table.struct_name),
+        &model_chain(&table.struct_name, &mut calls, 4, ""),
         &calls,
     );
     output.push_str("}\n");
@@ -418,7 +418,7 @@ fn render_exists_by_id(output: &mut String, table: &Table) {
         output,
         4,
         "",
-        &format!("{}::query()", table.struct_name),
+        &model_chain(&table.struct_name, &mut calls, 4, ""),
         &calls,
     );
     output.push_str("}\n");
@@ -457,7 +457,7 @@ fn render_list(output: &mut String, table: &Table) {
         output,
         4,
         "",
-        &format!("{}::query()", table.struct_name),
+        &model_chain(&table.struct_name, &mut calls, 4, ""),
         &calls,
     );
     output.push_str("}\n");
@@ -499,7 +499,7 @@ fn render_list_page(output: &mut String, table: &Table) {
         output,
         4,
         "",
-        &format!("{}::query()", table.struct_name),
+        &model_chain(&table.struct_name, &mut calls, 4, ""),
         &calls,
     );
     output.push_str("}\n");
@@ -522,7 +522,7 @@ fn render_count(output: &mut String, table: &Table) {
         output,
         4,
         "",
-        &format!("{}::query()", table.struct_name),
+        &model_chain(&table.struct_name, &mut calls, 4, ""),
         &calls,
     );
     output.push_str("}\n");

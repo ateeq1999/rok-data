@@ -32,8 +32,7 @@ where
     if keys.is_empty() {
         return Ok(HashMap::new());
     }
-    let related = Account::query()
-        .filter(Account::ID.is_in(keys))
+    let related = Account::filter(Account::ID.is_in(keys))
         .all(executor)
         .await?;
     let mut loaded = HashMap::new();
@@ -62,8 +61,7 @@ where
     if keys.is_empty() {
         return Ok(loaded);
     }
-    let related = NoteLabel::query()
-        .filter(NoteLabel::NOTE_ID.is_in(keys))
+    let related = NoteLabel::filter(NoteLabel::NOTE_ID.is_in(keys))
         .order_by(NoteLabel::NOTE_ID)
         .order_by(NoteLabel::LABEL_ID)
         .all(executor)

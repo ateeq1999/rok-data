@@ -10,7 +10,7 @@ pub async fn get_by_id<'e, E>(executor: E, id: BookId) -> Result<Option<Book>, r
 where
     E: rok_data::Executor<'e>,
 {
-    Book::query().filter(Book::ID.eq(id)).first(executor).await
+    Book::filter(Book::ID.eq(id)).first(executor).await
 }
 
 /// Returns whether a row with the given primary key exists.
@@ -18,8 +18,7 @@ pub async fn exists_by_id<'e, E>(executor: E, id: BookId) -> Result<bool, rok_da
 where
     E: rok_data::Executor<'e>,
 {
-    Book::query()
-        .filter(Book::ID.eq(id))
+    Book::filter(Book::ID.eq(id))
         .count(executor)
         .await
         .map(|count| count > 0)
@@ -30,10 +29,7 @@ pub async fn get_by_isbn<'e, E>(executor: E, isbn: &str) -> Result<Option<Book>,
 where
     E: rok_data::Executor<'e>,
 {
-    Book::query()
-        .filter(Book::ISBN.eq(isbn))
-        .first(executor)
-        .await
+    Book::filter(Book::ISBN.eq(isbn)).first(executor).await
 }
 
 /// Fetches every row, ordered by primary key.

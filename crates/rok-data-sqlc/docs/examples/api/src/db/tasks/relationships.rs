@@ -30,8 +30,7 @@ where
     if keys.is_empty() {
         return Ok(HashMap::new());
     }
-    let related = Project::query()
-        .filter(Project::ID.is_in(keys))
+    let related = Project::filter(Project::ID.is_in(keys))
         .all(executor)
         .await?;
     let mut loaded = HashMap::new();

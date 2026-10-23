@@ -54,11 +54,9 @@ impl validator::ValidateRange<i64> for LabelId {
 
 /// A row of the `labels` table.
 #[derive(Debug, Clone, PartialEq, Model, serde::Serialize, serde::Deserialize)]
-#[rok(table = "labels")]
 #[rok(has_many(note_labels = NoteLabel::LABEL_ID))]
 pub struct Label {
     /// The `id` column.
-    #[rok(primary_key)]
     #[rok(generated)]
     pub id: LabelId,
     /// The `name` column.

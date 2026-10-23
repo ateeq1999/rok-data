@@ -52,11 +52,9 @@ impl AuthorId {
 rok_data::impl_value!(AuthorId);
 /// A row of the `authors` table.
 #[derive(Debug, Clone, PartialEq, Model, serde::Serialize, serde::Deserialize)]
-#[rok(table = "authors")]
 #[rok(has_many(books = Book::AUTHOR_ID))]
 pub struct Author {
     /// The `id` column.
-    #[rok(primary_key)]
     pub id: AuthorId,
     /// The `name` column.
     pub name: String,

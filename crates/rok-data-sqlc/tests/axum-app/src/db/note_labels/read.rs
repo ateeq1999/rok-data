@@ -13,8 +13,7 @@ pub async fn get_by_id<'e, E>(
 where
     E: rok_data::Executor<'e>,
 {
-    NoteLabel::query()
-        .filter(NoteLabel::NOTE_ID.eq(key.note_id))
+    NoteLabel::filter(NoteLabel::NOTE_ID.eq(key.note_id))
         .filter(NoteLabel::LABEL_ID.eq(key.label_id))
         .first(executor)
         .await
@@ -25,8 +24,7 @@ pub async fn exists_by_id<'e, E>(executor: E, key: NoteLabelKey) -> Result<bool,
 where
     E: rok_data::Executor<'e>,
 {
-    NoteLabel::query()
-        .filter(NoteLabel::NOTE_ID.eq(key.note_id))
+    NoteLabel::filter(NoteLabel::NOTE_ID.eq(key.note_id))
         .filter(NoteLabel::LABEL_ID.eq(key.label_id))
         .count(executor)
         .await

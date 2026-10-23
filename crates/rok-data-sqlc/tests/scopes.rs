@@ -54,10 +54,11 @@ fn a_configured_scope_becomes_the_models_scope_attribute() -> Result<()> {
         users.contains("#[rok(scopes(famous = crate::scopes::users::famous))]"),
         "{users}"
     );
-    // The attribute sits on the row struct, after the other containers.
+    // The attribute sits on the row struct, after the derive (the table is
+    // the derive's inference, so no `table` attribute precedes it).
     assert!(
         users.contains(
-            "#[rok(table = \"users\")]\n#[rok(scopes(famous = crate::scopes::users::famous))]"
+            "Model)]\n#[rok(scopes(famous = crate::scopes::users::famous))]\npub struct User {"
         ),
         "{users}"
     );

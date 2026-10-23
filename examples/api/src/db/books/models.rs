@@ -54,11 +54,9 @@ impl BookId {
 rok_data::impl_value!(BookId);
 /// A row of the `books` table.
 #[derive(Debug, Clone, PartialEq, Model, serde::Serialize, serde::Deserialize)]
-#[rok(table = "books")]
 #[rok(has_many(loans = Loan::BOOK_ID))]
 pub struct Book {
     /// The `id` column.
-    #[rok(primary_key)]
     pub id: BookId,
     /// The `author_id` column.
     #[rok(belongs_to = Author)]

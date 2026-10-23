@@ -54,11 +54,9 @@ impl NoteId {
 rok_data::impl_value!(NoteId);
 /// A row of the `notes` table.
 #[derive(Debug, Clone, PartialEq, Model, serde::Serialize, serde::Deserialize)]
-#[rok(table = "notes")]
 #[rok(has_many(note_labels = NoteLabel::NOTE_ID))]
 pub struct Note {
     /// The `id` column.
-    #[rok(primary_key)]
     pub id: NoteId,
     /// The `owner_id` column.
     #[rok(belongs_to = Account)]

@@ -47,10 +47,7 @@ impl Author {
     where
         E: rok_data::Executor<'e>,
     {
-        Author::query()
-            .filter(Author::ID.eq(id))
-            .delete(executor)
-            .await
+        Author::filter(Author::ID.eq(id)).delete(executor).await
     }
 }
 

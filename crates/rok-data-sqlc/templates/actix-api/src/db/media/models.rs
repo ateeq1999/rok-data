@@ -56,7 +56,6 @@ rok_data::impl_value!(MediaId);
 #[rok(table = "media")]
 pub struct Media {
     /// The `id` column.
-    #[rok(primary_key)]
     pub id: MediaId,
     /// The `owner_id` column.
     #[rok(belongs_to = User)]
