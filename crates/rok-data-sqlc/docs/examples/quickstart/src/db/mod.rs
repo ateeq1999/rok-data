@@ -16,3 +16,12 @@ pub mod queries;
 pub mod schema;
 pub mod search;
 pub mod types;
+
+/// Everything a call site needs: `use crate::db::prelude::*;` brings
+/// rok-data's prelude, every model, and each model's scopes.
+pub mod prelude {
+    pub use rok_data::prelude::*;
+
+    pub use super::categories::models::Category;
+    pub use super::products::models::Product;
+}

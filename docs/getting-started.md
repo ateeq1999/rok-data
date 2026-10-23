@@ -131,6 +131,13 @@ struct Note {
 }
 ```
 
+With generated models, one import brings everything — rok-data's
+prelude, every model, and each model's scopes:
+
+```rust,ignore
+use crate::db::prelude::*;
+```
+
 The verbs hang off the model, not a module namespace. Reads take the
 `Model` chain, writes take `ModelWrite`, a relation accessor starts its
 chain, and a named scope is the entry:

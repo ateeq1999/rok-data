@@ -18,6 +18,10 @@ compiler finds the call sites.
 
 **What changed**
 
+- **One import**: the generated `db/mod.rs` writes a `prelude` module.
+  `use crate::db::prelude::*;` brings rok-data's prelude, every model,
+  and each model's `{Model}Scopes` trait, so chained scopes no longer
+  need a hand-written `use …::models::UserScopes` (dx-first ticket 02).
 - **The write spine renaming**: the generated write
   verbs are `create` / `patch` / `destroy`; `destroy` returns the deleted
   count (`u64`), `patch` returns the patched row (`Result<Option<User>>`),

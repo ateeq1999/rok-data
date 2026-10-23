@@ -101,6 +101,39 @@ pub fn render_db_mod(tables: &[Table], db_mod: &DbMod<'_>) -> String {
     if tables.iter().any(write::has_versioned_patch) {
         output.push_str(UPDATE_OUTCOME);
     }
+    output.push_str(&prelude(tables));
+    output
+}
+
+/// The `prelude` module: one `use crate::db::prelude::*;` brings rok-data's
+/// prelude, every model, and the scope trait of each model that declares
+/// scopes, so a call site never imports a trait by hand. A model named like
+/// one of rok-data's items (`Page`) shadows it: the explicit `use` wins over
+/// the glob.
+fn prelude(tables: &[Table]) -> String {
+    let mut tables: Vec<&Table> = tables.iter().collect();
+    tables.sort_unstable_by(|a, b| a.module_name.cmp(&b.module_name));
+    let mut output = String::from(
+        "\n/// Everything a call site needs: `use crate::db::prelude::*;` brings\n\
+         /// rok-data's prelude, every model, and each model's scopes.\n\
+         pub mod prelude {\n    pub use rok_data::prelude::*;\n",
+    );
+    if !tables.is_empty() {
+        output.push('\n');
+    }
+    for table in tables {
+        let model = &table.struct_name;
+        let items = if table.scopes.is_empty() {
+            model.clone()
+        } else {
+            format!("{{{model}, {model}Scopes}}")
+        };
+        output.push_str(&format!(
+            "    pub use super::{}::models::{items};\n",
+            table.module_name
+        ));
+    }
+    output.push_str("}\n");
     output
 }
 
@@ -368,6 +401,27 @@ mod tests {
         assert!(rendered.contains("\"rust_decimal\""));
         assert!(rendered.contains("rust_decimal = \"1\""));
         assert!(!rendered.contains("\"uuid\""));
+    }
+
+    #[test]
+    fn db_mod_preludes_every_model_and_scope_trait() {
+        let mut posts = table(vec![column("id", "i64")], &["id"]);
+        posts.module_name = "posts".into();
+        posts.struct_name = "Post".into();
+        posts.scopes = vec![crate::schema::ScopeDeclaration {
+            name: "popular".into(),
+            path: "crate::scopes::popular".into(),
+        }];
+        let users = table(vec![column("id", "i64")], &["id"]);
+        let rendered = db_mod(&[users, posts], QueriesModule::None, false);
+        assert!(
+            rendered.ends_with(
+                "pub mod prelude {\n    pub use rok_data::prelude::*;\n\n    \
+                 pub use super::posts::models::{Post, PostScopes};\n    \
+                 pub use super::users::models::User;\n}\n"
+            ),
+            "{rendered}"
+        );
     }
 
     #[test]

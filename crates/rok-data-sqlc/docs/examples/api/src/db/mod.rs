@@ -24,3 +24,12 @@ pub mod queries;
 pub mod schema;
 pub mod search;
 pub mod tasks;
+
+/// Everything a call site needs: `use crate::db::prelude::*;` brings
+/// rok-data's prelude, every model, and each model's scopes.
+pub mod prelude {
+    pub use rok_data::prelude::*;
+
+    pub use super::projects::models::Project;
+    pub use super::tasks::models::Task;
+}

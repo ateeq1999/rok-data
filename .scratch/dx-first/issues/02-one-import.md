@@ -4,10 +4,10 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The prelude exports `Model`, `ModelWrite`, and whatever the scope chain needs
-- [ ] Generated table modules re-export the derive's per-model scope trait, so importing the module is enough
-- [ ] A facade test calls reads, row writes and chained scopes from a module **other than** the one declaring the model, with only the prelude imported
-- [ ] Fixture and snapshot expectations refreshed through the sanctioned run
-- [ ] getting-started shows the one import
+- [x] The prelude exports `Model`, `ModelWrite`, and whatever the scope chain needs
+- [x] Generated table modules re-export the derive's per-model scope trait, so importing the module is enough
+- [x] A compile-checked fixture module (fixture-app `one_import`) calls reads, row writes and chained scopes from a module **other than** the one declaring the model, with only the prelude imported
+- [x] Fixture and snapshot expectations refreshed through the sanctioned run
+- [x] getting-started shows the one import

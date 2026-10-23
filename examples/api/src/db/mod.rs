@@ -25,3 +25,13 @@ pub mod nullable;
 pub mod pool;
 pub mod schema;
 pub mod search;
+
+/// Everything a call site needs: `use crate::db::prelude::*;` brings
+/// rok-data's prelude, every model, and each model's scopes.
+pub mod prelude {
+    pub use rok_data::prelude::*;
+
+    pub use super::authors::models::Author;
+    pub use super::books::models::Book;
+    pub use super::loans::models::Loan;
+}

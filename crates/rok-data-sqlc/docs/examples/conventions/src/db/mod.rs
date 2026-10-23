@@ -28,3 +28,12 @@ pub enum UpdateOutcome<T> {
     /// The row is at another version, so nothing changed.
     VersionConflict,
 }
+
+/// Everything a call site needs: `use crate::db::prelude::*;` brings
+/// rok-data's prelude, every model, and each model's scopes.
+pub mod prelude {
+    pub use rok_data::prelude::*;
+
+    pub use super::invoices::models::Invoice;
+    pub use super::organizations::models::Organization;
+}

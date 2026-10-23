@@ -4,10 +4,10 @@
 
 **Blocked by:** None (can start immediately), once the owner of the uncommitted `rok-data-core` edits (query sugar in progress) has committed or stashed them.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Uncommitted work in the tree is committed or stashed by its owner — not discarded
-- [ ] `origin/main` merged (merge, not rebase: one conflict round instead of six)
-- [ ] The 0.3.0 spec conflict resolved by hand
-- [ ] `milestone-1.txt` regenerated with `ROK_DATA_SQLC_UPDATE_EXPECTED=1`, never hand-merged
-- [ ] fmt, clippy `-D warnings`, `cargo test --workspace --all-targets`, module corpus and fixture compile gates green
+- [x] Uncommitted work in the tree is committed or stashed by its owner — not discarded
+- [x] `origin/main` merged (merge, not rebase: one conflict round instead of six)
+- [x] The 0.3.0 spec conflict resolved by hand
+- [x] `milestone-1.txt` regenerated with `ROK_DATA_SQLC_UPDATE_EXPECTED=1`, never hand-merged
+- [x] fmt, clippy `-D warnings`, `cargo test --workspace --all-targets`, module corpus and fixture compile gates green

@@ -149,9 +149,15 @@ fn active(query: &Select<User>) -> Select<User> {
 // the model's entry
 let popular = User::popular();
 // the chain's method — the `UserScopes` trait the derive writes next to
-// the model, so a call site brings it into scope with a `use`
+// the model; generated code re-exports it from `crate::db::prelude`
 let popular_and_active = User::popular().active();
 ```
+
+Generated code writes a `prelude` module in `db/mod.rs`:
+`use crate::db::prelude::*;` brings rok-data's prelude, every model, and
+each model's `{Model}Scopes` trait. For hand-written models, re-export the
+scope trait next to the model the same way (`pub use models::{User,
+UserScopes};`) so callers need a single glob import.
 
 A scope can take parameters — declared in the attribute, after the name,
 in the same shape the entry takes them. The free function takes the query,
