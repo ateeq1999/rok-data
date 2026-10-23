@@ -25,7 +25,7 @@ flags, outputs and exit codes are the same.
 | --------------------- | ------------------------- | ---------- |
 | `Model::create()`     | `Model::insert_builder()` | the insert builder: one column at a time, raw expressions, conflict handling |
 | `row.save(&db)`       | `row.update(&db)`         | the row-level update by primary key; returns the stored row |
-| `row.save_only(&db, columns)` | `row.update_only(&db, columns)` | the row-level update of the listed columns only |
+| `row.save_only(&db, Some(vec![User::NAME]))` | `row.update_only(&db, [User::NAME])` | the row-level update of the listed columns only; any list or iterator of columns, and an empty one is an error |
 | `users::write::create(exec, input)` | `User::create(exec, input)` | the generated insert, now on the model |
 | `users::write::update(exec, id, input)` | `User::patch(exec, id, input)` | the generated update: returns the patched row (`Result<User>`) |
 | `users::write::delete(exec, id)` | `User::destroy(exec, id)` | the generated delete: `Result<()>` |

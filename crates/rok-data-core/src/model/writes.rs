@@ -11,6 +11,43 @@ use crate::query::{Conflict, ConflictAction, ConflictTarget};
 use crate::sql::Sql;
 use crate::{Column, Error, Executor, Model, Result, Value};
 
+/// What a single-row insert does when the row already exists.
+enum OnConflict {
+    /// A plain `INSERT`: a conflict is the database's error.
+    Fail,
+    /// `ON CONFLICT (pk) DO UPDATE`: the primary key is written even when
+    /// generated, so the conflict target can match it.
+    UpdateOnKey,
+    /// `ON CONFLICT (columns) DO UPDATE`, on a unique index.
+    UpdateOn(Vec<&'static str>),
+}
+
+/// `INSERT` the record (skipping generated columns), under `on_conflict`,
+/// and return the stored row.
+async fn insert_one<'e, M, E>(record: &M, executor: E, on_conflict: OnConflict) -> Result<M>
+where
+    M: Model,
+    E: Executor<'e>,
+{
+    let update_on = |columns| Conflict {
+        target: ConflictTarget::Columns(columns),
+        action: ConflictAction::UpdateAll,
+    };
+    let (include_pk, conflict) = match on_conflict {
+        OnConflict::Fail => (false, None),
+        OnConflict::UpdateOnKey => (true, Some(update_on(M::PRIMARY_KEYS.to_vec()))),
+        OnConflict::UpdateOn(columns) => (false, Some(update_on(columns))),
+    };
+    // Rendered when awaited, so tenant scopes apply.
+    pre_insert(record)?;
+    let sql = insert_sql::<M>(std::slice::from_ref(record), include_pk, conflict.as_ref())?;
+    let stored = exec::fetch_optional::<M, _>(executor, &sql, &[M::TABLE], false)
+        .await?
+        .ok_or_else(|| Error::not_found::<M>(None))?;
+    stored.after_insert()?;
+    Ok(stored)
+}
+
 /// `INSERT` the record (skipping generated columns) and return the stored
 /// row.
 pub(crate) async fn insert<'e, M, E>(record: &M, executor: E) -> Result<M>
@@ -18,14 +55,7 @@ where
     M: Model,
     E: Executor<'e>,
 {
-    // Rendered when awaited, so tenant scopes apply.
-    pre_insert(record)?;
-    let sql = insert_sql::<M>(std::slice::from_ref(record), false, None);
-    let stored = exec::fetch_optional::<M, _>(executor, &sql?, &[M::TABLE], false)
-        .await?
-        .ok_or_else(|| Error::not_found::<M>(None))?;
-    stored.after_insert()?;
-    Ok(stored)
+    insert_one(record, executor, OnConflict::Fail).await
 }
 
 /// `INSERT` the record, or update every column if its primary key already
@@ -35,17 +65,7 @@ where
     M: Model,
     E: Executor<'e>,
 {
-    let conflict = Conflict {
-        target: ConflictTarget::Columns(M::PRIMARY_KEYS.to_vec()),
-        action: ConflictAction::UpdateAll,
-    };
-    pre_insert(record)?;
-    let sql = insert_sql::<M>(std::slice::from_ref(record), true, Some(&conflict));
-    let stored = exec::fetch_optional::<M, _>(executor, &sql?, &[M::TABLE], false)
-        .await?
-        .ok_or_else(|| Error::not_found::<M>(None))?;
-    stored.after_insert()?;
-    Ok(stored)
+    insert_one(record, executor, OnConflict::UpdateOnKey).await
 }
 
 /// `INSERT` the record, or update it if it conflicts on `columns` (a unique
@@ -59,17 +79,16 @@ where
     M: Model,
     E: Executor<'e>,
 {
-    let conflict = Conflict {
-        target: ConflictTarget::Columns(columns),
-        action: ConflictAction::UpdateAll,
-    };
-    pre_insert(record)?;
-    let sql = insert_sql::<M>(std::slice::from_ref(record), false, Some(&conflict));
-    let stored = exec::fetch_optional::<M, _>(executor, &sql?, &[M::TABLE], false)
-        .await?
-        .ok_or_else(|| Error::not_found::<M>(None))?;
-    stored.after_insert()?;
-    Ok(stored)
+    insert_one(record, executor, OnConflict::UpdateOn(columns)).await
+}
+
+/// The checks every row-level update runs first: the model's validation,
+/// then its `before_save` hook.
+pub(crate) fn pre_save<M: Model>(record: &M) -> Result<()> {
+    record
+        .validate()
+        .map_err(Error::Validation)
+        .and_then(|()| record.before_save())
 }
 
 /// `UPDATE` the record's columns by primary key and return the stored row.

@@ -8,9 +8,9 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `update_only` takes `impl IntoIterator<Item = Column<Self>>`; an empty list is an error, not a silent full update
-- [ ] `delete_by_key` is crate-private
-- [ ] One internal insert path; behavior unchanged (existing facade tests pass untouched)
-- [ ] CHANGELOG entry for the `update_only` signature
+- [x] `update_only` takes `impl IntoIterator<Item = Column<Self>>`; an empty list is an error, not a silent full update
+- [x] `delete_by_key` is crate-private
+- [x] One internal insert path; behavior unchanged (existing facade tests pass untouched)
+- [x] CHANGELOG entry for the `update_only` signature

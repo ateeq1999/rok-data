@@ -94,10 +94,7 @@ async fn tracked_saves_only_changes(db: Db) {
     let mut fresh = ann.reload(&db).await.unwrap();
     fresh.name = "ignored".into();
     fresh.credits = 5;
-    let saved = fresh
-        .update_only(&db, Some(vec![Customer::CREDITS]))
-        .await
-        .unwrap();
+    let saved = fresh.update_only(&db, [Customer::CREDITS]).await.unwrap();
     assert_eq!((saved.name.as_str(), saved.credits), ("Ann", 5));
 }
 

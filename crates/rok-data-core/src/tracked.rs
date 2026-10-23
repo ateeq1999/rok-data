@@ -7,7 +7,7 @@ use crate::{Column, Executor, Model, ModelWrite, Result, Value};
 /// writes only the columns you changed — or nothing at all.
 ///
 /// The tracked record's own verb is `update` (the model's
-/// [`update`](crate::Model::update)); `Tracked::save` keeps its own name
+/// [`update`](crate::ModelWrite::update)); `Tracked::save` keeps its own name
 /// because it never inserts: it only writes the columns that changed.
 ///
 /// ```ignore
@@ -71,7 +71,7 @@ impl<M: Model + ModelWrite> Tracked<M> {
         if changed.is_empty() {
             return Ok(false);
         }
-        let stored = self.record.update_only(executor, Some(changed)).await?;
+        let stored = self.record.update_only(executor, changed).await?;
         *self = Tracked::new(stored);
         Ok(true)
     }

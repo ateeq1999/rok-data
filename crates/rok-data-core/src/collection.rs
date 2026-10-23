@@ -23,7 +23,7 @@ use crate::{Error, Executor, Expr, Journey, Model, Result, Select, Value};
 /// ```ignore
 /// let admins = User::filter(User::ROLE.eq("admin")).get(&db).await?;
 /// assert!(admins.contains_key(7));
-/// for admin in admins.iter() { … }        // the Vec shape
+/// let names: Vec<_> = admins.iter().map(|a| &a.name).collect(); // the Vec shape
 /// let now = admins.fresh(&db).await?;     // re-read through the keys
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]

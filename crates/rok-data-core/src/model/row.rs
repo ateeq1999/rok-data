@@ -40,7 +40,7 @@ pub trait Model:
     /// Every column read from and written to the database, in field order.
     const COLUMNS: &'static [&'static str];
     /// Columns filled in by the database (serial ids, defaults, triggers).
-    /// They are read but never written by [`insert`](Model::insert) or [`update`](Model::update).
+    /// They are read but never written by [`insert`](crate::ModelWrite::insert) or [`update`](crate::ModelWrite::update).
     const GENERATED: &'static [&'static str] = &[];
     /// Column set to `now()` on insert and never changed afterwards.
     const CREATED_AT_COLUMN: Option<&'static str> = None;

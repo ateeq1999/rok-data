@@ -97,12 +97,21 @@ async fn the_renamed_verbs_behave_as_before() {
     let mut renamed = stored.clone();
     renamed.name = "dee3".into();
     renamed.age = 46;
-    let stored = renamed
-        .update_only(&db, Some(vec![User::NAME]))
-        .await
-        .unwrap();
+    let stored = renamed.update_only(&db, [User::NAME]).await.unwrap();
     assert_eq!(stored.name.as_str(), "dee3");
     assert_eq!(stored.age, 45, "the other column is left alone");
+
+    // An empty list is an error, never a silent full `update`.
+    let error = renamed
+        .update_only(&db, Vec::<Column<User>>::new())
+        .await
+        .unwrap_err();
+    assert!(matches!(error, rok_data::Error::InvalidQuery(_)), "{error}");
+    assert_eq!(
+        renamed.reload(&db).await.unwrap().age,
+        45,
+        "nothing written"
+    );
 }
 
 /// The model's `exists` is the chain's `exists` over the whole table.

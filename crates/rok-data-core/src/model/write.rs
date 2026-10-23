@@ -69,24 +69,31 @@ pub trait ModelWrite: crate::Model + Sized + 'static {
     where
         E: Executor<'e>,
     {
-        self.update_only(executor, None).await
+        let pre = crate::model::writes::pre_save(self);
+        crate::model::writes::update_only(self, executor, None, pre).await
     }
 
     /// Like `update`, but only write `columns` (managed columns such as
-    /// `updated_at` and `version` are still maintained).
+    /// `updated_at` and `version` are still maintained):
+    /// `user.update_only(&db, [User::NAME])`. An empty list is an
+    /// [`Error::InvalidQuery`], never a silent full `update`.
     async fn update_only<'e, E>(
         &self,
         executor: E,
-        columns: Option<Vec<Column<Self>>>,
+        columns: impl IntoIterator<Item = Column<Self>>,
     ) -> Result<Self>
     where
         E: Executor<'e>,
     {
-        let pre = self
-            .validate()
-            .map_err(Error::Validation)
-            .and_then(|()| self.before_save());
-        crate::model::writes::update_only(self, executor, columns, pre).await
+        let columns: Vec<Column<Self>> = columns.into_iter().collect();
+        if columns.is_empty() {
+            return Err(Error::InvalidQuery(format!(
+                "`update_only` on `{}` names no column; `update` writes every column",
+                Self::TABLE
+            )));
+        }
+        let pre = crate::model::writes::pre_save(self);
+        crate::model::writes::update_only(self, executor, Some(columns), pre).await
     }
 
     /// Delete this record by primary key.
@@ -94,7 +101,8 @@ pub trait ModelWrite: crate::Model + Sized + 'static {
     where
         E: Executor<'e>,
     {
-        self.delete_by_key(executor, false).await
+        let pre = self.before_delete();
+        crate::model::writes::delete_by_key(self, executor, false, pre).await
     }
 
     /// Permanently `DELETE` this record, even for models with soft deletes.
@@ -102,7 +110,8 @@ pub trait ModelWrite: crate::Model + Sized + 'static {
     where
         E: Executor<'e>,
     {
-        self.delete_by_key(executor, true).await
+        let pre = self.before_delete();
+        crate::model::writes::delete_by_key(self, executor, true, pre).await
     }
 
     /// Restore this soft-deleted record (`deleted_at = NULL`) and return the
@@ -133,15 +142,5 @@ pub trait ModelWrite: crate::Model + Sized + 'static {
             .returning_one(executor)
             .await?
             .ok_or_else(|| Error::not_found::<Self>(Some(key)))
-    }
-
-    /// Internal: delete by key with force option.
-    #[doc(hidden)]
-    async fn delete_by_key<'e, E>(&self, executor: E, force: bool) -> Result<()>
-    where
-        E: Executor<'e>,
-    {
-        let pre = self.before_delete();
-        crate::model::writes::delete_by_key(self, executor, force, pre).await
     }
 }

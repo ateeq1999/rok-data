@@ -33,6 +33,12 @@ compiler finds the call sites.
   table is the struct's pluralized snake_case name, no
   `#[rok(primary_key)]` on a lone `id` key. Schema-qualified tables and
   other keys keep theirs.
+- **Write API polish** (dx-first ticket 08): `update_only` takes any list
+  or iterator of columns — `user.update_only(&db, [User::NAME])`, the
+  shape `upsert_on` already takes, instead of `Some(vec![…])` — and an
+  empty list is an `Error::InvalidQuery`, never a silent full `update`.
+  The hidden `delete_by_key` is no longer a trait method callable on every
+  model.
 - **Model collections**: `Select::get` returns a `ModelCollection<M>`
   (`all` keeps the plain `Vec`), so `User::query().get(&db).await?.find(1)`
   needs no conversion. Through `Deref` it is a `Vec`; its verbs work by

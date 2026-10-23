@@ -136,10 +136,10 @@
 //! - **Keyset pagination**: [`Select::cursor_paginate`] with opaque
 //!   [`Cursor`]s.
 //! - **Soft deletes**: `#[rok(soft_delete)]`, [`Select::with_trashed`],
-//!   [`Model::restore`], [`Model::force_delete`].
+//!   [`ModelWrite::restore`], [`ModelWrite::force_delete`].
 //! - **Optimistic locking**: `#[rok(version)]`; stale writes fail with
 //!   [`Error::Conflict`].
-//! - **Upserts**: [`Model::upsert_on`], [`Model::insert_many`] and
+//! - **Upserts**: [`ModelWrite::upsert_on`], [`Model::insert_many`] and
 //!   [`Insert::on_conflict`] with `do_nothing`/`do_update`/`do_update_all`.
 //! - **Subqueries**: [`Column::in_subquery`], [`Expr::exists`] and
 //!   [`Column::eq_outer`] for correlation.
@@ -153,8 +153,8 @@
 //!   [`Select::unscoped`].
 //! - **Retrying transactions**: [`Db::transaction_with`] with [`TxOptions`].
 //! - **Change tracking**: [`Model::track`] / [`Tracked`] and
-//!   [`Model::update_only`].
-//! - **Bulk loading**: [`Model::copy_in`] with binary `COPY`.
+//!   [`ModelWrite::update_only`].
+//! - **Bulk loading**: [`ModelWrite::copy_in`] with binary `COPY`.
 //! - **Web & metrics**: the [`web`] module (`serde`, `axum` features) and
 //!   [`metrics`] (`metrics` feature).
 //! - **PostgreSQL types**: arrays (`Vec<T>` fields, [`Column::array_has`],

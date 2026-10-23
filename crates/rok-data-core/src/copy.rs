@@ -4,7 +4,7 @@ use sqlx::postgres::PgConnection;
 
 use crate::{Db, Error, Model, Result, Tx};
 
-/// Where [`Model::copy_in`] runs: a pool (one connection is borrowed), a
+/// Where [`ModelWrite::copy_in`](crate::ModelWrite::copy_in) runs: a pool (one connection is borrowed), a
 /// transaction or a plain connection.
 #[derive(Debug)]
 pub enum CopyTarget<'a> {

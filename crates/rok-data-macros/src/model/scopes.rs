@@ -57,7 +57,6 @@ const RESERVED: &[&str] = &[
     "count",
     "default_scope",
     "delete",
-    "delete_by_key",
     "exists",
     "filter",
     "find",
