@@ -86,7 +86,7 @@ pub struct Config {
     ///
     /// The engine wires the attribute (`#[rok(scopes(famous =
     /// crate::scopes::users::famous))]`); the app owns the functions, whose
-    /// shape — `fn(&Select<M>) -> Select<M>` — the derive checks when the
+    /// shape — `fn(Select<M>) -> Select<M>` — the derive checks when the
     /// model compiles. A scope name must be a snake_case Rust identifier,
     /// and a scope that names a verb of the runtime is refused by the
     /// derive in the consuming crate's build, so name scopes accordingly.

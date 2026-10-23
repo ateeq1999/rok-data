@@ -64,8 +64,12 @@ compiler finds the call sites.
   `db::relationships::load_posts` stays the batched loader.
 - **Named scopes** (ticket 03): `#[rok(scopes(popular = path::to::popular))]`
   gives the model a chainable entry (`User::popular()`) and the chain a
-  same-named method (`User::popular().active()`), through the runtime's
-  `Scope` trait; a scope may take parameters declared in the attribute
+  same-named method (`User::popular().active()`), through a `UserScopes`
+  trait the derive writes next to the model. A scope takes the chain by
+  value and returns it (`fn popular(q: Select<User>) -> Select<User> {
+  q.filter(…) }`, dx-first ticket 06); a scope named like a runtime verb
+  fails the derive (a test keeps that list in step with the runtime). A
+  scope may take parameters declared in the attribute
   (`#[rok(scopes(older_than(n: i32) = …))]`), and generated models get
   their scopes wired from the engine's new `[scopes]` configuration
   (one `#[rok(scopes(name = path))]` attribute per scope; the app owns

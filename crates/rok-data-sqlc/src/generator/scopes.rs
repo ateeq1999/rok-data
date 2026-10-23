@@ -4,7 +4,7 @@
 //! A scope's free function is the app's code — the engine wires the
 //! attribute onto the generated model (`#[rok(scopes(famous =
 //! crate::scopes::users::famous))]`), and the derive's signature check
-//! holds the function's shape `fn(&Select<M>) -> Select<M>` when the
+//! holds the function's shape `fn(Select<M>) -> Select<M>` when the
 //! consuming crate compiles. The engine refuses what it can catch at
 //! generation time: an entry that names no table, a scope name that is not
 //! a snake_case Rust identifier, or a path that cannot be one.

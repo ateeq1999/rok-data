@@ -1,15 +1,17 @@
 //! The `scopes` attribute: the model's named scopes.
 //!
-//! A scope is a function from a query chain to a query chain. The model
-//! declares its scopes by path (`#[rok(scopes(popular = path::to::popular))]`)
-//! and the derive gives the model an entry (`User::popular()`) and the
-//! chain a method (`User::popular().active()`), through the runtime's
-//! `Scope` trait.
+//! A scope is a function from a query chain to a query chain, taking the
+//! chain by value: `fn popular(q: Select<User>) -> Select<User> {
+//! q.filter(…) }`. The model declares its scopes by path
+//! (`#[rok(scopes(popular = path::to::popular))]`) and the derive gives the
+//! model an entry (`User::popular()`) and the chain a method
+//! (`User::popular().active()`), through a `{Model}Scopes` trait it writes
+//! next to the model.
 //!
 //! A parameterized scope declares its parameters by the same bracketed
 //! syntax the entry takes them by (`#[rok(scopes(of_type(ty: i64) =
 //! path::to::of_type))]`); the free function takes the query first and
-//! the parameters after (`fn of_type(&Select<User>, i64) -> Select<User>`),
+//! the parameters after (`fn of_type(Select<User>, i64) -> Select<User>`),
 //! and the entry and the method get the same call shape
 //! (`User::of_type(ty)`, `User::popular().of_type(ty)`).
 
@@ -55,6 +57,7 @@ const RESERVED: &[&str] = &[
     "count",
     "default_scope",
     "delete",
+    "delete_by_key",
     "exists",
     "filter",
     "find",
@@ -66,6 +69,7 @@ const RESERVED: &[&str] = &[
     "insert_all",
     "insert_builder",
     "insert_many",
+    "install_change_notifications",
     "is_trashed",
     "key_filter",
     "key_values",
@@ -95,6 +99,8 @@ const RESERVED: &[&str] = &[
     "filter_if",
     "filter_opt",
     "first",
+    "for_share",
+    "for_update",
     "get",
     "group_by",
     "having",
@@ -235,7 +241,7 @@ pub(crate) fn entries(model: &Ident, scopes: &[Scope], krate: &TokenStream2) -> 
                 quote! {
                     #[doc = #doc]
                     pub fn #name() -> #krate::Select<#model> {
-                        #krate::Scope::scope(#krate::Select::new(), #path)
+                        #path(#krate::Select::new())
                     }
                 }
             } else {
@@ -244,7 +250,7 @@ pub(crate) fn entries(model: &Ident, scopes: &[Scope], krate: &TokenStream2) -> 
                 quote! {
                     #[doc = #doc]
                     pub fn #name(#(#names: #types),*) -> #krate::Select<#model> {
-                        #path(&#krate::Select::new(), #(#names),*)
+                        #path(#krate::Select::new(), #(#names),*)
                     }
                 }
             }
@@ -291,7 +297,7 @@ pub(crate) fn trait_declaration(
         let body = if params.is_empty() {
             quote! {
                 fn #name(self) -> #krate::Select<#model> {
-                    #krate::Scope::scope(self, #path)
+                    #path(self)
                 }
             }
         } else {
@@ -299,7 +305,7 @@ pub(crate) fn trait_declaration(
             let types: Vec<&Type> = params.signature.iter().map(|param| &param.ty).collect();
             quote! {
                 fn #name(self, #(#names: #types),*) -> #krate::Select<#model> {
-                    #path(&self, #(#names),*)
+                    #path(self, #(#names),*)
                 }
             }
         };
@@ -308,7 +314,7 @@ pub(crate) fn trait_declaration(
 
     quote! {
         #[doc = #doc]
-        pub trait #trait_name: #krate::Scope<#model> {
+        pub trait #trait_name {
             #trait_body
         }
 
@@ -320,9 +326,9 @@ pub(crate) fn trait_declaration(
 
 /// The shape every scope function must have.
 ///
-/// For an unparameterized scope: `fn(&Select<M>) -> Select<M>`; for a
-/// parameterized one, the declared parameters follow the query
-/// (`fn(&Select<M>, i64) -> Select<M>`). A scope that is not a function,
+/// For an unparameterized scope: `fn(Select<M>) -> Select<M>`, the chain
+/// taken by value; for a parameterized one, the declared parameters follow
+/// the query (`fn(Select<M>, i64) -> Select<M>`). A scope that is not a function,
 /// or that has another shape, fails here with a message that names the
 /// attribute.
 pub(crate) fn signature_checks(
@@ -337,13 +343,72 @@ pub(crate) fn signature_checks(
             let types = scope.params.iter().map(|param| &param.ty);
             if scope.params.is_empty() {
                 quote! {
-                    const _: fn(&#krate::Select<#model>) -> #krate::Select<#model> = #path;
+                    const _: fn(#krate::Select<#model>) -> #krate::Select<#model> = #path;
                 }
             } else {
                 quote! {
-                    const _: fn(&#krate::Select<#model>, #(#types),*) -> #krate::Select<#model> = #path;
+                    const _: fn(#krate::Select<#model>, #(#types),*) -> #krate::Select<#model> = #path;
                 }
             }
         })
         .collect()
+}
+
+#[cfg(test)]
+mod reserved_tests {
+    use super::RESERVED;
+
+    /// The runtime's verb names, read from its source: the chain's public
+    /// methods (`Select`'s impl blocks) and the model traits' methods. A
+    /// scope named like one of them would be unreachable, so each must be
+    /// in [`RESERVED`]; this test fails when a new verb is added to the
+    /// runtime without it.
+    #[test]
+    fn every_runtime_verb_is_reserved() {
+        let core = concat!(env!("CARGO_MANIFEST_DIR"), "/../rok-data-core/src");
+        let read = |path: &str| {
+            std::fs::read_to_string(format!("{core}/{path}"))
+                .unwrap_or_else(|error| panic!("{path}: {error}"))
+        };
+        let mut verbs = Vec::new();
+        // The chain: `pub fn` / `pub async fn` one level into an impl.
+        for path in [
+            "query/select.rs",
+            "query/select/exec.rs",
+            "query/select/chunk.rs",
+        ] {
+            for line in read(path).lines() {
+                let item = line
+                    .strip_prefix("    pub async fn ")
+                    .or_else(|| line.strip_prefix("    pub fn "));
+                verbs.extend(item.map(name));
+            }
+        }
+        // The model traits: every method one level into the trait.
+        for path in ["model/row.rs", "model/write.rs"] {
+            for line in read(path).lines() {
+                let item = line
+                    .strip_prefix("    async fn ")
+                    .or_else(|| line.strip_prefix("    fn "));
+                verbs.extend(item.map(name));
+            }
+        }
+        verbs.retain(|verb| !verb.starts_with("__"));
+        assert!(verbs.len() > 40, "the runtime's verbs were read: {verbs:?}");
+        let missing: Vec<&String> = verbs
+            .iter()
+            .filter(|verb| !RESERVED.contains(&verb.as_str()))
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "runtime verbs a scope could shadow, missing from RESERVED: {missing:?}"
+        );
+    }
+
+    /// The identifier at the start of `item` (`find<'e, E>(` → `find`).
+    fn name(item: &str) -> String {
+        item.chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect()
+    }
 }

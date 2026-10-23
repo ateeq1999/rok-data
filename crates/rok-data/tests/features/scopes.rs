@@ -18,20 +18,20 @@ struct Visitor {
 }
 
 /// The `popular` scope: the rows with many views.
-fn popular(query: &Select<Visitor>) -> Select<Visitor> {
-    query.clone().filter(Visitor::VIEWS.gt(100))
+fn popular(query: Select<Visitor>) -> Select<Visitor> {
+    query.filter(Visitor::VIEWS.gt(100))
 }
 
 /// The `active` scope: the rows of an adult.
-fn active(query: &Select<Visitor>) -> Select<Visitor> {
-    query.clone().filter(Visitor::AGE.gte(18))
+fn active(query: Select<Visitor>) -> Select<Visitor> {
+    query.filter(Visitor::AGE.gte(18))
 }
 
 /// The `older_than` scope: the rows older than a given age. A
 /// parameterized scope: the free function takes the query, then the
 /// declared parameters.
-fn older_than(query: &Select<Visitor>, lim: i32) -> Select<Visitor> {
-    query.clone().filter(Visitor::AGE.gt(lim))
+fn older_than(query: Select<Visitor>, lim: i32) -> Select<Visitor> {
+    query.filter(Visitor::AGE.gt(lim))
 }
 
 /// A model with a default scope and a named scope.
@@ -51,8 +51,8 @@ fn published_only() -> Expr<Note> {
 }
 
 /// The `trending` scope: the rows with many views.
-fn trending(query: &Select<Note>) -> Select<Note> {
-    query.clone().filter(Note::VIEWS.gt(10))
+fn trending(query: Select<Note>) -> Select<Note> {
+    query.filter(Note::VIEWS.gt(10))
 }
 
 /// A model with a relation and a named scope: the derive's attributes work
@@ -66,8 +66,8 @@ struct Writer {
 }
 
 /// The `busy` scope: the writers with a name.
-fn busy(query: &Select<Writer>) -> Select<Writer> {
-    query.clone().filter(Writer::NAME.ne(""))
+fn busy(query: Select<Writer>) -> Select<Writer> {
+    query.filter(Writer::NAME.ne(""))
 }
 
 #[test]

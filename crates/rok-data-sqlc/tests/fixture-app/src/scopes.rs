@@ -12,7 +12,7 @@ pub mod suppliers {
 
     /// The `active` scope: the suppliers still taking orders.
     #[must_use]
-    pub fn active(query: &Select<Supplier>) -> Select<Supplier> {
-        query.clone().filter(Supplier::IS_ACTIVE.eq(true))
+    pub fn active(query: Select<Supplier>) -> Select<Supplier> {
+        query.filter(Supplier::IS_ACTIVE.eq(true))
     }
 }

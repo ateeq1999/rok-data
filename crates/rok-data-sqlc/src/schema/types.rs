@@ -138,7 +138,7 @@ pub struct Through {
 /// (`crate::scopes::users::famous`), as the `[generate.scopes]`
 /// configuration declares them. The function itself is the app's code —
 /// the engine wires the attribute, and the derive's signature check
-/// holds the function's shape `fn(&Select<M>) -> Select<M>` when the
+/// holds the function's shape `fn(Select<M>) -> Select<M>` when the
 /// model compiles.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScopeDeclaration {

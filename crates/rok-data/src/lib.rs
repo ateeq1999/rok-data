@@ -80,12 +80,12 @@
 //!     views: i32,
 //! }
 //!
-//! fn popular(query: &Select<User>) -> Select<User> {
-//!     query.clone().filter(User::VIEWS.gt(100))
+//! fn popular(query: Select<User>) -> Select<User> {
+//!     query.filter(User::VIEWS.gt(100))
 //! }
 //!
-//! fn active(query: &Select<User>) -> Select<User> {
-//!     query.clone().filter(User::VIEWS.gt(0))
+//! fn active(query: Select<User>) -> Select<User> {
+//!     query.filter(User::VIEWS.gt(0))
 //! }
 //!
 //! // the model's entry
@@ -113,8 +113,8 @@
 //!     age: i32,
 //! }
 //!
-//! fn older_than(query: &Select<User>, n: i32) -> Select<User> {
-//!     query.clone().filter(User::AGE.gt(n))
+//! fn older_than(query: Select<User>, n: i32) -> Select<User> {
+//!     query.filter(User::AGE.gt(n))
 //! }
 //!
 //! // the entry and the chain method take the same shape

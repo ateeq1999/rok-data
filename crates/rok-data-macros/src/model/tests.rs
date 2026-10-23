@@ -287,7 +287,7 @@ fn the_scopes_reach_the_expansion() {
     assert!(expanded.contains("fn active ()"), "{expanded}");
     assert!(expanded.contains("UserScopes"), "{expanded}");
     assert!(
-        expanded.contains("const _ : fn (& :: rok_data :: Select < User >)"),
+        expanded.contains("const _ : fn (:: rok_data :: Select < User >)"),
         "{expanded}"
     );
 }
@@ -311,12 +311,12 @@ fn parameterized_scopes_reach_the_expansion() {
     );
     // The forwarding keeps the parameter's name.
     assert!(
-        expanded.contains("path :: to :: of_type (& self , ty)"),
+        expanded.contains("path :: to :: of_type (self , ty)"),
         "{expanded}"
     );
     // Signature check validates the parameterized form.
     assert!(
-        expanded.contains("const _ : fn (& :: rok_data :: Select < User > , i64)"),
+        expanded.contains("const _ : fn (:: rok_data :: Select < User > , i64)"),
         "{expanded}"
     );
 }

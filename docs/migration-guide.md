@@ -171,12 +171,12 @@ struct User {
 }
 
 // a scope is a function from a query chain to a query chain
-fn popular(query: &Select<User>) -> Select<User> {
-    query.clone().filter(User::VIEWS.gt(100))
+fn popular(query: Select<User>) -> Select<User> {
+    query.filter(User::VIEWS.gt(100))
 }
 
-fn active(query: &Select<User>) -> Select<User> {
-    query.clone().filter(User::VIEWS.gt(0))
+fn active(query: Select<User>) -> Select<User> {
+    query.filter(User::VIEWS.gt(0))
 }
 
 // the model's entry
@@ -206,8 +206,8 @@ struct User {
 }
 
 // the free function takes the query, then the declared parameters
-fn older_than(query: &Select<User>, n: i32) -> Select<User> {
-    query.clone().filter(User::AGE.gt(n))
+fn older_than(query: Select<User>, n: i32) -> Select<User> {
+    query.filter(User::AGE.gt(n))
 }
 
 // the entry and the chain method take the same shape; they compose

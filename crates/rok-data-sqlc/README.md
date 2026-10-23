@@ -1077,7 +1077,7 @@ carries `#[rok(scopes(famous = crate::scopes::users::famous))]`, which gives
 the model a chainable entry (`User::famous()`) and the chain a same-named
 method (`User::famous().active()`). The entry names a table, then each
 scope name names the path of its free function — your code, which the
-engine only wires up: the function's shape, `fn(&Select<M>) -> Select<M>`,
+engine only wires up: the function's shape, `fn(Select<M>) -> Select<M>`,
 is checked when the consuming crate builds. A scope that names no table, a
 name that isn't a snake_case Rust identifier, or a path that isn't one,
 fails the run with the entry's name (`scopes.users.famous`).
