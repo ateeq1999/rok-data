@@ -56,10 +56,13 @@ pub enum Error {
     #[error(transparent)]
     Database(#[from] sqlx::Error),
 
-    /// A collection failed to serialize to JSON ([`ModelCollection::to_json`](crate::ModelCollection::to_json)).
+    /// Rows failed to serialize to JSON
+    /// ([`ModelCollection::to_json`](crate::ModelCollection::to_json)). Not
+    /// to be confused with a database serialization failure (SQLSTATE
+    /// `40001`, [`is_serialization_failure`](Self::is_serialization_failure)).
     #[cfg(any(feature = "json", feature = "axum"))]
     #[error("failed to serialize to JSON: {0}")]
-    Serialization(#[from] serde_json::Error),
+    Json(#[from] serde_json::Error),
 
     /// An error raised while running migrations.
     #[cfg(feature = "migrate")]
@@ -68,6 +71,12 @@ pub enum Error {
 }
 
 impl Error {
+    /// `true` if this is an [`Error::Json`]: rows that failed to serialize.
+    #[cfg(any(feature = "json", feature = "axum"))]
+    pub fn is_json(&self) -> bool {
+        matches!(self, Error::Json(_))
+    }
+
     /// `true` if this is a [`Error::NotFound`] (or the driver's own `RowNotFound`).
     pub fn is_not_found(&self) -> bool {
         matches!(

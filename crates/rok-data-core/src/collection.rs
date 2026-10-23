@@ -15,16 +15,15 @@ use crate::key::{IntoKey, key_expr, key_string};
 use crate::relation::{IntoInclude, Loaded};
 use crate::{Error, Executor, Expr, Journey, Model, Result, Select, Value};
 
-/// A set of models in memory, read by [`Select::all`](crate::Select::all)
-/// and friends and carried by [`Model::to_collection`](crate::Model
-/// ::to_collection). The collection verbs hang off it, and through `Deref`
-/// the familiar `Vec` methods work directly:
+/// A set of models in memory, read by [`Select::get`](crate::Select::get)
+/// (or built from any `Vec<M>` with `From` / `collect`). The collection
+/// verbs hang off it, and through `Deref` the familiar `Vec` methods work
+/// directly:
 ///
 /// ```ignore
-/// let admins = User::filter(User::ROLE.eq("admin")).all(&db).await?;
-/// let admins = ModelCollection::from(admins);
-/// assert!(admins.contains(7));
-/// for admin in &admins { … }              // the Vec shape
+/// let admins = User::filter(User::ROLE.eq("admin")).get(&db).await?;
+/// assert!(admins.contains_key(7));
+/// for admin in admins.iter() { … }        // the Vec shape
 /// let now = admins.fresh(&db).await?;     // re-read through the keys
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,6 +60,14 @@ impl<M> DerefMut for ModelCollection<M> {
 impl<M> From<Vec<M>> for ModelCollection<M> {
     fn from(rows: Vec<M>) -> Self {
         Self { rows }
+    }
+}
+
+impl<M, const N: usize> From<[M; N]> for ModelCollection<M> {
+    fn from(rows: [M; N]) -> Self {
+        Self {
+            rows: Vec::from(rows),
+        }
     }
 }
 
@@ -106,15 +113,19 @@ impl<M: Model> ModelCollection<M> {
             .ok_or_else(|| Error::not_found::<M>(Some(key_string(&wanted))))
     }
 
-    /// The primary key of every row, in collection order. For a composite
-    /// key this is the first key column's value; the full per-row key is
-    /// what `Model::key_values` reads.
-    pub fn model_keys(&self) -> Vec<Value> {
-        self.rows.iter().map(|row| row.primary_key()).collect()
+    /// The primary key of every row, in collection order: one `Vec` per
+    /// row holding each key column's value in key order — a single value
+    /// for a single-column key, every part of a composite one. To query by
+    /// these keys, [`to_query`](Self::to_query) builds the `WHERE` for
+    /// either shape.
+    pub fn model_keys(&self) -> Vec<Vec<Value>> {
+        keys_of(&self.rows)
     }
 
-    /// `true` if some row's primary key is `key`.
-    pub fn contains<K: IntoKey>(&self, key: K) -> bool {
+    /// `true` if some row's primary key is `key` (the key shapes
+    /// [`find`](Self::find) takes). Named apart from the slice's
+    /// `contains(&row)`, which `Deref` still offers.
+    pub fn contains_key<K: IntoKey>(&self, key: K) -> bool {
         self.find(key).is_some()
     }
 
@@ -206,16 +217,19 @@ impl<M: Model> ModelCollection<M> {
     /// The query that produces these rows again — the rows' keys
     /// `IN`-matched; a composite key gets one `pk1 = … AND pk2 = …`
     /// condition per row, `OR`ed. The model's own scope applies, so a
-    /// soft-deleted row drops out exactly as any other query drops it.
+    /// soft-deleted row drops out exactly as any other query drops it. A
+    /// model without a primary key has nothing to match rows by, so its
+    /// query matches nothing.
     pub fn to_query(&self) -> Select<M> {
-        let keys: Vec<Vec<Value>> = self.rows.iter().map(|row| row.key_values()).collect();
+        let keys = keys_of(&self.rows);
         match M::PRIMARY_KEYS.len() {
+            0 => M::filter(Expr::none()),
             1 => M::filter(M::primary_key_column().is_in(keys.into_iter().flatten())),
-            _ => {
-                M::filter(Expr::any_of(keys.into_iter().map(|values| {
-                    key_expr::<M>(values).unwrap_or_else(|_| Expr::none())
-                })))
-            }
+            _ => M::filter(Expr::any_of(keys.into_iter().map(|values| {
+                // `key_values` reads one value per key column, the arity
+                // `key_expr` checks, so every row's condition builds.
+                key_expr::<M>(values).expect("a row's key carries every key column")
+            }))),
         }
     }
 
@@ -256,6 +270,20 @@ impl<M: Model> ModelCollection<M> {
         let mut view = Loaded::new(self.rows);
         crate::query::with::load_includes(journey, &mut view, includes, true).await?;
         Ok(view)
+    }
+
+    /// Loads the `includes` not loaded yet — Eloquent's `loadMissing`. A
+    /// collection of bare rows has none loaded, so this is
+    /// [`load`](Self::load); on the loaded view,
+    /// [`Loaded::load_missing`] skips the ones already there, so the
+    /// call reads the same at either stage.
+    pub async fn load_missing<'c, S, I, C>(self, session: S, includes: C) -> Result<Loaded<M>>
+    where
+        S: Into<Journey<'c>>,
+        C: IntoIterator<Item = I>,
+        I: IntoInclude<M>,
+    {
+        self.load(session, includes).await
     }
 
     /// The rows serialized as a JSON array — the same shape `Serialize`
@@ -306,6 +334,16 @@ fn as_i64(value: &Value) -> Option<i64> {
         Value::I32(v) => v.map(i64::from),
         Value::I64(v) => *v,
         _ => None,
+    }
+}
+
+/// A collection serializes as the JSON array of its rows — what
+/// [`to_json`](ModelCollection::to_json) writes, and what a handler
+/// returning the collection sends.
+#[cfg(any(feature = "serde", feature = "json"))]
+impl<M: serde::Serialize> serde::Serialize for ModelCollection<M> {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
+        self.rows.serialize(s)
     }
 }
 
@@ -366,8 +404,8 @@ mod tests {
         let users = collection();
         assert_eq!(users.find(1).map(|row| row.id), Some(1));
         assert_eq!(users.find(99).map(|row| row.id), None);
-        assert!(users.contains(2));
-        assert!(!users.contains(99));
+        assert!(users.contains_key(2));
+        assert!(!users.contains_key(99));
         // The missing key's error names the value.
         let missing = match users.find_or_fail(99) {
             Err(error) => error.to_string(),
@@ -382,7 +420,7 @@ mod tests {
         // The SQL paths compare integer widths numerically; the in-memory
         // lookup keeps step.
         let users = ModelCollection::from(vec![user(7)]);
-        assert!(users.contains(7_i64));
+        assert!(users.contains_key(7_i64));
         assert_eq!(users.find(7_i64).map(|row| row.id), Some(7));
     }
 
@@ -421,13 +459,13 @@ mod tests {
     }
 
     #[test]
-    fn model_keys_read_one_key_per_row() {
+    fn model_keys_read_each_rows_key() {
         assert_eq!(
             collection().model_keys(),
             vec![
-                Value::I64(Some(3)),
-                Value::I64(Some(1)),
-                Value::I64(Some(2))
+                vec![Value::I64(Some(3))],
+                vec![Value::I64(Some(1))],
+                vec![Value::I64(Some(2))]
             ]
         );
     }

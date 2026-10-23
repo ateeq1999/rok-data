@@ -280,32 +280,6 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     let scope_trait = scopes::trait_declaration(name, &named_scopes, &krate);
     let scope_checks = scopes::signature_checks(name, &named_scopes, &krate);
 
-    // The collection entries: a row and a set of rows share the same
-    // high-level API ([`ModelCollection`](crate::ModelCollection)). Both
-    // need a `Clone`; a model without one still compiles, the entries
-    // just sit unusable.
-    let collection_fns = quote! {
-        /// The collection holding this row — the collection verbs hang
-        /// off [`ModelCollection`], and a row and a set of rows share
-        /// them.
-        pub fn to_collection(&self) -> #krate::ModelCollection<Self>
-        where
-            Self: ::core::clone::Clone,
-        {
-            #krate::ModelCollection::new(::std::vec::Vec::from([
-                ::core::clone::Clone::clone(self),
-            ]))
-        }
-
-        /// The collection over `models`, in the order they come.
-        pub fn to_collection_vec(models: &[Self]) -> #krate::ModelCollection<Self>
-        where
-            Self: ::core::clone::Clone,
-        {
-            #krate::ModelCollection::new(models.to_vec())
-        }
-    };
-
     let pk_column = match pks.first() {
         Some(f) => {
             let column = &f.column;
@@ -377,7 +351,6 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
             #(#consts)*
             #(#relation_items)*
             #(#scope_entries)*
-            #collection_fns
         }
 
         #scope_trait

@@ -8,7 +8,7 @@ use crate::expr::{Cond, Direction};
 use crate::model::{Model, push_columns};
 use crate::relation::IntoInclude;
 use crate::sql::Sql;
-use crate::{Column, Error, Executor, Expr, Order, Page, Result, Value};
+use crate::{Column, Error, Executor, Expr, ModelCollection, Order, Page, Result, Value};
 
 use super::Select;
 use crate::query::WithSelect;
@@ -44,10 +44,13 @@ impl<M: Model> Select<M> {
         exec::fetch_all(executor, &self.to_sql(), &[], self.use_replica()).await
     }
 
-    /// Fetch every matching row — the Eloquent spelling of
-    /// [`all`](Self::all). Both names do the same thing.
-    pub async fn get<'e, E: Executor<'e>>(self, executor: E) -> Result<Vec<M>> {
-        self.all(executor).await
+    /// Fetch every matching row as a [`ModelCollection`] — Eloquent's
+    /// `get`, which returns a Collection. The collection verbs (`find`,
+    /// `load`, `fresh`, `to_query`, …) work on it at once, and through
+    /// `Deref` it is still a `Vec`; [`all`](Self::all) returns the plain
+    /// `Vec`.
+    pub async fn get<'e, E: Executor<'e>>(self, executor: E) -> Result<ModelCollection<M>> {
+        Ok(self.all(executor).await?.into())
     }
 
     /// Fetch the first matching row, or `None`.

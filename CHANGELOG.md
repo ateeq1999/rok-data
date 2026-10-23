@@ -33,6 +33,16 @@ compiler finds the call sites.
   table is the struct's pluralized snake_case name, no
   `#[rok(primary_key)]` on a lone `id` key. Schema-qualified tables and
   other keys keep theirs.
+- **Model collections**: `Select::get` returns a `ModelCollection<M>`
+  (`all` keeps the plain `Vec`), so `User::query().get(&db).await?.find(1)`
+  needs no conversion. Through `Deref` it is a `Vec`; its verbs work by
+  primary key — `find`/`find_or_fail`, `contains_key`, `model_keys` (each
+  row's whole key, composite keys included), `unique`, `only`/`except`,
+  `intersect`/`diff`, `partition` — and go back to the database:
+  `to_query`, `fresh`, `load`/`load_missing`. It serializes as the array of
+  its rows (`to_json`, `Serialize`); a JSON failure is `Error::Json`
+  (`is_json()`). Build one from a `Vec`, an array or an iterator (0.4.0
+  ticket 01, dx-first ticket 07).
 - **The API layer keeps its 0.2 names** (dx-first ticket 05): the
   generated handlers and service methods (`update`, `remove`,
   `remove_permanently`, `Remove{Row}Query`), the OpenAPI `operationId`s,

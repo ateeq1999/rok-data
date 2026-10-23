@@ -65,11 +65,23 @@ gives typed column constants, relation constants and the entry points, a
 modules' plain functions remain the low-level helpers.
 _Avoid_: entity, resource (for the row type), repository
 
+**ModelCollection**:
+A set of models in memory: what `get()` returns (`all()` returns the
+plain `Vec`). Through `Deref` it is a `Vec`; its own verbs work by
+primary key — `find`, `contains_key`, `only`/`except`, `unique`,
+`intersect`/`diff` — and go back to the database: `to_query` (the rows'
+keys as a `WHERE`), `fresh` (re-read them), `load`/`load_missing` (the
+relations beside them, into a **Loaded** view).
+_Avoid_: result set, rows (for the collection type), Laravel's untyped
+Collection
+
 **Scope**:
-A named, reusable constraint on a query chain. The model declares its
-scopes by path (`#[rok(scopes(popular = path::to::popular))]`), and the
-data layer gives the model an entry (`User::popular()`) and the chain a
-method (`User::popular().active()`), so scopes compose. The model's
+A named, reusable constraint on a query chain: a function that takes the
+chain by value and returns it (`fn popular(q: Select<User>) ->
+Select<User>`). The model declares its scopes by path
+(`#[rok(scopes(popular = path::to::popular))]`), and the data layer gives
+the model an entry (`User::popular()`) and the chain a method
+(`User::popular().active()`), so scopes compose. The model's
 `default_scope` is the scope every query of that model carries.
 _Avoid_: query filter (when it is named and reusable), global scope (the
 model's `default_scope`)

@@ -72,7 +72,7 @@
 //! ```
 //! use rok_data::prelude::*;
 //!
-//! #[derive(Clone, Model)]
+//! #[derive(Model)]
 //! #[rok(scopes(popular = popular, active = active))]
 //! struct User {
 //!     #[rok(generated)]
@@ -105,7 +105,7 @@
 //! ```
 //! use rok_data::prelude::*;
 //!
-//! #[derive(Clone, Model)]
+//! #[derive(Model)]
 //! #[rok(scopes(older_than(n: i32) = older_than))]
 //! struct User {
 //!     #[rok(generated)]
@@ -256,8 +256,8 @@ pub mod prelude {
 ///
 /// ```
 /// use rok_data::prelude::*;
-/// #[derive(Clone, Model)] struct User { id: i64, name: String }
-/// #[derive(Clone, Model)] struct Post { id: i64, #[rok(belongs_to = User)] user_id: i64 }
+/// #[derive(Model)] struct User { id: i64, name: String }
+/// #[derive(Model)] struct Post { id: i64, #[rok(belongs_to = User)] user_id: i64 }
 ///
 /// let _ = Post::query().join(Post::USER).filter(User::NAME.eq("x"));
 /// ```
@@ -275,10 +275,23 @@ pub mod prelude {
 ///
 /// ```
 /// use rok_data::prelude::*;
-/// #[derive(Clone, Model)] struct User { id: i64, name: String }
-/// #[derive(Clone, Model)] struct Post { id: i64, #[rok(belongs_to = User)] user_id: i64 }
+/// #[derive(Model)] struct User { id: i64, name: String }
+/// #[derive(Model)] struct Post { id: i64, #[rok(belongs_to = User)] user_id: i64 }
 ///
 /// let _ = Post::query().join(Post::USER).with_sql::<(User, Option<User>), _>();
+/// ```
+///
+/// A model needs no `Clone` to derive, and `get` hands back a
+/// [`ModelCollection`] the collection verbs work on at once:
+///
+/// ```
+/// use rok_data::prelude::*;
+/// #[derive(Model)] struct User { id: i64, name: String }
+///
+/// async fn name_of_one(db: &Db) -> rok_data::Result<Option<String>> {
+///     let users = User::query().get(db).await?;
+///     Ok(users.find(1).map(|user| user.name.clone()))
+/// }
 /// ```
 #[doc(hidden)]
 pub mod __compile_checks {}

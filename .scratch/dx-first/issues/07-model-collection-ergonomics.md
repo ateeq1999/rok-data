@@ -12,10 +12,10 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A hand-written non-`Clone` model compiles with the derive (compile test)
-- [ ] `get()` → `ModelCollection`; spec example compiles as a doctest
-- [ ] `contains_key`, composite `model_keys`/`to_query`, collection `load_missing`
-- [ ] Tests for composite keys, `to_json`/`Serialize`, `partition` at the facade
-- [ ] `ModelCollection` entry in the glossary
+- [x] A hand-written non-`Clone` model compiles with the derive (compile test) — `to_collection`/`to_collection_vec` removed: they needed `Clone` and duplicated `From<Vec>`/`FromIterator` (and now `From<[M; N]>`); the doctests no longer derive `Clone`
+- [x] `get()` → `ModelCollection`; spec example compiles as a doctest
+- [x] `contains_key`, composite `model_keys`/`to_query`, collection `load_missing`
+- [x] Tests for composite keys, `to_json`/`Serialize`, `partition` at the facade
+- [x] `ModelCollection` entry in the glossary

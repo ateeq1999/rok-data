@@ -161,15 +161,15 @@ async fn returning_one_or_fail_is_not_found_for_a_missing_key() {
     assert!(missing.is_not_found(), "{missing}");
 }
 
-/// `get` returns what `all` returns.
+/// `get` returns the rows `all` returns, as a `ModelCollection`.
 #[tokio::test]
-async fn get_returns_what_all_returns() {
+async fn get_returns_what_all_returns_as_a_collection() {
     let Some(db) = setup().await else { return };
     seed(&db).await;
 
     let all = User::query().order_by(User::ID).all(&db).await.unwrap();
     let got = User::query().order_by(User::ID).get(&db).await.unwrap();
-    assert_eq!(all, got);
+    assert_eq!(all, *got, "the same rows; `get` wraps them in a collection");
     assert_eq!(all.len(), 3);
 
     // The model's `all` and the chain's `get` agree.
@@ -177,7 +177,7 @@ async fn get_returns_what_all_returns() {
     let mut chain_get = User::query().get(&db).await.unwrap();
     model_all.sort_by_key(|u| u.id);
     chain_get.sort_by_key(|u| u.id);
-    assert_eq!(model_all, chain_get);
+    assert_eq!(model_all, *chain_get);
 }
 
 /// `where_` filters exactly like `filter`, on the model and on the chain.
