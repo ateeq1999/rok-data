@@ -174,10 +174,9 @@ fn each_table_but_join_tables_and_excluded_ones_gets_a_feature() -> Result<()> {
 fn a_table_without_a_key_serves_list_and_create_and_skips_drop_methods() -> Result<()> {
     let project = Project::new(SCHEMA)?;
     let mut config = project.config();
-    api(&mut config).skip.insert(
-        "posts".into(),
-        vec![ApiEndpoint::Destroy, ApiEndpoint::List],
-    );
+    api(&mut config)
+        .skip
+        .insert("posts".into(), vec![ApiEndpoint::Remove, ApiEndpoint::List]);
     rok_data_sqlc::generate(&config)?;
 
     let routes = project.read("src/features/events/routes.rs")?;
@@ -191,14 +190,14 @@ fn a_table_without_a_key_serves_list_and_create_and_skips_drop_methods() -> Resu
     assert!(!service.contains("fn get_one"), "{service}");
 
     let routes = project.read("src/features/posts/routes.rs")?;
-    assert!(!routes.contains("handlers::destroy"), "{routes}");
+    assert!(!routes.contains("handlers::remove"), "{routes}");
     assert!(!routes.contains("handlers::list)"), "{routes}");
-    assert!(routes.contains("handlers::patch"), "{routes}");
+    assert!(routes.contains("handlers::update"), "{routes}");
     let service = project.read("src/features/posts/service_api.rs")?;
-    for gone in ["fn destroy(", "fn destroy_in(", "fn list("] {
+    for gone in ["fn remove(", "fn remove_in(", "fn list("] {
         assert!(!service.contains(gone), "{service}");
     }
-    assert!(service.contains("async fn patch_in("), "{service}");
+    assert!(service.contains("async fn update_in("), "{service}");
     // No list reads: its listing holds only its many-to-many writes.
     let listing = project.read("src/db/posts/listing.rs")?;
     assert!(!listing.contains("list_matching"), "{listing}");
@@ -218,7 +217,7 @@ fn a_list_only_feature_declares_no_unused_helper() -> Result<()> {
             ApiEndpoint::Create,
             ApiEndpoint::GetOne,
             ApiEndpoint::Update,
-            ApiEndpoint::Destroy,
+            ApiEndpoint::Remove,
         ],
     );
     rok_data_sqlc::generate(&config)?;

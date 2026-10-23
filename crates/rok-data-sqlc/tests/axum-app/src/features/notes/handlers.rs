@@ -11,8 +11,8 @@ use std::sync::Arc;
 
 use super::super::{AccountResponse, LabelResponse};
 use super::dto::{
-    CreateNoteDto, DestroyNoteQuery, GetNoteQuery, ListNotesQuery, NoteInclude, NoteResponse,
-    NoteWithOwnerResponse, SearchNotesBody, UpdateNoteDto,
+    CreateNoteDto, GetNoteQuery, ListNotesQuery, NoteInclude, NoteResponse, NoteWithOwnerResponse,
+    RemoveNoteQuery, SearchNotesBody, UpdateNoteDto,
 };
 use super::model::NoteId;
 use super::service::NotesService;
@@ -192,7 +192,7 @@ pub async fn get_one(
     patch,
     path = "/api/v1/notes/{id}",
     tag = "notes",
-    operation_id = "patch",
+    operation_id = "update",
     params(
         ("id" = uuid::Uuid, Path, description = "Note id"),
         ("If-Match" = String, Header, description = "The row's `ETag`."),
@@ -218,7 +218,7 @@ pub async fn get_one(
     ),
     security(("bearer_auth" = [])),
 )]
-pub async fn patch(
+pub async fn update(
     Extension(service): Extension<Arc<NotesService>>,
     user: AuthUser,
     tenant: Tenant<uuid::Uuid>,
@@ -228,7 +228,7 @@ pub async fn patch(
 ) -> Result<Response, AppError> {
     let key = path;
     let row = service
-        .patch(
+        .update(
             tenant.into_inner(),
             user,
             key,
@@ -246,10 +246,10 @@ pub async fn patch(
     delete,
     path = "/api/v1/notes/{id}",
     tag = "notes",
-    operation_id = "destroy",
+    operation_id = "remove",
     params(
         ("id" = uuid::Uuid, Path, description = "Note id"),
-        DestroyNoteQuery,
+        RemoveNoteQuery,
     ),
     responses(
         (status = 204, description = "The row, soft-deleted (destroyed with `?permanent=true`)."),
@@ -260,20 +260,20 @@ pub async fn patch(
     ),
     security(("bearer_auth" = [])),
 )]
-pub async fn destroy(
+pub async fn remove(
     Extension(service): Extension<Arc<NotesService>>,
     user: AuthUser,
     tenant: Tenant<uuid::Uuid>,
     Path(path): Path<NoteId>,
-    Query(query): Query<DestroyNoteQuery>,
+    Query(query): Query<RemoveNoteQuery>,
 ) -> Result<Response, AppError> {
     let key = path;
     if query.permanent {
         service
-            .destroy_permanently(tenant.into_inner(), user, key)
+            .remove_permanently(tenant.into_inner(), user, key)
             .await?;
     } else {
-        service.destroy(tenant.into_inner(), user, key).await?;
+        service.remove(tenant.into_inner(), user, key).await?;
     }
     Ok(StatusCode::NO_CONTENT.into_response())
 }

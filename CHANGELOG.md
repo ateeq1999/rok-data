@@ -33,6 +33,12 @@ compiler finds the call sites.
   table is the struct's pluralized snake_case name, no
   `#[rok(primary_key)]` on a lone `id` key. Schema-qualified tables and
   other keys keep theirs.
+- **The API layer keeps its 0.2 names** (dx-first ticket 05): the
+  generated handlers and service methods (`update`, `remove`,
+  `remove_permanently`, `Remove{Row}Query`), the OpenAPI `operationId`s,
+  the `[api.skip]` names and `ApiEndpoint::Remove` are those of 0.2.0;
+  only the data layer's verbs take the new names. A `service.rs` override
+  and an OpenAPI client keyed on `operationId` keep working.
 - **One "not found" convention** (dx-first ticket 04): every verb that
   targets one row by key fails with `Error::NotFound` when no row has it.
   The runtime adds `Update::returning_one_or_fail` and makes

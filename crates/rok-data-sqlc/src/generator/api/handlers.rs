@@ -79,10 +79,10 @@ fn render_handler(
         Endpoint::Create => "creates a row, `201`.",
         Endpoint::GetOne => "the row, `200`.",
         Endpoint::Update => "changes the row, `200` with it.",
-        Endpoint::Destroy if feature.soft_delete => {
+        Endpoint::Remove if feature.soft_delete => {
             "soft-deletes the row (deletes it with `?permanent=true`), `204`."
         }
-        Endpoint::Destroy => "destroys the row, `204`.",
+        Endpoint::Remove => "deletes the row, `204`.",
         Endpoint::Restore => "restores the soft-deleted row, `200` with it.",
     };
     let mut doc = vec![format!(
@@ -134,11 +134,11 @@ fn render_handler(
             uses.add(&format!("super::dto::{}", feature.update_dto()));
             params.push(framework.body_param(uses, &feature.update_dto()));
         }
-        Endpoint::Destroy if feature.soft_delete => {
+        Endpoint::Remove if feature.soft_delete => {
             uses.add(&format!("super::dto::{}", feature.destroy_query()));
             params.push(framework.query_param(uses, &feature.destroy_query()));
         }
-        Endpoint::GetOne | Endpoint::Destroy | Endpoint::Restore => {}
+        Endpoint::GetOne | Endpoint::Remove | Endpoint::Restore => {}
     }
     push_signature(
         output,
@@ -164,18 +164,18 @@ fn render_handler(
             ));
             framework.answer(output, uses, Status::Ok, &[], "response");
         }
-        Endpoint::Destroy => {
+        Endpoint::Remove => {
             output.push_str(&format!("    let key = {};\n", framework.read_path("path")));
             args.push("key".to_owned());
             if feature.soft_delete {
                 output.push_str("    if query.permanent {\n");
-                let callee = "service.destroy_permanently";
+                let callee = "service.remove_permanently";
                 push_call(output, 8, "", callee, &args, ".await?;");
                 output.push_str("    } else {\n");
-                push_call(output, 8, "", "service.destroy", &args, ".await?;");
+                push_call(output, 8, "", "service.remove", &args, ".await?;");
                 output.push_str("    }\n");
             } else {
-                push_call(output, 4, "", "service.destroy", &args, ".await?;");
+                push_call(output, 4, "", "service.remove", &args, ".await?;");
             }
             framework.answer_empty(output, uses, Status::NoContent);
         }

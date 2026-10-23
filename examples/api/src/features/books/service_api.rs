@@ -70,9 +70,9 @@ pub trait BooksServiceApi {
         }
     }
 
-    /// What [`patch`](Self::patch) does, on `conn`: the caller's connection or
+    /// What [`update`](Self::update) does, on `conn`: the caller's connection or
     /// transaction. Override this one to change it.
-    async fn patch_in(
+    async fn update_in(
         &self,
         conn: &mut PgConnection,
         id: BookId,
@@ -83,26 +83,26 @@ pub trait BooksServiceApi {
     }
 
     /// `PATCH /api/v1/books/{id}`: changes the row with this key and returns it, or `404`.
-    /// Runs [`patch_in`](Self::patch_in) in a transaction of its own.
-    async fn patch(&self, id: BookId, input: UpdateBookDto) -> Result<Book, AppError> {
+    /// Runs [`update_in`](Self::update_in) in a transaction of its own.
+    async fn update(&self, id: BookId, input: UpdateBookDto) -> Result<Book, AppError> {
         let mut tx = self.pool().begin().await?;
-        let row = self.patch_in(&mut tx, id, input).await?;
+        let row = self.update_in(&mut tx, id, input).await?;
         tx.commit().await?;
         Ok(row)
     }
 
-    /// What [`destroy`](Self::destroy) does, on `conn`: the caller's connection or
+    /// What [`remove`](Self::remove) does, on `conn`: the caller's connection or
     /// transaction. Override this one to change it.
-    async fn destroy_in(&self, conn: &mut PgConnection, id: BookId) -> Result<(), AppError> {
+    async fn remove_in(&self, conn: &mut PgConnection, id: BookId) -> Result<(), AppError> {
         let deleted = Book::destroy(&mut *conn, id).await;
         deleted.map_err(or_not_found)
     }
 
     /// `DELETE /api/v1/books/{id}`: deletes the row with this key, or `404`.
-    /// Runs [`destroy_in`](Self::destroy_in) in a transaction of its own.
-    async fn destroy(&self, id: BookId) -> Result<(), AppError> {
+    /// Runs [`remove_in`](Self::remove_in) in a transaction of its own.
+    async fn remove(&self, id: BookId) -> Result<(), AppError> {
         let mut tx = self.pool().begin().await?;
-        self.destroy_in(&mut tx, id).await?;
+        self.remove_in(&mut tx, id).await?;
         tx.commit().await?;
         Ok(())
     }

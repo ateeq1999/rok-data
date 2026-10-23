@@ -113,7 +113,7 @@ pub async fn get_one(
     patch,
     path = "/api/v1/authors/{id}",
     tag = "authors",
-    operation_id = "patch",
+    operation_id = "update",
     params(("id" = uuid::Uuid, Path, description = "Author id")),
     request_body = UpdateAuthorDto,
     responses(
@@ -127,24 +127,24 @@ pub async fn get_one(
     ),
     security(("bearer_auth" = [])),
 )]
-pub async fn patch(
+pub async fn update(
     Extension(service): Extension<Arc<AuthorsService>>,
     _: AuthUser,
     Path(path): Path<AuthorId>,
     body: ValidatedJson<UpdateAuthorDto>,
 ) -> Result<Response, AppError> {
     let key = path;
-    let row = service.patch(key, body.into_inner()).await?;
+    let row = service.update(key, body.into_inner()).await?;
     let response = AuthorResponse::from(row);
     Ok(Json(response).into_response())
 }
 
-/// `DELETE /api/v1/authors/{id}`: destroys the row, `204`.
+/// `DELETE /api/v1/authors/{id}`: deletes the row, `204`.
 #[utoipa::path(
     delete,
     path = "/api/v1/authors/{id}",
     tag = "authors",
-    operation_id = "destroy",
+    operation_id = "remove",
     params(("id" = uuid::Uuid, Path, description = "Author id")),
     responses(
         (status = 204, description = "The row, destroyed."),
@@ -155,13 +155,13 @@ pub async fn patch(
     ),
     security(("bearer_auth" = [])),
 )]
-pub async fn destroy(
+pub async fn remove(
     Extension(service): Extension<Arc<AuthorsService>>,
     _: AuthUser,
     Path(path): Path<AuthorId>,
 ) -> Result<Response, AppError> {
     let key = path;
-    service.destroy(key).await?;
+    service.remove(key).await?;
     Ok(StatusCode::NO_CONTENT.into_response())
 }
 

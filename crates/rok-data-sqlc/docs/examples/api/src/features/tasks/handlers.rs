@@ -132,7 +132,7 @@ pub async fn get_one(
     patch,
     path = "/api/v1/tasks/{id}",
     tag = "tasks",
-    operation_id = "patch",
+    operation_id = "update",
     params(("id" = uuid::Uuid, Path, description = "Task id")),
     request_body = UpdateTaskDto,
     responses(
@@ -146,24 +146,24 @@ pub async fn get_one(
     ),
     security(("bearer_auth" = [])),
 )]
-pub async fn patch(
+pub async fn update(
     service: web::Data<TasksService>,
     user: AuthUser,
     path: web::Path<TaskId>,
     body: ValidatedJson<UpdateTaskDto>,
 ) -> Result<HttpResponse, AppError> {
     let key = path.into_inner();
-    let row = service.patch(user, key, body.into_inner()).await?;
+    let row = service.update(user, key, body.into_inner()).await?;
     let response = TaskResponse::from(row);
     Ok(HttpResponse::Ok().json(response))
 }
 
-/// `DELETE /api/v1/tasks/{id}`: destroys the row, `204`.
+/// `DELETE /api/v1/tasks/{id}`: deletes the row, `204`.
 #[utoipa::path(
     delete,
     path = "/api/v1/tasks/{id}",
     tag = "tasks",
-    operation_id = "destroy",
+    operation_id = "remove",
     params(("id" = uuid::Uuid, Path, description = "Task id")),
     responses(
         (status = 204, description = "The row, destroyed."),
@@ -173,12 +173,12 @@ pub async fn patch(
     ),
     security(("bearer_auth" = [])),
 )]
-pub async fn destroy(
+pub async fn remove(
     service: web::Data<TasksService>,
     user: AuthUser,
     path: web::Path<TaskId>,
 ) -> Result<HttpResponse, AppError> {
     let key = path.into_inner();
-    service.destroy(user, key).await?;
+    service.remove(user, key).await?;
     Ok(HttpResponse::NoContent().finish())
 }

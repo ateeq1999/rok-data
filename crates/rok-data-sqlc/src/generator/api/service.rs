@@ -24,7 +24,7 @@ pub fn render_api(feature: &Feature<'_>) -> String {
             Endpoint::List => render_list(&mut body, &mut uses, feature),
             Endpoint::Search => super::search::render_service(&mut body, &mut uses, feature),
             Endpoint::GetOne => render_get_one(&mut body, &mut uses, feature),
-            Endpoint::Create | Endpoint::Update | Endpoint::Destroy | Endpoint::Restore => {
+            Endpoint::Create | Endpoint::Update | Endpoint::Remove | Endpoint::Restore => {
                 render_write(&mut body, &mut uses, feature, *endpoint);
             }
         }
@@ -315,8 +315,8 @@ fn push_owned_check(output: &mut String, feature: &Feature<'_>) {
     }
 }
 
-/// `<write>_in` and `<write>`, and for a soft-delete table's `destroy`, the
-/// pair of `destroy_permanently`.
+/// `<write>_in` and `<write>`, and for a soft-delete table's `remove`, the
+/// pair of `remove_permanently`.
 fn render_write(output: &mut String, uses: &mut Uses, feature: &Feature<'_>, endpoint: Endpoint) {
     uses.add("sqlx::PgConnection");
     if endpoint.takes_key() {
@@ -381,7 +381,7 @@ fn render_write(output: &mut String, uses: &mut Uses, feature: &Feature<'_>, end
     let inputs = params[1..].to_vec();
     let name = endpoint.name();
     render_write_pair(output, feature, name, endpoint, &doc, &inputs, &returns);
-    if endpoint == Endpoint::Destroy && feature.soft_delete {
+    if endpoint == Endpoint::Remove && feature.soft_delete {
         let doc = format!(
             "`DELETE {}{key_path}?permanent=true`: deletes the row with this key for good,\nsoft-deleted or not, or `404`.",
             feature.url
@@ -390,7 +390,7 @@ fn render_write(output: &mut String, uses: &mut Uses, feature: &Feature<'_>, end
         render_write_pair(
             output,
             feature,
-            "destroy_permanently",
+            "remove_permanently",
             endpoint,
             &doc,
             &inputs,
@@ -469,7 +469,7 @@ fn render_write_pair(
         }
         _ => {
             args.push(key_arg(feature));
-            let verb = if name == "destroy_permanently" {
+            let verb = if name == "remove_permanently" {
                 "delete_permanently"
             } else {
                 "destroy"

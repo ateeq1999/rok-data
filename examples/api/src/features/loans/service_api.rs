@@ -68,9 +68,9 @@ pub trait LoansServiceApi {
         }
     }
 
-    /// What [`patch`](Self::patch) does, on `conn`: the caller's connection or
+    /// What [`update`](Self::update) does, on `conn`: the caller's connection or
     /// transaction. Override this one to change it.
-    async fn patch_in(
+    async fn update_in(
         &self,
         conn: &mut PgConnection,
         id: LoanId,
@@ -81,10 +81,10 @@ pub trait LoansServiceApi {
     }
 
     /// `PATCH /api/v1/loans/{id}`: changes the row with this key and returns it, or `404`.
-    /// Runs [`patch_in`](Self::patch_in) in a transaction of its own.
-    async fn patch(&self, id: LoanId, input: UpdateLoanDto) -> Result<Loan, AppError> {
+    /// Runs [`update_in`](Self::update_in) in a transaction of its own.
+    async fn update(&self, id: LoanId, input: UpdateLoanDto) -> Result<Loan, AppError> {
         let mut tx = self.pool().begin().await?;
-        let row = self.patch_in(&mut tx, id, input).await?;
+        let row = self.update_in(&mut tx, id, input).await?;
         tx.commit().await?;
         Ok(row)
     }

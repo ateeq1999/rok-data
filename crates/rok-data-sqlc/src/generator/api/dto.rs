@@ -43,7 +43,7 @@ pub fn render(feature: &Feature<'_>) -> String {
     if let Some(columns) = &update {
         render_update(&mut body, feature, columns);
     }
-    if feature.soft_delete && feature.serves(Endpoint::Destroy) {
+    if feature.soft_delete && feature.serves(Endpoint::Remove) {
         render_destroy_query(&mut body, feature);
     }
     render_response(&mut body, feature);

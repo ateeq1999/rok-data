@@ -96,7 +96,7 @@ fn endpoint_operation(feature: &Feature<'_>, endpoint: Endpoint) -> Operation {
                 .etag(feature)
                 .conflicts(update_conflicts(feature))
         }
-        Endpoint::Destroy => {
+        Endpoint::Remove => {
             let op = op.keyed(feature).errors(&[404]);
             let op = if feature.soft_delete {
                 op.query(feature.destroy_query()).answers(

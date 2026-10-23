@@ -4,10 +4,10 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Handler and service-trait method names, `operationId`s and the `api.skip` grammar match 0.2.0 again
-- [ ] `api.skip` accepts `destroy` as an alias for `delete` (whoever already wrote it keeps working)
-- [ ] `docs/cli-reference.md` updated in the same change
-- [ ] OpenAPI snapshot diff against 0.2.0 shows no operation renames
-- [ ] CLI suites and fixture compile gates green
+- [x] Handler and service-trait method names, `operationId`s and the `api.skip` grammar match 0.2.0 again
+- [x] ~~`api.skip` accepts `destroy` as an alias~~ — dropped: `destroy` never shipped (only unreleased `main` had it), and serde lists an alias in its "expected one of" error, which would advertise the wrong spelling to every user who mistypes a name. The 0.2.0 name `remove` is the only spelling.
+- [x] `docs/cli-reference.md` needed no change (it never carried the 0.3.0 names); the engine README, configuring and troubleshooting guides, and the migration guide are corrected
+- [x] OpenAPI snapshot diff against 0.2.0 shows no operation renames
+- [x] CLI suites and fixture compile gates green

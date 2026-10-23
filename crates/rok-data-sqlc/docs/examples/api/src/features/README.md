@@ -25,5 +25,5 @@ rok-data-sqlc never touches it again.
 
 | Feature | URL | Endpoints |
 |---|---|---|
-| `projects` | `/api/v1/projects` | `list`, `create`, `get_one`, `patch`, `destroy` |
-| `tasks` | `/api/v1/tasks` | `list`, `create`, `get_one`, `patch`, `destroy` |
+| `projects` | `/api/v1/projects` | `list`, `create`, `get_one`, `update`, `remove` |
+| `tasks` | `/api/v1/tasks` | `list`, `create`, `get_one`, `update`, `remove` |

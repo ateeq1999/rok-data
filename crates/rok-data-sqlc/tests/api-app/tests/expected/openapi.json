@@ -4397,7 +4397,7 @@
     },
     "/api/v1/accounts/{id}": {
       "delete": {
-        "operationId": "destroy",
+        "operationId": "remove",
         "parameters": [
           {
             "description": "Account id",
@@ -4470,7 +4470,7 @@
             "bearer_auth": []
           }
         ],
-        "summary": "`DELETE /api/v1/accounts/{id}`: destroys the row, `204`.",
+        "summary": "`DELETE /api/v1/accounts/{id}`: deletes the row, `204`.",
         "tags": [
           "accounts"
         ]
@@ -4552,7 +4552,7 @@
         ]
       },
       "patch": {
-        "operationId": "patch",
+        "operationId": "update",
         "parameters": [
           {
             "description": "Account id",
@@ -5395,7 +5395,7 @@
     },
     "/api/v1/documents/{id}": {
       "delete": {
-        "operationId": "destroy",
+        "operationId": "remove",
         "parameters": [
           {
             "description": "Document id",
@@ -5566,7 +5566,7 @@
         ]
       },
       "patch": {
-        "operationId": "patch",
+        "operationId": "update",
         "parameters": [
           {
             "description": "Document id",
@@ -6027,7 +6027,7 @@
     },
     "/api/v1/drafts/{id}": {
       "delete": {
-        "operationId": "destroy",
+        "operationId": "remove",
         "parameters": [
           {
             "description": "Draft id",
@@ -6065,7 +6065,7 @@
             "description": "No such row, or not the caller's."
           }
         },
-        "summary": "`DELETE /api/v1/drafts/{id}`: destroys the row, `204`.",
+        "summary": "`DELETE /api/v1/drafts/{id}`: deletes the row, `204`.",
         "tags": [
           "drafts"
         ]
@@ -6122,7 +6122,7 @@
         ]
       },
       "patch": {
-        "operationId": "patch",
+        "operationId": "update",
         "parameters": [
           {
             "description": "Draft id",
@@ -6415,7 +6415,7 @@
     },
     "/api/v1/gadgets/{id}": {
       "delete": {
-        "operationId": "destroy",
+        "operationId": "remove",
         "parameters": [
           {
             "description": "Gadget id",
@@ -6453,7 +6453,7 @@
             "description": "No such row, or not the caller's."
           }
         },
-        "summary": "`DELETE /api/v1/gadgets/{id}`: destroys the row, `204`.",
+        "summary": "`DELETE /api/v1/gadgets/{id}`: deletes the row, `204`.",
         "tags": [
           "gadgets"
         ]
@@ -6510,7 +6510,7 @@
         ]
       },
       "patch": {
-        "operationId": "patch",
+        "operationId": "update",
         "parameters": [
           {
             "description": "Gadget id",
@@ -6905,7 +6905,7 @@
         ]
       },
       "patch": {
-        "operationId": "patch",
+        "operationId": "update",
         "parameters": [
           {
             "description": "Label id",
@@ -7686,7 +7686,7 @@
     },
     "/api/v1/members/{team}/{note_id}": {
       "delete": {
-        "operationId": "destroy",
+        "operationId": "remove",
         "parameters": [
           {
             "description": "Member team",
@@ -7733,7 +7733,7 @@
             "description": "No such row, or not the caller's."
           }
         },
-        "summary": "`DELETE /api/v1/members/{team}/{note_id}`: destroys the row, `204`.",
+        "summary": "`DELETE /api/v1/members/{team}/{note_id}`: deletes the row, `204`.",
         "tags": [
           "members"
         ]
@@ -7808,7 +7808,7 @@
         ]
       },
       "patch": {
-        "operationId": "patch",
+        "operationId": "update",
         "parameters": [
           {
             "description": "Member team",
@@ -8171,7 +8171,7 @@
     },
     "/api/v1/notes/{id}": {
       "delete": {
-        "operationId": "destroy",
+        "operationId": "remove",
         "parameters": [
           {
             "description": "Note id",
@@ -8219,7 +8219,7 @@
             "description": "A unique or foreign-key violation."
           }
         },
-        "summary": "`DELETE /api/v1/notes/{id}`: destroys the row, `204`.",
+        "summary": "`DELETE /api/v1/notes/{id}`: deletes the row, `204`.",
         "tags": [
           "notes"
         ]
@@ -8276,7 +8276,7 @@
         ]
       },
       "patch": {
-        "operationId": "patch",
+        "operationId": "update",
         "parameters": [
           {
             "description": "Note id",
@@ -8940,7 +8940,7 @@
     },
     "/api/v1/tasks/{id}": {
       "delete": {
-        "operationId": "destroy",
+        "operationId": "remove",
         "parameters": [
           {
             "description": "Task id",
@@ -9003,7 +9003,7 @@
             "bearer_auth": []
           }
         ],
-        "summary": "`DELETE /api/v1/tasks/{id}`: destroys the row, `204`.",
+        "summary": "`DELETE /api/v1/tasks/{id}`: deletes the row, `204`.",
         "tags": [
           "tasks"
         ]
@@ -9094,7 +9094,7 @@
         ]
       },
       "patch": {
-        "operationId": "patch",
+        "operationId": "update",
         "parameters": [
           {
             "description": "Task id",

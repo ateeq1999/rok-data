@@ -991,7 +991,7 @@ openapi         = true            # the default: utoipa schemas for the OpenAPI 
 exclude         = ["audit_log"]   # tables with no API feature
 
 [api.skip]                   # by table: endpoints to leave out
-invoices = ["list", "get_one", "create", "update", "destroy"]
+invoices = ["list", "get_one", "create", "update", "remove"]
 users    = ["search", "restore", "lookups", "relationships"]
 
 [api.routes]                 # by table: route base, starting with `/` and unique
@@ -1195,7 +1195,7 @@ route base (`/tasks`), and `[api.skip]` drops any of them:
 | `POST /` | `create` | `201` with `Location` |
 | `GET /{id}` | `get_one` | `200` |
 | `PATCH /{id}` | `update` | `200`; with `If-Match` on a versioned table |
-| `DELETE /{id}` | `destroy` | `204`; `?permanent=true` on a soft-delete table |
+| `DELETE /{id}` | `remove` | `204`; `?permanent=true` on a soft-delete table |
 | `POST /search` (`[api] search_endpoint = true`) | `search` | `200`, a page; body `{filter, sort, order, page, per_page}` |
 | `POST /{id}/restore` (soft-delete tables) | `restore` | `200` |
 | `GET /by-<column>/{value}` (single-column unique keys) | `lookups` | `200` |

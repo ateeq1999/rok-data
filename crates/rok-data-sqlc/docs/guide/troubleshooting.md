@@ -29,11 +29,11 @@ nothing; the message lists the valid ones. The same goes for values:
 ```
 
 ```text
-    unknown variant `delete`, expected one of `list`, `get_one`, `create`, `update`, `destroy`, `search`, `restore`, `lookups`, `relationships`
+    unknown variant `delete`, expected one of `list`, `get_one`, `create`, `update`, `remove`, `search`, `restore`, `lookups`, `relationships`
 ```
 
 The first is an `[api.access]` value, the second an `[api.skip]` name
-(`destroy` is the delete endpoint).
+(`remove` is the delete endpoint).
 
 ### `api.output` without its derives
 

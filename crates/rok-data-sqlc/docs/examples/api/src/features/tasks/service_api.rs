@@ -76,9 +76,9 @@ pub trait TasksServiceApi {
         }
     }
 
-    /// What [`patch`](Self::patch) does, on `conn`: the caller's connection or
+    /// What [`update`](Self::update) does, on `conn`: the caller's connection or
     /// transaction. Override this one to change it.
-    async fn patch_in(
+    async fn update_in(
         &self,
         conn: &mut PgConnection,
         user: AuthUser,
@@ -94,22 +94,22 @@ pub trait TasksServiceApi {
     }
 
     /// `PATCH /api/v1/tasks/{id}`: changes the row with this key and returns it, or `404`.
-    /// Runs [`patch_in`](Self::patch_in) in a transaction of its own.
-    async fn patch(
+    /// Runs [`update_in`](Self::update_in) in a transaction of its own.
+    async fn update(
         &self,
         user: AuthUser,
         id: TaskId,
         input: UpdateTaskDto,
     ) -> Result<Task, AppError> {
         let mut tx = self.pool().begin().await?;
-        let row = self.patch_in(&mut tx, user, id, input).await?;
+        let row = self.update_in(&mut tx, user, id, input).await?;
         tx.commit().await?;
         Ok(row)
     }
 
-    /// What [`destroy`](Self::destroy) does, on `conn`: the caller's connection or
+    /// What [`remove`](Self::remove) does, on `conn`: the caller's connection or
     /// transaction. Override this one to change it.
-    async fn destroy_in(
+    async fn remove_in(
         &self,
         conn: &mut PgConnection,
         user: AuthUser,
@@ -124,10 +124,10 @@ pub trait TasksServiceApi {
     }
 
     /// `DELETE /api/v1/tasks/{id}`: deletes the row with this key, or `404`.
-    /// Runs [`destroy_in`](Self::destroy_in) in a transaction of its own.
-    async fn destroy(&self, user: AuthUser, id: TaskId) -> Result<(), AppError> {
+    /// Runs [`remove_in`](Self::remove_in) in a transaction of its own.
+    async fn remove(&self, user: AuthUser, id: TaskId) -> Result<(), AppError> {
         let mut tx = self.pool().begin().await?;
-        self.destroy_in(&mut tx, user, id).await?;
+        self.remove_in(&mut tx, user, id).await?;
         tx.commit().await?;
         Ok(())
     }

@@ -29,9 +29,9 @@ pub enum Endpoint {
     GetOne,
     /// `PATCH /{key}`: update a row.
     Update,
-    /// `DELETE /{key}`: destroy a row (soft-delete it, on a soft-delete
+    /// `DELETE /{key}`: delete a row (soft-delete it, on a soft-delete
     /// table, which also takes `?permanent=true`).
-    Destroy,
+    Remove,
     /// `POST /{key}/restore`: undo a soft delete.
     Restore,
 }
@@ -44,7 +44,7 @@ impl Endpoint {
         Endpoint::Create,
         Endpoint::GetOne,
         Endpoint::Update,
-        Endpoint::Destroy,
+        Endpoint::Remove,
         Endpoint::Restore,
     ];
 
@@ -55,8 +55,8 @@ impl Endpoint {
             Endpoint::Search => "search",
             Endpoint::Create => "create",
             Endpoint::GetOne => "get_one",
-            Endpoint::Update => "patch",
-            Endpoint::Destroy => "destroy",
+            Endpoint::Update => "update",
+            Endpoint::Remove => "remove",
             Endpoint::Restore => "restore",
         }
     }
@@ -69,7 +69,7 @@ impl Endpoint {
             Endpoint::Create => ApiEndpoint::Create,
             Endpoint::GetOne => ApiEndpoint::GetOne,
             Endpoint::Update => ApiEndpoint::Update,
-            Endpoint::Destroy => ApiEndpoint::Destroy,
+            Endpoint::Remove => ApiEndpoint::Remove,
             Endpoint::Restore => ApiEndpoint::Restore,
         }
     }
@@ -80,7 +80,7 @@ impl Endpoint {
             Endpoint::List | Endpoint::GetOne => "get",
             Endpoint::Create | Endpoint::Search | Endpoint::Restore => "post",
             Endpoint::Update => "patch",
-            Endpoint::Destroy => "delete",
+            Endpoint::Remove => "delete",
         }
     }
 
@@ -93,7 +93,7 @@ impl Endpoint {
     pub fn takes_key(self) -> bool {
         matches!(
             self,
-            Endpoint::GetOne | Endpoint::Update | Endpoint::Destroy | Endpoint::Restore
+            Endpoint::GetOne | Endpoint::Update | Endpoint::Remove | Endpoint::Restore
         )
     }
 
@@ -102,7 +102,7 @@ impl Endpoint {
         match self {
             Endpoint::List | Endpoint::Create => String::new(),
             Endpoint::Search => "/search".to_owned(),
-            Endpoint::GetOne | Endpoint::Update | Endpoint::Destroy => key_path.to_owned(),
+            Endpoint::GetOne | Endpoint::Update | Endpoint::Remove => key_path.to_owned(),
             Endpoint::Restore => format!("{key_path}/restore"),
         }
     }
@@ -173,7 +173,7 @@ pub struct Feature<'a> {
     /// The version column: reads answer `ETag`, and `patch` needs a
     /// matching `If-Match`.
     pub version: Option<&'a Column>,
-    /// Whether rows are soft-deleted: `destroy` takes `?permanent=true`.
+    /// Whether rows are soft-deleted: `remove` takes `?permanent=true`.
     pub soft_delete: bool,
     /// The `GET /by-<column>/{value}` routes.
     pub lookups: Vec<Lookup<'a>>,
@@ -233,7 +233,7 @@ impl<'a> Feature<'a> {
                 Endpoint::List => true,
                 Endpoint::Search => searchable,
                 Endpoint::Create => !table.insert_columns().is_empty(),
-                Endpoint::GetOne | Endpoint::Destroy => key.is_some(),
+                Endpoint::GetOne | Endpoint::Remove => key.is_some(),
                 Endpoint::Update => key.is_some() && has_patch,
                 Endpoint::Restore => key.is_some() && soft_delete,
             })
@@ -410,9 +410,9 @@ impl<'a> Feature<'a> {
     }
 
     /// The query string of a soft-delete table's `DELETE`, such as
-    /// `DestroyNoteQuery`.
+    /// `RemoveNoteQuery`.
     pub fn destroy_query(&self) -> String {
-        format!("Destroy{}Query", self.row())
+        format!("Remove{}Query", self.row())
     }
 
     /// The query string of `GET /{key}` with `?include=`, such as

@@ -138,7 +138,7 @@ fn a_list_documents_its_route() -> Result<()> {
 fn versioned_admin_routes_document_etag_and_if_match() -> Result<()> {
     let project = Project::generated()?;
     let handlers = project.read("src/features/accounts/handlers.rs")?;
-    let patch = annotation(&handlers, "patch");
+    let patch = annotation(&handlers, "update");
     for expected in [
         "    path = \"/api/v1/accounts/{id}\",\n",
         "(\"id\" = uuid::Uuid, Path, description = \"Account id\")",
@@ -161,7 +161,7 @@ fn versioned_admin_routes_document_etag_and_if_match() -> Result<()> {
     assert_eq!(statuses(create), [201, 400, 401, 403, 409, 413, 422]);
     // `notes` references accounts, so destroying one can conflict.
     assert_eq!(
-        statuses(annotation(&handlers, "destroy")),
+        statuses(annotation(&handlers, "remove")),
         [204, 400, 401, 403, 404, 409]
     );
     // The `by-email` route: text never fails to parse.
@@ -199,8 +199,8 @@ fn public_routes_carry_no_security() -> Result<()> {
         "{get}"
     );
     assert_eq!(statuses(get), [200, 400, 401, 403, 404]);
-    let destroy = annotation(&handlers, "destroy");
-    assert!(destroy.contains("        DestroyNoteQuery,\n"), "{destroy}");
+    let destroy = annotation(&handlers, "remove");
+    assert!(destroy.contains("        RemoveNoteQuery,\n"), "{destroy}");
     assert_eq!(statuses(destroy), [204, 400, 404]);
     assert_eq!(statuses(annotation(&handlers, "restore")), [200, 400, 404]);
     // The has-many route from accounts takes the stricter access.
@@ -233,7 +233,7 @@ fn generated_rs_holds_the_api_doc() -> Result<()> {
         "        accounts::handlers::get_by_email,\n",
         "        accounts::handlers::list_notes,\n",
         "        notes::handlers::restore,\n",
-        "        tasks::handlers::destroy,\n",
+        "        tasks::handlers::remove,\n",
         "        crate::shared::pagination::SortOrder,\n",
         "        accounts::dto::AccountSort,\n",
         "        notes::dto::NoteInclude,\n",

@@ -83,15 +83,21 @@ meaning is ambiguous (insert *or* update), and a non-optional typed key
 leaves the runtime nothing to decide on. Use the explicit verbs — `insert`,
 `update`, `upsert`, `upsert_on` — instead.
 
-The generated data layer changes with the runtime, and its write helpers
-take the Eloquent-shaped names: `update` becomes `patch` (the instance
-verb `update` already means "write this row"), `delete` becomes `destroy`,
-and `destroy` returns the number of deleted rows (`u64`), not a `bool`:
-an `assert!(write::delete(...).await.unwrap())` becomes
-`assert!(write::destroy(...).await.unwrap() > 0)`. The instance
-`update`, `insert_builder()`, the query builders, `restore` and
-`delete_permanently` keep their names. Regenerate and let the compiler
-find the call sites.
+The generated data layer changes with the runtime: its write verbs move
+onto the model and take the Eloquent-shaped names (the table above):
+`update` becomes `User::patch` (the instance verb `update` already means
+"write this row"), `delete` becomes `User::destroy`, and a missing row is
+`Error::NotFound` rather than a `None` or a `0` (*One "not found"
+convention*, above): an `assert!(write::delete(...).await.unwrap())`
+becomes `User::destroy(...).await.unwrap()`. The instance `update`,
+`insert_builder()`, the query builders, `restore` and `delete_permanently`
+keep their names. Regenerate and let the compiler find the call sites.
+
+The **API layer keeps its 0.2 names**: the generated handlers and service
+methods (`update`, `remove`, `remove_permanently`, `Remove{Row}Query`),
+the OpenAPI `operationId`s and the `[api.skip]` names are unchanged, so a
+`service.rs` override and an OpenAPI client keyed on `operationId` keep
+working.
 
 ### New verbs
 

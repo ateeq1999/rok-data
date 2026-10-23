@@ -138,7 +138,7 @@ pub async fn get_one(
     patch,
     path = "/api/v1/loans/{id}",
     tag = "loans",
-    operation_id = "patch",
+    operation_id = "update",
     params(("id" = uuid::Uuid, Path, description = "Loan id")),
     request_body = UpdateLoanDto,
     responses(
@@ -152,14 +152,14 @@ pub async fn get_one(
     ),
     security(("bearer_auth" = [])),
 )]
-pub async fn patch(
+pub async fn update(
     Extension(service): Extension<Arc<LoansService>>,
     _: AuthUser,
     Path(path): Path<LoanId>,
     body: ValidatedJson<UpdateLoanDto>,
 ) -> Result<Response, AppError> {
     let key = path;
-    let row = service.patch(key, body.into_inner()).await?;
+    let row = service.update(key, body.into_inner()).await?;
     let response = LoanResponse::from(row);
     Ok(Json(response).into_response())
 }

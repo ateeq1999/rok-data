@@ -23,7 +23,7 @@ search_endpoint = true
 openapi = false
 
 [api.skip]
-labels = ["destroy"]
+labels = ["remove"]
 
 [api.routes]
 audit_events = "/audit-log"

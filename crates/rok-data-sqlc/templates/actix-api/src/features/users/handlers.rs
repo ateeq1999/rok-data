@@ -5,7 +5,7 @@
 
 use actix_web::{HttpResponse, web};
 
-use super::dto::{DestroyUserQuery, ListUsersQuery, UpdateUserDto, UserResponse};
+use super::dto::{ListUsersQuery, RemoveUserQuery, UpdateUserDto, UserResponse};
 use super::model::UserId;
 use super::service::UsersService;
 use super::service_api::UsersServiceApi;
@@ -70,7 +70,7 @@ pub async fn get_one(
     patch,
     path = "/api/v1/users/{id}",
     tag = "users",
-    operation_id = "patch",
+    operation_id = "update",
     params(("id" = uuid::Uuid, Path, description = "User id")),
     request_body = UpdateUserDto,
     responses(
@@ -84,14 +84,14 @@ pub async fn get_one(
     ),
     security(("bearer_auth" = [])),
 )]
-pub async fn patch(
+pub async fn update(
     service: web::Data<UsersService>,
     _: AdminUser,
     path: web::Path<UserId>,
     body: ValidatedJson<UpdateUserDto>,
 ) -> Result<HttpResponse, AppError> {
     let key = path.into_inner();
-    let row = service.patch(key, body.into_inner()).await?;
+    let row = service.update(key, body.into_inner()).await?;
     let response = UserResponse::from(row);
     Ok(HttpResponse::Ok().json(response))
 }
@@ -101,10 +101,10 @@ pub async fn patch(
     delete,
     path = "/api/v1/users/{id}",
     tag = "users",
-    operation_id = "destroy",
+    operation_id = "remove",
     params(
         ("id" = uuid::Uuid, Path, description = "User id"),
-        DestroyUserQuery,
+        RemoveUserQuery,
     ),
     responses(
         (status = 204, description = "The row, soft-deleted (destroyed with `?permanent=true`)."),
@@ -116,17 +116,17 @@ pub async fn patch(
     ),
     security(("bearer_auth" = [])),
 )]
-pub async fn destroy(
+pub async fn remove(
     service: web::Data<UsersService>,
     _: AdminUser,
     path: web::Path<UserId>,
-    query: web::Query<DestroyUserQuery>,
+    query: web::Query<RemoveUserQuery>,
 ) -> Result<HttpResponse, AppError> {
     let key = path.into_inner();
     if query.permanent {
-        service.destroy_permanently(key).await?;
+        service.remove_permanently(key).await?;
     } else {
-        service.destroy(key).await?;
+        service.remove(key).await?;
     }
     Ok(HttpResponse::NoContent().finish())
 }

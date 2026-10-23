@@ -62,7 +62,7 @@ fn immutable(_: &serde_json::Value) -> Result<(), validator::ValidationError> {
 /// `DELETE /api/v1/users/{id}`'s query string: `?permanent=true` deletes the row for good.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Deserialize, utoipa::IntoParams)]
 #[into_params(parameter_in = Query)]
-pub struct DestroyUserQuery {
+pub struct RemoveUserQuery {
     /// Whether to delete the row for good rather than soft-delete it.
     #[serde(default)]
     pub permanent: bool,

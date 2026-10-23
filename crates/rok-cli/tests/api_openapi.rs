@@ -138,7 +138,7 @@ fn every_dto_derives_its_schema() -> Result<()> {
         let item = item(&dto, head);
         assert!(item.contains("utoipa::ToSchema"), "{item}");
     }
-    let destroy = item(&dto, "pub struct DestroyNoteQuery {");
+    let destroy = item(&dto, "pub struct RemoveNoteQuery {");
     assert!(destroy.contains("utoipa::IntoParams"), "{destroy}");
     assert!(
         destroy.contains("#[into_params(parameter_in = Query)]"),

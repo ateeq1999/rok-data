@@ -140,7 +140,7 @@ impl From<UpdateNoteDto> for UpdateNote {
 /// `DELETE /api/v1/notes/{id}`'s query string: `?permanent=true` deletes the row for good.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Deserialize, utoipa::IntoParams)]
 #[into_params(parameter_in = Query)]
-pub struct DestroyNoteQuery {
+pub struct RemoveNoteQuery {
     /// Whether to delete the row for good rather than soft-delete it.
     #[serde(default)]
     pub permanent: bool,

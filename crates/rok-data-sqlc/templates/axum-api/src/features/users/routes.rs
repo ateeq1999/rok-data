@@ -15,7 +15,7 @@ pub fn routes(service: UsersService) -> Router {
     Router::new()
         .route("/api/v1/users", get(handlers::list))
         .route("/api/v1/users/{id}", get(handlers::get_one))
-        .route("/api/v1/users/{id}", patch(handlers::patch))
-        .route("/api/v1/users/{id}", delete(handlers::destroy))
+        .route("/api/v1/users/{id}", patch(handlers::update))
+        .route("/api/v1/users/{id}", delete(handlers::remove))
         .layer(Extension(Arc::new(service)))
 }

@@ -77,7 +77,7 @@ fn generate_api_app() -> Result<Vec<PathBuf>> {
     api.sort
         .insert("notes".into(), names(&["title", "priority", "created_at"]));
     api.skip
-        .insert("labels".into(), vec![rok_data_sqlc::ApiEndpoint::Destroy]);
+        .insert("labels".into(), vec![rok_data_sqlc::ApiEndpoint::Remove]);
     api.routes
         .insert("audit_events".into(), "/audit-log".to_owned());
     // Access: the shapes above are public, `accounts` is admin only, and

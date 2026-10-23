@@ -181,7 +181,7 @@ An owner column scopes every row to the caller who owns it. It must be
   caller's rows, and another caller's row is a `404`, as if it didn't
   exist;
 - `create` sets the owner to the caller, so neither body has the column;
-- `patch` and `destroy` first lock the caller's row (`SELECT … FOR
+- `update` and `remove` first lock the caller's row (`SELECT … FOR
   UPDATE`), then change it;
 - every service method takes the caller, `user: AuthUser`.
 
@@ -334,7 +334,7 @@ pub enum ProjectSort {
 output = "src/features"
 
 [api.skip]
-audit_log = ["create", "update", "destroy"]
+audit_log = ["create", "update", "remove"]
 users     = ["lookups", "relationships"]
 ```
 
@@ -347,7 +347,7 @@ service methods and its path in the document all go:
 | `get_one` | `GET /{id}` |
 | `create` | `POST /` |
 | `update` | `PATCH /{id}` |
-| `destroy` | `DELETE /{id}` |
+| `remove` | `DELETE /{id}` |
 | `search` | `POST /search` (with `search_endpoint`) |
 | `restore` | `POST /{id}/restore` (soft-delete tables) |
 | `lookups` | every `GET /by-<column>/{value}` |

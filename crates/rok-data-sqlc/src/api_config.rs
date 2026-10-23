@@ -21,7 +21,7 @@ use crate::schema::{BaseType, Column, FilterKind, Table};
 /// use rok_data_sqlc::{ApiAccess, ApiConfig, ApiEndpoint};
 /// let mut api = ApiConfig::new("src/features");
 /// api.access.insert("users".into(), ApiAccess::Admin);
-/// api.skip.insert("users".into(), vec![ApiEndpoint::Destroy]);
+/// api.skip.insert("users".into(), vec![ApiEndpoint::Remove]);
 /// let mut config = rok_data_sqlc::Config::default();
 /// config.api = Some(api);
 /// ```
@@ -173,8 +173,8 @@ pub enum ApiEndpoint {
     Create,
     /// `PATCH /{id}`: update a row.
     Update,
-    /// `DELETE /{id}`: destroy a row.
-    Destroy,
+    /// `DELETE /{id}`: delete a row.
+    Remove,
     /// `POST /search`: per-field filters.
     Search,
     /// `POST /{id}/restore`: undo a soft delete.
@@ -193,7 +193,7 @@ impl ApiEndpoint {
             ApiEndpoint::GetOne => "get_one",
             ApiEndpoint::Create => "create",
             ApiEndpoint::Update => "update",
-            ApiEndpoint::Destroy => "destroy",
+            ApiEndpoint::Remove => "remove",
             ApiEndpoint::Search => "search",
             ApiEndpoint::Restore => "restore",
             ApiEndpoint::Lookups => "lookups",
