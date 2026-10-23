@@ -8,7 +8,7 @@ use super::*;
 /// to them bind and decode the mapped types.
 pub(super) async fn interval_bytea_and_timetz_round_trip(pool: &PgPool) {
     use chrono::{FixedOffset, NaiveTime};
-    use plain_db::search::{Equality, Page, Sort};
+    use plain_db::search::{Equality, Sort, Window};
     use plain_db::timed_badges::filter::{TimedBadgeFilter, TimedBadgeSortKey};
     use plain_db::timed_badges::models::TimedBadge;
     use plain_db::timed_badges::models::{NewTimedBadge, UpdateTimedBadge};
@@ -92,7 +92,7 @@ pub(super) async fn interval_bytea_and_timetz_round_trip(pool: &PgPool) {
             pool,
             filter,
             Sort::asc(TimedBadgeSortKey::Span),
-            Page::first(10),
+            Window::first(10),
         )
         .await
         .unwrap()
@@ -157,7 +157,7 @@ pub(super) async fn interval_bytea_and_timetz_round_trip(pool: &PgPool) {
 /// rows, inputs, patches, filters, sort keys, arrays, and query files.
 pub(super) async fn enums_keep_their_exact_labels(pool: &PgPool) {
     use db::queries::tickets::{tickets_in_states, tickets_with_priority};
-    use db::search::{Equality, Page, Sort};
+    use db::search::{Equality, Sort, Window};
     use db::tickets::filter::{TicketFilter, TicketSortKey};
     use db::tickets::models::{NewTicket, Ticket, UpdateTicket};
     use db::tickets::read;
@@ -234,7 +234,7 @@ pub(super) async fn enums_keep_their_exact_labels(pool: &PgPool) {
             ..Default::default()
         },
         Sort::asc(TicketSortKey::Id),
-        Page::first(10),
+        Window::first(10),
     )
     .await
     .unwrap();
@@ -247,7 +247,7 @@ pub(super) async fn enums_keep_their_exact_labels(pool: &PgPool) {
             ..Default::default()
         },
         Sort::asc(TicketSortKey::Id),
-        Page::first(10),
+        Window::first(10),
     )
     .await
     .unwrap();
@@ -258,7 +258,7 @@ pub(super) async fn enums_keep_their_exact_labels(pool: &PgPool) {
         pool,
         TicketFilter::default(),
         Sort::desc(TicketSortKey::Priority),
-        Page::first(10),
+        Window::first(10),
     )
     .await
     .unwrap();
@@ -348,7 +348,7 @@ pub(super) async fn renamed_enum_types_use_their_new_name(pool: &PgPool) {
 pub(super) async fn value_list_columns_round_trip(pool: &PgPool) {
     use db::queries::shipments::shipments_with_status;
     use db::refunds::models::NewRefund;
-    use db::search::{Equality, Page, Sort};
+    use db::search::{Equality, Sort, Window};
     use db::shipments::filter::{ShipmentFilter, ShipmentSortKey};
     use db::shipments::models::{NewShipment, Shipment, UpdateShipment};
     use db::shipments::read;
@@ -424,7 +424,7 @@ pub(super) async fn value_list_columns_round_trip(pool: &PgPool) {
             ..Default::default()
         },
         Sort::asc(ShipmentSortKey::Status),
-        Page::first(10),
+        Window::first(10),
     )
     .await
     .unwrap();
@@ -475,7 +475,7 @@ pub(super) async fn money_range_and_network_types_round_trip(pool: &PgPool) {
     use plain_db::ledger_entries::models::{NewLedgerEntry, UpdateLedgerEntry};
     use plain_db::ledger_entries::read;
     use plain_db::queries::{EntriesInSubnetParams, entries_in_subnet};
-    use plain_db::search::{Equality, Page, Sort};
+    use plain_db::search::{Equality, Sort, Window};
     use rok_data_sqlc_fixture_app::plain_db;
     use sqlx::postgres::types::{PgMoney, PgRange};
 
@@ -551,7 +551,7 @@ pub(super) async fn money_range_and_network_types_round_trip(pool: &PgPool) {
             pool,
             filter,
             Sort::asc(LedgerEntrySortKey::Id),
-            Page::first(10),
+            Window::first(10),
         )
         .await
         .unwrap()

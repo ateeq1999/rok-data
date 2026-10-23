@@ -8,7 +8,7 @@ pub mod db;
 use db::categories::models::{Category, NewCategory};
 use db::products::filter::{ProductFilter, ProductSortKey};
 use db::products::models::{NewProduct, Product, UpdateProduct};
-use db::search::{Ordered, Page, Sort, Text};
+use db::search::{Ordered, Sort, Text, Window};
 use db::types::ProductStatus;
 use rust_decimal::Decimal;
 use sqlx::PgPool;
@@ -69,7 +69,7 @@ pub async fn quickstart(pool: &PgPool) -> Result<(), rok_data::Error> {
         pool,
         filter,
         Sort::asc(ProductSortKey::Price),
-        Page::first(20),
+        Window::first(20),
     )
     .await?;
 

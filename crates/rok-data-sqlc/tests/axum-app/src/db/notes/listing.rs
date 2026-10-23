@@ -11,7 +11,7 @@
 //! The many-to-many relationships' writes, through their join tables.
 
 use super::super::labels::models::LabelId;
-use super::super::search::{Page, Sort, push_contains_any};
+use super::super::search::{Sort, Window, push_contains_any};
 use super::filter::NoteFilter;
 use super::models::{Note, NoteId};
 
@@ -59,7 +59,7 @@ pub async fn list_matching<'e, E>(
     owner: uuid::Uuid,
     q: Option<&str>,
     sort: Option<Sort<NoteSort>>,
-    page: Page,
+    page: Window,
 ) -> Result<Vec<Note>, sqlx::Error>
 where
     E: rok_data::Executor<'e>,
@@ -129,7 +129,7 @@ pub async fn search_matching<'e, E>(
     owner: uuid::Uuid,
     filter: NoteFilter,
     sort: Sort<NoteSort>,
-    page: Page,
+    page: Window,
 ) -> Result<Vec<Note>, sqlx::Error>
 where
     E: rok_data::Executor<'e>,

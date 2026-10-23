@@ -33,6 +33,13 @@ compiler finds the call sites.
   table is the struct's pluralized snake_case name, no
   `#[rok(primary_key)]` on a lone `id` key. Schema-qualified tables and
   other keys keep theirs.
+- **One pagination vocabulary** (dx-first ticket 09): "page" means a
+  page of rows. The generated limit/offset type `db::search::Page` is now
+  `db::search::Window` (`Page` stays a deprecated alias for one release),
+  and a runtime `rok_data::Page<T>` converts to the wire's
+  `PaginatedResponse<T>` in one call — a hand-written handler can answer
+  `PaginatedResponse::from(Book::query().paginate(&db, page, per_page)
+  .await?)`. The wire JSON and OpenAPI schemas are unchanged.
 - **Write API polish** (dx-first ticket 08): `update_only` takes any list
   or iterator of columns — `user.update_only(&db, [User::NAME])`, the
   shape `upsert_on` already takes, instead of `Some(vec![…])` — and an

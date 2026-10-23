@@ -1,6 +1,6 @@
 //! Typed filtering, allowlisted sorting, and pagination.
 //!
-//! `db/search.rs` holds the types every resource shares (`Page`, `Sort`, and
+//! `db/search.rs` holds the types every resource shares (`Window`, `Sort`, and
 //! the per-type condition enums); each resource gets a `filter.rs` with its
 //! `{Struct}Filter` and `{Struct}SortKey`, and `read.rs` gets `search`.
 //! Conditions are rendered from schema column names only; every value is
@@ -295,7 +295,7 @@ mod tests {
             rendered.contains("serde::Deserialize)]\npub struct Sort<K> {"),
             "{rendered}"
         );
-        for item in ["pub struct Page {", "pub struct Limit(i64);"] {
+        for item in ["pub struct Window {", "pub struct Limit(i64);"] {
             assert!(
                 rendered.contains(&format!("PartialEq, Eq)]\n{item}")),
                 "{item}:\n{rendered}"

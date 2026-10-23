@@ -3,7 +3,7 @@
 //! What the API's list endpoint reads: a page of rows, sorted by
 //! one of the [`LoanSort`] keys.
 
-use super::super::search::{Page, Sort};
+use super::super::search::{Sort, Window};
 use super::models::Loan;
 
 /// The columns `GET /api/v1/loans?sort=` takes, in `snake_case`.
@@ -33,7 +33,7 @@ impl LoanSort {
 pub async fn list_matching<'e, E>(
     executor: E,
     sort: Option<Sort<LoanSort>>,
-    page: Page,
+    page: Window,
 ) -> Result<Vec<Loan>, sqlx::Error>
 where
     E: rok_data::Executor<'e>,

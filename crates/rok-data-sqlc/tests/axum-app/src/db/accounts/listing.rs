@@ -6,7 +6,7 @@
 //! What `POST /search` reads: a page of the rows a filter matches, and
 //! their count.
 
-use super::super::search::{Page, Sort};
+use super::super::search::{Sort, Window};
 use super::filter::AccountFilter;
 use super::models::Account;
 
@@ -46,7 +46,7 @@ impl AccountSort {
 pub async fn list_matching<'e, E>(
     executor: E,
     sort: Option<Sort<AccountSort>>,
-    page: Page,
+    page: Window,
 ) -> Result<Vec<Account>, sqlx::Error>
 where
     E: rok_data::Executor<'e>,
@@ -90,7 +90,7 @@ pub async fn search_matching<'e, E>(
     executor: E,
     filter: AccountFilter,
     sort: Sort<AccountSort>,
-    page: Page,
+    page: Window,
 ) -> Result<Vec<Account>, sqlx::Error>
 where
     E: rok_data::Executor<'e>,

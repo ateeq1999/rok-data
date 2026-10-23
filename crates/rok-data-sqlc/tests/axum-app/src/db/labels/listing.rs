@@ -9,7 +9,7 @@
 //! The many-to-many relationships' writes, through their join tables.
 
 use super::super::notes::models::NoteId;
-use super::super::search::{Page, Sort};
+use super::super::search::{Sort, Window};
 use super::filter::LabelFilter;
 use super::models::{Label, LabelId};
 
@@ -49,7 +49,7 @@ impl LabelSort {
 pub async fn list_matching<'e, E>(
     executor: E,
     sort: Option<Sort<LabelSort>>,
-    page: Page,
+    page: Window,
 ) -> Result<Vec<Label>, sqlx::Error>
 where
     E: rok_data::Executor<'e>,
@@ -92,7 +92,7 @@ pub async fn search_matching<'e, E>(
     executor: E,
     filter: LabelFilter,
     sort: Sort<LabelSort>,
-    page: Page,
+    page: Window,
 ) -> Result<Vec<Label>, sqlx::Error>
 where
     E: rok_data::Executor<'e>,

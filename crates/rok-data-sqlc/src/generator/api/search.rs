@@ -241,7 +241,7 @@ pub fn render_listing(output: &mut String, feature: &Feature<'_>) {
     let mut params = scope.clone();
     params.push(format!("filter: {filter}"));
     params.push(format!("sort: Sort<{}>", feature.sort_enum()));
-    params.push("page: Page".to_owned());
+    params.push("page: Window".to_owned());
     push_fn_head(
         output,
         "search_matching",

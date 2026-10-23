@@ -86,7 +86,7 @@ pub fn render(feature: &Feature<'_>) -> String {
 
     let mut paths = Vec::new();
     if lists || searches {
-        let mut search_items = vec!["Page", "Sort"];
+        let mut search_items = vec!["Sort", "Window"];
         if lists && searched {
             search_items.push("push_contains_any");
         }
@@ -320,7 +320,7 @@ fn render_list(output: &mut String, feature: &Feature<'_>) {
     push_doc(output, 0, &doc);
     let mut params: Vec<String> = owner_param.iter().chain(&q_param).cloned().collect();
     params.push(format!("sort: Option<Sort<{sort}>>"));
-    params.push("page: Page".to_owned());
+    params.push("page: Window".to_owned());
     push_fn_head(
         output,
         "list_matching",

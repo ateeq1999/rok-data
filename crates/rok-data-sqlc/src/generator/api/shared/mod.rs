@@ -165,7 +165,7 @@ pub(super) const PAGINATION: &str = r#"//! A list endpoint's query, `?page=&per_
 
 use serde::{Deserialize, Serialize};
 
-use crate::db::search::{Direction, Page};
+use crate::db::search::{Direction, Window};
 
 /// The direction of a list's sort: `order=asc` or `order=desc`, the
 /// default.
@@ -318,9 +318,9 @@ impl Default for Pagination {
     }
 }
 
-impl From<Pagination> for Page {
+impl From<Pagination> for Window {
     fn from(pagination: Pagination) -> Self {
-        Page::new(pagination.limit(), pagination.offset())
+        Window::new(pagination.limit(), pagination.offset())
     }
 }
 "#;
@@ -367,6 +367,20 @@ impl<T> PaginatedResponse<T> {
             page: self.page,
             per_page: self.per_page,
             total: self.total,
+        }
+    }
+}
+
+/// A runtime page on the wire: a hand-written handler can answer
+/// `PaginatedResponse::from(Book::query().paginate(&db, page, per_page).await?)`.
+/// The runtime counts are `u64`; one past the wire's width saturates.
+impl<T> From<rok_data::Page<T>> for PaginatedResponse<T> {
+    fn from(page: rok_data::Page<T>) -> Self {
+        PaginatedResponse {
+            items: page.items,
+            page: u32::try_from(page.page).unwrap_or(u32::MAX),
+            per_page: u32::try_from(page.per_page).unwrap_or(u32::MAX),
+            total: i64::try_from(page.total).unwrap_or(i64::MAX),
         }
     }
 }

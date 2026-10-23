@@ -3,7 +3,7 @@
 //! What the API's list endpoint reads: a page of rows matching `q`, sorted by
 //! one of the [`BookSort`] keys.
 
-use super::super::search::{Page, Sort, push_contains_any};
+use super::super::search::{Sort, Window, push_contains_any};
 use super::models::Book;
 
 /// The columns `GET /api/v1/books?sort=` takes, in `snake_case`.
@@ -39,7 +39,7 @@ pub async fn list_matching<'e, E>(
     executor: E,
     q: Option<&str>,
     sort: Option<Sort<BookSort>>,
-    page: Page,
+    page: Window,
 ) -> Result<Vec<Book>, sqlx::Error>
 where
     E: rok_data::Executor<'e>,

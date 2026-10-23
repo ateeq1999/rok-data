@@ -9,7 +9,7 @@ use super::*;
 /// have no `tenant_id`.
 pub(super) async fn tenant_rows_are_invisible_to_other_tenants(pool: &PgPool) {
     use db::UpdateOutcome;
-    use db::search::{Limit, Page, Sort};
+    use db::search::{Limit, Sort, Window};
     use db::tenant_notes::filter::{TenantNoteFilter, TenantNoteSortKey};
     use db::tenant_notes::models::{NewTenantNote, TenantNote, UpdateTenantNote};
     use db::tenant_notes::read;
@@ -51,7 +51,7 @@ pub(super) async fn tenant_rows_are_invisible_to_other_tenants(pool: &PgPool) {
             tenant,
             TenantNoteFilter::default(),
             Sort::asc(TenantNoteSortKey::Id),
-            Page::first(10),
+            Window::first(10),
         )
         .await
         .unwrap();

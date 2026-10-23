@@ -53,7 +53,7 @@ fn tenant_tables_take_the_tenant_right_after_the_executor() -> Result<()> {
             "list(executor: E, organization_id: uuid::Uuid)",
             "list_page(executor: E, organization_id: uuid::Uuid, limit: i64, offset: i64)",
             "count(executor: E, organization_id: uuid::Uuid)",
-            "search(executor: E, organization_id: uuid::Uuid, filter: NoteFilter, sort: Sort<NoteSortKey>, page: Page)",
+            "search(executor: E, organization_id: uuid::Uuid, filter: NoteFilter, sort: Sort<NoteSortKey>, page: Window)",
             "search_after(executor: E, organization_id: uuid::Uuid, filter: NoteFilter, after: Option<NoteId>, limit: Limit)",
         ]
     );

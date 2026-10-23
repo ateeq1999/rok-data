@@ -5,7 +5,7 @@
 
 use sqlx::{Postgres, QueryBuilder};
 
-/// The most rows a single page may hold; `Page::new` clamps larger limits.
+/// The most rows a single window may hold; `Window::new` clamps larger limits.
 pub const MAX_PAGE_SIZE: i64 = 500;
 
 /// How many rows one request may return: always within `1..=MAX_PAGE_SIZE`.
@@ -26,14 +26,15 @@ impl Limit {
     }
 }
 
-/// A window of results: at most `limit` rows after skipping `offset`.
+/// A window of results: at most `limit` rows after skipping `offset` — the
+/// SQL side of a page. (A page of rows with its total is `rok_data::Page`.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Page {
+pub struct Window {
     limit: Limit,
     offset: i64,
 }
 
-impl Page {
+impl Window {
     /// Clamps `limit` to `1..=MAX_PAGE_SIZE` and `offset` to zero or more.
     #[must_use]
     pub fn new(limit: i64, offset: i64) -> Self {
@@ -43,30 +44,34 @@ impl Page {
         }
     }
 
-    /// The first page of `limit` rows.
+    /// The first window of `limit` rows.
     #[must_use]
     pub fn first(limit: i64) -> Self {
         Self::new(limit, 0)
     }
 
-    /// The page that follows this one.
+    /// The window that follows this one.
     #[must_use]
     pub fn next(self) -> Self {
         Self::new(self.limit(), self.offset.saturating_add(self.limit()))
     }
 
-    /// The most rows the page holds.
+    /// The most rows the window holds.
     #[must_use]
     pub fn limit(self) -> i64 {
         self.limit.get()
     }
 
-    /// The number of rows skipped before the page.
+    /// The number of rows skipped before the window.
     #[must_use]
     pub fn offset(self) -> i64 {
         self.offset
     }
 }
+
+/// The 0.2 name of [`Window`].
+#[deprecated(note = "renamed `Window`; `rok_data::Page` is a page of rows")]
+pub type Page = Window;
 
 /// Sort direction.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

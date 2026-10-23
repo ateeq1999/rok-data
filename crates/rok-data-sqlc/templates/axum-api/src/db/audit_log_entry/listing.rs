@@ -3,7 +3,7 @@
 //! What the API's list endpoint reads: a page of rows, sorted by
 //! one of the [`AuditLogEntrySort`] keys.
 
-use super::super::search::{Page, Sort};
+use super::super::search::{Sort, Window};
 use super::models::AuditLogEntry;
 
 /// The columns `GET /api/v1/audit-log?sort=` takes, in `snake_case`.
@@ -36,7 +36,7 @@ impl AuditLogEntrySort {
 pub async fn list_matching<'e, E>(
     executor: E,
     sort: Option<Sort<AuditLogEntrySort>>,
-    page: Page,
+    page: Window,
 ) -> Result<Vec<AuditLogEntry>, sqlx::Error>
 where
     E: rok_data::Executor<'e>,

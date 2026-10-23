@@ -9,7 +9,7 @@ pub(super) async fn belongs_to_filter_matches_each_row_once(pool: &PgPool) {
     use db::categories::models::NewCategory;
     use db::products::filter::{ProductFilter, ProductSortKey};
     use db::products::models::{NewProduct, ProductId};
-    use db::search::{Page, Sort, Text};
+    use db::search::{Sort, Text, Window};
 
     let mut categories = Vec::new();
     for name in ["rel-tools", "rel-toys", "rel-tools-extra"] {
@@ -53,7 +53,7 @@ pub(super) async fn belongs_to_filter_matches_each_row_once(pool: &PgPool) {
                 ..Default::default()
             },
             Sort::asc(ProductSortKey::Sku),
-            Page::first(100),
+            Window::first(100),
         )
         .await
         .unwrap();
@@ -132,14 +132,14 @@ async fn post_titles(
     filter: db::posts::filter::PostFilter,
 ) -> Vec<String> {
     use db::posts::filter::PostSortKey;
-    use db::search::{Page, Sort};
+    use db::search::{Sort, Window};
 
     db::posts::read::search(
         pool,
         tenant,
         filter,
         Sort::asc(PostSortKey::Id),
-        Page::first(100),
+        Window::first(100),
     )
     .await
     .unwrap()
@@ -209,7 +209,7 @@ pub(super) async fn has_many_filter_matches_each_parent_once(pool: &PgPool) {
 pub(super) async fn relationship_filters_skip_deleted_and_other_tenant_rows(pool: &PgPool) {
     use db::comments::filter::{CommentFilter, CommentSortKey};
     use db::posts::filter::PostFilter;
-    use db::search::{Page, Sort};
+    use db::search::{Sort, Window};
 
     let tenant = create_tenant(pool, 22_201).await;
     let other = create_tenant(pool, 22_202).await;
@@ -253,7 +253,7 @@ pub(super) async fn relationship_filters_skip_deleted_and_other_tenant_rows(pool
             tenant,
             filter,
             Sort::asc(CommentSortKey::Id),
-            Page::first(100),
+            Window::first(100),
         )
         .await
         .unwrap()
@@ -294,7 +294,7 @@ pub(super) async fn relationship_filters_skip_deleted_and_other_tenant_rows(pool
 pub(super) async fn self_reference_filters_and_nesting_depth(pool: &PgPool) {
     use db::org_units::filter::{OrgUnitFilter, OrgUnitSortKey};
     use db::org_units::models::NewOrgUnit;
-    use db::search::{MAX_RELATIONSHIP_DEPTH, Page, Sort, Text};
+    use db::search::{MAX_RELATIONSHIP_DEPTH, Sort, Text, Window};
 
     let unit = async |parent_id, name: &str| {
         db::org_units::models::OrgUnit::create(
@@ -315,7 +315,7 @@ pub(super) async fn self_reference_filters_and_nesting_depth(pool: &PgPool) {
             pool,
             filter,
             Sort::asc(OrgUnitSortKey::Id),
-            Page::first(100),
+            Window::first(100),
         )
         .await
         .map(|units| units.into_iter().map(|unit| unit.name).collect::<Vec<_>>())
@@ -365,7 +365,7 @@ pub(super) async fn self_reference_filters_and_nesting_depth(pool: &PgPool) {
 pub(super) async fn renamed_relationships_filter_under_their_new_names(pool: &PgPool) {
     use db::expense_claims::filter::{ExpenseClaimFilter, ExpenseClaimSortKey};
     use db::expense_claims::models::NewExpenseClaim;
-    use db::search::{Ordered, Page, Sort, Text};
+    use db::search::{Ordered, Sort, Text, Window};
     use db::users::filter::{UserFilter, UserSortKey};
 
     let writer = create_user(pool, "writer@claims.example").await;
@@ -393,7 +393,7 @@ pub(super) async fn renamed_relationships_filter_under_their_new_names(pool: &Pg
             ..Default::default()
         },
         Sort::asc(ExpenseClaimSortKey::Id),
-        Page::first(10),
+        Window::first(10),
     )
     .await
     .unwrap();
@@ -409,7 +409,7 @@ pub(super) async fn renamed_relationships_filter_under_their_new_names(pool: &Pg
             ..Default::default()
         },
         Sort::asc(UserSortKey::Id),
-        Page::first(10),
+        Window::first(10),
     )
     .await
     .unwrap();

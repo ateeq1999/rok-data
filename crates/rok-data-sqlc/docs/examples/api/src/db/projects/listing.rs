@@ -5,7 +5,7 @@
 //!
 //! The reads of one row the caller owns: another caller's row is none.
 
-use super::super::search::{Page, Sort, push_contains_any};
+use super::super::search::{Sort, Window, push_contains_any};
 use super::models::{Project, ProjectId};
 
 /// The columns `GET /api/v1/projects?sort=` takes, in `snake_case`.
@@ -45,7 +45,7 @@ pub async fn list_matching<'e, E>(
     owner: uuid::Uuid,
     q: Option<&str>,
     sort: Option<Sort<ProjectSort>>,
-    page: Page,
+    page: Window,
 ) -> Result<Vec<Project>, sqlx::Error>
 where
     E: rok_data::Executor<'e>,

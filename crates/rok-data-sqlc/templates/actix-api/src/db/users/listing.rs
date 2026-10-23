@@ -3,7 +3,7 @@
 //! What the API's list endpoint reads: a page of rows matching `q`, sorted by
 //! one of the [`UserSort`] keys.
 
-use super::super::search::{Page, Sort, push_contains_any};
+use super::super::search::{Sort, Window, push_contains_any};
 use super::models::User;
 
 /// The columns `GET /api/v1/users?sort=` takes, in `snake_case`.
@@ -42,7 +42,7 @@ pub async fn list_matching<'e, E>(
     executor: E,
     q: Option<&str>,
     sort: Option<Sort<UserSort>>,
-    page: Page,
+    page: Window,
 ) -> Result<Vec<User>, sqlx::Error>
 where
     E: rok_data::Executor<'e>,

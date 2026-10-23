@@ -4,7 +4,7 @@
 use actix_web::dev::Service;
 use actix_web::http::StatusCode;
 use actix_web::{App, HttpMessage, HttpResponse, test as actix_test, web};
-use rok_data_sqlc_api_app::db::search::{Direction, Page};
+use rok_data_sqlc_api_app::db::search::{Direction, Window};
 use rok_data_sqlc_api_app::shared::pagination::{ListQuery, Pagination, SortOrder};
 use rok_data_sqlc_api_app::shared::response::PaginatedResponse;
 use rok_data_sqlc_api_app::shared::tenant::Tenant;
@@ -58,7 +58,7 @@ fn pagination_limit_and_offset() {
     assert_eq!(page.limit(), 25);
     assert_eq!(page.offset(), 50);
     assert_eq!(Pagination::default().offset(), 0);
-    assert_eq!(Page::from(page), Page::new(25, 50));
+    assert_eq!(Window::from(page), Window::new(25, 50));
     assert_eq!(Direction::from(SortOrder::Asc), Direction::Asc);
     assert_eq!(Direction::from(SortOrder::default()), Direction::Desc);
 }
@@ -109,4 +109,20 @@ async fn tenant_comes_from_the_request_extensions() {
     assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     let body: Value = actix_test::read_body_json(response).await;
     assert_eq!(body["error"]["code"], "internal_error", "{body}");
+}
+
+/// A runtime page (`Select::paginate`) converts to the wire's response in
+/// one call: the same `{items, page, per_page, total}` a generated list
+/// answers.
+#[test]
+fn a_runtime_page_is_a_paginated_response() {
+    let page = rok_data::Page::new(vec!["a", "b"], 12, 2, 10);
+    let response = PaginatedResponse::from(page);
+    assert_eq!(
+        serde_json::to_value(&response).unwrap(),
+        json!({"items": ["a", "b"], "page": 2, "per_page": 10, "total": 12})
+    );
+    // Counts past the wire's widths saturate instead of wrapping.
+    let huge = PaginatedResponse::from(rok_data::Page::new(Vec::<u8>::new(), u64::MAX, 1, 1));
+    assert_eq!(huge.total, i64::MAX);
 }

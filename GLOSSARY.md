@@ -75,6 +75,27 @@ relations beside them, into a **Loaded** view).
 _Avoid_: result set, rows (for the collection type), Laravel's untyped
 Collection
 
+**Page**:
+One page of rows with what a client needs to page on: `Page<T>` holds the
+`items`, the `total` across every page, the `page` (from 1) and the
+`per_page` — what `Select::paginate` returns. On the wire the generated
+`PaginatedResponse<T>` carries the same four fields
+(`PaginatedResponse::from(page)`).
+_Avoid_: window (that is the SQL side), result set
+
+**CursorPage** / **Cursor**:
+One page of a keyset-paginated query (`Select::cursor_paginate`): the
+`items` and the **Cursor** — an opaque token holding the ordering values of
+the page's edge — to continue from. Stable under concurrent inserts, no
+`COUNT(*)`.
+_Avoid_: offset (a cursor is not a row number)
+
+**Window**:
+The SQL side of a page in the generated code (`db::search::Window`): a
+clamped `LIMIT` and an `OFFSET`, what a generated list query takes. A
+request's page (`Pagination`) converts into one.
+_Avoid_: page (for the limit/offset pair; 0.2 called it `Page`)
+
 **Scope**:
 A named, reusable constraint on a query chain: a function that takes the
 chain by value and returns it (`fn popular(q: Select<User>) ->

@@ -62,7 +62,7 @@ pub(super) async fn typed_ids_flow_from_rows_to_foreign_keys(pool: &PgPool) {
     use db::categories::models::{CategoryId, NewCategory};
     use db::products::filter::ProductFilter;
     use db::products::models::{NewProduct, ProductId};
-    use db::search::{Ordered, Page, Sort};
+    use db::search::{Ordered, Sort, Window};
 
     let category = db::categories::models::Category::create(
         pool,
@@ -102,7 +102,7 @@ pub(super) async fn typed_ids_flow_from_rows_to_foreign_keys(pool: &PgPool) {
             ..Default::default()
         },
         Sort::asc(db::products::filter::ProductSortKey::Sku),
-        Page::first(10),
+        Window::first(10),
     )
     .await
     .unwrap();

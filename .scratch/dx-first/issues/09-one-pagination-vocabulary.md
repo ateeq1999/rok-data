@@ -12,10 +12,10 @@ Make the runtime's `Page<T>` (and `CursorPage<T>`) the one result type; generate
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** done (one item by decision, below)
 
-- [ ] Generated handlers build their list response from the runtime `Page<T>` in one call
-- [ ] `db/search`'s window type no longer named `Page`
-- [ ] Page numbers and counts use one width across runtime and generated code
-- [ ] Wire JSON byte-identical to today (snapshot proves it)
-- [ ] Glossary entries: Page, CursorPage, Cursor, and the window type
+- [x] A runtime `Page<T>` becomes the wire response in one call: generated `From<rok_data::Page<T>> for PaginatedResponse<T>` (test in api-app `shared`). The generated list endpoints keep their own SQL (search filters, sorts) and build the response from it as before.
+- [x] `db/search`'s window type no longer named `Page`
+- [x] ~~One width~~ — **decided against**: the runtime `Page<T>` (`u64`) shipped in 0.2.0, and the wire types (`u32` page/per_page, `i64` total) are pinned by the OpenAPI contract (`int32`/`int64`); either change breaks released users or API clients. The conversion is defined once (saturating) instead.
+- [x] Wire JSON byte-identical to today (snapshot proves it)
+- [x] Glossary entries: Page, CursorPage, Cursor, and the window type

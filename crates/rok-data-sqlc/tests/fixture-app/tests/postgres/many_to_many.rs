@@ -317,7 +317,7 @@ pub(super) async fn many_to_many_filters_go_through_the_join_table(pool: &PgPool
     use db::member_groups::models::NewMemberGroup;
     use db::permissions::filter::PermissionFilter;
     use db::roles::filter::{RoleFilter, RoleSortKey};
-    use db::search::{Page, Sort, Text};
+    use db::search::{Sort, Text, Window};
     use db::users::filter::{UserFilter, UserSortKey};
 
     let ([tenant, other_tenant], roles, permissions) = seed_roles(pool, 23_201).await;
@@ -350,7 +350,7 @@ pub(super) async fn many_to_many_filters_go_through_the_join_table(pool: &PgPool
             ..Default::default()
         },
         Sort::asc(RoleSortKey::Id),
-        Page::first(10),
+        Window::first(10),
     )
     .await
     .unwrap();
@@ -381,7 +381,7 @@ pub(super) async fn many_to_many_filters_go_through_the_join_table(pool: &PgPool
             ..Default::default()
         },
         Sort::asc(UserSortKey::Id),
-        Page::first(10),
+        Window::first(10),
     )
     .await
     .unwrap();
@@ -396,7 +396,7 @@ pub(super) async fn many_to_many_filters_go_through_the_join_table(pool: &PgPool
             ..Default::default()
         },
         Sort::asc(MemberGroupSortKey::Id),
-        Page::first(10),
+        Window::first(10),
     )
     .await
     .unwrap();

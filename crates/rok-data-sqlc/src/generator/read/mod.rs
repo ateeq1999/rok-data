@@ -57,7 +57,7 @@ fn search_imports(table: &Table, api: SearchApi) -> String {
         local.push(format!("{name}Filter"));
     }
     if api.search {
-        shared.extend(["Page", "Sort"]);
+        shared.extend(["Sort", "Window"]);
         if local.is_empty() {
             local.push(format!("{name}Filter"));
         }
@@ -334,7 +334,7 @@ fn render_search(output: &mut String, table: &Table, fallible: bool) {
             &[
                 format!("filter: {name}Filter"),
                 format!("sort: Sort<{name}SortKey>"),
-                "page: Page".to_owned(),
+                "page: Window".to_owned(),
             ],
         ),
         &format!("Result<Vec<{name}>, sqlx::Error>"),

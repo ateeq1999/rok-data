@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::db::search::{Direction, Page};
+use crate::db::search::{Direction, Window};
 
 /// The direction of a list's sort: `order=asc` or `order=desc`, the
 /// default.
@@ -172,8 +172,8 @@ impl Default for Pagination {
     }
 }
 
-impl From<Pagination> for Page {
+impl From<Pagination> for Window {
     fn from(pagination: Pagination) -> Self {
-        Page::new(pagination.limit(), pagination.offset())
+        Window::new(pagination.limit(), pagination.offset())
     }
 }

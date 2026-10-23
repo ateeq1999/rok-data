@@ -405,7 +405,7 @@ caller string ever reaches the SQL text:
         pool,
         filter,
         Sort::asc(ProductSortKey::Price),
-        Page::first(20),
+        Window::first(20),
     )
     .await?;
 ```

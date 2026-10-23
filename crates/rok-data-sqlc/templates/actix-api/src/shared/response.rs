@@ -47,6 +47,20 @@ impl<T> PaginatedResponse<T> {
     }
 }
 
+/// A runtime page on the wire: a hand-written handler can answer
+/// `PaginatedResponse::from(Book::query().paginate(&db, page, per_page).await?)`.
+/// The runtime counts are `u64`; one past the wire's width saturates.
+impl<T> From<rok_data::Page<T>> for PaginatedResponse<T> {
+    fn from(page: rok_data::Page<T>) -> Self {
+        PaginatedResponse {
+            items: page.items,
+            page: u32::try_from(page.page).unwrap_or(u32::MAX),
+            per_page: u32::try_from(page.per_page).unwrap_or(u32::MAX),
+            total: i64::try_from(page.total).unwrap_or(i64::MAX),
+        }
+    }
+}
+
 /// `value` as one path segment, such as a key in a `Location`: every byte
 /// but the unreserved characters (`A-Z`, `a-z`, `0-9`, `-`, `.`, `_`, `~`)
 /// percent-encoded, so a `/` or a space in it stays inside the segment.
