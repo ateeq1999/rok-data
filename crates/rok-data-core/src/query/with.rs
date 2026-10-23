@@ -73,14 +73,35 @@ impl<M: Model> WithSelect<M> {
         let sql = self.select.to_sql();
         let rows: Vec<M> = on_journey!(journey, |e| exec::fetch_all(e, &sql, &[], replica).await)?;
         let mut view = Loaded::new(rows);
-        for include in self.includes {
-            // The SQL is rendered here, once the owners' key values are known.
-            let include_sql = (include.children_sql)(view.rows())?;
-            let children: Vec<PgRow> =
-                on_journey!(journey, |e| exec::fetch_rows(e, &include_sql, &[], replica)
-                    .await)?;
-            view.park(include.identity, (include.assemble)(children)?);
-        }
+        load_includes(journey, &mut view, self.includes, replica).await?;
         Ok(view)
     }
+}
+
+/// The include loop shared by the with-loading entry points: one batched
+/// query per include, in order, each parked on `view` afterwards. The
+/// main rows must already be in the view — [`WithSelect::all`] fetched
+/// them, [`ModelCollection::load`](crate::ModelCollection::load) and
+/// [`Loaded::load_missing`](crate::relation::Loaded::load_missing) carry
+/// theirs. The session arrives owned (a [`Journey`]); every leg of the
+/// loop borrows it.
+///
+/// Repeated identities overwrite (the relation included twice, last
+/// shaping wins — [`load_missing`](crate::relation::Loaded::load_missing)
+/// filters its own repeats out first).
+pub(crate) async fn load_includes<M: Model>(
+    mut journey: Journey<'_>,
+    view: &mut Loaded<M>,
+    includes: Vec<PackedInclude<M>>,
+    replica: bool,
+) -> Result<()> {
+    for include in includes {
+        // The SQL is rendered here, once the owners' key values are known.
+        let include_sql = (include.children_sql)(view.rows())?;
+        let children: Vec<PgRow> =
+            on_journey!(journey, |e| exec::fetch_rows(e, &include_sql, &[], replica)
+                .await)?;
+        view.park(include.identity, (include.assemble)(children)?);
+    }
+    Ok(())
 }

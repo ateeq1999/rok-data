@@ -26,7 +26,7 @@ struct Post {
     cached_html: Option<String>,
 }
 
-#[derive(Debug, Model)]
+#[derive(Debug, Clone, Model)]
 struct Category {
     id: i32,
     label: String,

@@ -5,9 +5,10 @@ use std::collections::HashMap;
 use std::fmt;
 use std::marker::PhantomData;
 
-use crate::Model;
+use crate::exec::Journey;
+use crate::{Model, Result};
 
-use super::include::{ErasedState, Relation};
+use super::include::{ErasedState, IntoInclude, Relation};
 use super::relations::key;
 
 /// The loaded records of a one-relation, keyed by owner: one record per
@@ -168,5 +169,33 @@ impl<M: Model> Loaded<M> {
         R::Loaded: 'static,
     {
         relation.read(self.loaded(relation)?, owner)
+    }
+
+    /// Runs the includes this view has not loaded yet — one batched query
+    /// per still-missing relation. An include already parked (by the
+    /// query that fetched the rows, or a previous call) stays as it is;
+    /// its shaping is not refetched.
+    ///
+    /// ```ignore
+    /// let mut view = User::filter(User::ID.lt(10))
+    ///     .with(User::POSTS)
+    ///     .all(&db)
+    ///     .await?;
+    /// // only the comments run; the posts are already parked
+    /// view.load_missing(&db, [Post::COMMENTS]).await?;
+    /// ```
+    pub async fn load_missing<'c, S, I, C>(&mut self, session: S, includes: C) -> Result<()>
+    where
+        S: Into<Journey<'c>>,
+        C: IntoIterator<Item = I>,
+        I: IntoInclude<M>,
+    {
+        let journey = session.into();
+        let pending = includes
+            .into_iter()
+            .map(IntoInclude::into_packed)
+            .filter(|include| !self.states.contains_key(&include.identity))
+            .collect();
+        crate::query::with::load_includes(journey, self, pending, true).await
     }
 }

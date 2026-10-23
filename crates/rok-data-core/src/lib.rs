@@ -9,6 +9,7 @@
 pub mod audit;
 mod cache;
 mod cache_sync;
+mod collection;
 mod context;
 mod copy;
 mod cursor;
@@ -38,6 +39,7 @@ mod value;
 pub mod web;
 
 pub use cache::{CacheStats, QueryCache};
+pub use collection::ModelCollection;
 pub use context::Executor;
 pub use copy::CopyTarget;
 pub use cursor::{Cursor, CursorPage};

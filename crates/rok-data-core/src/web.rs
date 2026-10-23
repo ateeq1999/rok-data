@@ -83,6 +83,13 @@ mod serde_impls {
             self.errors().serialize(s)
         }
     }
+
+    /// A collection serializes as the JSON array of its rows.
+    impl<T: Serialize> Serialize for crate::ModelCollection<T> {
+        fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+            self.rows.serialize(s)
+        }
+    }
 }
 
 #[cfg(feature = "axum")]

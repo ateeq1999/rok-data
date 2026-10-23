@@ -56,6 +56,11 @@ pub enum Error {
     #[error(transparent)]
     Database(#[from] sqlx::Error),
 
+    /// A collection failed to serialize to JSON ([`ModelCollection::to_json`](crate::ModelCollection::to_json)).
+    #[cfg(any(feature = "json", feature = "axum"))]
+    #[error("failed to serialize to JSON: {0}")]
+    Serialization(#[from] serde_json::Error),
+
     /// An error raised while running migrations.
     #[cfg(feature = "migrate")]
     #[error(transparent)]

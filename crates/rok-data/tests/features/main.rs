@@ -8,6 +8,7 @@ use std::time::Duration;
 use rok_data::prelude::*;
 use rok_data::{Include, raw};
 
+mod collection;
 mod conventions;
 mod memoized;
 mod relations;

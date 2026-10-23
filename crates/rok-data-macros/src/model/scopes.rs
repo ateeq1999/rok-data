@@ -116,6 +116,9 @@ const RESERVED: &[&str] = &[
     "unscoped",
     "with",
     "with_trashed",
+    // The derive's collection entries.
+    "to_collection",
+    "to_collection_vec",
 ];
 
 /// The parsed parameters of a scope: what both the entry and the method

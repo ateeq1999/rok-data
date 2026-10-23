@@ -153,7 +153,7 @@ mod memoized;
 mod projected;
 mod select;
 mod update;
-mod with;
+pub(crate) mod with;
 
 pub(crate) use conflict::{Conflict, ConflictAction, ConflictTarget};
 pub use insert::{Insert, InsertMany};

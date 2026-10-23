@@ -72,7 +72,7 @@
 //! ```
 //! use rok_data::prelude::*;
 //!
-//! #[derive(Model)]
+//! #[derive(Clone, Model)]
 //! #[rok(scopes(popular = popular, active = active))]
 //! struct User {
 //!     #[rok(generated)]
@@ -105,7 +105,7 @@
 //! ```
 //! use rok_data::prelude::*;
 //!
-//! #[derive(Model)]
+//! #[derive(Clone, Model)]
 //! #[rok(scopes(older_than(n: i32) = older_than))]
 //! struct User {
 //!     #[rok(generated)]
@@ -228,8 +228,8 @@ pub use rok_data_macros::test;
 /// Everything you need for day-to-day use: `use rok_data::prelude::*;`
 pub mod prelude {
     pub use crate::{
-        Column, Db, DbEnum, DbNewtype, Executor, Expr, Model, ModelWrite, Page, Projection, Select,
-        Tx,
+        Column, Db, DbEnum, DbNewtype, Executor, Expr, Model, ModelCollection, ModelWrite, Page,
+        Projection, Select, Tx,
     };
     pub use futures_util_reexports::*;
 
@@ -256,8 +256,8 @@ pub mod prelude {
 ///
 /// ```
 /// use rok_data::prelude::*;
-/// #[derive(Model)] struct User { id: i64, name: String }
-/// #[derive(Model)] struct Post { id: i64, #[rok(belongs_to = User)] user_id: i64 }
+/// #[derive(Clone, Model)] struct User { id: i64, name: String }
+/// #[derive(Clone, Model)] struct Post { id: i64, #[rok(belongs_to = User)] user_id: i64 }
 ///
 /// let _ = Post::query().join(Post::USER).filter(User::NAME.eq("x"));
 /// ```
@@ -275,8 +275,8 @@ pub mod prelude {
 ///
 /// ```
 /// use rok_data::prelude::*;
-/// #[derive(Model)] struct User { id: i64, name: String }
-/// #[derive(Model)] struct Post { id: i64, #[rok(belongs_to = User)] user_id: i64 }
+/// #[derive(Clone, Model)] struct User { id: i64, name: String }
+/// #[derive(Clone, Model)] struct Post { id: i64, #[rok(belongs_to = User)] user_id: i64 }
 ///
 /// let _ = Post::query().join(Post::USER).with_sql::<(User, Option<User>), _>();
 /// ```

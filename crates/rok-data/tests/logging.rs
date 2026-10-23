@@ -8,7 +8,7 @@ use std::time::Duration;
 use rok_data::prelude::*;
 use rok_data::{Error, raw};
 
-#[derive(Debug, Model)]
+#[derive(Debug, Clone, Model)]
 struct User {
     id: i64,
     name: String,
