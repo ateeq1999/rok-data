@@ -38,6 +38,8 @@ mod tracked;
 pub mod validate;
 mod value;
 pub mod web;
+#[cfg(feature = "serde")]
+pub mod wire;
 
 pub use cache::{CacheStats, QueryCache};
 pub use collection::ModelCollection;

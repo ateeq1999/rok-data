@@ -13,10 +13,10 @@
 
 **Blocked by:** 05, 10, 11
 
-**Status:** ready-for-agent
+**Status:** done — the runtime half; split, by decision, into 15 (generated shape key + OpenAPI) and 16 (generated cursor lists): each touches handler generation for both frameworks and deserves its own change
 
-- [ ] Three shapes, selected by one `rok.toml` key; default unchanged on the wire (snapshot)
-- [ ] Link building keeps other query parameters; page parameter name configurable
-- [ ] Cursor listing option for generated list endpoints
-- [ ] OpenAPI schemas per shape; `docs/cli-reference.md` documents the new keys
-- [ ] CLI suites + fixture compile gates; contract tests for each shape's JSON
+- [x] Three shapes for hand-written handlers: `page.laravel(links)` and `page.resource(links)` on `Page`, `SimplePage` and `CursorPage` (`rok_data::wire`); each type's own `Serialize` stays the compact shape. The `rok.toml` key for generated endpoints → ticket 15
+- [x] Link building keeps other query parameters; page parameter name (`page_param`) and `fragment` configurable (`Links::from_request`)
+- [ ] Cursor listing option for generated list endpoints → ticket 16
+- [ ] OpenAPI schemas per shape → ticket 15
+- [x] Tests pin each shape's JSON (facade `web` tests) and the link building

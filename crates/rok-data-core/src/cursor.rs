@@ -59,6 +59,8 @@ pub struct CursorPage<T> {
     pub next: Option<Cursor>,
     /// Cursor for the preceding page, or `None` on the first page.
     pub prev: Option<Cursor>,
+    /// Maximum number of records per page.
+    pub per_page: u64,
 }
 
 impl<T> CursorPage<T> {
@@ -93,6 +95,7 @@ impl<T> CursorPage<T> {
             items: self.items.into_iter().map(f).collect(),
             next: self.next,
             prev: self.prev,
+            per_page: self.per_page,
         }
     }
 }

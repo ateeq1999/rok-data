@@ -98,7 +98,12 @@ impl<M: Model> Select<M> {
             Some(first) if edges.prev => Some(Cursor::before(values(first)?)),
             _ => None,
         };
-        Ok(CursorPage { items, next, prev })
+        Ok(CursorPage {
+            items,
+            next,
+            prev,
+            per_page,
+        })
     }
 
     /// Joined queries and expression orders paginate over aliased sort keys.
@@ -262,7 +267,12 @@ impl<M: Model> Select<M> {
             Some(first) if edges.prev => Some(Cursor::before(values(first)?)),
             _ => None,
         };
-        Ok(CursorPage { items, next, prev })
+        Ok(CursorPage {
+            items,
+            next,
+            prev,
+            per_page: limit,
+        })
     }
 
     pub(crate) fn cursor_select(self, after: Option<&Cursor>, limit: u64) -> Result<Self> {

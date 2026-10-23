@@ -20,6 +20,7 @@ fn pages_and_cursors_serialize() {
         items: vec![1, 2],
         next: Some(cursor.clone()),
         prev: Some(back.clone()),
+        per_page: 2,
     };
     let value = serde_json::to_value(&page).unwrap();
     assert_eq!(value["next"], json!(cursor.to_string()));
@@ -33,6 +34,7 @@ fn pages_and_cursors_serialize() {
         items: vec![],
         next: None,
         prev: None,
+        per_page: 10,
     };
     assert_eq!(
         serde_json::to_value(&last).unwrap(),
@@ -121,4 +123,107 @@ async fn database_errors_map_to_statuses() {
         .await
         .unwrap_err();
     assert_eq!(respond(orphan).await.0, 422);
+}
+
+#[test]
+fn links_keep_the_other_query_parameters() {
+    use rok_data::wire::Links;
+    let links = Links::from_request("/api/v1/books?sort=title&page=2&order=asc");
+    assert_eq!(links.path(), "/api/v1/books");
+    assert_eq!(links.page(3), "/api/v1/books?sort=title&order=asc&page=3");
+    assert_eq!(
+        links.cursor("l3432"),
+        "/api/v1/books?sort=title&order=asc&cursor=l3432"
+    );
+    let named = Links::from_request("/books?p=2&q=rust")
+        .page_param("p")
+        .fragment("results");
+    assert_eq!(named.page(1), "/books?q=rust&p=1#results");
+    assert_eq!(Links::from_request("/books").page(2), "/books?page=2");
+}
+
+#[test]
+fn a_page_answers_in_laravels_shapes() {
+    use rok_data::wire::Links;
+    // Page 2 of 5 rows at 2 a page.
+    let page = Page::new(vec!["c", "d"], 5, 2, 2);
+    let links = || Links::from_request("/books?sort=title&page=2");
+    assert_eq!(
+        serde_json::to_value(page.laravel(links())).unwrap(),
+        json!({
+            "current_page": 2,
+            "data": ["c", "d"],
+            "first_page_url": "/books?sort=title&page=1",
+            "from": 3,
+            "last_page": 3,
+            "last_page_url": "/books?sort=title&page=3",
+            "next_page_url": "/books?sort=title&page=3",
+            "path": "/books",
+            "per_page": 2,
+            "prev_page_url": "/books?sort=title&page=1",
+            "to": 4,
+            "total": 5
+        })
+    );
+    assert_eq!(
+        serde_json::to_value(page.resource(links())).unwrap(),
+        json!({
+            "data": ["c", "d"],
+            "links": {
+                "first": "/books?sort=title&page=1",
+                "last": "/books?sort=title&page=3",
+                "prev": "/books?sort=title&page=1",
+                "next": "/books?sort=title&page=3"
+            },
+            "meta": {
+                "current_page": 2, "from": 3, "last_page": 3, "path": "/books",
+                "per_page": 2, "to": 4, "total": 5
+            }
+        })
+    );
+    // An empty page past the end: no positions, no next.
+    let past = Page::new(Vec::<&str>::new(), 5, 9, 2);
+    let value = serde_json::to_value(past.laravel(links())).unwrap();
+    assert_eq!(
+        (value["from"].clone(), value["to"].clone()),
+        (json!(null), json!(null))
+    );
+    assert_eq!(value["next_page_url"], json!(null));
+}
+
+#[test]
+fn simple_and_cursor_pages_answer_in_laravels_shapes() {
+    use rok_data::SimplePage;
+    use rok_data::wire::Links;
+    let simple = SimplePage::new(vec![1, 2], 1, 2, true);
+    assert_eq!(
+        serde_json::to_value(simple.laravel(Links::from_request("/n"))).unwrap(),
+        json!({
+            "current_page": 1, "data": [1, 2], "first_page_url": "/n?page=1",
+            "from": 1, "next_page_url": "/n?page=2", "path": "/n", "per_page": 2,
+            "prev_page_url": null, "to": 2
+        })
+    );
+    let next = Cursor::new([rok_data::Value::from(9_i64)]);
+    let prev = Cursor::before([rok_data::Value::from(3_i64)]);
+    let cursor = CursorPage {
+        items: vec![4, 5],
+        next: Some(next.clone()),
+        prev: Some(prev.clone()),
+        per_page: 2,
+    };
+    let links = || Links::from_request("/n?cursor=old&q=x");
+    assert_eq!(
+        serde_json::to_value(cursor.laravel(links())).unwrap(),
+        json!({
+            "data": [4, 5], "path": "/n", "per_page": 2,
+            "next_cursor": next.to_string(),
+            "next_page_url": format!("/n?q=x&cursor={next}"),
+            "prev_cursor": prev.to_string(),
+            "prev_page_url": format!("/n?q=x&cursor={prev}")
+        })
+    );
+    let resource = serde_json::to_value(cursor.resource(links())).unwrap();
+    assert_eq!(resource["links"]["first"], json!(null));
+    assert_eq!(resource["meta"]["next_cursor"], json!(next.to_string()));
 }

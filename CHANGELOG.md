@@ -33,6 +33,17 @@ compiler finds the call sites.
   table is the struct's pluralized snake_case name, no
   `#[rok(primary_key)]` on a lone `id` key. Schema-qualified tables and
   other keys keep theirs.
+- **Pages on the wire** (dx-first ticket 13, the runtime half): with the
+  `serde` feature, `Page`, `SimplePage` and `CursorPage` answer in
+  Laravel's paginator JSON (`page.laravel(links)`: `data`,
+  `current_page`, `last_page`, `from`, `to`, the `*_page_url`s, …) or its
+  API-resource envelope (`page.resource(links)`: `{data, links, meta}`),
+  with `rok_data::wire::Links::from_request(uri)` building every link from
+  the request — the other query parameters kept, the page parameter
+  nameable (`page_param`), an optional `fragment`. Each type's own
+  `Serialize` stays the compact shape. `CursorPage` carries its
+  `per_page`. Generated endpoints choosing a shape and generated cursor
+  lists follow (tickets 15 and 16).
 - **Walking a large table** (dx-first ticket 12): `chunk` reads one
   `LIMIT`/`OFFSET` window per query (ordered by the primary key when the
   query has no order) instead of one streamed query, so no connection is
