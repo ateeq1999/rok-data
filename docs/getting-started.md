@@ -131,6 +131,31 @@ struct Note {
 }
 ```
 
+The verbs hang off the model, not a module namespace. Reads take the
+`Model` chain, writes take `ModelWrite`, a relation accessor starts its
+chain, and a named scope is the entry:
+
+```rust,ignore
+// reads: one row by key, the rest as a chain
+let note = Note::find(&db, note_id).await?;
+let recent = Note::filter(Note::CREATED_AT.gt(a_week_ago))
+    .order_by(Note::CREATED_AT.desc())
+    .all(&db)
+    .await?;
+
+// writes: the row-level verbs of `ModelWrite` (generated models also
+// carry the module verbs: `create`, `patch`, `destroy`)
+let stored = draft.insert(&db).await?;
+stored.delete(&db).await?;
+
+// relations: the generated accessors (one batched query per include)
+let author = Post::find(&db, post_id).await?;
+let by_the_author = author.posts().all(&db).await?;
+
+// named scopes: `#[rok(scopes(popular = path::to::popular))]` on the model
+let popular = Note::popular().all(&db).await?;
+```
+
 Tests that touch the database use `#[rok_data::test]` (attribute; it
 creates a schema-scoped `Db` for the test, like the original
 `#[rok_db::test]`).

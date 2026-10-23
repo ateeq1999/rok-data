@@ -51,12 +51,19 @@ door, and their removal is deferred to 1.0 (engine ADR 0012).
 
 | Crate             | Responsibility                                                               | Depends on                          |
 | ----------------- | ----------------------------------------------------------------------------- | ----------------------------------- |
-| `rok-data-core`   | sqlx runtime: `Db`, builders, error, metrics, migrations, introspection        | sqlx 0.9 (postgres), tokio          |
-| `rok-data-macros` | proc macros: `Model`/`FromRow`/`DbEnum`/`DbNewtype` derives, `#[rok::test]`    | proc-macro2, quote, syn             |
+| `rok-data-core`   | sqlx runtime: `Db`, builders, the `Model`/`ModelWrite`/`Scope` traits, error, metrics, migrations, introspection        | sqlx 0.9 (postgres), tokio          |
+| `rok-data-macros` | proc macros: the `Model` derive (typed columns, relations, scopes, the trait impls), `FromRow`/`DbEnum`/`DbNewtype` derives, `#[rok::test]`    | proc-macro2, quote, syn             |
 | `rok-data`        | facade: re-exports core + macros; the single dependency of applications        | core, macros                        |
 | `rok-data-codegen`| model-crate generator (legacy `rok generate`): reads `.sql`, emits a cargo crate; stages migration pairs (`rok gen --migration`) | core (types), toml                  |
-| `rok-data-sqlc`   | SQLx resource-module generator (legacy `rok sqlc generate|init|check-arch`); the API features have an actix-web and an axum backend   | own pg parser, clap  |
+| `rok-data-sqlc`   | model generator (legacy `rok sqlc generate|init|check-arch`; the emitted modules are models since 0.3.0, engine ADR 0018); the API features have an actix-web and an axum backend   | own pg parser, clap  |
 | `rok-data-cli`    | the `rok` binary: argument routing, output formats, connection handling        | codegen, core, sqlc, clap, tokio    |
+
+Since 0.3.0 the data layer is model-shaped (workspace ADR 0014): the verbs
+live on the model. The macros expand `#[derive(Model)]` into the typed
+column constants, the relation and scope attributes' expansion (entries,
+chain methods, accessors) and the `Model`/`ModelWrite` implementations; the
+engine emits rows that carry the relation and scope attributes, while the
+generated modules keep the query helpers and the API features.
 
 ## Dependency rules (enforced by review, and the reason the shape holds)
 

@@ -55,6 +55,16 @@ _Avoid_: result map, joined rows
 
 ### Data layer
 
+**Model**:
+The row type and its verbs: one struct per table, a `#[derive(Model)]` that
+gives typed column constants, relation constants and the entry points, a
+`Model` trait for the read chain (`find`, `query`, `filter`, `exists`,
+`chunk`…) and `ModelWrite` for the write verbs (`insert`, `update`,
+`upsert`…). Calling the data layer is calling the model
+(`User::find(&db, id)`, `user.posts()`, `User::popular()`); the generated
+modules' plain functions remain the low-level helpers.
+_Avoid_: entity, resource (for the row type), repository
+
 **Scope**:
 A named, reusable constraint on a query chain. The model declares its
 scopes by path (`#[rok(scopes(popular = path::to::popular))]`), and the

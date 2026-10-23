@@ -7,6 +7,56 @@ Versioning](https://semver.org/spec/v2.0.0.html). Release notes for a
 tag are this file's `## [X.Y.Z]` section (the release workflow checks
 that it exists and won't ship a tag without it).
 
+## [0.3.0] — the model-shaped data layer
+
+Breaking. The data layer's surface becomes the model's: the typed verbs
+live on the model, not in generated module namespaces, and hand-written
+models speak the same dialect the generated ones do
+(`docs/specs/0.3.0-model-shaped-data-layer.md`, workspace ADR 0014 /
+engine ADR 0018). Follow `docs/migration-guide.md` §To 0.3.0; the
+compiler finds the call sites.
+
+**What changed**
+
+- **The write spine renaming**: the generated write
+  verbs are `create` / `patch` / `destroy`; `destroy` returns the deleted
+  count (`u64`), `patch` returns the patched row (`Result<Option<User>>`),
+  and the soft-delete pair keeps `restore` / `delete_permanently`
+  (ticket 01). `save` is removed, not aliased (its meaning is ambiguous);
+  the row-level verbs are `insert`, `update`, `update_only`, `upsert`,
+  `upsert_on`, and these move to a separate `ModelWrite` trait — `Model`
+  is the read surface, `ModelWrite` the write surface, both in the
+  prelude so `use rok_data::prelude::*;` keeps working (ticket 04).
+- **Conventions are inferred, not declared**: a `created_at`
+  /`updated_at` pair manages its timestamps without
+  `#[rok(timestamps)]`, a `deleted_at` field soft-deletes by default, a
+  single-column primary key is inferred from the id field and generated
+  `id`s skip the create body — each with an explicit `no_*` opt-out when
+  a model genuinely does not want the inference.
+- **Relations on the model** (ticket 02): the schema's foreign keys
+  become `#[rok(belongs_to = …)]` / `#[rok(has_many(posts = Post::AUTHOR_ID))]`
+  on the generated rows, expanded by the derive into typed relation
+  constants and accessors — `user.posts()` is a lazy chain, and
+  `db::relationships::load_posts` stays the batched loader.
+- **Named scopes** (ticket 03): `#[rok(scopes(popular = path::to::popular))]`
+  gives the model a chainable entry (`User::popular()`) and the chain a
+  same-named method (`User::popular().active()`), through the runtime's
+  `Scope` trait; a scope may take parameters declared in the attribute
+  (`#[rok(scopes(older_than(n: i32) = …))]`), and generated models get
+  their scopes wired from the engine's new `[scopes]` configuration
+  (one `#[rok(scopes(name = path))]` attribute per scope; the app owns
+  the functions). `default_scope` and `.unscoped()` are unchanged.
+- **Chain additions and spellings**: `Model::exists`, `Model::where_` /
+  `Select::where_` (the Eloquent spelling of `filter`; the raw
+  identifier is the only form that compiles since `where` is a keyword),
+  `Select::get` (the Eloquent spelling of `all`), and `Select::chunk`
+  for walking big tables in windows.
+
+**What does not change**: PostgreSQL 12+ (DATABASE_URL), the migration
+system, `#[rok::test]`, the connection policy, `filter` staying the
+canonical verb, and the two-lane principle (schema generates baseline
+CRUD; query files carry application SQL).
+
 ## [0.2.0] — the unified ORM chains through the generated data layer
 
 The front door grows two root commands: `rok init [NAME] [--template

@@ -9,12 +9,17 @@ A table declared by `CREATE TABLE` in the input schema; the input side of genera
 _Avoid_: entity, resource (when referring to the SQL side)
 
 **Resource**:
-The Rust module rok sqlc generates for one table; the output side of generation.
-_Avoid_: table (when referring to generated output)
+Since 0.3.0 (engine ADR 0018, spec D6): the API feature of one table. The
+word is redefined — from the module the generator writes for one table to
+the table's API feature — so that "model" and "resource" stop overlapping:
+the generated `db/<table>/` directory is the table's model.
+_Avoid_: table (when referring to generated output), the generated module (that is the model)
 
 **API feature**:
-The HTTP slice for one table: its routes, handlers, and service. Sits on top of the table's resource and is the only part of an API a caller sees.
-_Avoid_: resource (that is the generated database module), controller, endpoint group
+The HTTP slice for one table: its routes, handlers, and service. This is
+what "resource" names since 0.3.0, and it sits on the table's model — the
+generated data layer — which only the service sees.
+_Avoid_: resource (before 0.3.0, the generated module), controller, endpoint group
 
 **API backend**:
 The web framework the API features are generated for — actix-web (the default) or axum — chosen by the `[api] framework` key. It decides the routes, the handlers and the shared tools; the bodies, the service and the API document are the same either way.
@@ -193,7 +198,15 @@ The generic `rok_data::Executor<'e>` (implements `sqlx::PgExecutor`) a generated
 _Avoid_: pool (when it may be a transaction), connection
 
 **Query chain**:
-The fluent data-layer chain a generated function runs on: entry points on the row type (`Xxx::query()` for reads and deletes, `Xxx::insert_builder()` for inserts, `Xxx::update_all()` for partial updates) with `.filter()`, `.set()`, `.order_by()`, and terminal calls — `first`, `all`, `count`, `returning_one`, `exec`, `delete` — each executed against an executor. The chains mirror the runtime facade's builders (`Select`, `Insert`, `Patch`); the engine only assembles them.
+The fluent data-layer chain a model call runs on: entry points on the
+model (`User::query()` for reads and deletes, `User::insert_builder()`
+for inserts, `User::update_all()` for partial updates, a named scope's
+entry (`User::popular()`), a relation's accessor (`user.posts()`)) with
+`.filter()`, `.set()`, `.order_by()`, and terminal calls — `first`, `all`,
+`get`, `count`, `returning_one`, `exec`, `delete` — each executed against an
+executor. The
+chains are the runtime facade's builders (`Select`, `Insert`, `Patch`);
+the engine only assembles them.
 _Avoid_: raw SQL (for the chains), query builder (that is the filter surface)
 
 ## Relationships

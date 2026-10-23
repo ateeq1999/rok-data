@@ -10,6 +10,9 @@ equivalent without a ported implementation.
 | --------------------------------- | --------------- | ------------------- | ---------------- | ----------------- | ----------------------------------- |
 | Typed models (derive)             | ✔               | ✔ (own design)      | ✔ (own design)   | —                 | ✔ `rok-data-macros`                 |
 | `Expr`/`Select` builder           | ✔               | ✔ (fluent)          | ✔ (fluent)       | —                 | ✔ `rok-data-core`                   |
+| Model-shaped surface (0.3.0)      | —               | —                   | ✔ (the verbs)    | —                 | ✔ `Model` reads + `ModelWrite` writes |
+| Named scopes (`#[rok(scopes(...))]`) | ✔ (named scopes) | —              | —                | —                 | ✔ derive + engine `[scopes]`        |
+| Relations on the model (0.3.0)    | ✔ (belongs_to)  | ✔ (has_many)        | ✔                | —                 | ✔ generated + hand-written rows     |
 | Joins/relationships (runtime)     | ✔               | ✔ (fluent)          | ✔ (fluent)       | —                 | ✔ `rok-data-core`                   |
 | Migrations: file pairs + journal  | ✔               | —                   | —                | —                 | ✔ core `migration` + `migration_file` |
 | Migrations: single-file sections  | —               | ✔                   | —                | —                 | ✔ same loader accepts both          |
