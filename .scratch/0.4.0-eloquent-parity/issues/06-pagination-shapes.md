@@ -9,7 +9,7 @@
 
 **Blocked by:** 01 (ModelCollection for fresh), 02 (simple_paginate uses same query logic).
 
-**Status:** ready-for-agent
+**Status:** superseded — by `.scratch/dx-first/issues/09`–`13` (pagination vocabulary, offset, cursor both ways, batch iteration, wire shapes)
 
 - [ ] `SimplePage<T>` in `page.rs` with `has_more()` and `map`
 - [ ] `Page::build_urls` and `Serialize` (Laravel shape) behind `web` feature
