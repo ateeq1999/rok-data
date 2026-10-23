@@ -4,9 +4,9 @@
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Generated `patch` → `Result<Book>`, `destroy` → `Result<()>`, both `NotFound` on a missing key
-- [ ] Generated handlers map `NotFound` to the wire standard's 404 without per-verb `Option` handling
-- [ ] CHANGELOG breaking-changes entry with before/after call sites
-- [ ] Facade + CLI-suite tests cover the missing-row path for each verb
+- [x] Generated `patch` → `Result<Book>`, `destroy` → `Result<()>`, both `NotFound` on a missing key
+- [x] Generated handlers map `NotFound` to the wire standard's 404 without per-verb `Option` handling
+- [x] CHANGELOG breaking-changes entry with before/after call sites
+- [x] Facade + fixture tests cover the missing-row path for each verb (DB-backed: they skip with a printed note when `DATABASE_URL` is unset)

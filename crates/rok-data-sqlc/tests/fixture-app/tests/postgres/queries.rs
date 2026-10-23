@@ -168,24 +168,18 @@ pub(super) async fn partial_index_upserts_and_recursive_ctes(pool: &PgPool) {
     assert_eq!(second.id, first.id, "the live row is updated in place");
     assert_eq!(second.body, "second");
     // A soft-deleted row is outside the index, so the code is free again.
-    assert!(
-        db::soft_notes::models::SoftNote::destroy(pool, first.id)
-            .await
-            .unwrap()
-            > 0
-    );
+    db::soft_notes::models::SoftNote::destroy(pool, first.id)
+        .await
+        .unwrap();
     let third = upsert_live_soft_note(pool, "UPSERT", "third")
         .await
         .unwrap();
     assert_ne!(third.id, first.id);
     // Later scenarios count every `soft_notes` row.
     for id in [first.id, third.id] {
-        assert!(
-            db::soft_notes::models::SoftNote::delete_permanently(pool, id)
-                .await
-                .unwrap()
-                > 0
-        );
+        db::soft_notes::models::SoftNote::delete_permanently(pool, id)
+            .await
+            .unwrap();
     }
 
     let unit = async |parent_id, name: &str| {

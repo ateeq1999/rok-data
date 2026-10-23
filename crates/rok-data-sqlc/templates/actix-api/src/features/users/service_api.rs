@@ -56,11 +56,8 @@ pub trait UsersServiceApi {
         id: UserId,
         input: UpdateUserDto,
     ) -> Result<User, AppError> {
-        let row = User::patch(&mut *conn, id, input.into()).await?;
-        match row {
-            Some(row) => Ok(row),
-            None => Err(not_found()),
-        }
+        let row = User::patch(&mut *conn, id, input.into()).await;
+        row.map_err(or_not_found)
     }
 
     /// `PATCH /api/v1/users/{id}`: changes the row with this key and returns it, or `404`.
@@ -75,12 +72,8 @@ pub trait UsersServiceApi {
     /// What [`destroy`](Self::destroy) does, on `conn`: the caller's connection or
     /// transaction. Override this one to change it.
     async fn destroy_in(&self, conn: &mut PgConnection, id: UserId) -> Result<(), AppError> {
-        let deleted = User::destroy(&mut *conn, id).await?;
-        if deleted > 0 {
-            Ok(())
-        } else {
-            Err(not_found())
-        }
+        let deleted = User::destroy(&mut *conn, id).await;
+        deleted.map_err(or_not_found)
     }
 
     /// `DELETE /api/v1/users/{id}`: soft-deletes the row with this key, or `404`.
@@ -99,12 +92,8 @@ pub trait UsersServiceApi {
         conn: &mut PgConnection,
         id: UserId,
     ) -> Result<(), AppError> {
-        let deleted = User::delete_permanently(&mut *conn, id).await?;
-        if deleted > 0 {
-            Ok(())
-        } else {
-            Err(not_found())
-        }
+        let deleted = User::delete_permanently(&mut *conn, id).await;
+        deleted.map_err(or_not_found)
     }
 
     /// `DELETE /api/v1/users/{id}?permanent=true`: deletes the row with this key for good,
@@ -121,4 +110,13 @@ pub trait UsersServiceApi {
 /// The `404` of a key no `users` row has.
 fn not_found() -> AppError {
     AppError::NotFound("no `users` row has this key".to_owned())
+}
+
+/// The data layer's error, with a missing row answered as [`not_found`].
+fn or_not_found(error: rok_data::Error) -> AppError {
+    if error.is_not_found() {
+        not_found()
+    } else {
+        error.into()
+    }
 }

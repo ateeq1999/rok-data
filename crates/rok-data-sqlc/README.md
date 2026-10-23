@@ -360,7 +360,9 @@ row, on or off the primary key. A column with a default becomes an
 `Option`, and `None` lets the database default apply. `UpdateProduct` makes
 every column optional: `None` leaves the column unchanged, and for a
 nullable column `Some(None)` sets it to `NULL`. An empty patch issues no
-`UPDATE` and returns the current row.
+`UPDATE` and returns the current row. A key no row has is
+`rok_data::Error::NotFound`, the same for `patch`, `destroy`, `restore` and
+`delete_permanently` (test it with `error.is_not_found()`).
 
 <!-- source: docs/examples/quickstart/src/db/products/write.rs -->
 ```rust
@@ -368,7 +370,7 @@ pub async fn patch<'e, E>(
     executor: E,
     id: ProductId,
     input: UpdateProduct,
-) -> Result<Option<Product>, rok_data::Error>
+) -> Result<Product, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 ```

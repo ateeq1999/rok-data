@@ -10,8 +10,8 @@ pub(super) async fn interval_bytea_and_timetz_round_trip(pool: &PgPool) {
     use chrono::{FixedOffset, NaiveTime};
     use plain_db::search::{Equality, Page, Sort};
     use plain_db::timed_badges::filter::{TimedBadgeFilter, TimedBadgeSortKey};
-    use plain_db::timed_badges::models::{NewTimedBadge, UpdateTimedBadge};
     use plain_db::timed_badges::models::TimedBadge;
+    use plain_db::timed_badges::models::{NewTimedBadge, UpdateTimedBadge};
     use plain_db::timed_badges::read;
     use rok_data_sqlc_fixture_app::plain_db;
     use sqlx::postgres::types::{PgInterval, PgTimeTz};
@@ -80,8 +80,7 @@ pub(super) async fn interval_bytea_and_timetz_round_trip(pool: &PgPool) {
         },
     )
     .await
-    .unwrap()
-    .expect("the row exists");
+    .unwrap();
     assert_eq!(updated.span, interval(3, 0));
     assert_eq!(updated.badge, [42, 42, 42]);
     assert_eq!(updated.closes, Some(time_tz(18, 2)));
@@ -224,7 +223,6 @@ pub(super) async fn enums_keep_their_exact_labels(pool: &PgPool) {
         },
     )
     .await
-    .unwrap()
     .unwrap();
     assert_eq!(archived.state, Some(TicketState::Archived));
     assert_eq!(archived.watch_levels, [TicketPriority::High]);
@@ -411,7 +409,6 @@ pub(super) async fn value_list_columns_round_trip(pool: &PgPool) {
         },
     )
     .await
-    .unwrap()
     .unwrap();
     assert_eq!(delivered.status, ShipmentStatus::Delivered);
     assert_eq!(ShipmentStatus::Delivered.as_str(), "DELIVERED");
@@ -474,8 +471,8 @@ pub(super) async fn money_range_and_network_types_round_trip(pool: &PgPool) {
     use ipnetwork::IpNetwork;
     use mac_address::MacAddress;
     use plain_db::ledger_entries::filter::{LedgerEntryFilter, LedgerEntrySortKey};
-    use plain_db::ledger_entries::models::{NewLedgerEntry, UpdateLedgerEntry};
     use plain_db::ledger_entries::models::LedgerEntry;
+    use plain_db::ledger_entries::models::{NewLedgerEntry, UpdateLedgerEntry};
     use plain_db::ledger_entries::read;
     use plain_db::queries::{EntriesInSubnetParams, entries_in_subnet};
     use plain_db::search::{Equality, Page, Sort};
@@ -544,8 +541,7 @@ pub(super) async fn money_range_and_network_types_round_trip(pool: &PgPool) {
         },
     )
     .await
-    .unwrap()
-    .expect("the row exists");
+    .unwrap();
     assert_eq!(updated.amount, PgMoney(20_000));
     assert_eq!(updated.seats, Some(PgRange::from(2..5)));
     assert_eq!(updated.client, created.client);

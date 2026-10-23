@@ -175,12 +175,8 @@ pub trait NotesServiceApi {
         if !owned {
             return Err(not_found());
         }
-        let deleted = Note::destroy(&mut *conn, tenant, id).await?;
-        if deleted > 0 {
-            Ok(())
-        } else {
-            Err(not_found())
-        }
+        let deleted = Note::destroy(&mut *conn, tenant, id).await;
+        deleted.map_err(or_not_found)
     }
 
     /// `DELETE /api/v1/notes/{id}`: soft-deletes the row with this key, or `404`.
@@ -210,12 +206,8 @@ pub trait NotesServiceApi {
         if !owned {
             return Err(not_found());
         }
-        let deleted = Note::delete_permanently(&mut *conn, tenant, id).await?;
-        if deleted > 0 {
-            Ok(())
-        } else {
-            Err(not_found())
-        }
+        let deleted = Note::delete_permanently(&mut *conn, tenant, id).await;
+        deleted.map_err(or_not_found)
     }
 
     /// `DELETE /api/v1/notes/{id}?permanent=true`: deletes the row with this key for good,
@@ -247,16 +239,10 @@ pub trait NotesServiceApi {
         if !owned {
             return Err(not_found());
         }
-        let restored = Note::restore(&mut *conn, tenant, id).await?;
-        if restored > 0 {
-            let row = repo::get_by_id(&mut *conn, tenant, id).await?;
-            match row {
-                Some(row) => Ok(row),
-                None => Err(not_found()),
-            }
-        } else {
-            Err(not_found())
-        }
+        let restored = Note::restore(&mut *conn, tenant, id).await;
+        restored.map_err(or_not_found)?;
+        let row = repo::get_by_id(&mut *conn, tenant, id).await?;
+        row.ok_or_else(not_found)
     }
 
     /// `POST /api/v1/notes/{id}/restore`: restores the soft-deleted row with this key and
@@ -416,6 +402,15 @@ pub trait NotesServiceApi {
 /// The `404` of a key no `notes` row has.
 fn not_found() -> AppError {
     AppError::NotFound("no `notes` row has this key".to_owned())
+}
+
+/// The data layer's error, with a missing row answered as [`not_found`].
+fn or_not_found(error: rok_data::Error) -> AppError {
+    if error.is_not_found() {
+        not_found()
+    } else {
+        error.into()
+    }
 }
 
 /// The `404` naming a related `table`: no row of it the caller may see has

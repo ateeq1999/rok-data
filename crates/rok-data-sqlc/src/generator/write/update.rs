@@ -14,9 +14,9 @@ pub(super) fn render_patch(output: &mut String, table: &Table, columns: &[&Colum
 
     output.push('\n');
     let mut doc = vec![
-        "Applies a partial patch and returns the patched row, or `None` if no row has",
-        "the given primary key. An empty patch issues no `UPDATE` and returns the",
-        "current row.",
+        "Applies a partial patch and returns the patched row; [`rok_data::Error::NotFound`]",
+        "when no row has the given primary key. An empty patch issues no `UPDATE` and",
+        "returns the current row.",
     ];
     if table.soft_delete_column.is_some() {
         doc.push("A soft-deleted row is left unchanged and counts as missing.");
@@ -26,16 +26,19 @@ pub(super) fn render_patch(output: &mut String, table: &Table, columns: &[&Colum
         output,
         "patch",
         &params,
-        &format!("Result<Option<{}>, rok_data::Error>", table.struct_name),
+        &format!("Result<{}, rok_data::Error>", table.struct_name),
     );
 
     output.push_str("    if input.is_empty() {\n");
-    push_get_by_id(output, table, "return ", ";", None);
+    push_get_by_id(output, table, "let current = ", "?;", None);
+    output.push_str(
+        "        return current.ok_or_else(|| rok_data::Error::not_found::<Self>(None));\n",
+    );
     output.push_str("    }\n\n");
 
     push_update_builder(output, table);
     push_patch_sets(output, table, columns);
-    output.push_str("    update.returning_one(executor).await\n");
+    output.push_str("    update.returning_one_or_fail(executor).await\n");
     output.push_str("}\n")
 }
 

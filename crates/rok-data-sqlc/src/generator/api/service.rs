@@ -68,12 +68,18 @@ pub fn render_api(feature: &Feature<'_>) -> String {
     output.push_str("}\n");
     // Each error helper only when a method calls it: `-D warnings` rejects
     // dead code, and a list-only feature reads no row by key.
-    if calls(&body, "not_found") {
+    let or_not_found = calls(&body, "or_not_found");
+    if calls(&body, "not_found") || or_not_found {
         output.push_str(&format!(
             "\n/// The `404` of a key no `{}` row has.\nfn not_found() -> AppError {{\n    AppError::NotFound(\"no `{}` row has this key\".to_owned())\n}}\n",
             feature.table.display_name(),
             feature.table.display_name(),
         ));
+    }
+    if or_not_found {
+        output.push_str(
+            "\n/// The data layer's error, with a missing row answered as [`not_found`].\nfn or_not_found(error: rok_data::Error) -> AppError {\n    if error.is_not_found() {\n        not_found()\n    } else {\n        error.into()\n    }\n}\n",
+        );
     }
     if calls(&body, "not_found_in") {
         output.push_str(
@@ -441,41 +447,25 @@ fn render_write_pair(
                 );
             } else {
                 args.push("input.into()".to_owned());
-                push_call(output, 8, "let row = ", &patch, &args, ".await?;");
-                output.push_str("        match row {\n");
-                output.push_str("            Some(row) => Ok(row),\n");
-                output.push_str("            None => Err(not_found()),\n");
-                output.push_str("        }\n");
+                push_call(output, 8, "let row = ", &patch, &args, ".await;");
+                output.push_str("        row.map_err(or_not_found)\n");
             }
         }
         Endpoint::Restore => {
             let mut key_args = args.clone();
             key_args.push(key_arg(feature));
             let restore = format!("{}::restore", feature.row());
+            push_call(output, 8, "let restored = ", &restore, &key_args, ".await;");
+            output.push_str("        restored.map_err(or_not_found)?;\n");
             push_call(
                 output,
                 8,
-                "let restored = ",
-                &restore,
-                &key_args,
-                ".await?;",
-            );
-            output.push_str("        if restored > 0 {\n");
-            push_call(
-                output,
-                12,
                 "let row = ",
                 "repo::get_by_id",
                 &key_args,
                 ".await?;",
             );
-            output.push_str("            match row {\n");
-            output.push_str("                Some(row) => Ok(row),\n");
-            output.push_str("                None => Err(not_found()),\n");
-            output.push_str("            }\n");
-            output.push_str("        } else {\n");
-            output.push_str("            Err(not_found())\n");
-            output.push_str("        }\n");
+            output.push_str("        row.ok_or_else(not_found)\n");
         }
         _ => {
             args.push(key_arg(feature));
@@ -485,12 +475,8 @@ fn render_write_pair(
                 "destroy"
             };
             let callee = format!("{}::{verb}", feature.row());
-            push_call(output, 8, "let deleted = ", &callee, &args, ".await?;");
-            output.push_str("        if deleted > 0 {\n");
-            output.push_str("            Ok(())\n");
-            output.push_str("        } else {\n");
-            output.push_str("            Err(not_found())\n");
-            output.push_str("        }\n");
+            push_call(output, 8, "let deleted = ", &callee, &args, ".await;");
+            output.push_str("        deleted.map_err(or_not_found)\n");
         }
     }
     output.push_str("    }\n\n");

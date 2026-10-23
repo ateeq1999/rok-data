@@ -89,11 +89,8 @@ pub trait TasksServiceApi {
         if !owned {
             return Err(not_found());
         }
-        let row = Task::patch(&mut *conn, id, input.into()).await?;
-        match row {
-            Some(row) => Ok(row),
-            None => Err(not_found()),
-        }
+        let row = Task::patch(&mut *conn, id, input.into()).await;
+        row.map_err(or_not_found)
     }
 
     /// `PATCH /api/v1/tasks/{id}`: changes the row with this key and returns it, or `404`.
@@ -122,12 +119,8 @@ pub trait TasksServiceApi {
         if !owned {
             return Err(not_found());
         }
-        let deleted = Task::destroy(&mut *conn, id).await?;
-        if deleted > 0 {
-            Ok(())
-        } else {
-            Err(not_found())
-        }
+        let deleted = Task::destroy(&mut *conn, id).await;
+        deleted.map_err(or_not_found)
     }
 
     /// `DELETE /api/v1/tasks/{id}`: deletes the row with this key, or `404`.
@@ -159,4 +152,13 @@ pub trait TasksServiceApi {
 /// The `404` of a key no `tasks` row has.
 fn not_found() -> AppError {
     AppError::NotFound("no `tasks` row has this key".to_owned())
+}
+
+/// The data layer's error, with a missing row answered as [`not_found`].
+fn or_not_found(error: rok_data::Error) -> AppError {
+    if error.is_not_found() {
+        not_found()
+    } else {
+        error.into()
+    }
 }

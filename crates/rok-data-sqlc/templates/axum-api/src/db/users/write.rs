@@ -24,20 +24,21 @@ impl User {
         insert.exec(executor).await
     }
 
-    /// Applies a partial patch and returns the patched row, or `None` if no row has
-    /// the given primary key. An empty patch issues no `UPDATE` and returns the
-    /// current row.
+    /// Applies a partial patch and returns the patched row; [`rok_data::Error::NotFound`]
+    /// when no row has the given primary key. An empty patch issues no `UPDATE` and
+    /// returns the current row.
     /// A soft-deleted row is left unchanged and counts as missing.
     pub async fn patch<'e, E>(
         executor: E,
         id: UserId,
         input: UpdateUser,
-    ) -> Result<Option<User>, rok_data::Error>
+    ) -> Result<User, rok_data::Error>
     where
         E: rok_data::Executor<'e>,
     {
         if input.is_empty() {
-            return super::read::get_by_id(executor, id).await;
+            let current = super::read::get_by_id(executor, id).await?;
+            return current.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
         }
 
         let mut update = User::update_all().filter(User::ID.eq(id));
@@ -53,39 +54,50 @@ impl User {
         if let Some(value) = input.is_active {
             update = update.set(User::IS_ACTIVE, value);
         }
-        update.returning_one(executor).await
+        update.returning_one_or_fail(executor).await
     }
 
     /// Soft-deletes the row with the given primary key by setting `deleted_at` to
-    /// the current time, and returns the number of rows changed: `0` when there is no
-    /// such row or it is already deleted.
-    pub async fn destroy<'e, E>(executor: E, id: UserId) -> Result<u64, rok_data::Error>
+    /// the current time; [`rok_data::Error::NotFound`] when there is no such row or
+    /// it is already deleted.
+    pub async fn destroy<'e, E>(executor: E, id: UserId) -> Result<(), rok_data::Error>
     where
         E: rok_data::Executor<'e>,
     {
-        User::filter(User::ID.eq(id)).delete(executor).await
+        let changed = User::filter(User::ID.eq(id)).delete(executor).await?;
+        if changed == 0 {
+            return Err(rok_data::Error::not_found::<Self>(None));
+        }
+        Ok(())
     }
 
-    /// Restores the soft-deleted row with the given primary key by clearing `deleted_at`,
-    /// and returns the number of rows changed: `0` when there is no such row or it is
-    /// not deleted.
-    pub async fn restore<'e, E>(executor: E, id: UserId) -> Result<u64, rok_data::Error>
+    /// Restores the soft-deleted row with the given primary key by clearing `deleted_at`;
+    /// [`rok_data::Error::NotFound`] when there is no such row or it is not deleted.
+    pub async fn restore<'e, E>(executor: E, id: UserId) -> Result<(), rok_data::Error>
     where
         E: rok_data::Executor<'e>,
     {
-        User::filter(User::ID.eq(id)).restore(executor).await
+        let changed = User::filter(User::ID.eq(id)).restore(executor).await?;
+        if changed == 0 {
+            return Err(rok_data::Error::not_found::<Self>(None));
+        }
+        Ok(())
     }
 
-    /// Removes the row with the given primary key from the table, deleted or not, and
-    /// returns the number of rows that existed.
-    pub async fn delete_permanently<'e, E>(executor: E, id: UserId) -> Result<u64, rok_data::Error>
+    /// Removes the row with the given primary key from the table, deleted or not;
+    /// [`rok_data::Error::NotFound`] when there is no such row.
+    pub async fn delete_permanently<'e, E>(executor: E, id: UserId) -> Result<(), rok_data::Error>
     where
         E: rok_data::Executor<'e>,
     {
-        User::filter(User::ID.eq(id))
+        let changed = User::filter(User::ID.eq(id))
             .with_trashed()
             .force_delete(executor)
-            .await
+            .await?;
+        if changed == 0 {
+            return Err(rok_data::Error::not_found::<Self>(None));
+        }
+        Ok(())
     }
 }
 
@@ -104,7 +116,7 @@ pub async fn patch<'e, E>(
     executor: E,
     id: UserId,
     input: UpdateUser,
-) -> Result<Option<User>, rok_data::Error>
+) -> Result<User, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
@@ -113,7 +125,7 @@ where
 
 /// Calls [`User::destroy`], which this module function forwards to.
 #[deprecated(note = "call `User::destroy` instead")]
-pub async fn destroy<'e, E>(executor: E, id: UserId) -> Result<u64, rok_data::Error>
+pub async fn destroy<'e, E>(executor: E, id: UserId) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
@@ -122,7 +134,7 @@ where
 
 /// Calls [`User::restore`], which this module function forwards to.
 #[deprecated(note = "call `User::restore` instead")]
-pub async fn restore<'e, E>(executor: E, id: UserId) -> Result<u64, rok_data::Error>
+pub async fn restore<'e, E>(executor: E, id: UserId) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
@@ -131,7 +143,7 @@ where
 
 /// Calls [`User::delete_permanently`], which this module function forwards to.
 #[deprecated(note = "call `User::delete_permanently` instead")]
-pub async fn delete_permanently<'e, E>(executor: E, id: UserId) -> Result<u64, rok_data::Error>
+pub async fn delete_permanently<'e, E>(executor: E, id: UserId) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {

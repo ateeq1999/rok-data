@@ -196,6 +196,15 @@ impl<M: Model> Update<M> {
         push_returning::<M>(&mut sql);
         exec::fetch_optional(executor, &sql, &[M::TABLE], false).await
     }
+
+    /// Run the update and return the stored first row, failing with
+    /// [`Error::NotFound`](crate::Error::NotFound) when the `WHERE` matched
+    /// nothing — [`returning_one`](Self::returning_one) without the `Option`.
+    pub async fn returning_one_or_fail<'e, E: Executor<'e>>(self, executor: E) -> Result<M> {
+        self.returning_one(executor)
+            .await?
+            .ok_or_else(|| crate::Error::not_found::<M>(None))
+    }
 }
 
 impl<M> Clone for Update<M> {

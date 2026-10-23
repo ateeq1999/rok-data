@@ -19,8 +19,8 @@ pub(super) fn render_destroy(output: &mut String, table: &Table, _key_columns: &
                     &format!(
                         "Soft-deletes the row with the given primary key by setting `{column}` to"
                     ),
-                    "the current time, and returns the number of rows changed: `0` when there is no",
-                    "such row or it is already deleted.",
+                    "the current time; [`rok_data::Error::NotFound`] when there is no such row or",
+                    "it is already deleted.",
                 ],
                 |calls| push_destroy_terminal(calls, ".delete(executor)"),
             );
@@ -30,10 +30,9 @@ pub(super) fn render_destroy(output: &mut String, table: &Table, _key_columns: &
                 "restore",
                 &[
                     &format!(
-                        "Restores the soft-deleted row with the given primary key by clearing `{column}`,"
+                        "Restores the soft-deleted row with the given primary key by clearing `{column}`;"
                     ),
-                    "and returns the number of rows changed: `0` when there is no such row or it is",
-                    "not deleted.",
+                    "[`rok_data::Error::NotFound`] when there is no such row or it is not deleted.",
                 ],
                 |calls| push_destroy_terminal(calls, ".restore(executor)"),
             );
@@ -42,8 +41,8 @@ pub(super) fn render_destroy(output: &mut String, table: &Table, _key_columns: &
                 table,
                 "delete_permanently",
                 &[
-                    "Removes the row with the given primary key from the table, deleted or not, and",
-                    "returns the number of rows that existed.",
+                    "Removes the row with the given primary key from the table, deleted or not;",
+                    "[`rok_data::Error::NotFound`] when there is no such row.",
                 ],
                 |calls| push_destroy_terminal(calls, ".force_delete(executor)"),
             );
@@ -54,7 +53,8 @@ pub(super) fn render_destroy(output: &mut String, table: &Table, _key_columns: &
                 table,
                 "destroy",
                 &[
-                    "Deletes the row with the given primary key and returns the number of rows that existed.",
+                    "Deletes the row with the given primary key; [`rok_data::Error::NotFound`] when",
+                    "there is no such row.",
                 ],
                 |calls| push_destroy_terminal(calls, ".delete(executor)"),
             );
@@ -88,7 +88,7 @@ fn render_key_statement(
         output,
         name,
         &keys::key_params(table),
-        "Result<u64, rok_data::Error>",
+        "Result<(), rok_data::Error>",
     );
     let mut calls = Vec::new();
     if let Some(call) = tenant_filter_call(table) {
@@ -99,13 +99,11 @@ fn render_key_statement(
         calls.push(filter_call(table, column, bind));
     }
     push_calls(&mut calls);
-    push_wide_chain(
-        output,
-        4,
-        "",
-        &model_chain(&table.struct_name, &mut calls, 4, ""),
-        &calls,
-        "",
+    let lead = "let changed = ";
+    let head = model_chain(&table.struct_name, &mut calls, 4, lead);
+    push_wide_chain(output, 4, lead, &head, &calls, "?;");
+    output.push_str(
+        "    if changed == 0 {\n        return Err(rok_data::Error::not_found::<Self>(None));\n    }\n    Ok(())\n",
     );
     output.push_str("}\n")
 }

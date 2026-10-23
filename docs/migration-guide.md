@@ -27,14 +27,40 @@ flags, outputs and exit codes are the same.
 | `row.save(&db)`       | `row.update(&db)`         | the row-level update by primary key; returns the stored row |
 | `row.save_only(&db, columns)` | `row.update_only(&db, columns)` | the row-level update of the listed columns only |
 | `users::write::create(exec, input)` | `User::create(exec, input)` | the generated insert, now on the model |
-| `users::write::update(exec, id, input)` | `User::patch(exec, id, input)` | the generated update: returns the patched row, `None` when missing |
-| `users::write::delete(exec, id)` | `User::destroy(exec, id)` | the generated delete: returns the deleted count (`u64`), not `bool` |
-| `users::write::restore` / `delete_permanently` | `User::restore` / `User::delete_permanently` | the soft-delete pair, now on the model |
+| `users::write::update(exec, id, input)` | `User::patch(exec, id, input)` | the generated update: returns the patched row (`Result<User>`) |
+| `users::write::delete(exec, id)` | `User::destroy(exec, id)` | the generated delete: `Result<()>` |
+| `users::write::restore` / `delete_permanently` | `User::restore` / `User::delete_permanently` | the soft-delete pair, now on the model: `Result<()>` |
 | `user_roles::write::attach` / `detach` / `sync` | `UserRole::attach` / `detach` / `sync` | a join table's pair writes, on the join model |
 
 The module functions (`users::write::create`, …) still compile for one
 release: each forwards to the model verb and is `#[deprecated]`, so the
 compiler points every call site at its replacement.
+
+**One "not found" convention.** A verb that targets one row by key fails
+with `rok_data::Error::NotFound` when no row has it — the generated
+`patch`, `destroy`, `restore` and `delete_permanently` exactly like the
+model's own `update`, `delete` and `find_or_fail`. Optional lookups stay
+optional (`find` and the generated `get_by_*` return `Option`). A versioned
+`patch` keeps its `UpdateOutcome`, whose `VersionConflict` is not an error.
+
+```rust
+// before (0.2)
+match users::write::update(&db, id, patch).await? {
+    Some(user) => respond(user),
+    None => not_found(),
+}
+if users::write::delete(&db, id).await? == 0 {
+    return not_found();
+}
+
+// after
+match User::patch(&db, id, patch).await {
+    Ok(user) => respond(user),
+    Err(error) if error.is_not_found() => not_found(),
+    Err(error) => return Err(error.into()),
+}
+User::destroy(&db, id).await?; // `?` carries NotFound to your error type
+```
 
 ```rust
 // before

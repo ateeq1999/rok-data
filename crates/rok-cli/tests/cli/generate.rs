@@ -304,7 +304,9 @@ pub struct Product {
         write
             .contains("        let mut update = Product::update_all().filter(Product::ID.eq(id));")
     );
-    assert!(write.contains("        Product::filter(Product::ID.eq(id)).delete(executor).await\n"));
+    assert!(write.contains(
+        "        let changed = Product::filter(Product::ID.eq(id)).delete(executor).await?;\n"
+    ));
     Ok(())
 }
 

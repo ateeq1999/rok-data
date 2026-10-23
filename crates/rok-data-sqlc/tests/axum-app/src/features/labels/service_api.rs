@@ -96,11 +96,8 @@ pub trait LabelsServiceApi {
         id: LabelId,
         input: UpdateLabelDto,
     ) -> Result<Label, AppError> {
-        let row = Label::patch(&mut *conn, id, input.into()).await?;
-        match row {
-            Some(row) => Ok(row),
-            None => Err(not_found()),
-        }
+        let row = Label::patch(&mut *conn, id, input.into()).await;
+        row.map_err(or_not_found)
     }
 
     /// `PATCH /api/v1/labels/{id}`: changes the row with this key and returns it, or `404`.
@@ -115,12 +112,8 @@ pub trait LabelsServiceApi {
     /// What [`destroy`](Self::destroy) does, on `conn`: the caller's connection or
     /// transaction. Override this one to change it.
     async fn destroy_in(&self, conn: &mut PgConnection, id: LabelId) -> Result<(), AppError> {
-        let deleted = Label::destroy(&mut *conn, id).await?;
-        if deleted > 0 {
-            Ok(())
-        } else {
-            Err(not_found())
-        }
+        let deleted = Label::destroy(&mut *conn, id).await;
+        deleted.map_err(or_not_found)
     }
 
     /// `DELETE /api/v1/labels/{id}`: deletes the row with this key, or `404`.
@@ -242,6 +235,15 @@ pub trait LabelsServiceApi {
 /// The `404` of a key no `labels` row has.
 fn not_found() -> AppError {
     AppError::NotFound("no `labels` row has this key".to_owned())
+}
+
+/// The data layer's error, with a missing row answered as [`not_found`].
+fn or_not_found(error: rok_data::Error) -> AppError {
+    if error.is_not_found() {
+        not_found()
+    } else {
+        error.into()
+    }
 }
 
 /// The `404` naming a related `table`: no row of it the caller may see has

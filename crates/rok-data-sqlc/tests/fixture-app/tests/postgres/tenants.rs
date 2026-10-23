@@ -103,12 +103,17 @@ pub(super) async fn tenant_rows_are_invisible_to_other_tenants(pool: &PgPool) {
             .unwrap(),
         UpdateOutcome::NotFound
     );
-    assert_eq!(TenantNote::destroy(pool, tenant_b, note.id).await.unwrap(), 0);
+    assert!(
+        TenantNote::destroy(pool, tenant_b, note.id)
+            .await
+            .unwrap_err()
+            .is_not_found()
+    );
     assert!(
         TenantNote::delete_permanently(pool, tenant_b, note.id)
             .await
-            .unwrap()
-            == 0
+            .unwrap_err()
+            .is_not_found()
     );
     assert_eq!(
         read::get_by_id(pool, tenant_a, note.id).await.unwrap(),
@@ -124,9 +129,14 @@ pub(super) async fn tenant_rows_are_invisible_to_other_tenants(pool: &PgPool) {
         panic!("tenant A updates its own row");
     };
     assert_eq!(updated.body, "hijacked");
-    assert!(TenantNote::destroy(pool, tenant_a, note.id).await.unwrap() > 0);
-    assert!(TenantNote::restore(pool, tenant_b, note.id).await.unwrap() == 0);
-    assert!(TenantNote::restore(pool, tenant_a, note.id).await.unwrap() > 0);
+    TenantNote::destroy(pool, tenant_a, note.id).await.unwrap();
+    assert!(
+        TenantNote::restore(pool, tenant_b, note.id)
+            .await
+            .unwrap_err()
+            .is_not_found()
+    );
+    TenantNote::restore(pool, tenant_a, note.id).await.unwrap();
     sees(tenant_a, vec![note.id]).await;
     sees(tenant_b, vec![other.id]).await;
 }
@@ -136,8 +146,8 @@ pub(super) async fn tenant_rows_are_invisible_to_other_tenants(pool: &PgPool) {
 pub(super) async fn a_tenant_in_the_primary_key_is_passed_once(pool: &PgPool) {
     use db::search::Limit;
     use db::tenant_members::filter::TenantMemberFilter;
-    use db::tenant_members::models::{NewTenantMember, UpdateTenantMember};
     use db::tenant_members::models::TenantMember;
+    use db::tenant_members::models::{NewTenantMember, UpdateTenantMember};
     use db::tenant_members::read;
 
     let tenant_a = uuid::Uuid::from_u128(18_011);
@@ -172,7 +182,6 @@ pub(super) async fn a_tenant_in_the_primary_key_is_passed_once(pool: &PgPool) {
         },
     )
     .await
-    .unwrap()
     .unwrap();
     assert_eq!(
         (renamed.tenant_id, renamed.name.as_str()),
@@ -192,7 +201,7 @@ pub(super) async fn a_tenant_in_the_primary_key_is_passed_once(pool: &PgPool) {
     assert_eq!(page.len(), 1);
     assert_eq!(page[0].tenant_id, tenant_a);
 
-    assert!(TenantMember::destroy(pool, tenant_a, "M1").await.unwrap() > 0);
+    TenantMember::destroy(pool, tenant_a, "M1").await.unwrap();
     assert_eq!(name(tenant_a).await, None);
     assert_eq!(name(tenant_b).await.as_deref(), Some("Bea"));
 }

@@ -125,7 +125,9 @@ impl Error {
         }
     }
 
-    pub(crate) fn not_found<M: crate::Model>(key: Option<String>) -> Self {
+    /// A [`Error::NotFound`] for `M`'s table, with the key when known: what
+    /// a verb that targets one row returns when no row matched.
+    pub fn not_found<M: crate::Model>(key: Option<String>) -> Self {
         Error::NotFound {
             table: M::TABLE,
             key,

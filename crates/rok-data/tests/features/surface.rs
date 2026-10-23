@@ -137,6 +137,30 @@ async fn the_model_exists_agrees_with_the_chain() {
     assert!(Tag::exists(&db).await.unwrap());
 }
 
+/// `returning_one_or_fail` returns the stored row, and a key no row has is
+/// `NotFound` — the one convention for verbs that target a row by key.
+#[tokio::test]
+async fn returning_one_or_fail_is_not_found_for_a_missing_key() {
+    let Some(db) = setup().await else { return };
+    let (users, _) = seed(&db).await;
+
+    let renamed = User::update_all()
+        .set(User::NAME, "ada")
+        .filter(User::ID.eq(users[0].id))
+        .returning_one_or_fail(&db)
+        .await
+        .unwrap();
+    assert_eq!(renamed.name, "ada");
+
+    let missing = User::update_all()
+        .set(User::NAME, "nobody")
+        .filter(User::ID.eq(i64::MAX))
+        .returning_one_or_fail(&db)
+        .await
+        .unwrap_err();
+    assert!(missing.is_not_found(), "{missing}");
+}
+
 /// `get` returns what `all` returns.
 #[tokio::test]
 async fn get_returns_what_all_returns() {

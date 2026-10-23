@@ -33,14 +33,19 @@ compiler finds the call sites.
   table is the struct's pluralized snake_case name, no
   `#[rok(primary_key)]` on a lone `id` key. Schema-qualified tables and
   other keys keep theirs.
+- **One "not found" convention** (dx-first ticket 04): every verb that
+  targets one row by key fails with `Error::NotFound` when no row has it.
+  The runtime adds `Update::returning_one_or_fail` and makes
+  `Error::not_found::<M>(key)` public; generated services answer the
+  same 404 as before through a generated `or_not_found` helper.
 - **One import**: the generated `db/mod.rs` writes a `prelude` module.
   `use crate::db::prelude::*;` brings rok-data's prelude, every model,
   and each model's `{Model}Scopes` trait, so chained scopes no longer
   need a hand-written `use …::models::UserScopes` (dx-first ticket 02).
 - **The write spine renaming**: the generated write
-  verbs are `create` / `patch` / `destroy`; `destroy` returns the deleted
-  count (`u64`), `patch` returns the patched row (`Result<Option<User>>`),
-  and the soft-delete pair keeps `restore` / `delete_permanently`
+  verbs are `create` / `patch` / `destroy`; `patch` returns the patched row
+  (`Result<User>`), `destroy` returns `Result<()>`, a missing key is
+  `Error::NotFound` (dx-first ticket 04), and the soft-delete pair keeps `restore` / `delete_permanently`
   (ticket 01). `save` is removed, not aliased (its meaning is ambiguous);
   the row-level verbs are `insert`, `update`, `update_only`, `upsert`,
   `upsert_on`, and these move to a separate `ModelWrite` trait — `Model`

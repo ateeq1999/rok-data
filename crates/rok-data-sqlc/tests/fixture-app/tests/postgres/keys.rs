@@ -233,10 +233,10 @@ pub(super) async fn uuid_keys_listing_and_pagination(pool: &PgPool) {
 }
 
 pub(super) async fn composite_keys_arrays_and_numeric(pool: &PgPool) {
+    use db::feature_line_items::models::FeatureLineItem;
     use db::feature_line_items::models::{
         FeatureLineItemKey, NewFeatureLineItem, UpdateFeatureLineItem,
     };
-    use db::feature_line_items::models::FeatureLineItem;
     use db::feature_line_items::read;
 
     let order_id = uuid::Uuid::from_u128(10);
@@ -267,7 +267,7 @@ pub(super) async fn composite_keys_arrays_and_numeric(pool: &PgPool) {
         product_id,
     };
     assert_eq!(row.key(), key, "a row hands back its key");
-    let updated = FeatureLineItem::patch(pool, key, patch).await.unwrap().unwrap();
+    let updated = FeatureLineItem::patch(pool, key, patch).await.unwrap();
     assert_eq!(updated.weekdays, None);
     assert_eq!(updated.unit_price, Decimal::new(2500, 2));
     assert_eq!(updated.labels, ["a", "b"]);
@@ -282,7 +282,7 @@ pub(super) async fn composite_keys_arrays_and_numeric(pool: &PgPool) {
         !read::exists_by_id(pool, swapped).await.unwrap(),
         "key parts are not interchangeable"
     );
-    assert!(FeatureLineItem::destroy(pool, key).await.unwrap() > 0);
+    FeatureLineItem::destroy(pool, key).await.unwrap();
     assert!(!read::exists_by_id(pool, key).await.unwrap());
 }
 
@@ -404,7 +404,6 @@ pub(super) async fn text_keys_are_borrowed(pool: &PgPool) {
         },
     )
     .await
-    .unwrap()
     .unwrap();
     assert_eq!(renamed.name, "Euro");
 
@@ -449,13 +448,12 @@ pub(super) async fn text_keys_are_borrowed(pool: &PgPool) {
         .await
         .unwrap();
     assert_eq!(fetched, Some(rate));
-    assert!(
-        db::currency_rates::models::CurrencyRate::destroy(pool, &key)
-            .await
-            .unwrap()
-            > 0
-    );
-    assert!(db::currencies::models::Currency::destroy(pool, &eur).await.unwrap() > 0);
+    db::currency_rates::models::CurrencyRate::destroy(pool, &key)
+        .await
+        .unwrap();
+    db::currencies::models::Currency::destroy(pool, &eur)
+        .await
+        .unwrap();
 }
 
 /// `plain_db` is generated with `primary_key_ids = "uuid_v7"`: `create`

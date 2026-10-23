@@ -76,11 +76,8 @@ pub trait LoansServiceApi {
         id: LoanId,
         input: UpdateLoanDto,
     ) -> Result<Loan, AppError> {
-        let row = Loan::patch(&mut *conn, id, input.into()).await?;
-        match row {
-            Some(row) => Ok(row),
-            None => Err(not_found()),
-        }
+        let row = Loan::patch(&mut *conn, id, input.into()).await;
+        row.map_err(or_not_found)
     }
 
     /// `PATCH /api/v1/loans/{id}`: changes the row with this key and returns it, or `404`.
@@ -105,4 +102,13 @@ pub trait LoansServiceApi {
 /// The `404` of a key no `loans` row has.
 fn not_found() -> AppError {
     AppError::NotFound("no `loans` row has this key".to_owned())
+}
+
+/// The data layer's error, with a missing row answered as [`not_found`].
+fn or_not_found(error: rok_data::Error) -> AppError {
+    if error.is_not_found() {
+        not_found()
+    } else {
+        error.into()
+    }
 }

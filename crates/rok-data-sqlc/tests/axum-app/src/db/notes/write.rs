@@ -102,54 +102,65 @@ impl Note {
     }
 
     /// Soft-deletes the row with the given primary key by setting `deleted_at` to
-    /// the current time, and returns the number of rows changed: `0` when there is no
-    /// such row or it is already deleted.
+    /// the current time; [`rok_data::Error::NotFound`] when there is no such row or
+    /// it is already deleted.
     pub async fn destroy<'e, E>(
         executor: E,
         tenant_id: uuid::Uuid,
         id: NoteId,
-    ) -> Result<u64, rok_data::Error>
+    ) -> Result<(), rok_data::Error>
     where
         E: rok_data::Executor<'e>,
     {
-        Note::filter(Note::TENANT_ID.eq(tenant_id))
+        let changed = Note::filter(Note::TENANT_ID.eq(tenant_id))
             .filter(Note::ID.eq(id))
             .delete(executor)
-            .await
+            .await?;
+        if changed == 0 {
+            return Err(rok_data::Error::not_found::<Self>(None));
+        }
+        Ok(())
     }
 
-    /// Restores the soft-deleted row with the given primary key by clearing `deleted_at`,
-    /// and returns the number of rows changed: `0` when there is no such row or it is
-    /// not deleted.
+    /// Restores the soft-deleted row with the given primary key by clearing `deleted_at`;
+    /// [`rok_data::Error::NotFound`] when there is no such row or it is not deleted.
     pub async fn restore<'e, E>(
         executor: E,
         tenant_id: uuid::Uuid,
         id: NoteId,
-    ) -> Result<u64, rok_data::Error>
+    ) -> Result<(), rok_data::Error>
     where
         E: rok_data::Executor<'e>,
     {
-        Note::filter(Note::TENANT_ID.eq(tenant_id))
+        let changed = Note::filter(Note::TENANT_ID.eq(tenant_id))
             .filter(Note::ID.eq(id))
             .restore(executor)
-            .await
+            .await?;
+        if changed == 0 {
+            return Err(rok_data::Error::not_found::<Self>(None));
+        }
+        Ok(())
     }
 
-    /// Removes the row with the given primary key from the table, deleted or not, and
-    /// returns the number of rows that existed.
+    /// Removes the row with the given primary key from the table, deleted or not;
+    /// [`rok_data::Error::NotFound`] when there is no such row.
     pub async fn delete_permanently<'e, E>(
         executor: E,
         tenant_id: uuid::Uuid,
         id: NoteId,
-    ) -> Result<u64, rok_data::Error>
+    ) -> Result<(), rok_data::Error>
     where
         E: rok_data::Executor<'e>,
     {
-        Note::filter(Note::TENANT_ID.eq(tenant_id))
+        let changed = Note::filter(Note::TENANT_ID.eq(tenant_id))
             .filter(Note::ID.eq(id))
             .with_trashed()
             .force_delete(executor)
-            .await
+            .await?;
+        if changed == 0 {
+            return Err(rok_data::Error::not_found::<Self>(None));
+        }
+        Ok(())
     }
 }
 
@@ -187,7 +198,7 @@ pub async fn destroy<'e, E>(
     executor: E,
     tenant_id: uuid::Uuid,
     id: NoteId,
-) -> Result<u64, rok_data::Error>
+) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
@@ -200,7 +211,7 @@ pub async fn restore<'e, E>(
     executor: E,
     tenant_id: uuid::Uuid,
     id: NoteId,
-) -> Result<u64, rok_data::Error>
+) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
@@ -213,7 +224,7 @@ pub async fn delete_permanently<'e, E>(
     executor: E,
     tenant_id: uuid::Uuid,
     id: NoteId,
-) -> Result<u64, rok_data::Error>
+) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {

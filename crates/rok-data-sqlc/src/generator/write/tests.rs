@@ -89,9 +89,12 @@ fn patch_uses_query_builder_binds_and_guards_empty_patch() {
         &["order_id", "product_id"],
     ));
     assert!(rendered.contains(
-        "pub async fn patch<'e, E>(\n    executor: E,\n    key: UserKey,\n    input: UpdateUser,\n) -> Result<Option<User>, rok_data::Error>"
+        "pub async fn patch<'e, E>(\n    executor: E,\n    key: UserKey,\n    input: UpdateUser,\n) -> Result<User, rok_data::Error>"
     ));
-    assert!(rendered.contains("    if input.is_empty() {\n        return super::read::get_by_id(executor, key).await;\n    }\n"));
+    // An empty patch returns the current row, or `NotFound` like any verb.
+    assert!(rendered.contains(
+        "    if input.is_empty() {\n        let current = super::read::get_by_id(executor, key).await?;\n        return current.ok_or_else(|| rok_data::Error::not_found::<Self>(None));\n    }\n"
+    ));
     assert!(rendered.contains(
         "    let mut update = User::update_all()\n        .filter(User::ORDER_ID.eq(key.order_id))\n        .filter(User::PRODUCT_ID.eq(key.product_id));\n"
     ));
@@ -100,7 +103,7 @@ fn patch_uses_query_builder_binds_and_guards_empty_patch() {
         !rendered.contains("assignments"),
         "the chains carry no query builder"
     );
-    assert!(rendered.contains("update.returning_one(executor).await"));
+    assert!(rendered.contains("update.returning_one_or_fail(executor).await"));
 }
 
 #[test]
@@ -149,15 +152,17 @@ fn quotes_reserved_identifiers_in_dynamic_sql() {
 }
 
 #[test]
-fn destroy_returns_the_row_count() {
+fn destroy_fails_with_not_found_when_no_row_matched() {
     let rendered = render(&table(
         vec![column("id", "i64"), column("email", "String")],
         &["id"],
     ));
     assert!(rendered.contains(
-        "pub async fn destroy<'e, E>(executor: E, id: i64) -> Result<u64, rok_data::Error>"
+        "pub async fn destroy<'e, E>(executor: E, id: i64) -> Result<(), rok_data::Error>"
     ));
-    assert!(rendered.contains("    User::filter(User::ID.eq(id)).delete(executor).await\n"));
+    assert!(rendered.contains(
+        "    let changed = User::filter(User::ID.eq(id)).delete(executor).await?;\n    if changed == 0 {\n        return Err(rok_data::Error::not_found::<Self>(None));\n    }\n    Ok(())\n"
+    ));
 }
 
 #[test]

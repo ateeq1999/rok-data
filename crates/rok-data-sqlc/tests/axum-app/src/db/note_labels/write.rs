@@ -23,15 +23,20 @@ impl NoteLabel {
 
     // No updatable columns detected; patch is not generated for this table.
 
-    /// Deletes the row with the given primary key and returns the number of rows that existed.
-    pub async fn destroy<'e, E>(executor: E, key: NoteLabelKey) -> Result<u64, rok_data::Error>
+    /// Deletes the row with the given primary key; [`rok_data::Error::NotFound`] when
+    /// there is no such row.
+    pub async fn destroy<'e, E>(executor: E, key: NoteLabelKey) -> Result<(), rok_data::Error>
     where
         E: rok_data::Executor<'e>,
     {
-        NoteLabel::filter(NoteLabel::NOTE_ID.eq(key.note_id))
+        let changed = NoteLabel::filter(NoteLabel::NOTE_ID.eq(key.note_id))
             .filter(NoteLabel::LABEL_ID.eq(key.label_id))
             .delete(executor)
-            .await
+            .await?;
+        if changed == 0 {
+            return Err(rok_data::Error::not_found::<Self>(None));
+        }
+        Ok(())
     }
 
     /// Pairs the `notes` row with the `labels` row, and returns whether the pair
@@ -122,7 +127,7 @@ where
 
 /// Calls [`NoteLabel::destroy`], which this module function forwards to.
 #[deprecated(note = "call `NoteLabel::destroy` instead")]
-pub async fn destroy<'e, E>(executor: E, key: NoteLabelKey) -> Result<u64, rok_data::Error>
+pub async fn destroy<'e, E>(executor: E, key: NoteLabelKey) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {

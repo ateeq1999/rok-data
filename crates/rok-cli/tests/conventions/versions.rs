@@ -29,10 +29,7 @@ fn version_column_is_managed_and_versions_only_the_tables_that_have_it() -> Resu
     );
     // A table without the column keeps the plain `update`, byte for byte.
     let tags = write_rs(&versioned, "tags")?;
-    assert!(
-        tags.contains("-> Result<Option<Tag>, rok_data::Error>"),
-        "{tags}"
-    );
+    assert!(tags.contains("-> Result<Tag, rok_data::Error>"), "{tags}");
     assert_eq!(tags, write_rs(&plain, "tags")?);
     let db_mod = fs::read_to_string(versioned.path().join("out/mod.rs"))?;
     assert!(db_mod.contains("pub enum UpdateOutcome<T> {"), "{db_mod}");
@@ -73,7 +70,7 @@ fn an_empty_version_column_turns_the_preset_convention_off() -> Result<()> {
 
     let documents = write_rs(&dir, "documents")?;
     assert!(
-        documents.contains("-> Result<Option<Document>, rok_data::Error>"),
+        documents.contains("-> Result<Document, rok_data::Error>"),
         "{documents}"
     );
     assert!(!documents.contains("UpdateOutcome"), "{documents}");
