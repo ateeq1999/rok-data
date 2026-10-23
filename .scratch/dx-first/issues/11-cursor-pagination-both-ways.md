@@ -14,9 +14,9 @@ page.next_cursor(); page.prev_cursor(); page.has_more();
 
 **Blocked by:** 09
 
-**Status:** ready-for-agent
+**Status:** done (one item changed by decision, below)
 
-- [ ] `CursorPage` carries `next` and `prev`; first page has no `prev`, last page no `next`
-- [ ] Round-trip test: forward three pages, back two, items identical to the forward pages
-- [ ] Wrapped-keyset (expression order, joined) prev/next tests
-- [ ] Token parse failures are a typed error, not a panic or generic error
+- [x] `CursorPage` carries `next` and `prev`; first page has no `prev`, last page no `next`
+- [x] Round-trip test: forward through every page, then back through `prev` to the first, each page identical to its forward read (three sort orders incl. mixed directions; run against PostgreSQL 17)
+- [x] Wrapped-keyset (expression order, joined) prev/next tests
+- [x] Token parse failures are `Error::InvalidCursor` (`Cursor: FromStr`). **Changed by decision**: `cursor_paginate` keeps taking `Option<&Cursor>` rather than also a raw token — a generic argument would break inference for the documented `cursor_paginate(&db, None, 20)`; a handler parses the token with `.parse()`

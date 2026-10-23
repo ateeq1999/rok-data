@@ -42,12 +42,13 @@ mod serde_impls {
         }
     }
 
-    /// `{"items": […], "next": "<cursor>" | null}`
+    /// `{"items": […], "next": "<cursor>" | null, "prev": "<cursor>" | null}`
     impl<T: Serialize> Serialize for CursorPage<T> {
         fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-            let mut st = s.serialize_struct("CursorPage", 2)?;
+            let mut st = s.serialize_struct("CursorPage", 3)?;
             st.serialize_field("items", &self.items)?;
             st.serialize_field("next", &self.next)?;
+            st.serialize_field("prev", &self.prev)?;
             st.end()
         }
     }

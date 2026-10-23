@@ -15,22 +15,28 @@ fn pages_and_cursors_serialize() {
     );
 
     let cursor = Cursor::new([rok_data::Value::from(7_i64)]);
+    let back = Cursor::before([rok_data::Value::from(3_i64)]);
     let page = CursorPage {
         items: vec![1, 2],
         next: Some(cursor.clone()),
+        prev: Some(back.clone()),
     };
     let value = serde_json::to_value(&page).unwrap();
     assert_eq!(value["next"], json!(cursor.to_string()));
+    assert_eq!(value["prev"], json!(back.to_string()));
     let parsed: Cursor = serde_json::from_value(value["next"].clone()).unwrap();
     assert_eq!(parsed, cursor);
+    let parsed: Cursor = serde_json::from_value(value["prev"].clone()).unwrap();
+    assert!(parsed.is_backward(), "the direction survives the token");
     assert!(serde_json::from_value::<Cursor>(json!("garbage!")).is_err());
     let last = CursorPage::<i32> {
         items: vec![],
         next: None,
+        prev: None,
     };
     assert_eq!(
         serde_json::to_value(&last).unwrap(),
-        json!({"items": [], "next": null})
+        json!({"items": [], "next": null, "prev": null})
     );
 }
 

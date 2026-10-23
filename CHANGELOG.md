@@ -33,6 +33,15 @@ compiler finds the call sites.
   table is the struct's pluralized snake_case name, no
   `#[rok(primary_key)]` on a lone `id` key. Schema-qualified tables and
   other keys keep theirs.
+- **Cursor pagination in both directions** (dx-first ticket 11): a
+  `CursorPage` carries `prev` beside `next` (`prev_cursor()`,
+  `next_cursor()`, `has_prev()`, `has_more()`), and passing a page's
+  `prev` to `cursor_paginate` returns the page before it, rows in the
+  query's order — for plain column orders and for the wrapped keyset of
+  joins and expression orders alike. A cursor records its direction
+  (`Cursor::before`, `is_backward()`); a backward token starts with `-`,
+  and forward tokens are byte-for-byte those of 0.2. The JSON of a
+  `CursorPage` gains `"prev"`. The size argument is named `per_page`.
 - **Offset pagination, the Laravel surface** (dx-first ticket 10):
   `simple_paginate(&db, page, per_page)` returns a `SimplePage` (the rows
   and `has_more`, one query, no `COUNT(*)`); `page(&db, n)` paginates at

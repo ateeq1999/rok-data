@@ -221,23 +221,45 @@ async fn keyset_pagination_walks_everything_once() {
         }),
     ] {
         let mut seen = Vec::new();
+        let mut forward: Vec<Vec<Account>> = Vec::new();
         let mut cursor: Option<Cursor> = None;
-        let mut pages = 0;
-        loop {
+        let back_from_last = loop {
             let page = Account::order_by(order.clone())
                 .cursor_paginate(&db, cursor.as_ref(), 7)
                 .await
                 .unwrap();
-            pages += 1;
+            assert_eq!(
+                page.has_prev(),
+                !forward.is_empty(),
+                "only the first page has no prev"
+            );
+            forward.push(page.items.clone());
             seen.extend(page.items.iter().cloned());
             // Round-trip through the string form a client would send back.
             cursor = match page.next {
                 Some(next) => Some(next.to_string().parse().unwrap()),
-                None => break,
+                None => break page.prev,
             };
-        }
-        assert_eq!(pages, 4);
+        };
+        assert_eq!(forward.len(), 4);
         assert_eq!(seen, expected);
+
+        // Back from the last page: each `prev` is the page before, rows in
+        // the query's order, until the first page, which has no `prev`.
+        let mut cursor = back_from_last.map(|prev| prev.to_string().parse::<Cursor>().unwrap());
+        let mut index = forward.len() - 1;
+        while let Some(prev) = cursor {
+            assert!(prev.is_backward());
+            let page = Account::order_by(order.clone())
+                .cursor_paginate(&db, Some(&prev), 7)
+                .await
+                .unwrap();
+            index -= 1;
+            assert_eq!(page.items, forward[index], "page {index} read backward");
+            assert!(page.has_next(), "a page reached backward has a next");
+            cursor = page.prev;
+        }
+        assert_eq!(index, 0, "walked back to the first page");
     }
 
     // Filters combine with the cursor condition.

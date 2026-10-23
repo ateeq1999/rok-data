@@ -330,6 +330,15 @@ async fn joined_cursor_pagination(db: Db) {
         .unwrap();
     assert_eq!(second.items[0].name, "ann");
     assert!(second.next.is_none());
+    // Back through the wrapped keyset: the first page again.
+    let back = User::query()
+        .join(User::POSTS)
+        .order_by(Post::VIEWS.desc())
+        .cursor_paginate(&db, second.prev.as_ref(), 1)
+        .await
+        .unwrap();
+    assert_eq!(back.items, first.items);
+    assert!(back.prev.is_none() && back.next.is_some());
 
     // Expression orders now work without joins too.
     let page = Post::query()
@@ -349,6 +358,17 @@ async fn joined_cursor_pagination(db: Db) {
     assert_eq!(
         rest.items.iter().map(|p| p.views).collect::<Vec<_>>(),
         [50, 5]
+    );
+    // Backward over an expression order: the two rows before `rest`, in
+    // the query's order.
+    let before = Post::query()
+        .order_by(Projection::<Post>::raw(r#"-"posts"."views""#, Vec::<i64>::new()).asc())
+        .cursor_paginate(&db, rest.prev.as_ref(), 2)
+        .await
+        .unwrap();
+    assert_eq!(
+        before.items.iter().map(|p| p.views).collect::<Vec<_>>(),
+        [500, 100]
     );
 }
 

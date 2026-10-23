@@ -363,10 +363,12 @@ impl<M: Model, J> Joined<M, J> {
     pub async fn cursor_paginate<'e, E: Executor<'e>>(
         self,
         executor: E,
-        after: Option<&crate::Cursor>,
-        limit: u64,
+        cursor: Option<&crate::Cursor>,
+        per_page: u64,
     ) -> Result<crate::CursorPage<M>> {
-        self.select.cursor_paginate(executor, after, limit).await
+        self.select
+            .cursor_paginate(executor, cursor, per_page)
+            .await
     }
 
     /// Stream the matching root models.
