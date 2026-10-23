@@ -83,6 +83,12 @@ One page of rows with what a client needs to page on: `Page<T>` holds the
 (`PaginatedResponse::from(page)`).
 _Avoid_: window (that is the SQL side), result set
 
+**SimplePage**:
+A page without a total (`Select::simple_paginate`): the rows, the page's
+numbers and `has_more` — one query, no `COUNT(*)`, enough for previous /
+next links.
+_Avoid_: lite page, cheap page
+
 **CursorPage** / **Cursor**:
 One page of a keyset-paginated query (`Select::cursor_paginate`): the
 `items` and the **Cursor** — an opaque token holding the ordering values of

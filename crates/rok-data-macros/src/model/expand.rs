@@ -26,6 +26,7 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     let mut hooks = false;
     let mut validate_with: Option<Path> = None;
     let mut default_scope: Option<Path> = None;
+    let mut per_page: Option<syn::LitInt> = None;
     let mut relations = Vec::new();
     let mut named_scopes = Vec::new();
     let mut from_row = true;
@@ -48,6 +49,12 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
                 validate_with = Some(meta.value()?.parse()?);
             } else if meta.path.is_ident("default_scope") {
                 default_scope = Some(meta.value()?.parse()?);
+            } else if meta.path.is_ident("per_page") {
+                let value: syn::LitInt = meta.value()?.parse()?;
+                if value.base10_parse::<u64>()? == 0 {
+                    return Err(syn::Error::new(value.span(), "`per_page` must be greater than 0"));
+                }
+                per_page = Some(value);
             } else if meta.path.is_ident("scopes") {
                 scopes::parse_scopes(&meta, &mut named_scopes)?;
             } else if meta.path.is_ident("has_many") {
@@ -60,7 +67,7 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
                 krate = Some(meta.value()?.parse::<LitStr>()?.parse()?);
             } else {
                 return Err(meta.error(
-                    "unknown `rok` attribute; expected `table`, `timestamps`, `no_timestamps`, `soft_delete`, `no_soft_delete`, `hooks`, `validate_with`, `default_scope`, `scopes`, `has_many`, `has_one`, `no_from_row` or `crate`",
+                    "unknown `rok` attribute; expected `table`, `timestamps`, `no_timestamps`, `soft_delete`, `no_soft_delete`, `hooks`, `validate_with`, `default_scope`, `per_page`, `scopes`, `has_many`, `has_one`, `no_from_row` or `crate`",
                 ));
             }
             Ok(())
@@ -275,6 +282,7 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
             }
         }
     });
+    let per_page_const = per_page.map(|n| quote! { const PER_PAGE: u64 = #n; });
     let hooks_impl = (!hooks).then(|| quote!(impl #krate::Hooks for #name {}));
     let scope_entries = scopes::entries(name, &named_scopes, &krate);
     let scope_trait = scopes::trait_declaration(name, &named_scopes, &krate);
@@ -366,6 +374,7 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
             const DELETED_AT_COLUMN: ::core::option::Option<&'static str> = #deleted_at;
             const VERSION_COLUMN: ::core::option::Option<&'static str> = #version;
             const TENANT_COLUMN: ::core::option::Option<&'static str> = #tenant;
+            #per_page_const
 
             #primary_key_fn
 

@@ -34,6 +34,8 @@ mod test;
 ///   `fn(&Self) -> Result<(), ValidationErrors>`, run with the field rules.
 /// - `#[rok(default_scope = path::to::fn)]` — `fn() -> Expr<Self>` applied
 ///   to every query; remove it with `.unscoped()`.
+/// - `#[rok(per_page = 25)]` — the rows a page holds when the caller names
+///   no size (`Select::page`); 15 otherwise.
 /// - `#[rok(no_from_row)]` — don't generate `FromRow` (bring your own).
 /// - `#[rok(crate = "path::to::rok_data")]` — path of the `rok_data` crate when
 ///   it is re-exported under another name.

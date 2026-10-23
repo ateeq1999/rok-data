@@ -17,10 +17,10 @@ A requested page past the end returns an empty page with correct metadata, not a
 
 **Blocked by:** 09
 
-**Status:** ready-for-agent
+**Status:** done (generator support deferred, below)
 
-- [ ] `simple_paginate` issues exactly one query (SQL-shape test)
-- [ ] `#[rok(per_page = N)]` derive attribute and generator support
-- [ ] `for_page`, relation pagination, pagination with includes
-- [ ] `Page` helpers with tests for first/last/empty/past-the-end pages
-- [ ] Facade tests: SQL shape + DB-backed for each entry
+- [x] `simple_paginate` issues exactly one query: it is `for_page(..).limit(per_page + 1).all(..)` — one `SELECT`, no `COUNT(*)` (SQL shape tested through `for_page`; results DB-backed)
+- [x] `#[rok(per_page = N)]` derive attribute (`Model::PER_PAGE`, 15 by default; 0 is a derive error). **Generator support deferred**: generated APIs default to `Pagination::DEFAULT_PER_PAGE` (20), part of the wire contract; switching them to the model's size changes what existing clients get — a decision for ticket 13 (wire shapes)
+- [x] `for_page`, relation pagination, pagination with includes
+- [x] `Page` helpers with tests for first/last/empty/past-the-end pages
+- [x] Facade tests: SQL shape + DB-backed for each entry

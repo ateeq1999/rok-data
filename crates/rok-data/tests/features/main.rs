@@ -11,6 +11,7 @@ use rok_data::{Include, raw};
 mod collection;
 mod conventions;
 mod memoized;
+mod pagination;
 mod relations;
 mod scopes;
 mod streaming;

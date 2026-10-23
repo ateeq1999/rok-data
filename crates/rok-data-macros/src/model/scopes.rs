@@ -98,6 +98,7 @@ const RESERVED: &[&str] = &[
     "filter_if",
     "filter_opt",
     "first",
+    "for_page",
     "for_share",
     "for_update",
     "get",
@@ -112,9 +113,11 @@ const RESERVED: &[&str] = &[
     "on_primary",
     "one",
     "only_trashed",
+    "page",
     "paginate",
     "scope",
     "select",
+    "simple_paginate",
     "stream",
     "sum",
     "to_sql",
@@ -372,6 +375,7 @@ mod reserved_tests {
             "query/select.rs",
             "query/select/exec.rs",
             "query/select/chunk.rs",
+            "query/select/paginate.rs",
         ] {
             for line in read(path).lines() {
                 let item = line

@@ -18,6 +18,7 @@ pub(crate) mod exec;
 
 /// The windowed read: [`Select::chunk`].
 pub(crate) mod chunk;
+pub(crate) mod paginate;
 
 /// Lock mode appended to a `SELECT`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

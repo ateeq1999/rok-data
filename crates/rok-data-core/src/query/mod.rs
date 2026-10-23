@@ -162,4 +162,4 @@ pub use projected::Projected;
 pub use select::{__cursor_sql, __paginate_sql, Select};
 pub(crate) use select::{JoinClause, join_scope};
 pub use update::Update;
-pub use with::WithSelect;
+pub use with::{LoadedPage, WithSelect};

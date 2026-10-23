@@ -1,11 +1,12 @@
 //! A query with relations requested by `.with()`.
 use std::fmt;
+use std::ops::{Deref, DerefMut};
 
 use sqlx::postgres::PgRow;
 
 use crate::exec::{self, Journey};
 use crate::relation::{IntoInclude, Loaded, PackedInclude};
-use crate::{Expr, Model, Order, Result};
+use crate::{Expr, Model, Order, Page, Result};
 
 use super::Select;
 
@@ -75,6 +76,94 @@ impl<M: Model> WithSelect<M> {
         let mut view = Loaded::new(rows);
         load_includes(journey, &mut view, self.includes, replica).await?;
         Ok(view)
+    }
+
+    /// One page of the main rows with every requested relation loaded beside
+    /// them: [`Select::paginate`] for the rows (a page and its total in one
+    /// round trip), then one batched query per include over just that page.
+    /// `page` is 1-based.
+    ///
+    /// ```ignore
+    /// let page = Post::query().with(Post::AUTHOR).paginate(&db, 1, 20).await?;
+    /// for post in page.rows() {
+    ///     let author = page.try_get(Post::AUTHOR, post)?;
+    /// }
+    /// ```
+    pub async fn paginate<'c, J>(
+        self,
+        session: J,
+        page: u64,
+        per_page: u64,
+    ) -> Result<LoadedPage<M>>
+    where
+        J: Into<Journey<'c>>,
+    {
+        let mut journey = session.into();
+        let replica = self.select.use_replica();
+        let select = self.select;
+        let rows: Page<M> = on_journey!(journey, |e| select.paginate(e, page, per_page).await)?;
+        let Page {
+            items,
+            total,
+            page,
+            per_page,
+        } = rows;
+        let mut view = Loaded::new(items);
+        load_includes(journey, &mut view, self.includes, replica).await?;
+        Ok(LoadedPage {
+            view,
+            total,
+            page,
+            per_page,
+        })
+    }
+}
+
+/// One page of rows with their includes loaded, returned by
+/// [`WithSelect::paginate`]: the page's numbers beside the [`Loaded`] view,
+/// which it `Deref`s to — `page.rows()`, `page.try_get(Post::AUTHOR, &post)`.
+#[derive(Debug)]
+pub struct LoadedPage<M: Model> {
+    /// The rows on this page and their loaded relations.
+    pub view: Loaded<M>,
+    /// Total number of matching rows across all pages.
+    pub total: u64,
+    /// Current page number (1-based).
+    pub page: u64,
+    /// Maximum number of rows per page.
+    pub per_page: u64,
+}
+
+impl<M: Model> LoadedPage<M> {
+    /// The page's numbers as a [`Page`] of its rows, for every page helper
+    /// (`last_page`, `first_item`, `has_next`, …); the loaded relations are
+    /// dropped.
+    pub fn into_page(self) -> Page<M> {
+        Page::new(self.view.into_rows(), self.total, self.page, self.per_page)
+    }
+
+    /// The number of the last page (at least 1).
+    pub fn last_page(&self) -> u64 {
+        Page::<()>::new(Vec::new(), self.total, self.page, self.per_page).last_page()
+    }
+
+    /// `true` if a later page exists.
+    pub fn has_next(&self) -> bool {
+        self.page < self.last_page()
+    }
+}
+
+impl<M: Model> Deref for LoadedPage<M> {
+    type Target = Loaded<M>;
+
+    fn deref(&self) -> &Loaded<M> {
+        &self.view
+    }
+}
+
+impl<M: Model> DerefMut for LoadedPage<M> {
+    fn deref_mut(&mut self) -> &mut Loaded<M> {
+        &mut self.view
     }
 }
 

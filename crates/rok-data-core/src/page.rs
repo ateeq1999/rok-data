@@ -40,6 +40,52 @@ impl<T> Page<T> {
         self.page > 1
     }
 
+    /// The number of the last page (at least 1) — Laravel's `lastPage`;
+    /// the same as [`total_pages`](Self::total_pages).
+    pub fn last_page(&self) -> u64 {
+        self.total_pages()
+    }
+
+    /// `true` on page 1 — Laravel's `onFirstPage`.
+    pub fn on_first_page(&self) -> bool {
+        self.page <= 1
+    }
+
+    /// `true` on the last page, or past it — Laravel's `onLastPage`.
+    pub fn on_last_page(&self) -> bool {
+        self.page >= self.last_page()
+    }
+
+    /// `true` when the rows span more than one page — Laravel's
+    /// `hasPages`, for whether to show page links at all.
+    pub fn has_pages(&self) -> bool {
+        self.last_page() > 1
+    }
+
+    /// The 1-based position of this page's first row among all matches
+    /// (`(page - 1) * per_page + 1`), or `None` on an empty page —
+    /// Laravel's `firstItem`, for "showing 21–40 of 95".
+    pub fn first_item(&self) -> Option<u64> {
+        (!self.items.is_empty()).then(|| {
+            (self.page - 1)
+                .saturating_mul(self.per_page)
+                .saturating_add(1)
+        })
+    }
+
+    /// The 1-based position of this page's last row, or `None` on an empty
+    /// page — Laravel's `lastItem`.
+    pub fn last_item(&self) -> Option<u64> {
+        self.first_item()
+            .map(|first| first + self.items.len() as u64 - 1)
+    }
+
+    /// The rows as a [`ModelCollection`](crate::ModelCollection) — Laravel's
+    /// `getCollection` — dropping the page's numbers.
+    pub fn into_collection(self) -> crate::ModelCollection<T> {
+        crate::ModelCollection::new(self.items)
+    }
+
     /// `true` if this page holds no records.
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
@@ -97,5 +143,33 @@ mod tests {
         assert_eq!(p.total_pages(), 1);
         assert!(!p.has_next());
         assert_eq!(Page::new(vec![1], 1, 1, 1).map(|x| x * 2).items, vec![2]);
+    }
+
+    #[test]
+    fn the_laravel_helpers() {
+        // Page 2 of 95 rows at 20 a page: rows 21–40 of 5 pages.
+        let middle = Page::new(vec![0; 20], 95, 2, 20);
+        assert_eq!(middle.last_page(), 5);
+        assert_eq!(
+            (middle.first_item(), middle.last_item()),
+            (Some(21), Some(40))
+        );
+        assert!(!middle.on_first_page() && !middle.on_last_page());
+        assert!(middle.has_pages());
+
+        // The last page holds the remainder.
+        let last = Page::new(vec![0; 15], 95, 5, 20);
+        assert_eq!((last.first_item(), last.last_item()), (Some(81), Some(95)));
+        assert!(last.on_last_page() && !last.has_next());
+
+        // A single page: no links needed.
+        let only = Page::new(vec![0; 3], 3, 1, 20);
+        assert!(only.on_first_page() && only.on_last_page() && !only.has_pages());
+
+        // Past the end: empty, numbers intact, no item positions.
+        let past = Page::new(Vec::<i32>::new(), 95, 9, 20);
+        assert_eq!((past.first_item(), past.last_item()), (None, None));
+        assert!(past.on_last_page());
+        assert_eq!(past.into_collection().len(), 0);
     }
 }

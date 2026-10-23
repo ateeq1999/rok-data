@@ -33,6 +33,16 @@ compiler finds the call sites.
   table is the struct's pluralized snake_case name, no
   `#[rok(primary_key)]` on a lone `id` key. Schema-qualified tables and
   other keys keep theirs.
+- **Offset pagination, the Laravel surface** (dx-first ticket 10):
+  `simple_paginate(&db, page, per_page)` returns a `SimplePage` (the rows
+  and `has_more`, one query, no `COUNT(*)`); `page(&db, n)` paginates at
+  the model's size — `#[rok(per_page = 25)]`, 15 by default
+  (`Model::PER_PAGE`); `for_page(page, per_page)` is the window as chain
+  sugar; `.with(..).paginate(..)` returns a `LoadedPage` (the page's
+  numbers beside the loaded includes); relation chains
+  (`user.posts().paginate(..)`) paginate like any chain. `Page` gains
+  `last_page`, `first_item` / `last_item`, `on_first_page` /
+  `on_last_page`, `has_pages` and `into_collection`.
 - **One pagination vocabulary** (dx-first ticket 09): "page" means a
   page of rows. The generated limit/offset type `db::search::Page` is now
   `db::search::Window` (`Page` stays a deprecated alias for one release),

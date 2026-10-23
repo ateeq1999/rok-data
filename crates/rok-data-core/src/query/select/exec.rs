@@ -1,6 +1,6 @@
 //! The terminal methods that run a `Select`: fetching, paginating, deleting.
 use futures_core::stream::BoxStream;
-use sqlx::{Decode, Postgres, Row, Type};
+use sqlx::{Decode, Postgres, Type};
 
 use crate::cursor::{Cursor, CursorPage};
 use crate::exec::{self};
@@ -8,7 +8,7 @@ use crate::expr::{Cond, Direction};
 use crate::model::{Model, push_columns};
 use crate::relation::IntoInclude;
 use crate::sql::Sql;
-use crate::{Column, Error, Executor, Expr, ModelCollection, Order, Page, Result, Value};
+use crate::{Column, Error, Executor, Expr, ModelCollection, Order, Result, Value};
 
 use super::Select;
 use crate::query::WithSelect;
@@ -139,39 +139,6 @@ impl<M: Model> Select<M> {
             self.use_replica(),
         )
         .await
-    }
-
-    /// Fetch one page of results together with the total number of matches,
-    /// in a single round trip. `page` is 1-based.
-    pub async fn paginate<'e, E: Executor<'e>>(
-        self,
-        executor: E,
-        page: u64,
-        per_page: u64,
-    ) -> Result<Page<M>> {
-        if per_page == 0 {
-            return Err(Error::InvalidQuery(
-                "`per_page` must be greater than 0".into(),
-            ));
-        }
-        let page = page.max(1);
-        let rows = exec::fetch_rows(
-            executor,
-            &self.paginate_sql(page, per_page),
-            &[],
-            self.use_replica(),
-        )
-        .await?;
-
-        let mut total = 0;
-        let mut items = Vec::with_capacity(rows.len());
-        for row in &rows {
-            total = row.try_get::<i64, _>("__rok_total")?;
-            if row.try_get::<Option<bool>, _>("__rok_present")?.is_some() {
-                items.push(M::from_row(row)?);
-            }
-        }
-        Ok(Page::new(items, total.max(0) as u64, page, per_page))
     }
 
     pub(crate) fn paginate_sql(&self, page: u64, per_page: u64) -> Sql {

@@ -229,7 +229,7 @@ pub use rok_data_macros::test;
 pub mod prelude {
     pub use crate::{
         Column, Db, DbEnum, DbNewtype, Executor, Expr, Model, ModelCollection, ModelWrite, Page,
-        Projection, Select, Tx,
+        Projection, Select, SimplePage, Tx,
     };
     pub use futures_util_reexports::*;
 

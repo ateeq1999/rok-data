@@ -54,6 +54,10 @@ pub trait Model:
     /// Optimistic-locking column: incremented on every update, and `update`/
     /// `delete` fail with [`Error::Conflict`] if it changed since loading.
     const VERSION_COLUMN: Option<&'static str> = None;
+    /// Rows on a page when the caller names no page size: what
+    /// [`Select::page`](crate::Select::page) uses. Laravel's default, 15;
+    /// `#[rok(per_page = 25)]` sets it per model.
+    const PER_PAGE: u64 = 15;
 
     /// The value of this record's primary key (its first column, for
     /// composite keys; see [`key_values`](Model::key_values)).
