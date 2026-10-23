@@ -299,7 +299,7 @@ gone: its files stay as they are.
 
 | File | Contents |
 |---|---|
-| `models.rs` | The typed id (`ProductId`) or key struct, the row struct (`Product`), the create input (`NewProduct`), and the update patch (`UpdateProduct`). |
+| `models.rs` | The typed id (`ProductId`) or key struct, the row struct (`Product`), the create input (`NewProduct`), and the update patch (`UpdateProduct`). A `#[rok(scopes(…))]` attribute per declared scope names the scope functions. |
 | `read.rs` | `get_by_id`, `exists_by_id`, a `get_by_<columns>` lookup per unique key, `list` and `list_page` (ordered by primary key), `count`, `search`, `search_after`. |
 | `write.rs` | `create`, `patch`, `destroy` (and `restore`/`delete_permanently` with soft delete, `attach`/`detach`/`sync` on join tables). |
 | `filter.rs` | The search filter (`ProductFilter`) and sort keys (`ProductSortKey`). |
@@ -942,7 +942,8 @@ Options come from four layers. The most specific wins:
 **flags > JSON payload (`-j`) > `rok-data-sqlc.toml` > defaults**. A list (such as
 `schema`, `queries`, `derive` or `extractors`) replaces the lower layer's list whole and is
 never appended to. `[conventions]` keys, `[relationships]` entries,
-`[modules]` entries and `[api]` keys and table entries merge one by one.
+`[scopes]` entries, `[modules]` entries and `[api]` keys and table entries merge
+one by one.
 
 ### `rok-data-sqlc.toml`
 
@@ -974,6 +975,9 @@ primary_key_ids    = "uuid_v7"   # or "uuid_v4", "ulid", "cuid2", "none"
 [relationships.invoices]     # by table, then by inferred relationship name
 created_by_user  = "author"  # rename: load_author, get_with_author, filter field author
 approved_by_user = false     # opt out, together with the other side
+
+[scopes.users]               # by table, then by scope name: the model declares the scope
+famous = "crate::scopes::users::famous"  # the fn's path; the shape is checked at build
 
 [modules]                    # by table: generate it as another module
 "audit.users" = "audit_users"  # db::audit_users, with AuditUser and AuditUserId
@@ -1068,6 +1072,16 @@ that isn't a snake_case Rust identifier, fails the run.
 table or relationship, an invalid name, or a rename that collides fails with
 the entry's name (`relationships.invoices.created_by_user`). `true` is an
 error, not a no-op.
+
+`[scopes]` gives the generated models named scopes (spec D7): the row
+carries `#[rok(scopes(famous = crate::scopes::users::famous))]`, which gives
+the model a chainable entry (`User::famous()`) and the chain a same-named
+method (`User::famous().active()`). The entry names a table, then each
+scope name names the path of its free function — your code, which the
+engine only wires up: the function's shape, `fn(&Select<M>) -> Select<M>`,
+is checked when the consuming crate builds. A scope that names no table, a
+name that isn't a snake_case Rust identifier, or a path that isn't one,
+fails the run with the entry's name (`scopes.users.famous`).
 
 ### JSON payload
 

@@ -151,6 +151,7 @@ pub(super) fn build_table(
         soft_delete_column: None,
         tenant_column: None,
         relationships: Vec::new(),
+        scopes: Vec::new(),
         before_insert_triggers: Vec::new(),
     };
     // Like PostgreSQL, one `CREATE TABLE` makes one constraint of several

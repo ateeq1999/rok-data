@@ -153,6 +153,34 @@ let popular = User::popular();
 let popular_and_active = User::popular().active();
 ```
 
+A scope can take parameters — declared in the attribute, after the name,
+in the same shape the entry takes them. The free function takes the query,
+then the declared parameters; the entry and the chain method get the same
+signature:
+
+```rust
+#[derive(Model)]
+#[rok(scopes(older_than(n: i32) = path::to::older_than))]
+struct User {
+    id: i64,
+    age: i32,
+}
+
+// the free function takes the query, then the declared parameters
+fn older_than(query: &Select<User>, n: i32) -> Select<User> {
+    query.clone().filter(User::AGE.gt(n))
+}
+
+// the entry and the chain method take the same shape; they compose
+User::older_than(18);
+User::popular().older_than(18);
+```
+
+A generated model declares its scopes through the engine's `[scopes]`
+configuration instead (`[scopes.users] famous = "crate::scopes::users::famous"`):
+the engine wires `#[rok(scopes(famous = …))]` onto the row, and your crate
+owns the functions the paths name.
+
 Nothing changes for the scopes that already exist: the model's
 `default_scope` (`#[rok(default_scope = …)]`) and `.unscoped()` keep their
 meaning, and the closure-based `Select::scope` still takes a function.

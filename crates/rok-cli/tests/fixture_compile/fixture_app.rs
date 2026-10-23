@@ -46,6 +46,14 @@ fn generate_fixture() -> Result<Vec<PathBuf>> {
     // Rows, ids, keys, enums, inputs, and patches derive serde, which the
     // PostgreSQL tests round-trip through JSON.
     config.derive = vec![rok_data_sqlc::Derive::Serde];
+    // A named scope on `suppliers` (spec D7): the model declares it by the
+    // path the configuration gives, and `src/scopes.rs` holds the function
+    // behind it.
+    config
+        .scopes
+        .entry("suppliers".into())
+        .or_default()
+        .insert("active".into(), "crate::scopes::suppliers::active".into());
     // Renamed and opted-out relationships (see `expense_claims` in
     // `extra_schema.sql`).
     let claims = config

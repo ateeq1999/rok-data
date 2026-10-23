@@ -291,3 +291,32 @@ fn the_scopes_reach_the_expansion() {
         "{expanded}"
     );
 }
+
+/// Parameterized scopes: the free function takes extra args, and the model
+/// entry + chain method get the same signature.
+#[test]
+fn parameterized_scopes_reach_the_expansion() {
+    let expanded = expanded(syn::parse_quote! {
+        #[rok(scopes(of_type(ty: i64) = path::to::of_type))]
+        struct User {
+            id: i64,
+        }
+    });
+    // Model entry has the parameter.
+    assert!(expanded.contains("of_type (ty : i64)"), "{expanded}");
+    // Chain method has the parameter.
+    assert!(
+        expanded.contains("fn of_type (self , ty : i64)"),
+        "{expanded}"
+    );
+    // The forwarding keeps the parameter's name.
+    assert!(
+        expanded.contains("path :: to :: of_type (& self , ty)"),
+        "{expanded}"
+    );
+    // Signature check validates the parameterized form.
+    assert!(
+        expanded.contains("const _ : fn (& :: rok_data :: Select < User > , i64)"),
+        "{expanded}"
+    );
+}

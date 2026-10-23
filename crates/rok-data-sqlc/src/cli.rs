@@ -235,6 +235,7 @@ where
                 extractors: (!extractor.is_empty())
                     .then(|| extractor.into_iter().map(Extractor::from).collect()),
                 relationships: Default::default(),
+                scopes: Default::default(),
                 modules: Default::default(),
                 api: config_file::ApiKeys::flags(api_output, api_framework.map(ApiFramework::from)),
             };
@@ -261,6 +262,7 @@ where
                 derive: merged.derive.unwrap_or_default(),
                 extractors: merged.extractors.unwrap_or_default(),
                 relationships: merged.relationships,
+                scopes: merged.scopes,
                 modules: merged.modules,
                 api: merged.api.resolve(),
             })

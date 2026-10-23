@@ -155,6 +155,8 @@ fn run(config: &Config, report: &mut Report) -> anyhow::Result<()> {
         &config.relationships,
     )
     .map_err(anyhow::Error::msg)?;
+    // `[generate.scopes]` likewise.
+    generator::scopes::check(&schema_tables, &config.scopes).map_err(anyhow::Error::msg)?;
     // `[api]` likewise.
     if let Some(api) = &config.api {
         api_config::check(api, &schema_tables, &config.conventions).map_err(anyhow::Error::msg)?;

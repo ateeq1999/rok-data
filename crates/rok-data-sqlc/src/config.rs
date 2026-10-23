@@ -79,6 +79,25 @@ pub struct Config {
     /// invoices.insert("approved_by_user".into(), RelationshipChange::OptOut);
     /// ```
     pub relationships: BTreeMap<String, BTreeMap<String, RelationshipChange>>,
+    /// Named scopes for the generated models, by table (its SQL name,
+    /// schema-qualified name, or module name) and then by scope name, with
+    /// the path of the free function behind each scope (spec D7). Empty by
+    /// default.
+    ///
+    /// The engine wires the attribute (`#[rok(scopes(famous =
+    /// crate::scopes::users::famous))]`); the app owns the functions, whose
+    /// shape — `fn(&Select<M>) -> Select<M>` — the derive checks when the
+    /// model compiles. A scope name must be a snake_case Rust identifier,
+    /// and a scope that names a verb of the runtime is refused by the
+    /// derive in the consuming crate's build, so name scopes accordingly.
+    ///
+    /// ```
+    /// let mut config = rok_data_sqlc::Config::default();
+    /// config.scopes.insert("users".into(), [
+    ///     ("famous".to_owned(), "crate::scopes::users::famous".to_owned()),
+    /// ].into_iter().collect());
+    /// ```
+    pub scopes: BTreeMap<String, BTreeMap<String, String>>,
     /// Module renames, by table (its schema-qualified name or its SQL name;
     /// `public.` may be left out): the table generates as this module, and
     /// its row struct, typed id, and key struct are named after it. This is
@@ -176,6 +195,7 @@ impl Default for Config {
             derive: Vec::new(),
             extractors: Vec::new(),
             relationships: BTreeMap::new(),
+            scopes: BTreeMap::new(),
             modules: BTreeMap::new(),
             api: None,
         }

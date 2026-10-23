@@ -90,6 +90,7 @@ fn render_row(
         output.push_str(attr);
         output.push('\n');
     }
+    push_scope_attrs(output, table);
     output.push_str(&format!("pub struct {} {{\n", table.struct_name));
     for column in &table.columns {
         push_doc(output, 4, &[&column_doc(column)]);
@@ -119,6 +120,19 @@ fn push_container_attrs(output: &mut String, table: &Table, conventions: &Conven
         attrs.push("no_soft_delete".to_owned());
     }
     output.push_str(&format!("#[rok({})]\n", attrs.join(", ")));
+}
+
+/// The `#[rok(scopes(...))]` attribute of a row's derive: the scopes the
+/// `[generate.scopes]` configuration declares for its table, each naming
+/// the free function behind it (spec D7). A table without config entries
+/// carries no attribute.
+fn push_scope_attrs(output: &mut String, table: &Table) {
+    for scope in &table.scopes {
+        output.push_str(&format!(
+            "#[rok(scopes({} = {}))]\n",
+            scope.name, scope.path
+        ));
+    }
 }
 
 /// The `#[rok(...)]` attributes of one row field: the column's name when it

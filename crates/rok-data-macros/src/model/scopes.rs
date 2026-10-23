@@ -5,20 +5,39 @@
 //! and the derive gives the model an entry (`User::popular()`) and the
 //! chain a method (`User::popular().active()`), through the runtime's
 //! `Scope` trait.
+//!
+//! A parameterized scope declares its parameters by the same bracketed
+//! syntax the entry takes them by (`#[rok(scopes(of_type(ty: i64) =
+//! path::to::of_type))]`); the free function takes the query first and
+//! the parameters after (`fn of_type(&Select<User>, i64) -> Select<User>`),
+//! and the entry and the method get the same call shape
+//! (`User::of_type(ty)`, `User::popular().of_type(ty)`).
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
+use syn::parse::Parse;
 use syn::spanned::Spanned;
-use syn::{Ident, Path};
+use syn::{Ident, Path, Type};
 
 use crate::naming::{method_ident, unraw};
 
-/// One named scope: the name it is called by, and the function behind it.
+/// One parameter of a parameterized scope: `ty: i64`.
+pub(crate) struct ScopeParam {
+    /// The name the parameter is called by (`ty`).
+    pub(crate) name: Ident,
+    /// The parameter's type (`i64`).
+    pub(crate) ty: Type,
+}
+
+/// One named scope: the name it is called by, the function behind it,
+/// and the parameters a parameterized scope takes (empty otherwise).
 pub(crate) struct Scope {
     /// The name the scope is called by (`popular`).
     pub(crate) name: Ident,
     /// The path to the scope function (`path::to::popular`).
     pub(crate) path: Path,
+    /// The scope's parameters; an unparameterized scope has none.
+    pub(crate) params: Vec<ScopeParam>,
 }
 
 /// The names the runtime already uses.
@@ -99,7 +118,33 @@ const RESERVED: &[&str] = &[
     "with_trashed",
 ];
 
-/// Parse `scopes(name = path::to::scope, …)` into the scopes it declares.
+/// The parsed parameters of a scope: what both the entry and the method
+/// take (`ty: i64`) and what they forward to the scope function (`ty`).
+struct Params<'a> {
+    signature: Vec<&'a ScopeParam>,
+    forwarding: Vec<&'a Ident>,
+}
+
+impl<'a> Params<'a> {
+    /// The parameters of `scope`; an unparameterized scope has none.
+    fn of(scope: &'a Scope) -> Self {
+        let signature = scope.params.iter().collect();
+        let forwarding = scope.params.iter().map(|param| &param.name).collect();
+        Self {
+            signature,
+            forwarding,
+        }
+    }
+
+    /// Whether the scope takes any parameters.
+    fn is_empty(&self) -> bool {
+        self.signature.is_empty()
+    }
+}
+
+/// Parse `scopes(name = path::to::scope, …)` — with an optional parameter
+/// list on the name (`name(ty: i64) = path::to::scope`) — into the scopes
+/// it declares.
 pub(crate) fn parse_scopes(
     meta: &syn::meta::ParseNestedMeta<'_>,
     out: &mut Vec<Scope>,
@@ -110,8 +155,37 @@ pub(crate) fn parse_scopes(
             .get_ident()
             .cloned()
             .ok_or_else(|| inner.error("expected `name = path::to::scope`"))?;
+
+        // The parameters, `name(ty: i64)`; absent for the plain form.
+        let params = if inner.input.peek(syn::token::Paren) {
+            let content;
+            syn::parenthesized!(content in inner.input);
+            content
+                .parse_terminated(syn::FnArg::parse, syn::Token![,])?
+                .into_iter()
+                .map(|arg| match arg {
+                    syn::FnArg::Typed(pat) => match *pat.pat {
+                        syn::Pat::Ident(ident) => Ok(ScopeParam {
+                            name: ident.ident,
+                            ty: *pat.ty,
+                        }),
+                        other => Err(syn::Error::new(
+                            other.span(),
+                            "a scope parameter is `name: Type`: `name(ty: i64) = path::to::scope`",
+                        )),
+                    },
+                    receiver @ syn::FnArg::Receiver(_) => Err(syn::Error::new(
+                        receiver.span(),
+                        "a scope parameter is `name: Type`: `name(ty: i64) = path::to::scope`",
+                    )),
+                })
+                .collect::<syn::Result<Vec<_>>>()?
+        } else {
+            Vec::new()
+        };
+
         if !inner.input.peek(syn::Token![=]) {
-            return Err(inner.error("expected `name = path::to::scope`"));
+            return Err(inner.error("expected `name = path::to::scope` or `name(ty: Type) = path::to::scope`"));
         }
         let value: syn::Expr = inner.value()?.parse()?;
         let path = match &value {
@@ -119,10 +193,11 @@ pub(crate) fn parse_scopes(
             other => {
                 return Err(syn::Error::new(
                     other.span(),
-                    "a scope names a function: `name = path::to::scope`",
+                    "a scope names a function: `name = path::to::scope` or `name(ty: Type) = path::to::scope`",
                 ));
             }
         };
+
         let name = method_ident(&name)?;
         let plain = unraw(&name);
         if RESERVED.contains(&plain.as_str()) {
@@ -137,12 +212,12 @@ pub(crate) fn parse_scopes(
                 format!("the scope `{plain}` is declared twice"),
             ));
         }
-        out.push(Scope { name, path });
+        out.push(Scope { name, path, params });
         Ok(())
     })
 }
 
-/// The model's scope entries: `User::popular()`.
+/// The model's scope entries: `User::popular()` or `User::of_type(ty)`.
 ///
 /// Each entry starts a fresh chain and hands it to the scope function.
 pub(crate) fn entries(model: &Ident, scopes: &[Scope], krate: &TokenStream2) -> Vec<TokenStream2> {
@@ -152,10 +227,22 @@ pub(crate) fn entries(model: &Ident, scopes: &[Scope], krate: &TokenStream2) -> 
             let name = &scope.name;
             let path = &scope.path;
             let doc = format!("The `{name}` scope.");
-            quote! {
-                #[doc = #doc]
-                pub fn #name() -> #krate::Select<#model> {
-                    #krate::Scope::scope(#krate::Select::new(), #path)
+            let params = Params::of(scope);
+            if params.is_empty() {
+                quote! {
+                    #[doc = #doc]
+                    pub fn #name() -> #krate::Select<#model> {
+                        #krate::Scope::scope(#krate::Select::new(), #path)
+                    }
+                }
+            } else {
+                let names = params.forwarding;
+                let types = params.signature.iter().map(|param| &param.ty);
+                quote! {
+                    #[doc = #doc]
+                    pub fn #name(#(#names: #types),*) -> #krate::Select<#model> {
+                        #path(&#krate::Select::new(), #(#names),*)
+                    }
                 }
             }
         })
@@ -173,25 +260,68 @@ pub(crate) fn trait_declaration(
 ) -> TokenStream2 {
     let trait_name = format_ident!("{}Scopes", model);
     let doc = format!("The named scopes of `{model}`.");
-    let pairs = scopes.iter().map(|scope| {
+
+    // The trait's signatures and the impl's bodies, one of each per
+    // scope. Neither a trait body nor an impl block separates its
+    // members with commas, so the tokens are joined bare. The trait's
+    // methods carry the entry's doc: a public trait's items are
+    // documented (`deny(missing_docs)` reads generated code too).
+    let mut trait_body = TokenStream2::new();
+    let mut impl_body = TokenStream2::new();
+    for scope in scopes {
         let name = &scope.name;
-        let path = &scope.path;
-        quote!(#name => #path)
-    });
-    quote! {
-        #krate::declare_scopes! {
+        let params = Params::of(scope);
+        let doc = format!("The `{name}` scope.");
+        let signature = if params.is_empty() {
+            quote! { fn #name(self) -> #krate::Select<#model>; }
+        } else {
+            let names = params.forwarding.clone();
+            let types: Vec<&Type> = params.signature.iter().map(|param| &param.ty).collect();
+            quote! { fn #name(self, #(#names: #types),*) -> #krate::Select<#model>; }
+        };
+        trait_body.extend(quote! {
             #[doc = #doc]
-            pub trait #trait_name for #model {
-                #(#pairs,)*
+            #signature
+        });
+
+        let path = &scope.path;
+        let body = if params.is_empty() {
+            quote! {
+                fn #name(self) -> #krate::Select<#model> {
+                    #krate::Scope::scope(self, #path)
+                }
             }
+        } else {
+            let names = params.forwarding;
+            let types: Vec<&Type> = params.signature.iter().map(|param| &param.ty).collect();
+            quote! {
+                fn #name(self, #(#names: #types),*) -> #krate::Select<#model> {
+                    #path(&self, #(#names),*)
+                }
+            }
+        };
+        impl_body.extend(body);
+    }
+
+    quote! {
+        #[doc = #doc]
+        pub trait #trait_name: #krate::Scope<#model> {
+            #trait_body
+        }
+
+        impl #trait_name for #krate::Select<#model> {
+            #impl_body
         }
     }
 }
 
-/// The shape every scope function must have: `fn(&Select<M>) -> Select<M>`.
+/// The shape every scope function must have.
 ///
-/// A scope that is not a function, or that has another shape, fails here
-/// with a message that names the attribute.
+/// For an unparameterized scope: `fn(&Select<M>) -> Select<M>`; for a
+/// parameterized one, the declared parameters follow the query
+/// (`fn(&Select<M>, i64) -> Select<M>`). A scope that is not a function,
+/// or that has another shape, fails here with a message that names the
+/// attribute.
 pub(crate) fn signature_checks(
     model: &Ident,
     scopes: &[Scope],
@@ -201,8 +331,15 @@ pub(crate) fn signature_checks(
         .iter()
         .map(|scope| {
             let path = &scope.path;
-            quote! {
-                const _: fn(&#krate::Select<#model>) -> #krate::Select<#model> = #path;
+            let types = scope.params.iter().map(|param| &param.ty);
+            if scope.params.is_empty() {
+                quote! {
+                    const _: fn(&#krate::Select<#model>) -> #krate::Select<#model> = #path;
+                }
+            } else {
+                quote! {
+                    const _: fn(&#krate::Select<#model>, #(#types),*) -> #krate::Select<#model> = #path;
+                }
             }
         })
         .collect()

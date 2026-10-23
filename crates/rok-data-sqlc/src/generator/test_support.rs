@@ -69,6 +69,7 @@ pub fn table(mut columns: Vec<Column>, primary_key: &[&str]) -> Table {
         soft_delete_column: None,
         tenant_column: None,
         relationships: Vec::new(),
+        scopes: Vec::new(),
         before_insert_triggers: Vec::new(),
     }
 }

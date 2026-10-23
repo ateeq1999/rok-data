@@ -85,6 +85,10 @@ pub struct Table {
     /// parser leaves it empty; the generator infers it over the tables
     /// generated together.
     pub relationships: Vec<Relationship>,
+    /// The named scopes the model declares, sorted by name. The parser
+    /// leaves it empty; the generator applies the `[generate.scopes]`
+    /// configuration.
+    pub scopes: Vec<ScopeDeclaration>,
     /// The names of the row-level `BEFORE INSERT` triggers on this table
     /// (`BEFORE INSERT OR UPDATE` included), in creation order, less any
     /// dropped since. Such a trigger can supply a managed column's value;
@@ -127,6 +131,24 @@ pub struct Through {
     /// The join table's column equal to the relationship's `target_column`
     /// (SQL name).
     pub target_column: String,
+}
+
+/// A named scope a generated model declares (`spec D7`): the name it is
+/// called by (`famous`) and the path of the free function behind it
+/// (`crate::scopes::users::famous`), as the `[generate.scopes]`
+/// configuration declares them. The function itself is the app's code —
+/// the engine wires the attribute, and the derive's signature check
+/// holds the function's shape `fn(&Select<M>) -> Select<M>` when the
+/// model compiles.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScopeDeclaration {
+    /// The name the scope is called by, a snake_case Rust identifier that
+    /// is not a keyword, and not a verb of the runtime (the derive refuses
+    /// those when the model compiles).
+    pub name: String,
+    /// The Rust path of the scope function, as the generated attribute
+    /// writes it.
+    pub path: String,
 }
 
 /// Which way a [`Relationship`] runs, and how many rows it reaches.

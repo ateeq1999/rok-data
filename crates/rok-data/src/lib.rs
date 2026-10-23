@@ -44,10 +44,9 @@
 //! println!("{} of {} users", page.len(), page.total);
 //!
 //! // Transactions
-//! db.transaction(|tx| Box::pin(async move {
-//!     ann.delete(&mut *tx).await?;
-//!     Ok::<_, rok_data::Error>(())
-//! })).await?;
+//! let mut tx = db.begin().await?;
+//! ann.delete(&mut tx).await?;
+//! tx.commit().await?;
 //! # Ok(()) }
 //! ```
 //!
@@ -98,6 +97,31 @@
 //!
 //! The model's default scope (`#[rok(default_scope = …)]`) and
 //! [`Select::unscoped`] are unchanged.
+//!
+//! A scope can take parameters, declared in the attribute after its name.
+//! The free function takes the query, then the parameters; the entry and
+//! the chain method get the same signature:
+//!
+//! ```
+//! use rok_data::prelude::*;
+//!
+//! #[derive(Model)]
+//! #[rok(scopes(older_than(n: i32) = older_than))]
+//! struct User {
+//!     #[rok(generated)]
+//!     id: i64,
+//!     age: i32,
+//! }
+//!
+//! fn older_than(query: &Select<User>, n: i32) -> Select<User> {
+//!     query.clone().filter(User::AGE.gt(n))
+//! }
+//!
+//! // the entry and the chain method take the same shape
+//! let adults = User::older_than(18);
+//! // the chain method composes with the rest of the chain
+//! let seniors = User::filter(User::AGE.lt(65)).older_than(18);
+//! ```
 //!
 //! ## More features
 //!

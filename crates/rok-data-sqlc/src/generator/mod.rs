@@ -11,6 +11,7 @@ pub mod openapi;
 pub mod queries;
 pub mod read;
 pub mod relationships;
+pub mod scopes;
 pub mod search;
 pub mod session;
 pub mod sql;
@@ -186,12 +187,16 @@ pub fn plan_files_with_queries(
     }
     let mut files = Vec::new();
     let all: Vec<Table> = tables.iter().chain(&kept.tables).cloned().collect();
-    let resolved = prepare(
+    let mut resolved = prepare(
         &all,
         conventions,
         &config.relationships,
         relationships::Scope::Run,
     )?;
+    // The `[generate.scopes]` entries name the models' scopes; entries for
+    // tables outside the run are skipped (checked against the whole schema
+    // already, in `generate`).
+    scopes::apply(&mut resolved, &config.scopes);
     let tables = resolved.as_slice();
     let enums: Vec<EnumType> = enums.iter().chain(&kept.enums).cloned().collect();
     let is_kept = |table: &Table| {

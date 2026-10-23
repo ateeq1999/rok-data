@@ -2,7 +2,7 @@ use super::super::test_support::{column, defaulted, generated, nullable, table};
 use super::*;
 use crate::Conventions;
 use crate::generator::conventions::apply;
-use crate::schema::{Relationship, RelationshipKind, Through};
+use crate::schema::{Relationship, RelationshipKind, ScopeDeclaration, Through};
 
 /// A timestamp column, with the `DEFAULT` expression it declares (none when
 /// the column has no default).
@@ -684,4 +684,45 @@ fn a_self_reference_imports_nothing() {
         "{rendered}"
     );
     assert!(!rendered.contains("super::super::users"), "{rendered}");
+}
+
+/// The `[generate.scopes]` entries for a table become the row's scope
+/// attributes, one per scope, after the relation attributes.
+#[test]
+fn a_configured_scope_becomes_a_scope_attribute() {
+    let mut users = table(vec![column("id", "i64")], &["id"]);
+    users.scopes.push(ScopeDeclaration {
+        name: "famous".to_owned(),
+        path: "crate::scopes::users::famous".to_owned(),
+    });
+    users.scopes.push(ScopeDeclaration {
+        name: "adults".to_owned(),
+        path: "crate::scopes::users::adults".to_owned(),
+    });
+    let rendered = render(&users);
+    assert!(
+        rendered.contains("#[rok(scopes(famous = crate::scopes::users::famous))]"),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains("#[rok(scopes(adults = crate::scopes::users::adults))]"),
+        "{rendered}"
+    );
+    // One per scope; each names the path the configuration gives.
+    assert_eq!(
+        rendered
+            .lines()
+            .filter(|line| line.contains("#[rok(scopes("))
+            .count(),
+        2,
+        "{rendered}"
+    );
+}
+
+/// A table whose configuration declares nothing carries no scope
+/// attribute: the attribute is absent, not empty.
+#[test]
+fn a_table_without_scopes_carries_no_scope_attribute() {
+    let rendered = render(&table(vec![column("id", "i64")], &["id"]));
+    assert!(!rendered.contains("scopes("), "{rendered}");
 }

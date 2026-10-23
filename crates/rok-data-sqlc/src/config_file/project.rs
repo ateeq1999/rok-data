@@ -60,6 +60,9 @@ pub(super) struct GenerationKeys {
     /// The relationship renames and opt-outs, by table.
     #[serde(default)]
     relationships: BTreeMap<String, BTreeMap<String, ChangeValue>>,
+    /// The named scopes of the generated models, by table.
+    #[serde(default)]
+    scopes: BTreeMap<String, BTreeMap<String, String>>,
     /// The module renames, by table.
     #[serde(default)]
     modules: BTreeMap<String, String>,
@@ -110,6 +113,7 @@ impl GenerationKeys {
                     (table, changes)
                 })
                 .collect(),
+            scopes: self.scopes,
             modules: self.modules,
             api: ApiKeys::default(),
         }
@@ -168,6 +172,17 @@ mod tests {
              [generate]\nschema = \"migrations/\"\n",
         );
         assert_eq!(file.schema, vec![PathBuf::from("/project/migrations")]);
+    }
+
+    #[test]
+    fn a_scope_names_its_function() {
+        let file = settings(
+            "[generate]\n\
+             [generate.scopes.users]\n\
+             famous = \"crate::scopes::users::famous\"\n",
+        );
+        let users = &file.scopes["users"];
+        assert_eq!(users["famous"], "crate::scopes::users::famous".to_owned());
     }
 
     /// The history dir the staging writes its pairs into: the

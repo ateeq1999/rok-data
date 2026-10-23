@@ -53,6 +53,8 @@ pub(crate) struct FileConfig {
     /// list (even an empty one) replaces theirs.
     pub(crate) extractors: Option<Vec<Extractor>>,
     pub(crate) relationships: RelationshipKeys,
+    /// The `[generate.scopes]` entries, by table and then by scope name.
+    pub(crate) scopes: ScopeKeys,
     /// The `[modules]` renames, by table.
     pub(crate) modules: BTreeMap<String, String>,
     /// The `[api]` keys, with `output` resolved.
@@ -62,6 +64,10 @@ pub(crate) struct FileConfig {
 /// The `[relationships]` entries one source sets, by table and then by
 /// inferred relationship name.
 pub(crate) type RelationshipKeys = BTreeMap<String, BTreeMap<String, RelationshipChange>>;
+
+/// The `[generate.scopes]` entries one source sets, by table and then by
+/// scope name.
+pub(crate) type ScopeKeys = BTreeMap<String, BTreeMap<String, String>>;
 
 impl FileConfig {
     /// Layers `self` over `lower`: each option `self` sets wins, the rest come
@@ -80,6 +86,7 @@ impl FileConfig {
             derive: self.derive.or(lower.derive),
             extractors: self.extractors.or(lower.extractors),
             relationships: relationships_over(self.relationships, lower.relationships),
+            scopes: scopes_over(self.scopes, lower.scopes),
             modules: modules_over(self.modules, lower.modules),
             api: self.api.over(lower.api),
         }
@@ -103,6 +110,7 @@ impl FileConfig {
             derive: self.derive.unwrap_or(defaults.derive),
             extractors: self.extractors.unwrap_or(defaults.extractors),
             relationships: self.relationships,
+            scopes: self.scopes,
             modules: self.modules,
             api: self.api.resolve(),
         }
@@ -114,6 +122,15 @@ impl FileConfig {
 fn relationships_over(upper: RelationshipKeys, mut lower: RelationshipKeys) -> RelationshipKeys {
     for (table, changes) in upper {
         lower.entry(table).or_default().extend(changes);
+    }
+    lower
+}
+
+/// Layers `upper`'s `[generate.scopes]` entries over `lower`'s, entry by
+/// entry: an entry `upper` sets for a scope replaces `lower`'s.
+fn scopes_over(upper: ScopeKeys, mut lower: ScopeKeys) -> ScopeKeys {
+    for (table, scopes) in upper {
+        lower.entry(table).or_default().extend(scopes);
     }
     lower
 }
@@ -146,6 +163,8 @@ struct RawFile {
     extractors: Option<Vec<ExtractorName>>,
     #[serde(default)]
     relationships: BTreeMap<String, BTreeMap<String, ChangeValue>>,
+    #[serde(default)]
+    scopes: BTreeMap<String, BTreeMap<String, String>>,
     #[serde(default)]
     modules: BTreeMap<String, String>,
     #[serde(default)]
@@ -223,6 +242,7 @@ impl RawFile {
                     (table, changes)
                 })
                 .collect(),
+            scopes: self.scopes,
             modules: self.modules,
             api: self.api.relative_to(base),
         }

@@ -8,7 +8,7 @@ use super::*;
 
 /// A model with two named scopes.
 #[derive(Debug, Clone, PartialEq, Model)]
-#[rok(scopes(popular = popular, active = active))]
+#[rok(scopes(popular = popular, active = active, older_than(lim: i32) = older_than))]
 struct Visitor {
     #[rok(generated)]
     id: i64,
@@ -25,6 +25,13 @@ fn popular(query: &Select<Visitor>) -> Select<Visitor> {
 /// The `active` scope: the rows of an adult.
 fn active(query: &Select<Visitor>) -> Select<Visitor> {
     query.clone().filter(Visitor::AGE.gte(18))
+}
+
+/// The `older_than` scope: the rows older than a given age. A
+/// parameterized scope: the free function takes the query, then the
+/// declared parameters.
+fn older_than(query: &Select<Visitor>, lim: i32) -> Select<Visitor> {
+    query.clone().filter(Visitor::AGE.gt(lim))
 }
 
 /// A model with a default scope and a named scope.
@@ -86,6 +93,20 @@ fn the_chain_method_composes_with_the_model_entry() {
     assert_eq!(
         Visitor::active().popular().to_sql().as_str(),
         r#"SELECT "id", "name", "age", "views" FROM "visitors" WHERE "age" >= $1 AND "views" > $2"#
+    );
+}
+
+#[test]
+fn the_parameterized_scope_takes_its_arguments() {
+    // The entry, on the model.
+    assert_eq!(
+        Visitor::older_than(18).to_sql().as_str(),
+        r#"SELECT "id", "name", "age", "views" FROM "visitors" WHERE "age" > $1"#
+    );
+    // The chain method, with the same shape; it composes.
+    assert_eq!(
+        Visitor::popular().older_than(17).to_sql().as_str(),
+        r#"SELECT "id", "name", "age", "views" FROM "visitors" WHERE "views" > $1 AND "age" > $2"#
     );
 }
 

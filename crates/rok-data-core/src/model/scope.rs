@@ -39,11 +39,11 @@ impl<M: Model> Scope<M> for Select<M> {
 /// Declare a model's named scopes.
 ///
 /// The macro writes the trait the chain's scope methods hang off: one
-/// method per scope, implemented for the model's chain. The
-/// `#[derive(Model)]` macro calls it for you — a model that declares
-/// `#[rok(scopes(popular = path::to::popular))]` gets a `UserScopes`
-/// trait with a `popular` method — so hand-writing the macro is only for
-/// a model that declares scopes without the derive.
+/// method per scope, implemented for the model's chain. It declares the
+/// scopes of a model the derive does not build: a model that carries
+/// `#[rok(scopes(popular = path::to::popular))]` gets the same shape from
+/// the `#[derive(Model)]` macro directly (with entries and signature
+/// checks beside the trait).
 ///
 /// ```ignore
 /// rok_data::declare_scopes! {
