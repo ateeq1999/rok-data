@@ -18,6 +18,7 @@ pub(crate) mod exec;
 
 /// The windowed read: [`Select::chunk`].
 pub(crate) mod chunk;
+pub use chunk::Walk;
 pub(crate) mod cursor;
 pub(crate) mod paginate;
 

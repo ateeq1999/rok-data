@@ -34,6 +34,7 @@ async fn fresh_database() -> Option<PgPool> {
         .expect("connect to test database");
     sqlx::raw_sql(
         "DROP SCHEMA IF EXISTS app CASCADE; DROP SCHEMA IF EXISTS legacy CASCADE;
+         DROP SCHEMA IF EXISTS catalog CASCADE; CREATE SCHEMA catalog;
          DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;",
     )
     .execute(&pool)

@@ -33,6 +33,17 @@ compiler finds the call sites.
   table is the struct's pluralized snake_case name, no
   `#[rok(primary_key)]` on a lone `id` key. Schema-qualified tables and
   other keys keep theirs.
+- **Walking a large table** (dx-first ticket 12): `chunk` reads one
+  `LIMIT`/`OFFSET` window per query (ordered by the primary key when the
+  query has no order) instead of one streamed query, so no connection is
+  held while the callback runs — a callback that writes back through the
+  same pool works with a pool of one, where it used to time out. New:
+  `chunk_by_id` (keyset windows by primary key, correct when the callback
+  deletes or updates its rows), `lazy` / `lazy_by_id` / `lazy_by_id_desc`
+  (a `Stream` of rows read in windows), `each` / `each_by_id` (one row per
+  call). A callback returns `Ok(())` to go on, or `Ok(false)` /
+  `ControlFlow::Break` to stop (the `Walk` trait). Every walk takes a
+  session — the database, a pool, a transaction or a connection.
 - **Cursor pagination in both directions** (dx-first ticket 11): a
   `CursorPage` carries `prev` beside `next` (`prev_cursor()`,
   `next_cursor()`, `has_prev()`, `has_more()`), and passing a page's

@@ -53,7 +53,9 @@ pub use key::IntoKey;
 pub use model::{Hooks, Model, ModelWrite};
 pub use notify::{Change, ChangeOp, ChangeStream, Listener, Notification};
 pub use page::Page;
-pub use query::{Insert, InsertMany, LoadedPage, Memoized, Projected, Select, Update, WithSelect};
+pub use query::{
+    Insert, InsertMany, LoadedPage, Memoized, Projected, Select, Update, Walk, WithSelect,
+};
 pub use raw::{Raw, raw};
 pub use relation::{BelongsTo, HasMany, HasOne, Include, Loaded, Relation};
 pub use simple_page::SimplePage;

@@ -107,7 +107,7 @@ working.
 | `Model::where_`    | `fn where_(expr) -> Select<Self>`         | the Eloquent spelling of `filter` |
 | `Select::where_`   | `fn where_(expr) -> Self`                 | the Eloquent spelling of `filter`, on the chain |
 | `Select::get`       | `fn get(executor) -> Result<Vec<Self>>`    | the Eloquent spelling of `all`; both stay |
-| `Select::chunk`     | `fn chunk(executor, size, f) -> Result<()>` | the rows in windows of `size`, so a large table need not fit in memory |
+| `Select::chunk`     | `fn chunk(session, size, f) -> Result<()>` | the rows in windows of `size`, one query each, so a large table need not fit in memory |
 
 ```rust
 // `where` is a Rust keyword, so only the raw identifier compiles; `filter`
@@ -122,24 +122,31 @@ if User::exists(&db).await? {
 // the same rows as `all`
 let users = User::query().get(&db).await?;
 
-// the rows in windows of 100, one query, every row once
-User::query().chunk(&db, 100, |rows| async move {
+// the rows in windows of 100 — `db` as a reference the `async move`
+// blocks copy
+let db = &db;
+User::query().chunk(db, 100, |rows| async move {
     for user in rows {
-        archive(&db, user).await?;
+        archive(db, user).await?;
     }
     Ok(())
 }).await?;
 ```
 
-`chunk` streams the rows: only one window is in memory at a time, the
-query runs once (not once per window), every matching row reaches the
-callback exactly once in the order the query returns them, and the last
-window is shorter when the rows don't divide by the size. The callback
-returns a future, so a window can be written back to the database before
-the next one arrives; the first error stops the walk and is returned.
-The query holds its connection while the windows are processed, so a
-callback that writes back needs a second one (give the pool more than one
-connection).
+`chunk` reads one window per query (`LIMIT`/`OFFSET`, ordered by the
+primary key when the query has no order), so only one window is in memory
+and no connection is held while the callback runs — a callback that writes
+back works even with a pool of one. The callback returns `Ok(())` to go on
+or `Ok(false)` to stop (Laravel's `return false`); the first error stops the
+walk and is returned.
+
+The rest of Laravel's table walks, for large tables:
+
+| Laravel | rok-data | Notes |
+| ------- | -------- | ----- |
+| `chunkById(100, fn)` | `.chunk_by_id(db, 100, f)` | keyset windows by primary key: correct when `f` deletes or updates the rows it was handed |
+| `lazy()` / `lazyById()` / `lazyByIdDesc()` | `.lazy(db, n)?` / `.lazy_by_id(db, n)?` / `.lazy_by_id_desc(db, n)?` | a `Stream` of rows, read `n` at a time |
+| `each(fn)` / `eachById(fn)` | `.each(db, f)` / `.each_by_id(db, f)` | one row per call, a thousand per query |
 
 ### Relations
 

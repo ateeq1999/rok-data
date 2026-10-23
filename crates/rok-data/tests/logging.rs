@@ -62,7 +62,7 @@ async fn query_logging() {
         .unwrap_err();
     assert!(matches!(err, Error::Database(_)));
 
-    // A chunked read is one statement, however many windows it delivers.
+    // A chunked read: one query per window.
     for name in ["a", "b"] {
         User::insert_builder()
             .set(User::NAME, name)
@@ -89,17 +89,20 @@ async fn query_logging() {
         !logs.contains("secret"),
         "parameters are only logged at TRACE level"
     );
-    let streams: Vec<&str> = logs
+    // A chunk reads one window per query — two full windows, then the
+    // empty read that ends the walk — and holds no stream open between
+    // them.
+    let windows: Vec<&str> = logs
         .lines()
-        .filter(|line| line.contains("rok_data::query: stream"))
+        .filter(|line| line.contains("rok_data::query: query") && line.contains("LIMIT 1 OFFSET"))
         .collect();
-    assert_eq!(
-        streams.len(),
-        1,
-        "the chunk is one statement, whatever the window size: {logs}"
+    assert_eq!(windows.len(), 3, "one query per window: {logs}");
+    assert!(
+        !logs.contains("rok_data::query: stream"),
+        "no stream held across the callbacks: {logs}"
     );
     assert!(
-        streams[0].contains(r#"SELECT \"id\", \"name\" FROM \"users\""#),
+        windows[0].contains(r#"SELECT \"id\", \"name\" FROM \"users\""#),
         "{logs}"
     );
     assert!(

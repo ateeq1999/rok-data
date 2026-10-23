@@ -13,9 +13,9 @@ The callback DX must work with a pool: today's `chunk` example (`async move { ar
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `chunk_by_id`, `lazy`, `lazy_by_id`, `lazy_by_id_desc`, `each`, `each_by_id`
-- [ ] Test: a `chunk_by_id` callback that deletes its rows still visits every row exactly once (offset `chunk` would skip)
-- [ ] Early-stop test for chunk and each
-- [ ] The documented chunk example compiles (doctest, not `ignore`)
+- [x] `chunk_by_id`, `lazy`, `lazy_by_id`, `lazy_by_id_desc`, `each`, `each_by_id`
+- [x] Test: a `chunk_by_id` callback that deletes its rows still visits every row exactly once (offset `chunk` would skip)
+- [x] Early-stop test for chunk and each
+- [x] The documented chunk example compiles and runs: facade test `the_documented_chunk_callback_compiles_and_writes_back` is that exact shape, writing back through the same pool (it timed out under the old streaming `chunk`; `chunk` now reads one window per query)

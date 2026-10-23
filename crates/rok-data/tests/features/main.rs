@@ -17,6 +17,7 @@ mod scopes;
 mod streaming;
 mod surface;
 mod timestamps;
+mod walking;
 
 #[derive(Debug, Clone, PartialEq, Model)]
 #[rok(has_many(posts = Post::AUTHOR_ID), has_one(profile = Profile::USER_ID))]
