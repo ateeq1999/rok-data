@@ -3,22 +3,22 @@
 //!
 //! [`Page`], [`SimplePage`] and [`CursorPage`] each answer in two shapes:
 //!
-//! - **`laravel(links)`** — Laravel's paginator JSON: `data`,
+//! - **`paginator(links)`** — the paginator object: `data`,
 //!   `current_page`, `per_page`, `total`, `last_page`, `from`, `to` and the
 //!   `*_page_url`s (a simple page leaves out the total; a cursor page
 //!   carries `next_cursor` / `prev_cursor`);
-//! - **`resource(links)`** — Laravel's API-resource envelope:
+//! - **`resource(links)`** — the resource envelope:
 //!   `{data, links: {first, last, prev, next}, meta: {…}}`.
 //!
 //! (The type's own `Serialize` stays the compact `{items, …}` shape.)
 //!
 //! [`Links`] reads the request's path and query, so every link keeps the
-//! other query parameters (Laravel's `withQueryString`):
+//! other query parameters:
 //!
 //! ```ignore
 //! async fn books(uri: OriginalUri, State(db): State<Db>) -> rok_data::Result<Json<Value>> {
 //!     let page = Book::query().paginate(&db, 2, 20).await?;
-//!     Ok(Json(serde_json::to_value(page.laravel(Links::from_request(&uri.to_string())))?))
+//!     Ok(Json(serde_json::to_value(page.paginator(Links::from_request(&uri.to_string())))?))
 //! }
 //! ```
 
@@ -28,7 +28,7 @@ use serde::{Serialize, Serializer};
 use crate::{CursorPage, Page, SimplePage};
 
 /// Where a page's links point: the request's path and query string, the
-/// name of the page parameter (`page` by default — Laravel's `pageName`)
+/// name of the page parameter (`page` by default)
 /// and an optional `#fragment`.
 #[derive(Debug, Clone)]
 pub struct Links<'a> {
@@ -55,19 +55,19 @@ impl<'a> Links<'a> {
     }
 
     /// Names the page parameter (`?p=2` instead of `?page=2`), for two
-    /// paginated lists on one page — Laravel's `pageName`.
+    /// paginated lists on one page.
     pub fn page_param(mut self, name: &'a str) -> Self {
         self.page_param = name;
         self
     }
 
-    /// Ends every link with `#fragment` — Laravel's `fragment`.
+    /// Ends every link with `#fragment`.
     pub fn fragment(mut self, fragment: &'a str) -> Self {
         self.fragment = Some(fragment);
         self
     }
 
-    /// The request's path, without the query — Laravel's `path`.
+    /// The request's path, without the query (the shapes' `path`).
     pub fn path(&self) -> &str {
         self.path
     }
@@ -105,15 +105,15 @@ impl<'a> Links<'a> {
     }
 }
 
-/// A page in Laravel's paginator JSON: what [`Page::laravel`],
-/// [`SimplePage::laravel`] and [`CursorPage::laravel`] return.
+/// A page as the paginator object: what [`Page::paginator`],
+/// [`SimplePage::paginator`] and [`CursorPage::paginator`] return.
 #[derive(Debug)]
-pub struct Laravel<'a, P> {
+pub struct Paginator<'a, P> {
     page: &'a P,
     links: Links<'a>,
 }
 
-/// A page in Laravel's API-resource envelope, `{data, links, meta}`: what
+/// A page in the resource envelope, `{data, links, meta}`: what
 /// [`Page::resource`], [`SimplePage::resource`] and
 /// [`CursorPage::resource`] return.
 #[derive(Debug)]
@@ -134,14 +134,14 @@ fn span(page: u64, per_page: u64, len: usize) -> (Option<u64>, Option<u64>) {
 macro_rules! shapes {
     ($page:ident) => {
         impl<T> $page<T> {
-            /// This page in Laravel's paginator JSON, its links built from
+            /// This page as the paginator object — `data`, the page numbers and
+            /// a URL for each neighbouring page — its links built from
             /// `links` (see the [`wire`](crate::wire) module).
-            pub fn laravel<'a>(&'a self, links: Links<'a>) -> Laravel<'a, Self> {
-                Laravel { page: self, links }
+            pub fn paginator<'a>(&'a self, links: Links<'a>) -> Paginator<'a, Self> {
+                Paginator { page: self, links }
             }
 
-            /// This page in Laravel's API-resource envelope, `{data, links,
-            /// meta}` (see the [`wire`](crate::wire) module).
+            /// This page in the resource envelope, `{data, links, meta}` (see the [`wire`](crate::wire) module).
             pub fn resource<'a>(&'a self, links: Links<'a>) -> Resource<'a, Self> {
                 Resource { page: self, links }
             }
@@ -153,7 +153,7 @@ shapes!(Page);
 shapes!(SimplePage);
 shapes!(CursorPage);
 
-impl<T: Serialize> Serialize for Laravel<'_, Page<T>> {
+impl<T: Serialize> Serialize for Paginator<'_, Page<T>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let (page, links) = (self.page, &self.links);
         let (from, to) = span(page.page, page.per_page, page.items.len());
@@ -181,7 +181,7 @@ impl<T: Serialize> Serialize for Laravel<'_, Page<T>> {
     }
 }
 
-impl<T: Serialize> Serialize for Laravel<'_, SimplePage<T>> {
+impl<T: Serialize> Serialize for Paginator<'_, SimplePage<T>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let (page, links) = (self.page, &self.links);
         let (from, to) = span(page.page, page.per_page, page.items.len());
@@ -205,7 +205,7 @@ impl<T: Serialize> Serialize for Laravel<'_, SimplePage<T>> {
     }
 }
 
-impl<T: Serialize> Serialize for Laravel<'_, CursorPage<T>> {
+impl<T: Serialize> Serialize for Paginator<'_, CursorPage<T>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let (page, links) = (self.page, &self.links);
         let next = page.next.as_ref().map(ToString::to_string);

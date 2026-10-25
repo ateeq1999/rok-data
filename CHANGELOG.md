@@ -34,10 +34,10 @@ compiler finds the call sites.
   `#[rok(primary_key)]` on a lone `id` key. Schema-qualified tables and
   other keys keep theirs.
 - **Pages on the wire** (dx-first ticket 13, the runtime half): with the
-  `serde` feature, `Page`, `SimplePage` and `CursorPage` answer in
-  Laravel's paginator JSON (`page.laravel(links)`: `data`,
-  `current_page`, `last_page`, `from`, `to`, the `*_page_url`s, …) or its
-  API-resource envelope (`page.resource(links)`: `{data, links, meta}`),
+  `serde` feature, `Page`, `SimplePage` and `CursorPage` answer as the
+  paginator object (`page.paginator(links)`: `data`, `current_page`,
+  `last_page`, `from`, `to`, the `*_page_url`s, …) or in the resource
+  envelope (`page.resource(links)`: `{data, links, meta}`),
   with `rok_data::wire::Links::from_request(uri)` building every link from
   the request — the other query parameters kept, the page parameter
   nameable (`page_param`), an optional `fragment`. Each type's own

@@ -143,13 +143,13 @@ fn links_keep_the_other_query_parameters() {
 }
 
 #[test]
-fn a_page_answers_in_laravels_shapes() {
+fn a_page_answers_as_a_paginator_and_a_resource() {
     use rok_data::wire::Links;
     // Page 2 of 5 rows at 2 a page.
     let page = Page::new(vec!["c", "d"], 5, 2, 2);
     let links = || Links::from_request("/books?sort=title&page=2");
     assert_eq!(
-        serde_json::to_value(page.laravel(links())).unwrap(),
+        serde_json::to_value(page.paginator(links())).unwrap(),
         json!({
             "current_page": 2,
             "data": ["c", "d"],
@@ -183,7 +183,7 @@ fn a_page_answers_in_laravels_shapes() {
     );
     // An empty page past the end: no positions, no next.
     let past = Page::new(Vec::<&str>::new(), 5, 9, 2);
-    let value = serde_json::to_value(past.laravel(links())).unwrap();
+    let value = serde_json::to_value(past.paginator(links())).unwrap();
     assert_eq!(
         (value["from"].clone(), value["to"].clone()),
         (json!(null), json!(null))
@@ -192,12 +192,12 @@ fn a_page_answers_in_laravels_shapes() {
 }
 
 #[test]
-fn simple_and_cursor_pages_answer_in_laravels_shapes() {
+fn simple_and_cursor_pages_answer_as_a_paginator_and_a_resource() {
     use rok_data::SimplePage;
     use rok_data::wire::Links;
     let simple = SimplePage::new(vec![1, 2], 1, 2, true);
     assert_eq!(
-        serde_json::to_value(simple.laravel(Links::from_request("/n"))).unwrap(),
+        serde_json::to_value(simple.paginator(Links::from_request("/n"))).unwrap(),
         json!({
             "current_page": 1, "data": [1, 2], "first_page_url": "/n?page=1",
             "from": 1, "next_page_url": "/n?page=2", "path": "/n", "per_page": 2,
@@ -214,7 +214,7 @@ fn simple_and_cursor_pages_answer_in_laravels_shapes() {
     };
     let links = || Links::from_request("/n?cursor=old&q=x");
     assert_eq!(
-        serde_json::to_value(cursor.laravel(links())).unwrap(),
+        serde_json::to_value(cursor.paginator(links())).unwrap(),
         json!({
             "data": [4, 5], "path": "/n", "per_page": 2,
             "next_cursor": next.to_string(),
