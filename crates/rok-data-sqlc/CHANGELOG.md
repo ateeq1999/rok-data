@@ -7,6 +7,29 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+### Breaking changes to the generated API
+
+- From rok-sqlc 0.5.0 (absorbed; engine ADR 0019): a generated create or
+  update checks, on its transaction and before it writes, what the database
+  would reject. The answer is a field's `422 validation_failed`, where it
+  was a `409 conflict` naming a constraint:
+  - **`exists`:** every foreign key of the body names a row the caller can
+    see (live, in the tenant, theirs when the referenced table is owned).
+  - **`unique`:** no other row holds a unique key's values (per tenant and
+    owner, live rows only under a soft-delete partial index, ignoring case
+    for a `lower(<column>)` entry).
+
+  Every failure is listed in one answer, for example `{"slug": [{"code":
+  "unique", ...}]}`. Clients that branched on the `409` see the `422`
+  instead. The `409` remains for a race between the check and the write.
+  A create or update whose body references an owned or tenant-scoped table
+  may now take the caller or the `Tenant` its check needs, so that service
+  method's signature can differ from the feature's other methods.
+- A unique index with one `lower(<column>)` entry is read as a
+  case-insensitive key: the table's `get_by_<column>` lookup compares
+  ignoring case, and the data layer gains `<columns>_taken` and
+  `exists_owned` reads in `listing.rs`.
+
 ### Added
 
 - From rok-sqlc 0.5.0 (absorbed; workspace ADR 0016, engine ADR 0019):

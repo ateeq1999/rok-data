@@ -51,7 +51,11 @@ async fn the_pages_go_forward_and_back_and_stay_put_while_rows_are_added() {
 
     // A row sorted before the cursor shifts no page after it.
     labels(&db, &["aa"]).await;
-    let third = get(&db, &format!("{by_name}&cursor={}", cursor(&second, "next"))).await;
+    let third = get(
+        &db,
+        &format!("{by_name}&cursor={}", cursor(&second, "next")),
+    )
+    .await;
     assert_eq!(names(&third), ["e"]);
     assert_eq!(third.body["next"], Value::Null);
 
@@ -75,7 +79,11 @@ async fn the_default_sort_and_q_apply() {
     // `id`, newest first, unless `sort` and `order` say otherwise.
     let page = get(&db, &format!("{LABELS}?per_page=3")).await;
     assert_eq!(names(&page), ["blue", "ready", "green"]);
-    let rest = get(&db, &format!("{LABELS}?per_page=3&cursor={}", cursor(&page, "next"))).await;
+    let rest = get(
+        &db,
+        &format!("{LABELS}?per_page=3&cursor={}", cursor(&page, "next")),
+    )
+    .await;
     assert_eq!(names(&rest), ["red"]);
 
     // `q` matches the name, ignoring case.

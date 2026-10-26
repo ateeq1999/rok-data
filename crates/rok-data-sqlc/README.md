@@ -1233,6 +1233,22 @@ snake_case codes `bad_request`, `unauthorized`, `forbidden`, `not_found`,
 `conflict`, `payload_too_large`, `validation_failed`,
 `precondition_required`, `version_conflict` and `internal_error`.
 
+A create or update body is validated before anything is written, and
+every failure is a field's `422 validation_failed`, checked in this order:
+
+1. the schema's rules (`VARCHAR(80)` a length, a `CHECK` a range);
+2. the string rules of `[api.rules]` (`email`, `url`, `minLength(3)`,
+   `trim`, ...);
+3. two pre-checks the schema implies, on the write's transaction:
+   - `exists`: each foreign key names a row the caller can see (live, in
+     the tenant, theirs when the table is owned);
+   - `unique`: no other row holds a unique key's values (per tenant and
+     owner, live rows only for a soft-delete partial index, ignoring case
+     for a `lower(<column>)` entry).
+
+The database constraint stays as the fallback for a race, answering
+`409 conflict` ([engine ADR 0019](docs/adr/0019-validation-rules.md)).
+
 The API documents itself. Every generated handler carries utoipa's
 `#[utoipa::path]` (its tag is the route base, its operation id the
 handler's name, its responses exactly the statuses it answers, each error

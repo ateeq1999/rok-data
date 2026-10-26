@@ -106,6 +106,10 @@ fn search_imports(table: &Table, api: SearchApi) -> String {
 pub(crate) struct Lookup<'a> {
     pub(crate) fn_name: String,
     pub(crate) columns: Vec<&'a Column>,
+    /// The column a case-insensitive key compares ignoring case (its
+    /// `lower(<column>)` entry), so the lookup compares
+    /// `lower(<column>) = lower($n)`.
+    pub(crate) lowered: Option<String>,
 }
 
 /// The table's unique-key lookups, in declaration order. A partial unique
@@ -117,11 +121,12 @@ pub(crate) fn unique_lookups(table: &Table) -> Vec<Lookup<'_>> {
     let skip_primary_key = usize::from(!table.primary_key.is_empty());
     let mut names: Vec<String> = Vec::new();
     table
-        .unique_key_columns(table.soft_delete_column.as_deref())
+        .lookup_unique_keys(table.soft_delete_column.as_deref())
         .into_iter()
         .skip(skip_primary_key)
         .filter_map(|key| {
             let columns: Vec<&Column> = key
+                .columns
                 .iter()
                 .map(|name| table.columns.iter().find(|column| column.sql_name == *name))
                 .collect::<Option<Vec<_>>>()?
@@ -141,7 +146,11 @@ pub(crate) fn unique_lookups(table: &Table) -> Vec<Lookup<'_>> {
                 return None;
             }
             names.push(fn_name.clone());
-            Some(Lookup { fn_name, columns })
+            Some(Lookup {
+                fn_name,
+                columns,
+                lowered: key.lowered,
+            })
         })
         .collect()
 }
@@ -202,7 +211,14 @@ fn render_unique_lookup(output: &mut String, table: &Table, lookup: &Lookup<'_>)
         calls.push(call);
     }
     for column in &lookup.columns {
-        calls.push(filter_call(table, column, &param_name(column)));
+        let value = param_name(column);
+        calls.push(
+            if lookup.lowered.as_deref() == Some(column.sql_name.as_str()) {
+                super::lowered_filter_call(column, &value)
+            } else {
+                filter_call(table, column, &value)
+            },
+        );
     }
     calls.push(".first(executor)".to_owned());
     calls.push(".await".to_owned());

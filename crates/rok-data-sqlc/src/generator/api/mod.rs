@@ -15,6 +15,7 @@ mod api_doc;
 mod axum;
 mod cursor_list;
 mod dto;
+mod endpoint;
 mod feature;
 mod files;
 mod framework;
@@ -23,6 +24,7 @@ mod layout;
 pub mod listing;
 mod operation;
 mod paths;
+mod prechecks;
 mod relation_routes;
 mod relation_service;
 mod relations;
@@ -36,6 +38,7 @@ mod scope;
 mod search;
 mod service;
 pub mod shared;
+mod unique;
 
 use std::path::PathBuf;
 
@@ -56,17 +59,25 @@ pub fn features<'a>(tables: &'a [Table], api: &'a ApiConfig) -> Result<Vec<Featu
         .iter()
         .map(|feature| relations::relations(feature, &features, tables, api))
         .collect();
-    for (feature, relations) in features.iter_mut().zip(relations) {
+    let references: Vec<_> = features
+        .iter()
+        .map(|feature| prechecks::references(feature, &features, tables))
+        .collect();
+    for ((feature, relations), references) in features.iter_mut().zip(relations).zip(references) {
         feature.relations = relations;
+        feature.references = references;
+        feature.unique_checks = unique::checks(feature);
     }
     Ok(features)
 }
 
-/// Whether `feature` needs the data layer's `listing.rs`.
+/// Whether `feature` needs the data layer's `listing.rs`: its list, search,
+/// owned reads, `unique` checks or relationship writes.
 pub fn has_listing(feature: &Feature<'_>) -> bool {
     feature.serves(Endpoint::List)
         || feature.serves(Endpoint::Search)
         || feature.reads_owned_rows()
+        || !feature.unique_checks.is_empty()
         || feature
             .relations
             .iter()

@@ -214,6 +214,34 @@ where
     Ok(row.is_some())
 }
 
+/// Returns whether `owner` owns the row with the given primary key: the
+/// `exists` check of a reference to it in a create or update body.
+/// Soft-deleted rows are left out.
+pub async fn exists_owned<'e, E>(
+    executor: E,
+    tenant_id: uuid::Uuid,
+    id: NoteId,
+    owner: uuid::Uuid,
+) -> Result<bool, sqlx::Error>
+where
+    E: rok_data::Executor<'e>,
+{
+    sqlx::query_scalar::<_, bool>(
+        r#"
+        SELECT EXISTS (
+            SELECT 1
+            FROM notes
+            WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL AND owner_id = $3
+        )
+        "#,
+    )
+    .bind(tenant_id)
+    .bind(id)
+    .bind(owner)
+    .fetch_one(executor)
+    .await
+}
+
 /// Whether `owner` owns `row` (its `owner_id`).
 #[must_use]
 pub fn owned_by(row: &Note, owner: uuid::Uuid) -> bool {

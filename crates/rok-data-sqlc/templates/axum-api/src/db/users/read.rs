@@ -26,6 +26,17 @@ where
         .map(|count| count > 0)
 }
 
+/// Fetches the row with the given `email`, or `None` if there is none.
+/// Soft-deleted rows are left out.
+pub async fn get_by_email<'e, E>(executor: E, email: &str) -> Result<Option<User>, rok_data::Error>
+where
+    E: rok_data::Executor<'e>,
+{
+    User::filter(rok_data::Expr::raw("lower(email) = lower(?)", [email]))
+        .first(executor)
+        .await
+}
+
 /// Fetches every row, ordered by primary key.
 /// Soft-deleted rows are left out.
 pub async fn list<'e, E>(executor: E) -> Result<Vec<User>, rok_data::Error>

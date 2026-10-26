@@ -134,7 +134,7 @@ async fn a_caller_creates_an_author() -> TestResult {
 }
 
 #[tokio::test]
-async fn a_second_author_with_the_same_email_is_a_conflict() -> TestResult {
+async fn a_second_author_with_the_same_email_fails_validation() -> TestResult {
     let Some(db) = Database::fresh().await? else {
         return Ok(());
     };
@@ -149,8 +149,18 @@ async fn a_second_author_with_the_same_email_is_a_conflict() -> TestResult {
         Some(body),
     )
     .await?;
-    assert_eq!(answer.status, StatusCode::CONFLICT, "{}", answer.body);
-    assert_eq!(answer.code(), "conflict");
+    // The `unique` pre-check names the field (engine ADR 0019).
+    assert_eq!(
+        answer.status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{}",
+        answer.body
+    );
+    assert_eq!(answer.code(), "validation_failed");
+    assert_eq!(
+        answer.body["error"]["details"]["email"][0]["code"],
+        "unique"
+    );
     db.drop().await
 }
 

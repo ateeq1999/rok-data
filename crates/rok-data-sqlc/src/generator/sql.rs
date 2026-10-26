@@ -109,6 +109,18 @@ pub fn live_key_predicate(table: &Table, keys: &[&Column]) -> String {
     }
 }
 
+/// `column` compared with the value bound at `$placeholder`: `col = $n`, or,
+/// when `lowered`, ignoring case, the way a unique index's
+/// `lower(<column>)` entry compares it: `lower(col) = lower($n)`.
+pub fn equals(column: &Column, placeholder: usize, lowered: bool) -> String {
+    let name = ident(&column.sql_name);
+    if lowered {
+        format!("lower({name}) = lower(${placeholder})")
+    } else {
+        format!("{name} = ${placeholder}")
+    }
+}
+
 /// `a, b` over the given key columns, for `ORDER BY`.
 pub fn key_order(keys: &[&Column]) -> String {
     keys.iter()

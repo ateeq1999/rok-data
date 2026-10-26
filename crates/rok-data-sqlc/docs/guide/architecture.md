@@ -276,6 +276,12 @@ layer. Its only required method is `pool`. Every write comes in two parts:
         user: AuthUser,
         input: CreateTaskDto,
     ) -> Result<Task, AppError> {
+        let mut failures = FieldFailures::default();
+        let exists = projects::listing::exists_owned(&mut *conn, input.project_id, user.id).await?;
+        if !exists {
+            failures.missing("project_id", "project");
+        }
+        failures.into_result()?;
         let row = Task::create(&mut *conn, input.into_new(user.id)).await?;
         Ok(row)
     }
@@ -291,7 +297,11 @@ layer. Its only required method is `pool`. Every write comes in two parts:
 ```
 
 Methods take the request's DTOs and return rows; the handlers turn rows into
-responses. On an owned table (`[api.owner]`) every method takes the caller
+responses. Before a create or update writes, its `_in` method runs the
+schema's pre-checks on the same transaction: here `project_id` must name a
+project the caller owns (`exists`), and any unique key the body holds must
+be free (`unique`). Every failure goes into `FieldFailures` and is answered
+as one `422` (configuring guide, "Pre-checks from the schema"). On an owned table (`[api.owner]`) every method takes the caller
 (`user: AuthUser`), reads only the caller's rows, and `update_in` and
 `remove_in` first lock the caller's row (`SELECT … FOR UPDATE`) and then
 update or delete it, so another caller's row is a `404`. On a tenant-scoped

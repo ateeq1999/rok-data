@@ -12,6 +12,7 @@ use crate::db::books::models::Book;
 use crate::db::search::{Direction, Sort};
 use crate::error::AppError;
 use crate::shared::response::PaginatedResponse;
+use crate::shared::validation::FieldFailures;
 
 /// The `authors` feature's operations, called by its handlers. Every method but
 /// [`pool`](Self::pool) has a default over the data layer: override one in
@@ -47,6 +48,12 @@ pub trait AuthorsServiceApi {
         conn: &mut PgConnection,
         input: CreateAuthorDto,
     ) -> Result<Author, AppError> {
+        let mut failures = FieldFailures::default();
+        let taken = repo::email_taken(&mut *conn, &input.email, None).await?;
+        if taken {
+            failures.taken("email");
+        }
+        failures.into_result()?;
         let row = Author::create(&mut *conn, input.into()).await?;
         Ok(row)
     }
@@ -77,6 +84,14 @@ pub trait AuthorsServiceApi {
         id: AuthorId,
         input: UpdateAuthorDto,
     ) -> Result<Author, AppError> {
+        let mut failures = FieldFailures::default();
+        if let Some(email) = &input.email {
+            let taken = repo::email_taken(&mut *conn, email, Some(id)).await?;
+            if taken {
+                failures.taken("email");
+            }
+        }
+        failures.into_result()?;
         let row = Author::patch(&mut *conn, id, input.into()).await;
         row.map_err(or_not_found)
     }

@@ -72,7 +72,7 @@ async fn a_caller_creates_a_book() -> TestResult {
 }
 
 #[tokio::test]
-async fn a_book_of_an_unknown_author_is_a_conflict() -> TestResult {
+async fn a_book_of_an_unknown_author_fails_validation() -> TestResult {
     let Some(db) = Database::fresh().await? else {
         return Ok(());
     };
@@ -90,8 +90,18 @@ async fn a_book_of_an_unknown_author_is_a_conflict() -> TestResult {
         Some(body),
     )
     .await?;
-    assert_eq!(answer.status, StatusCode::CONFLICT, "{}", answer.body);
-    assert_eq!(answer.code(), "conflict");
+    // The `exists` pre-check names the field (engine ADR 0019).
+    assert_eq!(
+        answer.status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{}",
+        answer.body
+    );
+    assert_eq!(answer.code(), "validation_failed");
+    assert_eq!(
+        answer.body["error"]["details"]["author_id"][0]["code"],
+        "exists"
+    );
     db.drop().await
 }
 

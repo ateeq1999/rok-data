@@ -105,7 +105,8 @@ fn render_handler(
         return;
     }
 
-    let scope = own_scope(feature, uses);
+    let tenant = feature.tenant_of(endpoint);
+    let scope = scope::handler(feature, uses, tenant, feature.caller_of(endpoint));
     let mut params = vec![framework.service_param(uses, &feature.service())];
     params.extend(scope.params);
     let key = feature.key_type().unwrap_or_default();

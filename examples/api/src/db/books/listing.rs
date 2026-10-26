@@ -2,9 +2,12 @@
 
 //! What the API's list endpoint reads: a page of rows matching `q`, sorted by
 //! one of the [`BookSort`] keys.
+//!
+//! The `unique` checks of a create or update body: whether another row
+//! already has its values.
 
 use super::super::search::{Sort, Window, push_contains_any};
-use super::models::Book;
+use super::models::{Book, BookId};
 
 /// The columns `GET /api/v1/books?sort=` takes, in `snake_case`.
 #[derive(
@@ -84,4 +87,30 @@ where
         push_contains_any(SEARCH_COLUMNS, q, &mut query);
     }
     query.build_query_scalar::<i64>().fetch_one(executor).await
+}
+
+/// Returns whether a row other than `except` has this `isbn`:
+/// the `unique` check of a create or update body.
+pub async fn isbn_taken<'e, E>(
+    executor: E,
+    isbn: &str,
+    except: Option<BookId>,
+) -> Result<bool, sqlx::Error>
+where
+    E: rok_data::Executor<'e>,
+{
+    sqlx::query_scalar::<_, bool>(
+        r#"
+        SELECT EXISTS (
+            SELECT 1
+            FROM books
+            WHERE isbn = $1
+                AND id IS DISTINCT FROM $2
+        )
+        "#,
+    )
+    .bind(isbn)
+    .bind(except)
+    .fetch_one(executor)
+    .await
 }

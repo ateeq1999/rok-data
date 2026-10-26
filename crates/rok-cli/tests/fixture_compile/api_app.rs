@@ -122,6 +122,9 @@ fn generate_api_app() -> Result<Vec<PathBuf>> {
     api.access
         .insert("profiles".into(), rok_data_sqlc::ApiAccess::Public);
     api.rules.insert("profiles".into(), profile_rules());
+    // `0008_scoped_checks.sql`: `folders` is owned, so its `unique` check
+    // takes the owner from the caller.
+    api.owner.insert("folders".into(), "owner_id".to_owned());
     config.api = Some(api);
     let report = rok_data_sqlc::generate(&config)?;
     ensure!(

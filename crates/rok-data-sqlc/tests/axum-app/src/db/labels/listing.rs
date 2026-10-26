@@ -6,6 +6,9 @@
 //! What `POST /search` reads: a page of the rows a filter matches, and
 //! their count.
 //!
+//! The `unique` checks of a create or update body: whether another row
+//! already has its values.
+//!
 //! The many-to-many relationships' writes, through their join tables.
 
 use super::super::notes::models::NoteId;
@@ -125,6 +128,32 @@ where
     let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT COUNT(*) FROM labels");
     filter.push_where(&mut query)?;
     query.build_query_scalar::<i64>().fetch_one(executor).await
+}
+
+/// Returns whether a row other than `except` has this `name`:
+/// the `unique` check of a create or update body.
+pub async fn name_taken<'e, E>(
+    executor: E,
+    name: &str,
+    except: Option<LabelId>,
+) -> Result<bool, sqlx::Error>
+where
+    E: rok_data::Executor<'e>,
+{
+    sqlx::query_scalar::<_, bool>(
+        r#"
+        SELECT EXISTS (
+            SELECT 1
+            FROM labels
+            WHERE name = $1
+                AND id IS DISTINCT FROM $2
+        )
+        "#,
+    )
+    .bind(name)
+    .bind(except)
+    .fetch_one(executor)
+    .await
 }
 
 /// Pairs the row with the `notes` row through `note_labels`, and returns

@@ -5,10 +5,13 @@
 //!
 //! What `POST /search` reads: a page of the rows a filter matches, and
 //! their count.
+//!
+//! The `unique` checks of a create or update body: whether another row
+//! already has its values.
 
 use super::super::search::{Sort, Window};
 use super::filter::AccountFilter;
-use super::models::Account;
+use super::models::{Account, AccountId};
 
 /// The columns `GET /api/v1/accounts?sort=` takes, in `snake_case`.
 #[derive(
@@ -124,4 +127,30 @@ where
     let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT COUNT(*) FROM accounts");
     filter.push_where(&mut query);
     query.build_query_scalar::<i64>().fetch_one(executor).await
+}
+
+/// Returns whether a row other than `except` has this `email`:
+/// the `unique` check of a create or update body.
+pub async fn email_taken<'e, E>(
+    executor: E,
+    email: &str,
+    except: Option<AccountId>,
+) -> Result<bool, sqlx::Error>
+where
+    E: rok_data::Executor<'e>,
+{
+    sqlx::query_scalar::<_, bool>(
+        r#"
+        SELECT EXISTS (
+            SELECT 1
+            FROM accounts
+            WHERE email = $1
+                AND id IS DISTINCT FROM $2
+        )
+        "#,
+    )
+    .bind(email)
+    .bind(except)
+    .fetch_one(executor)
+    .await
 }

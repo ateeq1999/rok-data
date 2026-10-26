@@ -8,10 +8,12 @@ use sqlx::{PgConnection, PgPool};
 use super::dto::{CreateLoanDto, ListLoansQuery, LoanSort, UpdateLoanDto};
 use super::model::{Loan, LoanId};
 use super::repo;
+use crate::db::books;
 use crate::db::books::models::Book;
 use crate::db::search::{Direction, Sort};
 use crate::error::AppError;
 use crate::shared::response::PaginatedResponse;
+use crate::shared::validation::FieldFailures;
 
 /// The `loans` feature's operations, called by its handlers. Every method but
 /// [`pool`](Self::pool) has a default over the data layer: override one in
@@ -46,6 +48,12 @@ pub trait LoansServiceApi {
         conn: &mut PgConnection,
         input: CreateLoanDto,
     ) -> Result<Loan, AppError> {
+        let mut failures = FieldFailures::default();
+        let exists = books::read::exists_by_id(&mut *conn, input.book_id).await?;
+        if !exists {
+            failures.missing("book_id", "book");
+        }
+        failures.into_result()?;
         let row = Loan::create(&mut *conn, input.into()).await?;
         Ok(row)
     }
@@ -76,6 +84,14 @@ pub trait LoansServiceApi {
         id: LoanId,
         input: UpdateLoanDto,
     ) -> Result<Loan, AppError> {
+        let mut failures = FieldFailures::default();
+        if let Some(value) = input.book_id {
+            let exists = books::read::exists_by_id(&mut *conn, value).await?;
+            if !exists {
+                failures.missing("book_id", "book");
+            }
+        }
+        failures.into_result()?;
         let row = Loan::patch(&mut *conn, id, input.into()).await;
         row.map_err(or_not_found)
     }

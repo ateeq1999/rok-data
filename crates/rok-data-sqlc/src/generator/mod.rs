@@ -426,6 +426,17 @@ pub fn filter_call(table: &Table, column: &Column, value: &str) -> String {
     )
 }
 
+/// `.filter(rok_data::Expr::raw("lower(col) = lower(?)", [value]))`: `column`
+/// compared with `value` ignoring case, the way a unique index's
+/// `lower(<column>)` entry compares it.
+pub fn lowered_filter_call(column: &Column, value: &str) -> String {
+    let condition = format!("lower({}) = lower(?)", sql::ident(&column.sql_name));
+    format!(
+        ".filter(rok_data::Expr::raw({}, [{value}]))",
+        sql::str_literal(&condition)
+    )
+}
+
 /// `.filter(Table::TENANT.eq(tenant))`, when the table has a tenant column.
 pub fn tenant_filter_call(table: &Table) -> Option<String> {
     let tenant = table.tenant()?;

@@ -8,11 +8,13 @@ use sqlx::{PgConnection, PgPool};
 use super::dto::{BookSort, CreateBookDto, ListBooksQuery, UpdateBookDto};
 use super::model::{Book, BookId};
 use super::repo;
+use crate::db::authors;
 use crate::db::authors::models::Author;
 use crate::db::loans::models::Loan;
 use crate::db::search::{Direction, Sort};
 use crate::error::AppError;
 use crate::shared::response::PaginatedResponse;
+use crate::shared::validation::FieldFailures;
 
 /// The `books` feature's operations, called by its handlers. Every method but
 /// [`pool`](Self::pool) has a default over the data layer: override one in
@@ -48,6 +50,16 @@ pub trait BooksServiceApi {
         conn: &mut PgConnection,
         input: CreateBookDto,
     ) -> Result<Book, AppError> {
+        let mut failures = FieldFailures::default();
+        let exists = authors::read::exists_by_id(&mut *conn, input.author_id).await?;
+        if !exists {
+            failures.missing("author_id", "author");
+        }
+        let taken = repo::isbn_taken(&mut *conn, &input.isbn, None).await?;
+        if taken {
+            failures.taken("isbn");
+        }
+        failures.into_result()?;
         let row = Book::create(&mut *conn, input.into()).await?;
         Ok(row)
     }
@@ -78,6 +90,20 @@ pub trait BooksServiceApi {
         id: BookId,
         input: UpdateBookDto,
     ) -> Result<Book, AppError> {
+        let mut failures = FieldFailures::default();
+        if let Some(value) = input.author_id {
+            let exists = authors::read::exists_by_id(&mut *conn, value).await?;
+            if !exists {
+                failures.missing("author_id", "author");
+            }
+        }
+        if let Some(isbn) = &input.isbn {
+            let taken = repo::isbn_taken(&mut *conn, isbn, Some(id)).await?;
+            if taken {
+                failures.taken("isbn");
+            }
+        }
+        failures.into_result()?;
         let row = Book::patch(&mut *conn, id, input.into()).await;
         row.map_err(or_not_found)
     }

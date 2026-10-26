@@ -49,7 +49,7 @@ fn endpoint_operation(feature: &Feature<'_>, endpoint: Endpoint) -> Operation {
         endpoint.method(),
         &path,
         endpoint.name().to_owned(),
-        feature.caller(),
+        feature.caller_of(endpoint),
     );
     let response = feature.response();
     let page = format!("{}<{response}>", feature.page_type(endpoint));

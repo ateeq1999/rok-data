@@ -18,6 +18,14 @@ compiler finds the call sites.
 
 **What changed**
 
+- **Generated writes answer a missing reference or a taken value as a
+  field's `422`** (rok-sqlc 0.5, absorbed; engine ADR 0019). Before, they
+  answered a `409 conflict` naming a constraint. A create or update checks
+  `exists` (each foreign key names a row the caller can see) and `unique`
+  (no other row holds a unique key's values, ignoring case for a
+  `lower(<column>)` index) before it writes. The `409` stays for races.
+  `[api.rules]` adds string rules by VineJS name (`email`, `url`,
+  `minLength(3)`, `trim`, …). See the engine's CHANGELOG.
 - **Generated lists can page by cursor** (dx-first ticket 16):
   `[api] cursor = ["events"]` makes a table's `GET` list take
   `?cursor=`. Each page answers the cursors of the pages on either side,

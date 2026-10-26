@@ -58,11 +58,7 @@ async fn transforms_are_stored_transformed() {
             .expect("the stored profile");
     assert_eq!(
         stored,
-        (
-            "ada@example.com".into(),
-            "HI".into(),
-            "ab@gmail.com".into()
-        )
+        ("ada@example.com".into(), "HI".into(), "ab@gmail.com".into())
     );
 
     // The update body transforms too, and `null` still clears a column.
@@ -138,7 +134,11 @@ async fn each_rule_rejects_with_its_code() {
     assert_eq!(created.status, StatusCode::CREATED, "{created:?}");
     let one = format!("{PROFILES}/{}", created.body["id"].as_str().expect("an id"));
     let answer = call(&db, Method::PATCH, &one, Some(json!({"country": "US"}))).await;
-    assert_eq!(answer.status, StatusCode::UNPROCESSABLE_ENTITY, "{answer:?}");
+    assert_eq!(
+        answer.status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{answer:?}"
+    );
     assert_eq!(answer.body["error"]["details"]["country"][0]["code"], "in");
     db.drop().await;
 }

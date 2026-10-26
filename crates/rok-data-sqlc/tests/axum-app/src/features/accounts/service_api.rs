@@ -18,6 +18,7 @@ use crate::error::AppError;
 use crate::shared::auth::AuthUser;
 use crate::shared::pagination::Pagination;
 use crate::shared::response::PaginatedResponse;
+use crate::shared::validation::FieldFailures;
 
 /// The `accounts` feature's operations, called by its handlers. Every method but
 /// [`pool`](Self::pool) has a default over the data layer: override one in
@@ -71,6 +72,12 @@ pub trait AccountsServiceApi {
         conn: &mut PgConnection,
         input: CreateAccountDto,
     ) -> Result<Account, AppError> {
+        let mut failures = FieldFailures::default();
+        let taken = repo::email_taken(&mut *conn, &input.email, None).await?;
+        if taken {
+            failures.taken("email");
+        }
+        failures.into_result()?;
         let row = Account::create(&mut *conn, input.into()).await?;
         Ok(row)
     }
@@ -101,6 +108,14 @@ pub trait AccountsServiceApi {
         id: AccountId,
         input: UpdateAccountDto,
     ) -> Result<Account, AppError> {
+        let mut failures = FieldFailures::default();
+        if let Some(email) = &input.email {
+            let taken = repo::email_taken(&mut *conn, email, Some(id)).await?;
+            if taken {
+                failures.taken("email");
+            }
+        }
+        failures.into_result()?;
         let row = Account::patch(&mut *conn, id, input.into()).await;
         row.map_err(or_not_found)
     }

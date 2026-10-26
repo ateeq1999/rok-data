@@ -120,8 +120,19 @@ fn response_ref(operation: &Value, status: &str) -> Option<String> {
 /// admin only, `tasks` keeps the default (`user`), and the rest are public.
 /// A relationship route needs what the stricter of its two features needs.
 fn needs_caller(path: &str) -> bool {
-    path.split('/')
-        .any(|segment| matches!(segment, "accounts" | "documents" | "tasks"))
+    path.split('/').any(|segment| {
+        matches!(
+            segment,
+            "accounts"
+                | "bookmarks"
+                | "comments"
+                | "documents"
+                | "folders"
+                | "handles"
+                | "tags"
+                | "tasks"
+        )
+    })
 }
 
 #[actix_web::test]

@@ -16,6 +16,7 @@ use crate::error::AppError;
 use crate::shared::auth::AuthUser;
 use crate::shared::pagination::Pagination;
 use crate::shared::response::PaginatedResponse;
+use crate::shared::validation::FieldFailures;
 
 /// The `labels` feature's operations, called by its handlers. Every method but
 /// [`pool`](Self::pool) has a default over the data layer: override one in
@@ -66,6 +67,12 @@ pub trait LabelsServiceApi {
         conn: &mut PgConnection,
         input: CreateLabelDto,
     ) -> Result<Label, AppError> {
+        let mut failures = FieldFailures::default();
+        let taken = repo::name_taken(&mut *conn, &input.name, None).await?;
+        if taken {
+            failures.taken("name");
+        }
+        failures.into_result()?;
         let row = Label::create(&mut *conn, input.into()).await?;
         Ok(row)
     }
@@ -96,6 +103,14 @@ pub trait LabelsServiceApi {
         id: LabelId,
         input: UpdateLabelDto,
     ) -> Result<Label, AppError> {
+        let mut failures = FieldFailures::default();
+        if let Some(name) = &input.name {
+            let taken = repo::name_taken(&mut *conn, name, Some(id)).await?;
+            if taken {
+                failures.taken("name");
+            }
+        }
+        failures.into_result()?;
         let row = Label::patch(&mut *conn, id, input.into()).await;
         row.map_err(or_not_found)
     }
