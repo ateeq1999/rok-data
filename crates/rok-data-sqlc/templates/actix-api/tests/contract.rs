@@ -25,9 +25,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use actix_api::app::configure;
-use actix_api::shared::auth::JwtKeys;
-use actix_web::{App, test, web};
+use actix_api::app::{AppState, configure};
+use actix_api::config::Config;
+use actix_web::{App, test};
 use serde_json::Value;
 
 /// The target document.
@@ -40,8 +40,21 @@ const COVERED: &[(&str, &str)] = &[
     ("patch", "/api/v1/users/{id}"),
     ("delete", "/api/v1/users/{id}"),
     ("get", "/api/v1/audit-log"),
+    ("post", "/api/v1/auth/register"),
+    ("post", "/api/v1/auth/login"),
+    ("post", "/api/v1/auth/email/verify"),
+    ("post", "/api/v1/auth/email/verification/resend"),
+    ("get", "/api/v1/auth/me"),
+    ("get", "/api/v1/users/me"),
+    ("patch", "/api/v1/users/me"),
     ("get", "/health/live"),
     ("get", "/health/ready"),
+    ("post", "/api/v1/auth/password/forgot"),
+    ("post", "/api/v1/auth/password/reset"),
+    ("post", "/api/v1/auth/password/change"),
+    ("post", "/api/v1/auth/email/change"),
+    ("post", "/api/v1/auth/email/change/confirm"),
+    ("post", "/api/v1/auth/invitations"),
 ];
 
 /// The differences the application still has, and why.
@@ -59,6 +72,22 @@ const KNOWN: &[(&str, &str)] = &[
         "`avatar_url` comes with uploads (a later release)",
     ),
     (
+        "POST /api/v1/auth/register: response 201: properties: target has `avatar_url`, served has not",
+        "`avatar_url` comes with uploads (a later release)",
+    ),
+    (
+        "GET /api/v1/auth/me: response 200: properties: target has `avatar_url`, served has not",
+        "`avatar_url` comes with uploads (a later release)",
+    ),
+    (
+        "GET /api/v1/users/me: response 200: properties: target has `avatar_url`, served has not",
+        "`avatar_url` comes with uploads (a later release)",
+    ),
+    (
+        "PATCH /api/v1/users/me: response 200: properties: target has `avatar_url`, served has not",
+        "`avatar_url` comes with uploads (a later release)",
+    ),
+    (
         "DELETE /api/v1/users/{id}: parameter `permanent` (query): served has it, target has not",
         "every generated soft-delete `DELETE` takes `?permanent=true` (engine ADR 0016)",
     ),
@@ -69,6 +98,10 @@ const KNOWN: &[(&str, &str)] = &[
     (
         "GET /api/v1/audit-log: parameter `order` (query): served has it, target has not",
         "every generated list takes `order` (engine ADR 0016)",
+    ),
+    (
+        "POST /api/v1/auth/invitations: response 201: properties: target has `avatar_url`, served has not",
+        "`avatar_url` comes with uploads (a later release)",
     ),
 ];
 
@@ -423,8 +456,13 @@ fn differences(target: &Value, served: &Value, covered: &[(&str, &str)]) -> Vec<
 /// pool never connects: serving the document needs no database.
 async fn served_document() -> Result<Value, Box<dyn std::error::Error>> {
     let pool = sqlx::PgPool::connect_lazy("postgres://localhost/unused")?;
-    let keys = web::Data::new(JwtKeys::new("unused"));
-    let app = test::init_service(App::new().configure(|cfg| configure(cfg, &pool, &keys))).await;
+    let config = Config::from_vars(|name| match name {
+        "DATABASE_URL" => Some("postgres://localhost/unused".to_owned()),
+        "JWT_SECRET" => Some("unused, but at least 32 bytes long".to_owned()),
+        _ => None,
+    })?;
+    let state = AppState::new(pool, &config);
+    let app = test::init_service(App::new().configure(|cfg| configure(cfg, &state))).await;
     let request = test::TestRequest::get().uri("/api-docs/openapi.json");
     let response = test::call_service(&app, request.to_request()).await;
     assert!(response.status().is_success(), "{}", response.status());
@@ -489,6 +527,11 @@ async fn a_mismatch_breaks_the_contract_with_a_readable_list()
             "GET /api/v1/users/{id}: response 200: properties.email.type: target \"string\", served \"integer\"",
             "PATCH /api/v1/users/{id}: response 200: properties.email.type: target \"string\", served \"integer\"",
             "GET /api/v1/audit-log: operationId: target \"list\", served \"entries\"",
+            "POST /api/v1/auth/register: response 201: properties.email.type: target \"string\", served \"integer\"",
+            "GET /api/v1/auth/me: response 200: properties.email.type: target \"string\", served \"integer\"",
+            "GET /api/v1/users/me: response 200: properties.email.type: target \"string\", served \"integer\"",
+            "PATCH /api/v1/users/me: response 200: properties.email.type: target \"string\", served \"integer\"",
+            "POST /api/v1/auth/invitations: response 201: properties.email.type: target \"string\", served \"integer\"",
         ]
     );
     Ok(())

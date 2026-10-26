@@ -29,6 +29,10 @@ How the code is organized:
   which are yours, and what regeneration does to each.
 - [Customizing the generated API](customizing.md): service overrides,
   state, ports, and hand-written features.
+- [Accounts and sign-in](auth.md): the actix template's hand-written
+  account flows (sign-up, sign-in, verification, password reset and
+  change, email change, invitations), their settings, the mail outbox and
+  adding a flow.
 
 What the API answers:
 

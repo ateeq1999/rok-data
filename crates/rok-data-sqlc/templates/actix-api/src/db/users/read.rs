@@ -104,7 +104,8 @@ where
             locked_until,
             created_at,
             updated_at,
-            deleted_at
+            deleted_at,
+            token_version
         FROM users
         "#,
     );
@@ -151,7 +152,8 @@ where
             locked_until,
             created_at,
             updated_at,
-            deleted_at
+            deleted_at,
+            token_version
         FROM users
         "#,
     );

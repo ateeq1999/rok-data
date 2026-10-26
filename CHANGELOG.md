@@ -18,6 +18,17 @@ compiler finds the call sites.
 
 **What changed**
 
+- **The actix template has accounts** (rok-sqlc 0.6, absorbed; engine ADR
+  0020). `rok sqlc init --template actix` now makes an API with sign-up,
+  sign-in, email verification, password reset and change, email change
+  and invitations. These are hand-written features, with a mail outbox,
+  a `/auth` rate limit and a per-request account check.
+  - **Breaking for a project made from the template:** `JWT_SECRET` must
+    be at least 32 bytes, there is a new schema file and migration
+    (`0002_auth`), and `app::configure` takes the `AppState`.
+  - **Rule:** `rok sqlc check-arch` gains `cross-feature-query`.
+  - **Guide:** see the engine's
+    [Accounts and sign-in](crates/rok-data-sqlc/docs/guide/auth.md).
 - **Generated writes answer a missing reference or a taken value as a
   field's `422`** (rok-sqlc 0.5, absorbed; engine ADR 0019). Before, they
   answered a `409 conflict` naming a constraint. A create or update checks

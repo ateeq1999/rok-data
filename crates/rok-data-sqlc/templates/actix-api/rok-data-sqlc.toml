@@ -1,11 +1,14 @@
 # The actix template's configuration; this file is yours. `rok sqlc g` reads
-# it: `schema/` becomes the data layer in `src/db/`, and `users` and
-# `audit_log` API features in `src/features/`. The history pairs live in
+# it: `schema/` and `queries/` become the data layer in `src/db/`, and
+# `users` and `audit_log` API features in `src/features/`. The history pairs live in
 # `migrations/`, the default history dir `rok gen --migration` stages into
 # (the workspace CLI). See README.md.
 
 schema = "schema"
 output = "src/db"
+# Hand-written SQL, one file per feature: `queries/auth.sql` becomes
+# `db::queries::auth`, which only the `auth` feature (and `shared/`) calls.
+queries = ["queries/"]
 derive = ["serde", "validate"]
 extractors = ["actix_web"]
 
@@ -24,6 +27,7 @@ managed_columns = [
     "avatar_key",
     "failed_logins",
     "locked_until",
+    "token_version",
 ]
 
 [modules]
@@ -33,8 +37,10 @@ audit_log = "audit_log_entry"
 [api]
 output = "src/features"
 prefix = "/api/v1"
-# Their features are hand-written in a later release (uploads, API keys).
-exclude = ["media", "api_keys"]
+# `media` and `api_keys` are hand-written features of a later release
+# (uploads, API keys); `auth_tokens` and `outbound_mail` belong to the
+# account flows and the mail outbox.
+exclude = ["media", "api_keys", "auth_tokens", "outbound_mail"]
 
 [api.access]
 users = "admin"
@@ -57,13 +63,21 @@ users = [
     "avatar_key",
     "failed_logins",
     "locked_until",
+    "token_version",
     "updated_at",
     "deleted_at",
 ]
 
 [api.immutable]
-# An email changes only through the verification flow (a later release).
+# An email changes only through the verification flow (`POST /auth/email/change`).
 users = ["email"]
+
+# String rules (VineJS names): an email is trimmed and lowercased before it
+# is checked, once a body takes it (none does yet: no create, and the update
+# leaves it immutable); a display name is trimmed.
+[api.rules.users]
+email = ["trim", "toLowerCase", "email"]
+display_name = ["trim"]
 
 [api.search]
 users = ["email", "display_name"]

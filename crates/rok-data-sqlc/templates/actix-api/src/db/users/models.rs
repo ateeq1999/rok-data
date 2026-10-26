@@ -2,6 +2,7 @@
 
 use super::super::api_keys::models::ApiKey;
 use super::super::audit_log_entry::models::AuditLogEntry;
+use super::super::auth_tokens::models::AuthToken;
 use super::super::media::models::Media;
 use super::super::types;
 use rok_data::Model;
@@ -59,6 +60,7 @@ rok_data::impl_value!(UserId);
 #[rok(has_many(audit_log_entry_by_target_user = AuditLogEntry::TARGET_USER_ID))]
 #[rok(has_many(media = Media::OWNER_ID))]
 #[rok(has_many(api_keys = ApiKey::USER_ID))]
+#[rok(has_many(auth_tokens = AuthToken::USER_ID))]
 pub struct User {
     /// The `id` column.
     pub id: UserId,
@@ -93,6 +95,8 @@ pub struct User {
     pub updated_at: chrono::DateTime<chrono::Utc>,
     /// The `deleted_at` column.
     pub deleted_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// The `token_version` column.
+    pub token_version: i32,
 }
 
 /// Input for `create`: every column the caller may supply.

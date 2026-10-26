@@ -143,3 +143,41 @@ impl FieldFailures {
         }
     }
 }
+
+/// A body field a column's transforms apply to: text, optional text, or
+/// nullable text, where `null` is `Some(None)`.
+pub trait Transformed<'de>: Sized {
+    /// Deserializes the field, transformed by `transform`.
+    fn transformed<D>(deserializer: D, transform: fn(&str) -> String) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>;
+}
+
+impl<'de> Transformed<'de> for String {
+    fn transformed<D>(deserializer: D, transform: fn(&str) -> String) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        serde::Deserialize::deserialize(deserializer).map(|value: String| transform(&value))
+    }
+}
+
+impl<'de> Transformed<'de> for Option<String> {
+    fn transformed<D>(deserializer: D, transform: fn(&str) -> String) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        serde::Deserialize::deserialize(deserializer)
+            .map(|value: Option<String>| value.map(|value| transform(&value)))
+    }
+}
+
+impl<'de> Transformed<'de> for Option<Option<String>> {
+    fn transformed<D>(deserializer: D, transform: fn(&str) -> String) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        serde::Deserialize::deserialize(deserializer)
+            .map(|value: Option<String>| Some(value.map(|value| transform(&value))))
+    }
+}

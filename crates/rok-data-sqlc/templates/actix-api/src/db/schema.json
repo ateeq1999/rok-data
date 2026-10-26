@@ -15,6 +15,24 @@
         "write"
       ],
       "module": ""
+    },
+    {
+      "name": "purpose",
+      "values": [
+        "email_verification",
+        "password_reset",
+        "email_change",
+        "invitation"
+      ],
+      "module": ""
+    },
+    {
+      "name": "status",
+      "values": [
+        "pending",
+        "dead"
+      ],
+      "module": ""
     }
   ],
   "tables": [
@@ -109,6 +127,12 @@
           "name": "deleted_at",
           "sql_type": "TIMESTAMPTZ",
           "nullable": true
+        },
+        {
+          "name": "token_version",
+          "sql_type": "INTEGER",
+          "nullable": false,
+          "default": "1"
         }
       ],
       "primary_key": [
@@ -306,6 +330,131 @@
             "id"
           ]
         }
+      ]
+    },
+    {
+      "name": "auth_tokens",
+      "module": "auth_tokens",
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "purpose",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "token_hash",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "new_email",
+          "sql_type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "expires_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "used_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "uniques": [
+        {
+          "name": "auth_tokens_token_hash_key",
+          "columns": [
+            "token_hash"
+          ]
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "auth_tokens_user_id_fkey",
+          "columns": [
+            "user_id"
+          ],
+          "ref_table": "users",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "CASCADE"
+        }
+      ]
+    },
+    {
+      "name": "outbound_mail",
+      "module": "outbound_mail",
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "payload",
+          "sql_type": "JSONB",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "sql_type": "TEXT",
+          "nullable": false,
+          "default": "'pending'"
+        },
+        {
+          "name": "attempts",
+          "sql_type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "next_attempt_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "last_error",
+          "sql_type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "primary_key": [
+        "id"
       ]
     }
   ],

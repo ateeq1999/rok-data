@@ -5,6 +5,7 @@
 use super::model::{UpdateUser, User, UserId};
 use crate::db::types;
 use crate::shared::pagination::ListQuery;
+use crate::shared::validation::Transformed;
 
 pub use crate::db::users::listing::UserSort;
 
@@ -22,7 +23,9 @@ pub type ListUsersQuery = ListQuery<UserSort>;
 #[serde(default)]
 pub struct UpdateUserDto {
     /// The new value of the `display_name` column.
-    #[serde(deserialize_with = "crate::db::nullable::deserialize")]
+    ///
+    /// Transforms: `trim`.
+    #[serde(deserialize_with = "display_name_transformed")]
     pub display_name: Option<Option<String>>,
     /// The new value of the `role` column.
     pub role: Option<types::Role>,
@@ -106,4 +109,18 @@ impl From<User> for UserResponse {
             created_at: row.created_at,
         }
     }
+}
+
+/// The `display_name` column's transforms: `trim`.
+fn display_name_transforms(value: &str) -> String {
+    value.trim().to_owned()
+}
+
+/// Deserializes the `display_name` column, transformed.
+fn display_name_transformed<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Transformed<'de>,
+{
+    T::transformed(deserializer, display_name_transforms)
 }

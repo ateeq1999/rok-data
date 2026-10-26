@@ -7,6 +7,44 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+### Breaking changes to the templates
+
+- From rok-sqlc 0.6.0 (absorbed; engine ADR 0020): `rok sqlc init
+  --template actix` makes an API with accounts.
+  - **The flows:** sign-up, email verification, sign-in, password reset
+    and change, email change and admin invitations, as hand-written
+    features (`src/features/{auth,account}/`). They are backed by
+    `src/shared/{security,mail}/`, the `/auth` rate limit
+    (`src/shared/rate_limit.rs`) and per-feature SQL in `queries/`.
+  - **The session check:** `AuthUser` checks the account against the
+    database on every request (`token_version`, `is_active`, `role`), so it
+    needs the pool.
+  - **The secret:** `JWT_SECRET` must be at least 32 bytes, or the server
+    doesn't start.
+  - **New settings** in `.env.example`: `JWT_TTL`, `AUTH_RATE_LIMIT`,
+    `TRUST_PROXY`, `BREACH_CHECK`, `REQUIRE_VERIFIED_EMAIL`, the mail
+    settings, and `APP_URL`.
+  - **The schema:** a new truth file, `schema/0002_auth.sql`
+    (`auth_tokens`, `outbound_mail`), and `users.token_version`, staged as
+    the migration pair `migrations/0002_auth`.
+  - **Wiring:** `app::configure` takes the `AppState` that holds the
+    outbox, the mail templates, the breach check, the rate limit and the
+    audit port.
+
+  A project made from an older template can copy the features; nothing
+  generated changes for it. The axum template gains the same flows with
+  the rok-sqlc 0.7 port.
+- The actix template's config gains `[api.rules.users]`: an email is
+  trimmed, lowercased and checked, and a display name is trimmed.
+
+### Added
+
+- `rok sqlc check-arch` gains `cross-feature-query`: a feature calls its
+  own query module, `<db_path>::queries::<feature>`, and never another
+  feature's. A query module named after no feature is anyone's. From
+  rok-sqlc 0.6.0.
+- The guide gains [Accounts and sign-in](docs/guide/auth.md).
+
 ### Breaking changes to the generated API
 
 - From rok-sqlc 0.5.0 (absorbed; engine ADR 0019): a generated create or
