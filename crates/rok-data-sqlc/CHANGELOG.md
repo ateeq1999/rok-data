@@ -39,6 +39,11 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Added
 
+- `rok sqlc check-arch` reports the other framework's crate as a `rule-1`
+  violation everywhere but the data layer, whose `extractors` may serve
+  both. Example: `actix_web` in an axum project's `service.rs` (or `shared/`).
+  Before, rule 1 ignored the crate the config doesn't name. From rok-sqlc
+  0.7.0 (engine ADR 0021, A7).
 - `rok sqlc check-arch` gains `cross-feature-query`: a feature calls its
   own query module, `<db_path>::queries::<feature>`, and never another
   feature's. A query module named after no feature is anyone's. From

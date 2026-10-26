@@ -167,26 +167,48 @@ fn the_actix_rule_is_what_it_always_printed() -> Result<()> {
 }
 
 #[test]
-fn rule_1_polices_the_configured_framework_alone() -> Result<()> {
-    // An import the config does not name is the compiler's problem, not
-    // rule 1's: an actix project's stray `axum` use passes, and an axum
-    // project's stray `actix_web` use passes. The rule is as tight as the
-    // actix one ever was.
-    let files = [(
-        "src/features/notes/service.rs",
-        "use axum::Router;\npub struct NotesService;\n",
-    )];
+fn rule_1_reports_the_other_framework_but_in_the_data_layer() -> Result<()> {
+    // The other framework's crate is a rule-1 violation everywhere but the
+    // data layer, whose `extractors` may serve both (engine ADR 0021, A7).
+    let other = |framework: &str, target: &str, crate_name: &str| {
+        format!(
+            "src/features/notes/service.rs:1: rule-1: `{target}`: the project uses \
+             {framework} (`[api] framework`), so nothing but db/ may use {crate_name}"
+        )
+    };
+    let files = [
+        (
+            "src/features/notes/service.rs",
+            "use axum::Router;
+pub struct NotesService;
+",
+        ),
+        (
+            "src/db/http.rs",
+            "pub mod axum { use axum::Json; }
+",
+        ),
+    ];
     assert_eq!(
         violations(ApiFramework::ActixWeb, &files)?,
-        Vec::<String>::new()
+        [other("actix_web", "axum::Router", "axum")]
     );
-    let files = [(
-        "src/features/notes/service.rs",
-        "use actix_web::HttpResponse;\npub struct NotesService;\n",
-    )];
+    let files = [
+        (
+            "src/features/notes/service.rs",
+            "use actix_web::HttpResponse;
+pub struct NotesService;
+",
+        ),
+        (
+            "src/db/http.rs",
+            "pub mod actix { use actix_web::FromRequest; }
+",
+        ),
+    ];
     assert_eq!(
         violations(ApiFramework::Axum, &files)?,
-        Vec::<String>::new()
+        [other("axum", "actix_web::HttpResponse", "actix_web")]
     );
     Ok(())
 }

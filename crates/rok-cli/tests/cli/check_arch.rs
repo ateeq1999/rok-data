@@ -17,7 +17,7 @@ const CONFIG: &str = "[api]\noutput = \"src/features\"\n";
 const CONFIG_AXUM: &str = "[api]\noutput = \"src/features\"\nframework = \"axum\"\n";
 
 /// A scratch project with `rok-data-sqlc.toml` and `files`.
-fn project(files: &[(&str, &str)]) -> Result<TempDir> {
+pub(super) fn project(files: &[(&str, &str)]) -> Result<TempDir> {
     project_with(CONFIG, files)
 }
 
@@ -34,18 +34,18 @@ fn project_with(config: &str, files: &[(&str, &str)]) -> Result<TempDir> {
 }
 
 /// Runs `rok sqlc check-arch <args>` in `dir`.
-fn check_arch(dir: &TempDir, args: &[&str]) -> Output {
+pub(super) fn check_arch(dir: &TempDir, args: &[&str]) -> Output {
     let mut full = vec!["check-arch"];
     full.extend(args);
     run_binary_in(dir.path(), &full)
 }
 
-fn stdout(output: &Output) -> String {
+pub(super) fn stdout(output: &Output) -> String {
     String::from_utf8_lossy(&output.stdout).replace("\r\n", "\n")
 }
 
 /// Asserts the run failed and printed exactly `lines` as violations.
-fn assert_violations(output: &Output, lines: &[&str]) {
+pub(super) fn assert_violations(output: &Output, lines: &[&str]) {
     assert!(
         !output.status.success(),
         "expected a failure, stdout:\n{}",
@@ -176,27 +176,39 @@ fn rule_1_axum_outside_routes_and_handlers_is_reported() -> Result<()> {
     Ok(())
 }
 
-/// Rule 1 polices the configured framework alone: what the config does not
-/// name is the compiler's problem, not rule 1's.
+/// Rule 1 follows the configured framework, and the other framework's crate
+/// is a rule-1 violation outside the data layer (engine ADR 0021, A7).
 #[test]
 fn rule_1_watches_the_framework_the_config_sets() -> Result<()> {
     let dir = project_with(CONFIG_AXUM, AXUM_NOTES)?;
     fs::write(
         dir.path().join("src/features/notes/service.rs"),
-        "fn f() -> actix_web::HttpResponse {\n    todo_free()\n}\n",
+        "fn f() -> actix_web::HttpResponse {
+    todo_free()
+}
+",
     )?;
-    let output = check_arch(&dir, &[]);
-    assert_success(&output);
-    assert_eq!(stdout(&output), "");
+    assert_violations(
+        &check_arch(&dir, &[]),
+        &[
+            "src/features/notes/service.rs:1: rule-1: `actix_web::HttpResponse`: the project uses axum (`[api] framework`), so nothing but db/ may use actix_web",
+        ],
+    );
 
     let dir = project(NOTES)?;
     fs::write(
         dir.path().join("src/features/notes/service.rs"),
-        "fn f() -> axum::Router {\n    todo_free()\n}\n",
+        "fn f() -> axum::Router {
+    todo_free()
+}
+",
     )?;
-    let output = check_arch(&dir, &[]);
-    assert_success(&output);
-    assert_eq!(stdout(&output), "");
+    assert_violations(
+        &check_arch(&dir, &[]),
+        &[
+            "src/features/notes/service.rs:1: rule-1: `axum::Router`: the project uses actix_web (`[api] framework`), so nothing but db/ may use axum",
+        ],
+    );
     Ok(())
 }
 

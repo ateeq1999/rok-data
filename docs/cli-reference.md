@@ -309,3 +309,17 @@ Executive summary of the main flags (full text: `rok sqlc generate --help`):
 `init` next steps and the `--template` list (`actix`, `axum`) print on stdout;
 the scaffolder never overwrites existing files. Templates ship their own
 `README.md` with the dependency list to add.
+
+`check-arch` prints each violation as `path:line: rule: message`. The rules
+are the project's `AGENTS.md` six (the architecture guide states them):
+
+| Rule                  | Reports                                                                   |
+| --------------------- | ------------------------------------------------------------------------- |
+| `layout`              | a feature directory holding other files than the fixed set (`--lenient`: warnings) |
+| `rule-1`              | the `[api] framework`'s crate outside a feature's `routes.rs`/`handlers.rs`, the wiring, `shared/` and the data layer; the other framework's crate anywhere but the data layer |
+| `rule-2`              | `sqlx` outside `repo.rs`/`model.rs`, the wiring, `shared/` and the data layer (`service.rs` may name `PgPool` and `PgConnection`) |
+| `rule-4`              | a feature referring to another feature's modules                          |
+| `rule-5`              | `shared/` referring to the features                                       |
+| `rule-6`              | `unwrap()`, `expect()`, `panic!`, `todo!`, `println!`, `dbg!` outside tests |
+| `cross-feature-write` | a feature calling another table's `<db_path>::<table>::write`             |
+| `cross-feature-query` | a feature calling another feature's query module, `<db_path>::queries::<feature>` |

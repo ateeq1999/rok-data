@@ -58,6 +58,9 @@ pub(crate) enum Rule {
     /// Rule 1: the configured framework's crate, named only by the feature's
     /// HTTP files and the files the framework's rule allows outside.
     Framework,
+    /// Rule 1, the other side: the other framework's crate, named outside
+    /// the data layer (whose `extractors` may serve both).
+    OtherFramework,
     Sqlx,
     CrossFeature,
     SharedToFeatures,
@@ -77,7 +80,7 @@ impl fmt::Display for Rule {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Rule::Layout => "layout",
-            Rule::Framework => "rule-1",
+            Rule::Framework | Rule::OtherFramework => "rule-1",
             Rule::Sqlx => "rule-2",
             Rule::CrossFeature => "rule-4",
             Rule::SharedToFeatures => "rule-5",
@@ -181,6 +184,8 @@ struct Layout {
     feature_names: Vec<String>,
     /// Rule 1 for the project's framework.
     rule_1: &'static Rule1,
+    /// The project's framework (`api.framework`).
+    framework: ApiFramework,
 }
 
 /// What a path names in this crate, after `crate`, `self`, `super` and the
@@ -240,6 +245,7 @@ impl Layout {
             db,
             feature_names,
             rule_1: rule_1(project.framework),
+            framework: project.framework,
         })
     }
 
@@ -426,6 +432,13 @@ impl Layout {
                         rules.push(Rule::Framework);
                     }
                 }
+                // The other framework's crate: only the data layer, whose
+                // `extractors` may serve both, names it.
+                Some(crate_name) if crate_name == rule_1(other(self.framework)).watched => {
+                    if !self.in_db(rel) {
+                        rules.push(Rule::OtherFramework);
+                    }
+                }
                 Some("sqlx") => {
                     let ports = feature.is_some()
                         && SQLX_PORT_FILES.contains(&file)
@@ -484,6 +497,12 @@ impl Layout {
                 [self.rule_1.feature, self.rule_1.root].concat().join(", "),
                 self.rule_1.watched
             ),
+            Rule::OtherFramework => format!(
+                "`{target}`: the project uses {} (`[api] framework`), so nothing but db/ may \
+                 use {}",
+                self.framework.name(),
+                rule_1(other(self.framework)).watched
+            ),
             Rule::Sqlx => format!(
                 "`{target}`: only {}, features/generated.rs, shared/ and db/ may use sqlx \
                  ({}: {} only)",
@@ -529,3 +548,11 @@ fn module_path(rel: &[String]) -> Vec<String> {
 
 #[cfg(test)]
 mod tests;
+
+/// The framework a project of `framework` doesn't use.
+fn other(framework: ApiFramework) -> ApiFramework {
+    match framework {
+        ApiFramework::ActixWeb => ApiFramework::Axum,
+        ApiFramework::Axum => ApiFramework::ActixWeb,
+    }
+}
