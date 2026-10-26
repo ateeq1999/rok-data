@@ -21,9 +21,11 @@ pub mod schema;
 pub mod search;
 
 /// Everything a call site needs: `use crate::db::prelude::*;` brings
-/// rok-data's prelude, every model, and each model's scopes.
+/// rok-data's prelude, every model with its scopes, and each model's
+/// inputs, ids and keys (`NewBook`, `UpdateBook`, `BookId`).
 pub mod prelude {
     pub use rok_data::prelude::*;
 
     pub use super::members::models::Member;
+    pub use super::members::models::*;
 }

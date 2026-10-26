@@ -120,52 +120,100 @@ schema as DDL.
 Derive typed models in your code (the `rok-data` facade re-exports the
 macros):
 
-```rust,ignore
+<!-- source: crates/rok-data/tests/docs/getting_started.rs -->
+```rust
 use rok_data::prelude::*;
 
-#[derive(Debug, Model)]
-struct Note {
-    id: Uuid,
-    text: String,
-    created_at: DateTime<Utc>,
+#[derive(Debug, Clone, Model)]
+#[rok(has_many(notes = Note::AUTHOR_ID))]
+struct User {
+    #[rok(generated)]
+    id: i64,
+    name: String,
 }
-```
 
-With generated models, one import brings everything — rok-data's
-prelude, every model, and each model's scopes:
+#[derive(Debug, Clone, Model)]
+#[rok(scopes(popular = popular))]
+struct Note {
+    #[rok(generated)]
+    id: i64,
+    #[rok(belongs_to(author = User))]
+    author_id: i64,
+    text: String,
+    views: i32,
+}
 
-```rust,ignore
-use crate::db::prelude::*;
+fn popular(query: Select<Note>) -> Select<Note> {
+    query.filter(Note::VIEWS.gt(100))
+}
 ```
 
 The verbs hang off the model, not a module namespace. Reads take the
 `Model` chain, writes take `ModelWrite`, a relation accessor starts its
 chain, and a named scope is the entry:
 
-```rust,ignore
+<!-- source: crates/rok-data/tests/docs/getting_started.rs -->
+```rust
 // reads: one row by key, the rest as a chain
-let note = Note::find(&db, note_id).await?;
-let recent = Note::filter(Note::CREATED_AT.gt(a_week_ago))
-    .order_by(Note::CREATED_AT.desc())
+let note = Note::find_or_fail(&db, note_id).await?;
+let most_read = Note::filter(Note::VIEWS.gt(100))
+    .order_by(Note::VIEWS.desc())
     .all(&db)
     .await?;
 
 // writes: the row-level verbs of `ModelWrite`
+let draft = Note {
+    id: 0,
+    author_id: user_id,
+    text: "draft".into(),
+    views: 0,
+};
 let stored = draft.insert(&db).await?;
 stored.delete(&db).await?;
 
-// generated models also take their input types by key: `create`, `patch`,
-// `destroy` (and `restore` / `delete_permanently` with soft delete)
-let note = Note::create(&db, NewNote { text: "hello".into() }).await?;
-Note::patch(&db, note.id, UpdateNote { text: Some("hi".into()) }).await?;
-Note::destroy(&db, note.id).await?;
+// relations: an accessor starts the related model's chain
+let author = note.author().first(&db).await?;
+let user = User::find_or_fail(&db, user_id).await?;
+let their_notes = user.notes().all(&db).await?;
 
-// relations: the generated accessors (one batched query per include)
-let author = Post::find(&db, post_id).await?;
-let by_the_author = author.posts().all(&db).await?;
-
-// named scopes: `#[rok(scopes(popular = path::to::popular))]` on the model
+// named scopes: `#[rok(scopes(popular = popular))]` on the model
 let popular = Note::popular().all(&db).await?;
+```
+
+With generated models (`rok sqlc generate`), one import brings everything —
+rok-data's prelude, every model with its scopes, and each model's inputs,
+ids and keys:
+
+<!-- source: crates/rok-data-sqlc/tests/fixture-app/src/one_import.rs -->
+```rust
+use crate::db::prelude::*;
+```
+
+and the write verbs live on the generated model, taking its generated
+inputs:
+
+<!-- source: crates/rok-data-sqlc/tests/fixture-app/src/one_import.rs -->
+```rust
+// generated models also carry their write verbs, taking the generated
+// inputs: `create`, `patch`, `destroy` (and `restore` /
+// `delete_permanently` with soft delete)
+let supplier = Supplier::create(
+    &db,
+    NewSupplier {
+        id: SupplierId::from(uuid::Uuid::now_v7()),
+        name: "Acme".into(),
+        contact_email: None,
+        is_active: None,
+        created_at: None,
+    },
+)
+.await?;
+let patch = UpdateSupplier {
+    name: Some("Acme Ltd".into()),
+    ..UpdateSupplier::default()
+};
+Supplier::patch(&db, supplier.id, patch).await?;
+Supplier::destroy(&db, supplier.id).await?;
 ```
 
 Tests that touch the database use `#[rok_data::test]` (attribute; it

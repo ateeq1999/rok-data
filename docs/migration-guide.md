@@ -43,34 +43,41 @@ model's own `update`, `delete` and `find_or_fail`. Optional lookups stay
 optional (`find` and the generated `get_by_*` return `Option`). A versioned
 `patch` keeps its `UpdateOutcome`, whose `VersionConflict` is not an error.
 
-```rust
+<!-- not compiled: 0.2 code, shown for comparison -->
+```rust,ignore
 // before (0.2)
-match users::write::update(&db, id, patch).await? {
-    Some(user) => respond(user),
-    None => not_found(),
-}
+let user = match users::write::update(&db, id, patch).await? {
+    Some(user) => user,
+    None => return not_found(),
+};
 if users::write::delete(&db, id).await? == 0 {
     return not_found();
 }
+```
 
+<!-- source: crates/rok-data-sqlc/tests/fixture-app/src/one_import.rs -->
+```rust
 // after
-match User::patch(&db, id, patch).await {
-    Ok(user) => respond(user),
-    Err(error) if error.is_not_found() => not_found(),
+let user = match User::patch(&db, id, patch).await {
+    Ok(user) => user,
+    Err(error) if error.is_not_found() => return not_found(),
     Err(error) => return Err(error.into()),
-}
+};
 User::destroy(&db, id).await?; // `?` carries NotFound to your error type
 ```
 
-```rust
-// before
+<!-- not compiled: 0.2 code, shown for comparison -->
+```rust,ignore
+// before (0.2)
 let user = User::create()
     .set(User::EMAIL, "a@b.c")
     .exec(&db)
     .await?;
 user.save(&db).await?;
+```
 
-// after
+<!-- source: crates/rok-data/tests/docs/migration_guide.rs -->
+```rust
 let user = User::insert_builder()
     .set(User::EMAIL, "a@b.c")
     .exec(&db)
@@ -106,11 +113,12 @@ working.
 | `Model::exists`     | `fn exists(executor) -> Result<bool>`      | does the table have a row? the model's own scope applies (soft deletes, default scope, tenant) |
 | `Model::where_`    | `fn where_(expr) -> Select<Self>`         | the Eloquent spelling of `filter` |
 | `Select::where_`   | `fn where_(expr) -> Self`                 | the Eloquent spelling of `filter`, on the chain |
-| `Select::get`       | `fn get(executor) -> Result<Vec<Self>>`    | the Eloquent spelling of `all`; both stay |
+| `Select::get`       | `fn get(executor) -> Result<ModelCollection<Self>>` | the rows as a `ModelCollection`; `all` keeps the `Vec` |
 | `Select::chunk`     | `fn chunk(session, size, f) -> Result<()>` | the rows in windows of `size`, one query each, so a large table need not fit in memory |
 
+<!-- source: crates/rok-data/tests/docs/migration_guide.rs -->
 ```rust
-// `where` is a Rust keyword, so only the raw identifier compiles; `filter`
+// `where` is a Rust keyword, so `where_` is the spelling; `filter`
 // stays the canonical verb and the generated code keeps using it.
 let admins = User::where_(User::ROLE.eq("admin")).all(&db).await?;
 
@@ -119,18 +127,20 @@ if User::exists(&db).await? {
     // …
 }
 
-// the same rows as `all`
+// the same rows as `all`, as a `ModelCollection`
 let users = User::query().get(&db).await?;
 
 // the rows in windows of 100 — `db` as a reference the `async move`
 // blocks copy
 let db = &db;
-User::query().chunk(db, 100, |rows| async move {
-    for user in rows {
-        archive(db, user).await?;
-    }
-    Ok(())
-}).await?;
+User::query()
+    .chunk(db, 100, |rows| async move {
+        for user in rows {
+            archive(db, user).await?;
+        }
+        Ok(())
+    })
+    .await?;
 ```
 
 `chunk` reads one window per query (`LIMIT`/`OFFSET`, ordered by the
@@ -157,6 +167,7 @@ referenced table gets `#[rok(has_many(children = Child::FK))]` — or
 derive expands them into typed relation constants and accessors, so a call
 site reads them off the row:
 
+<!-- source: crates/rok-data/tests/docs/migration_guide.rs -->
 ```rust
 // a post belongs to its author; a user has many posts
 post.author().all(&db).await?;
@@ -175,9 +186,10 @@ constraints on a query chain, named by path. The derive gives the model an
 entry (`User::popular()`) and the chain a method
 (`User::popular().active()`), so scopes compose:
 
+<!-- source: crates/rok-data/tests/docs/migration_guide.rs -->
 ```rust
 #[derive(Model)]
-#[rok(scopes(popular = path::to::popular, active = path::to::active))]
+#[rok(scopes(popular = popular, active = active))]
 struct User {
     id: i64,
     views: i32,
@@ -191,7 +203,10 @@ fn popular(query: Select<User>) -> Select<User> {
 fn active(query: Select<User>) -> Select<User> {
     query.filter(User::VIEWS.gt(0))
 }
+```
 
+<!-- source: crates/rok-data/tests/docs/migration_guide.rs -->
+```rust
 // the model's entry
 let popular = User::popular();
 // the chain's method — the `UserScopes` trait the derive writes next to
@@ -210,9 +225,10 @@ in the same shape the entry takes them. The free function takes the query,
 then the declared parameters; the entry and the chain method get the same
 signature:
 
+<!-- source: crates/rok-data/tests/docs/migration_guide.rs -->
 ```rust
 #[derive(Model)]
-#[rok(scopes(older_than(n: i32) = path::to::older_than))]
+#[rok(scopes(older_than(n: i32) = older_than))]
 struct User {
     id: i64,
     age: i32,
@@ -222,10 +238,13 @@ struct User {
 fn older_than(query: Select<User>, n: i32) -> Select<User> {
     query.filter(User::AGE.gt(n))
 }
+```
 
-// the entry and the chain method take the same shape; they compose
-User::older_than(18);
-User::popular().older_than(18);
+<!-- source: crates/rok-data/tests/docs/migration_guide.rs -->
+```rust
+// the entry and the chain method take the same shape
+let adults = User::older_than(18);
+let seniors = User::query().older_than(65);
 ```
 
 A generated model declares its scopes through the engine's `[scopes]`

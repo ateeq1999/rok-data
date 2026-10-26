@@ -4,9 +4,9 @@
 
 **Blocked by:** 03, 04, 06, 07, 08, 10, 11, 12, 13
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Docs examples run as compiled doctests (or a docs-test crate) — no `ignore` without a written reason
-- [ ] Migration guide lists the model-shaped renames: `users::write::create → User::create`, `read::get_by_id → User::find`, scope signature, `update_only`, not-found convention
-- [ ] A pagination guide with the Laravel → rok-data table (offset, simple, cursor both ways, batch iteration, wire shapes)
-- [ ] AGENTS.md ADR counts corrected (engine series and workspace series)
+- [x] Docs samples compile: each names its compiled source (`<!-- source: … -->`, sources in `crates/rok-data/tests/docs` and the fixture app's `one_import`), checked by `crates/rok-data/tests/docs`; the only `ignore`s are migration "before" blocks marked `<!-- not compiled: 0.2 code … -->`
+- [x] Migration guide lists the model-shaped renames: `users::write::create → User::create`, `read::get_by_id → User::find`, scope signature, `update_only`, not-found convention
+- [x] A pagination guide with the Laravel → rok-data table (offset, simple, cursor both ways, batch iteration, wire shapes)
+- [x] AGENTS.md ADR counts corrected (engine series and workspace series)

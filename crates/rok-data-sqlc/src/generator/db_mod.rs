@@ -115,7 +115,8 @@ fn prelude(tables: &[Table]) -> String {
     tables.sort_unstable_by(|a, b| a.module_name.cmp(&b.module_name));
     let mut output = String::from(
         "\n/// Everything a call site needs: `use crate::db::prelude::*;` brings\n\
-         /// rok-data's prelude, every model, and each model's scopes.\n\
+         /// rok-data's prelude, every model with its scopes, and each model's\n\
+         /// inputs, ids and keys (`NewBook`, `UpdateBook`, `BookId`).\n\
          pub mod prelude {\n    pub use rok_data::prelude::*;\n",
     );
     if !tables.is_empty() {
@@ -123,15 +124,24 @@ fn prelude(tables: &[Table]) -> String {
     }
     for table in tables {
         let model = &table.struct_name;
+        let module = &table.module_name;
         let items = if table.scopes.is_empty() {
             model.clone()
         } else {
             format!("{{{model}, {model}Scopes}}")
         };
-        output.push_str(&format!(
-            "    pub use super::{}::models::{items};\n",
-            table.module_name
-        ));
+        // The model by name, so it wins over a rok-data item of the same
+        // name; the rest of the module (its inputs, id and key) by glob. In
+        // rustfmt's order: a name sorts before `*`, a `{…}` list after it.
+        let named = format!("    pub use super::{module}::models::{items};\n");
+        let glob = format!("    pub use super::{module}::models::*;\n");
+        if table.scopes.is_empty() {
+            output.push_str(&named);
+            output.push_str(&glob);
+        } else {
+            output.push_str(&glob);
+            output.push_str(&named);
+        }
     }
     output.push_str("}\n");
     output
@@ -417,8 +427,10 @@ mod tests {
         assert!(
             rendered.ends_with(
                 "pub mod prelude {\n    pub use rok_data::prelude::*;\n\n    \
+                 pub use super::posts::models::*;\n    \
                  pub use super::posts::models::{Post, PostScopes};\n    \
-                 pub use super::users::models::User;\n}\n"
+                 pub use super::users::models::User;\n    \
+                 pub use super::users::models::*;\n}\n"
             ),
             "{rendered}"
         );

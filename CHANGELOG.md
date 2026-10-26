@@ -33,6 +33,16 @@ compiler finds the call sites.
   table is the struct's pluralized snake_case name, no
   `#[rok(primary_key)]` on a lone `id` key. Schema-qualified tables and
   other keys keep theirs.
+- **Every documented sample compiles** (dx-first ticket 14): the Rust
+  samples of `docs/getting-started.md`, `docs/migration-guide.md` and the
+  new `docs/pagination.md` each name the compiled file that holds them
+  (`<!-- source: … -->`), and a test fails when one drifts; a migration's
+  0.2 "before" says why it is not compiled. Fixing them fixed the samples
+  that did not compile (a relation called on an `Option`, a scope on a
+  model without it, placeholder scope paths). The generated
+  `db::prelude` now also brings each model's inputs, ids and keys
+  (`NewBook`, `UpdateBook`, `BookId`), and the runtime prelude brings
+  `Cursor` and `CursorPage`.
 - **Pages on the wire** (dx-first ticket 13, the runtime half): with the
   `serde` feature, `Page`, `SimplePage` and `CursorPage` answer as the
   paginator object (`page.paginator(links)`: `data`, `current_page`,

@@ -40,12 +40,17 @@ pub enum UpdateOutcome<T> {
 }
 
 /// Everything a call site needs: `use crate::db::prelude::*;` brings
-/// rok-data's prelude, every model, and each model's scopes.
+/// rok-data's prelude, every model with its scopes, and each model's
+/// inputs, ids and keys (`NewBook`, `UpdateBook`, `BookId`).
 pub mod prelude {
     pub use rok_data::prelude::*;
 
     pub use super::accounts::models::Account;
+    pub use super::accounts::models::*;
     pub use super::labels::models::Label;
+    pub use super::labels::models::*;
     pub use super::note_labels::models::NoteLabel;
+    pub use super::note_labels::models::*;
     pub use super::notes::models::Note;
+    pub use super::notes::models::*;
 }

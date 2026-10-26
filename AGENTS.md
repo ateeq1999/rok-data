@@ -119,16 +119,21 @@ is unaffected — that is what crates.io and `cargo install` do.
   reconstruct from git history); add one there for those.
 - Engine ADRs under `crates/rok-data-sqlc/docs/adr/` record the
   engine's own decisions (`rok sqlc` grammar, generated-code shape);
-  the engine's series keeps growing — 0017 is its newest.
+  the engine's series keeps growing — 0018 is its newest.
 - The numbering collides by design and nothing is renumbered: the two
-  series number independently — the workspace's reaches 0013, the
-  engine's 0017 — so wherever the number alone is ambiguous, cite
+  series number independently — the workspace's reaches 0015, the
+  engine's 0018 — so wherever the number alone is ambiguous, cite
   "engine ADR NNNN" or "workspace ADR NNNN" — a file path beside the
   cite leaves it unambiguous, and in-code doc comments keep the short
   form ("engine ADR 0016"). A new engine ADR continues the engine's
   series; it never claims a workspace number.
 - The CLI reference (`docs/cli-reference.md`) is contract; update it in
   the same PR as any grammar change.
+- The workspace docs' Rust samples (`docs/getting-started.md`,
+  `docs/migration-guide.md`, `docs/pagination.md`) are compiled: each
+  carries `<!-- source: <path> -->` naming the compiled file that holds
+  it, or `<!-- not compiled: <reason> -->` (a migration's 0.2 "before");
+  `crates/rok-data/tests/docs` holds the sources and the check.
 - The milestone/expected snapshots in the engine (`milestone-1.txt`,
   templates' generated files) refresh only via the sanctioned
   `ROK_DATA_SQLC_UPDATE_EXPECTED=1` runs — never by hand-editing.

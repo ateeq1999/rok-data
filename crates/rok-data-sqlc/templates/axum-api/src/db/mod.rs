@@ -29,12 +29,17 @@ pub mod types;
 pub mod users;
 
 /// Everything a call site needs: `use crate::db::prelude::*;` brings
-/// rok-data's prelude, every model, and each model's scopes.
+/// rok-data's prelude, every model with its scopes, and each model's
+/// inputs, ids and keys (`NewBook`, `UpdateBook`, `BookId`).
 pub mod prelude {
     pub use rok_data::prelude::*;
 
     pub use super::api_keys::models::ApiKey;
+    pub use super::api_keys::models::*;
     pub use super::audit_log_entry::models::AuditLogEntry;
+    pub use super::audit_log_entry::models::*;
     pub use super::media::models::Media;
+    pub use super::media::models::*;
     pub use super::users::models::User;
+    pub use super::users::models::*;
 }
