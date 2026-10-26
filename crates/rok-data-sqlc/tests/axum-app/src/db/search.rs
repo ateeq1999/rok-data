@@ -380,3 +380,11 @@ pub fn push_contains_any(columns: &[&str], text: &str, query: &mut QueryBuilder<
     }
     query.push(")");
 }
+
+/// The `ILIKE` pattern of the text containing `text`, ignoring case: `%`,
+/// `_` and `\` in `text` match themselves. The API's cursor-paged lists
+/// match `q` with it.
+#[must_use]
+pub fn contains_pattern(text: &str) -> String {
+    format!("%{}%", escape_like(text))
+}

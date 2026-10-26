@@ -19,6 +19,7 @@ pub(crate) struct ApiKeys {
     framework: Option<FrameworkName>,
     search_endpoint: Option<bool>,
     pagination: Option<PaginationName>,
+    cursor: Option<Vec<String>>,
     openapi: Option<bool>,
     exclude: Option<Vec<String>>,
     #[serde(default)]
@@ -167,6 +168,7 @@ impl ApiKeys {
             framework: self.framework.or(lower.framework),
             search_endpoint: self.search_endpoint.or(lower.search_endpoint),
             pagination: self.pagination.or(lower.pagination),
+            cursor: self.cursor.or(lower.cursor),
             openapi: self.openapi.or(lower.openapi),
             exclude: self.exclude.or(lower.exclude),
             skip: merge(self.skip, lower.skip),
@@ -198,6 +200,7 @@ impl ApiKeys {
         if let Some(pagination) = self.pagination {
             api.pagination = pagination.pagination();
         }
+        api.cursor = self.cursor.unwrap_or_default();
         api.openapi = self.openapi.unwrap_or(api.openapi);
         api.exclude = self.exclude.unwrap_or_default();
         api.skip = self

@@ -163,8 +163,14 @@ async fn lists_creates_and_deletes_answer_the_standard_statuses() {
         if id == "list" || id == "search" {
             lists += 1;
             let page = response_ref(&operation, "200").unwrap_or_default();
+            // The labels' list pages by cursor (`[api] cursor`).
+            let shape = if path == "/api/v1/labels" {
+                "CursorResponse"
+            } else {
+                "PaginatedResponse"
+            };
             assert!(
-                page.starts_with("#/components/schemas/PaginatedResponse_"),
+                page.starts_with(&format!("#/components/schemas/{shape}_")),
                 "{method} {path}: {page}"
             );
         }

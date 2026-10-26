@@ -170,7 +170,7 @@ fn render_handler(
                 feature.response()
             ));
             if links {
-                let shape = feature.pagination.type_name();
+                let shape = feature.page_type(endpoint);
                 uses.add(&format!("crate::shared::response::{shape}"));
                 output.push_str(&format!(
                     "    let response = {shape}::new(response, &{});\n",

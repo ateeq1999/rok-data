@@ -184,23 +184,25 @@ fn imports(uses: &mut Uses, feature: &Feature<'_>, fields: &[&Column], create: b
 /// table has search columns, otherwise `PageQuery`, which neither takes
 /// nor documents `q`.
 fn list_query_base(feature: &Feature<'_>) -> &'static str {
-    if feature.search.is_empty() {
-        "PageQuery"
-    } else {
-        "ListQuery"
+    match (feature.cursor, feature.search.is_empty()) {
+        (false, true) => "PageQuery",
+        (false, false) => "ListQuery",
+        (true, true) => "CursorQuery",
+        (true, false) => "CursorListQuery",
     }
 }
 
 fn render_list_query(output: &mut String, feature: &Feature<'_>) {
     let mut doc = Vec::new();
+    let paging = if feature.cursor { "cursor" } else { "page" };
     if feature.search.is_empty() {
         doc.push(format!(
-            "`GET {}`'s query string: `?page=&per_page=&sort=&order=`.",
+            "`GET {}`'s query string: `?{paging}=&per_page=&sort=&order=`.",
             feature.url
         ));
     } else {
         doc.push(format!(
-            "`GET {}`'s query string: `?page=&per_page=&q=&sort=&order=`.",
+            "`GET {}`'s query string: `?{paging}=&per_page=&q=&sort=&order=`.",
             feature.url
         ));
         let names: Vec<String> = feature

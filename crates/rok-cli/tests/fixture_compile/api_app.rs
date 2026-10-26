@@ -78,6 +78,9 @@ fn generate_api_app() -> Result<Vec<PathBuf>> {
         .insert("notes".into(), names(&["title", "priority", "created_at"]));
     api.skip
         .insert("labels".into(), vec![rok_data_sqlc::ApiEndpoint::Remove]);
+    // The labels' list pages by cursor, by id or by name.
+    api.cursor = vec!["labels".into()];
+    api.sort.insert("labels".into(), names(&["id", "name"]));
     api.routes
         .insert("audit_events".into(), "/audit-log".to_owned());
     // Access: the shapes above are public, `accounts` is admin only, and

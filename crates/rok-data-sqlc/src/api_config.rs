@@ -46,6 +46,10 @@ pub struct ApiConfig {
     /// (the default, `{items, page, per_page, total}`), `paginator` or
     /// `resource`, with links built from the request.
     pub pagination: ApiPagination,
+    /// Tables whose list endpoint pages by cursor (keyset) instead of by
+    /// page number: `?cursor=` takes a page's `next` or `prev` cursor, and
+    /// the pages stay stable while rows are added.
+    pub cursor: Vec<String>,
     /// Describe the API for its OpenAPI document: utoipa's `ToSchema` or
     /// `IntoParams` on every type a feature exposes, and `ToSchema` on the
     /// data layer's types inside them. On by default; off, nothing
@@ -92,6 +96,7 @@ impl ApiConfig {
             framework: ApiFramework::default(),
             search_endpoint: false,
             pagination: ApiPagination::default(),
+            cursor: Vec::new(),
             openapi: true,
             exclude: Vec::new(),
             skip: BTreeMap::new(),
@@ -138,11 +143,6 @@ impl ApiPagination {
             ApiPagination::Paginator => "PaginatorResponse",
             ApiPagination::Resource => "ResourceResponse",
         }
-    }
-
-    /// The generated response type of a page of `item`s.
-    pub(crate) fn response(self, item: &str) -> String {
-        format!("{}<{item}>", self.type_name())
     }
 }
 

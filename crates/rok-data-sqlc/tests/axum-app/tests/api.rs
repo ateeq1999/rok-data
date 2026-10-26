@@ -102,7 +102,8 @@ async fn the_document_lists_every_generated_path() {
     ] {
         assert!(paths.contains_key(path), "{path} is missing: {paths:?}");
     }
-    // The list documents its query, the search its body.
+    // The list documents its query, the search its body. The notes' list
+    // pages by cursor (`[api] cursor`): `cursor`, never `page`.
     let list = &paths["/api/v1/notes"]["get"];
     let names: Vec<&str> = list["parameters"]
         .as_array()
@@ -110,8 +111,7 @@ async fn the_document_lists_every_generated_path() {
         .iter()
         .filter_map(|parameter| parameter["name"].as_str())
         .collect();
-    assert!(names.contains(&"q"), "{names:?}");
-    assert!(names.contains(&"page"), "{names:?}");
+    assert_eq!(names, ["cursor", "per_page", "q", "sort", "order"]);
 }
 
 /// The health route answers while the server answers at all.
@@ -215,12 +215,67 @@ fn a_list_page_answers_as_the_paginator_object() {
     );
 }
 
+/// `[api] cursor`: a cursor page answers the paginator object, field for
+/// field what `rok_data::wire` writes for a `CursorPage`, its links
+/// replacing only the request's `cursor`.
+#[test]
+fn a_cursor_page_answers_as_the_paginator_object() {
+    use rok_data::{Cursor, CursorPage, Value};
+    use rok_data_sqlc_axum_app::shared::response::{CursorPaginatorResponse, CursorResponse};
+    use serde_json::json;
+
+    let page = CursorPage {
+        items: vec!["c", "d"],
+        next: Some(Cursor::new([Value::from(42_i64)])),
+        prev: Some(Cursor::before([Value::from(41_i64)])),
+        per_page: 2,
+    };
+    let response = CursorPaginatorResponse::new(
+        CursorResponse::from(page),
+        "/notes?sort=title&cursor=l3431&per_page=2",
+    );
+    assert_eq!(
+        serde_json::to_value(response).unwrap(),
+        json!({
+            "data": ["c", "d"],
+            "path": "/notes",
+            "per_page": 2,
+            "next_cursor": "l3432",
+            "next_page_url": "/notes?sort=title&per_page=2&cursor=l3432",
+            "prev_cursor": "-l3431",
+            "prev_page_url": "/notes?sort=title&per_page=2&cursor=-l3431"
+        })
+    );
+
+    // The first and only page: no cursor either way.
+    let only = CursorPage {
+        items: vec!["a"],
+        next: None,
+        prev: None,
+        per_page: 20,
+    };
+    let only = CursorPaginatorResponse::new(CursorResponse::from(only), "/notes");
+    let only = serde_json::to_value(only).unwrap();
+    assert_eq!(
+        (only["next_page_url"].clone(), only["prev_cursor"].clone()),
+        (json!(null), json!(null))
+    );
+}
+
+/// The list answers the cursor page in the paginator shape; the search,
+/// which pages by number, the numbered one.
 #[tokio::test]
-async fn the_document_describes_the_paginator_page() {
+async fn the_document_describes_each_page() {
     let document = document().await;
-    let list = &document["paths"]["/api/v1/notes"]["get"]["responses"]["200"];
-    let schema = list["content"]["application/json"]["schema"]["$ref"]
-        .as_str()
-        .unwrap_or_default();
-    assert!(schema.contains("PaginatorResponse"), "{list}");
+    for (path, method, shape) in [
+        ("/api/v1/notes", "get", "CursorPaginatorResponse"),
+        ("/api/v1/notes/search", "post", "PaginatorResponse"),
+    ] {
+        let answer = &document["paths"][path][method]["responses"]["200"];
+        let schema = answer["content"]["application/json"]["schema"]["$ref"]
+            .as_str()
+            .unwrap_or_default();
+        let name = schema.rsplit('/').next().unwrap_or_default();
+        assert!(name.starts_with(&format!("{shape}_")), "{path}: {answer}");
+    }
 }

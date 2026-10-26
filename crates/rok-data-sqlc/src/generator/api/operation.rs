@@ -55,6 +55,16 @@ pub type Header = (&'static str, &'static str);
 /// The `ETag` header of a versioned row's answer.
 const ETAG: Header = ("ETag", "The row's version, which `If-Match` sends back.");
 
+/// The types a page's body names (`[api] pagination`, `[api] cursor`).
+const PAGE_TYPES: [&str; 6] = [
+    "PaginatedResponse",
+    "PaginatorResponse",
+    "ResourceResponse",
+    "CursorResponse",
+    "CursorPaginatorResponse",
+    "CursorResourceResponse",
+];
+
 /// One documented operation.
 pub struct Operation {
     method: &'static str,
@@ -224,7 +234,7 @@ impl Operation {
         }
         let mut responses = vec![self.success()];
         // A page's body names its shape's type (`[api] pagination`).
-        for page in ["PaginatedResponse", "PaginatorResponse", "ResourceResponse"] {
+        for page in PAGE_TYPES {
             if self
                 .body
                 .as_ref()

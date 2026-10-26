@@ -191,9 +191,13 @@ fn encode(value: &Value) -> String {
         Value::Interval(v) => part('v', v, |v| {
             format!("{},{},{}", v.months, v.days, v.microseconds).into_bytes()
         }),
-        // Custom types can't be decoded generically; `x` makes the cursor
-        // fail to parse with a clear error instead of misbehaving.
-        Value::Custom(v) => format!("x{}", hex(format!("{v:?}").as_bytes())),
+        // A custom type over a built-in one (a key newtype) travels as its
+        // plain value. Others can't be decoded generically; `x` makes the
+        // cursor fail to parse with a clear error instead of misbehaving.
+        Value::Custom(v) => match v.plain() {
+            Some(plain) => encode(&plain),
+            None => format!("x{}", hex(format!("{v:?}").as_bytes())),
+        },
     }
 }
 
@@ -338,6 +342,25 @@ mod tests {
         assert_eq!(parsed, backward);
         assert!(parsed.is_backward() && !forward.is_backward());
         assert!("-".parse::<Cursor>().is_err(), "a mark with no values");
+    }
+
+    /// A key newtype, as generated models' typed ids are.
+    #[derive(Debug, Clone, sqlx::Type)]
+    #[sqlx(transparent)]
+    struct BookId(i64);
+    crate::impl_value!(BookId);
+
+    #[test]
+    fn a_key_newtype_travels_as_its_plain_value() {
+        let cursor = Cursor::new([Value::from("Dune"), Value::from(BookId(7))]);
+        let parsed: Cursor = cursor.to_string().parse().unwrap();
+        assert_eq!(
+            parsed,
+            Cursor::new([Value::from("Dune"), Value::from(7_i64)])
+        );
+        let none = Cursor::new([Value::from(None::<BookId>)]);
+        let parsed: Cursor = none.to_string().parse().unwrap();
+        assert_eq!(parsed, Cursor::new([Value::from(None::<i64>)]));
     }
 
     #[test]

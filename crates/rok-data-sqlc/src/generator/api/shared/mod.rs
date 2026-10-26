@@ -15,10 +15,11 @@ use std::path::{Path, PathBuf};
 
 use crate::ApiConfig;
 use crate::ApiFramework;
-use crate::generator::HEADER;
+use crate::generator::{HEADER, replace_once};
 
 pub(super) mod actix;
 pub(super) mod axum;
+mod cursors;
 mod pages;
 
 /// The data-layer path the templates are written against.
@@ -57,9 +58,18 @@ pub fn render(output: &Path, api: &ApiConfig) -> Vec<(PathBuf, String)> {
         ],
     };
     for (name, template) in tools {
-        let mut text = file(template);
+        // A list paged by cursor brings its queries and page shapes.
+        let cursor = !api.cursor.is_empty();
+        let mut text = if name == "pagination.rs" && cursor {
+            file(&format!("{}{}", cursor_imports(template), cursors::QUERIES))
+        } else {
+            file(template)
+        };
         if name == "response.rs" {
             text.push_str(&pages::shapes(api.pagination, api.openapi));
+            if cursor {
+                text.push_str(&cursors::shapes(api.pagination, api.openapi));
+            }
         }
         let text = if api.openapi {
             super::schemas::describe(name, &text)
@@ -69,6 +79,21 @@ pub fn render(output: &Path, api: &ApiConfig) -> Vec<(PathBuf, String)> {
         files.push((shared.join(name), text));
     }
     files
+}
+
+/// `pagination.rs`'s imports with what the cursor queries name: the
+/// runtime's `Cursor` and the application's `AppError`.
+fn cursor_imports(text: &str) -> String {
+    let text = replace_once(
+        text,
+        "use serde::{Deserialize, Serialize};\n",
+        "use rok_data::Cursor;\nuse serde::{Deserialize, Serialize};\n",
+    );
+    replace_once(
+        &text,
+        "use crate::db::search::{Direction, Window};\n",
+        "use crate::db::search::{Direction, Window};\nuse crate::error::AppError;\n",
+    )
 }
 
 const POOL: &str = r#"//! The database pool: its settings, opening it, and checking that the

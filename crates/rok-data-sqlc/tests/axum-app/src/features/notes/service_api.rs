@@ -15,8 +15,8 @@ use crate::db::notes::filter::NoteFilter;
 use crate::db::search::{Direction, Sort};
 use crate::error::AppError;
 use crate::shared::auth::AuthUser;
-use crate::shared::pagination::Pagination;
-use crate::shared::response::PaginatedResponse;
+use crate::shared::pagination::{Pagination, cursor_error};
+use crate::shared::response::{CursorResponse, PaginatedResponse};
 
 /// The `notes` feature's operations, called by its handlers. Every method but
 /// [`pool`](Self::pool) has a default over the data layer: override one in
@@ -32,23 +32,30 @@ pub trait NotesServiceApi {
     /// The pool reads and transactions use.
     fn pool(&self) -> &PgPool;
 
-    /// `GET /api/v1/notes`: one page of rows, sorted and matched by `query`.
+    /// `GET /api/v1/notes`: one page of rows from `query.cursor` on, sorted and matched by `query`.
     async fn list(
         &self,
         tenant: uuid::Uuid,
         user: AuthUser,
         query: ListNotesQuery,
-    ) -> Result<PaginatedResponse<Note>, AppError> {
-        let pagination = query.pagination();
+    ) -> Result<CursorResponse<Note>, AppError> {
+        let cursor = query.cursor()?;
         let direction = Direction::from(query.sort_order());
         let default = NoteSort::DEFAULT;
         let key = query.sort.unwrap_or(default);
-        let sort = Some(Sort { key, direction });
+        let sort = Sort { key, direction };
         let q = query.q.as_deref().filter(|q| !q.is_empty());
-        let rows =
-            repo::list_matching(self.pool(), tenant, user.id, q, sort, pagination.into()).await?;
-        let total = repo::count_matching(self.pool(), tenant, user.id, q).await?;
-        Ok(PaginatedResponse::new(rows, pagination, total))
+        let page = repo::list_by_cursor(
+            self.pool(),
+            tenant,
+            user.id,
+            q,
+            sort,
+            cursor.as_ref(),
+            query.per_page(),
+        )
+        .await;
+        Ok(CursorResponse::from(page.map_err(cursor_error)?))
     }
 
     /// `POST /api/v1/notes/search`: one page of the rows `body.filter` matches.

@@ -44,6 +44,9 @@ fn generate_axum_app() -> Result<Vec<PathBuf>> {
     // The list and the search answer in the paginator shape (the api-app
     // keeps the compact one).
     api.pagination = rok_data_sqlc::ApiPagination::Paginator;
+    // The notes' list pages by cursor (the search still pages by number):
+    // scoped to the tenant and the owner, soft-deleted rows left out.
+    api.cursor = vec!["notes".into()];
     api.search
         .insert("notes".into(), vec!["title".into(), "body".into()]);
     api.sort.insert("notes".into(), vec!["title".into()]);

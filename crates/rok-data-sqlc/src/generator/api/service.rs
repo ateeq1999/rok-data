@@ -21,6 +21,9 @@ pub fn render_api(feature: &Feature<'_>) -> String {
     for endpoint in &feature.endpoints {
         body.push('\n');
         match endpoint {
+            Endpoint::List if feature.cursor => {
+                super::cursor_list::render_service(&mut body, &mut uses, feature);
+            }
             Endpoint::List => render_list(&mut body, &mut uses, feature),
             Endpoint::Search => super::search::render_service(&mut body, &mut uses, feature),
             Endpoint::GetOne => render_get_one(&mut body, &mut uses, feature),

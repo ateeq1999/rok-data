@@ -41,6 +41,18 @@ pub fn push_contains_any(columns: &[&str], text: &str, query: &mut QueryBuilder<
 }
 "#;
 
+/// The `search.rs` helper a cursor-paged list matches `q` with, appended
+/// to `db/search.rs` when `api.cursor` names a table.
+pub const CONTAINS_PATTERN: &str = r#"
+/// The `ILIKE` pattern of the text containing `text`, ignoring case: `%`,
+/// `_` and `\` in `text` match themselves. The API's cursor-paged lists
+/// match `q` with it.
+#[must_use]
+pub fn contains_pattern(text: &str) -> String {
+    format!("%{}%", escape_like(text))
+}
+"#;
+
 /// Renders `listing.rs` for `feature` (see [`super::has_listing`]).
 pub fn render(feature: &Feature<'_>) -> String {
     let table = feature.table;
@@ -85,9 +97,21 @@ pub fn render(feature: &Feature<'_>) -> String {
     let mut output = format!("{HEADER}\n{}\n", docs.join("//!\n"));
 
     let mut paths = Vec::new();
+    let cursor = lists && feature.cursor;
     if lists || searches {
-        let mut search_items = vec!["Sort", "Window"];
-        if lists && searched {
+        // In rustfmt's order: the types, then the functions.
+        let mut search_items = Vec::new();
+        if cursor {
+            search_items.push("Direction");
+        }
+        search_items.push("Sort");
+        if searches || !cursor {
+            search_items.push("Window");
+        }
+        if cursor && searched {
+            search_items.push("contains_pattern");
+        }
+        if lists && searched && !cursor {
             search_items.push("push_contains_any");
         }
         paths.push(format!(
@@ -97,6 +121,10 @@ pub fn render(feature: &Feature<'_>) -> String {
     }
     if searches {
         paths.push(format!("super::filter::{}", feature.db_filter()));
+    }
+    if cursor {
+        // The chain starts at the model: `Note::filter(…)`.
+        paths.push("rok_data::Model".to_owned());
     }
     let mut models = vec![feature.row().to_owned()];
     if owned {
@@ -132,7 +160,9 @@ pub fn render(feature: &Feature<'_>) -> String {
         output.push('\n');
         render_sort_enum(&mut output, feature);
     }
-    if lists {
+    if cursor {
+        super::cursor_list::render_listing(&mut output, feature);
+    } else if lists {
         render_list(&mut output, feature);
     }
     if searches {
@@ -453,6 +483,9 @@ fn render_sort_enum(output: &mut String, feature: &Feature<'_>) {
             ));
         }
         output.push_str("            _ => None,\n        }\n    }\n");
+    }
+    if feature.cursor && feature.serves(Endpoint::List) {
+        super::cursor_list::render_order(output, feature);
     }
     output.push_str("}\n");
 }

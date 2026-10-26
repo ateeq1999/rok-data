@@ -20,7 +20,7 @@ use super::service_api::NotesServiceApi;
 use crate::db::labels::models::LabelId;
 use crate::error::AppError;
 use crate::shared::auth::{AdminUser, AuthUser};
-use crate::shared::response::{ErrorBody, PaginatorResponse, etag};
+use crate::shared::response::{CursorPaginatorResponse, ErrorBody, PaginatorResponse, etag};
 use crate::shared::tenant::Tenant;
 use crate::shared::validation::{IdList, IfMatch, Path, Query, ValidatedJson};
 
@@ -32,7 +32,11 @@ use crate::shared::validation::{IdList, IfMatch, Path, Query, ValidatedJson};
     operation_id = "list",
     params(ListNotesQuery),
     responses(
-        (status = 200, description = "One page of rows.", body = PaginatorResponse<NoteResponse>),
+        (
+            status = 200,
+            description = "One page of rows.",
+            body = CursorPaginatorResponse<NoteResponse>,
+        ),
         (status = 400, description = "A malformed path, query or body.", body = ErrorBody),
         (status = 401, description = "No valid bearer token.", body = ErrorBody),
     ),
@@ -47,7 +51,7 @@ pub async fn list(
 ) -> Result<Response, AppError> {
     let page = service.list(tenant.into_inner(), user, query).await?;
     let response = page.map(NoteResponse::from);
-    let response = PaginatorResponse::new(response, &uri.to_string());
+    let response = CursorPaginatorResponse::new(response, &uri.to_string());
     Ok(Json(response).into_response())
 }
 

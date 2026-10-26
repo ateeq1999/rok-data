@@ -9,14 +9,14 @@ use super::model::{NewNote, Note, NoteId, UpdateNote};
 use crate::db::accounts::models::AccountId;
 use crate::db::notes::filter::NoteFilter;
 use crate::db::search::{Equality, Ordered, Text};
-use crate::shared::pagination::{ListQuery, SortOrder};
+use crate::shared::pagination::{CursorListQuery, SortOrder};
 
 pub use crate::db::notes::listing::NoteSort;
 
-/// `GET /api/v1/notes`'s query string: `?page=&per_page=&q=&sort=&order=`.
+/// `GET /api/v1/notes`'s query string: `?cursor=&per_page=&q=&sort=&order=`.
 /// `q` matches `title`, `body`.
 /// `sort` takes a [`NoteSort`], `title` unless given.
-pub type ListNotesQuery = ListQuery<NoteSort>;
+pub type ListNotesQuery = CursorListQuery<NoteSort>;
 
 /// `POST /api/v1/notes/search`'s body: `filter` matches rows by column (every
 /// condition must hold), `sort` and `order` sort them, and `page` and

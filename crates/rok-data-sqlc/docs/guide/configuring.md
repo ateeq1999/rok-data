@@ -382,6 +382,44 @@ The OpenAPI document describes the chosen shape. The services are the same
 for every shape: they return the compact `PaginatedResponse`, and the
 handler converts it.
 
+## `cursor`
+
+```toml
+[api]
+output = "src/features"
+cursor = ["events", "messages"]
+```
+
+The tables whose list pages by cursor (keyset) instead of by page number.
+`GET /events` takes `?cursor=&per_page=&q=&sort=&order=`. Without
+`cursor` it answers the first page. Each page carries the cursors of the
+pages on either side. Pass `next` to go on and `prev` to go back. The rows
+always come in the list's order. Rows added or deleted between requests
+never shift a page after the cursor, and no page skips or repeats a row,
+which page numbers can't promise. A page costs the same however deep it is.
+
+A cursor page has no `total` and no page numbers. Its shape follows
+`pagination`:
+
+- `compact`: `{"items", "next", "prev", "per_page"}` (`CursorResponse`);
+- `paginator`: `{"data", "path", "per_page", "next_cursor",
+  "next_page_url", "prev_cursor", "prev_page_url"}`
+  (`CursorPaginatorResponse`);
+- `resource`: `{"data", "links": {"first", "last", "prev", "next"},
+  "meta": {"path", "per_page", "next_cursor", "prev_cursor"}}`
+  (`CursorResourceResponse`; `first` and `last` are `null`).
+
+Treat a cursor as opaque. A cursor no page of the list gave out is a
+`400 bad_request`. That includes one from another `sort`, so a client
+that changes `sort` or `order` starts again from the first page. The
+`*_page_url` links keep the other query parameters, so following them is
+always safe. `POST /search` keeps paging by number.
+
+The keyset is the sort key plus the primary key, which breaks ties. The
+generator refuses a table in `cursor` that has no primary key, or whose
+sort keys (`[api.sort]`, or the defaults) include a nullable column. Name
+`NOT NULL` columns in `[api.sort]` for it.
+
 ## `search_endpoint`
 
 ```toml

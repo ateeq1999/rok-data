@@ -3,9 +3,11 @@
 //! A list endpoint's query, `?page=&per_page=&q=&sort=&order=` (`q` only
 //! where the table has search columns), and the page it asks for.
 
+use rok_data::Cursor;
 use serde::{Deserialize, Serialize};
 
 use crate::db::search::{Direction, Window};
+use crate::error::AppError;
 
 /// The direction of a list's sort: `order=asc` or `order=desc`, the
 /// default.
@@ -176,4 +178,140 @@ impl From<Pagination> for Window {
     fn from(pagination: Pagination) -> Self {
         Window::new(pagination.limit(), pagination.offset())
     }
+}
+
+/// A cursor-paged list endpoint's query string. `S` is what `sort` takes:
+/// a table's generated sort key, or any text by default.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct CursorListQuery<S: utoipa::ToSchema = String> {
+    /// Where the page starts: a `next_cursor` or `prev_cursor` a page of
+    /// this list gave out. The first page without one.
+    pub cursor: Option<String>,
+    /// The rows a page holds, 1 to 100. Defaults to 20.
+    pub per_page: Option<u32>,
+    /// The text to search for.
+    pub q: Option<String>,
+    /// What to sort by.
+    #[param(schema_with = sort_schema::<S>)]
+    pub sort: Option<S>,
+    /// The sort's direction. Defaults to `desc`.
+    pub order: Option<SortOrder>,
+}
+
+impl<S: utoipa::ToSchema> Default for CursorListQuery<S> {
+    fn default() -> Self {
+        CursorListQuery {
+            cursor: None,
+            per_page: None,
+            q: None,
+            sort: None,
+            order: None,
+        }
+    }
+}
+
+impl<S: utoipa::ToSchema> CursorListQuery<S> {
+    /// The cursor the page starts at, `None` for the first page.
+    ///
+    /// # Errors
+    ///
+    /// A `400` when `cursor` is not a cursor.
+    pub fn cursor(&self) -> Result<Option<Cursor>, AppError> {
+        parse_cursor(self.cursor.as_deref())
+    }
+
+    /// The rows a page holds, with the default and limits applied.
+    #[must_use]
+    pub fn per_page(&self) -> u64 {
+        u64::from(Pagination::new(None, self.per_page).per_page)
+    }
+
+    /// The sort's direction, `desc` unless `order` says otherwise.
+    #[must_use]
+    pub fn sort_order(&self) -> SortOrder {
+        self.order.unwrap_or_default()
+    }
+}
+
+/// The query string of a cursor-paged list whose table has no search
+/// columns: a `CursorListQuery` without `q`. `S` is what `sort` takes.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct CursorQuery<S: utoipa::ToSchema = String> {
+    /// Where the page starts: a `next_cursor` or `prev_cursor` a page of
+    /// this list gave out. The first page without one.
+    pub cursor: Option<String>,
+    /// The rows a page holds, 1 to 100. Defaults to 20.
+    pub per_page: Option<u32>,
+    /// What to sort by.
+    #[param(schema_with = sort_schema::<S>)]
+    pub sort: Option<S>,
+    /// The sort's direction. Defaults to `desc`.
+    pub order: Option<SortOrder>,
+}
+
+impl<S: utoipa::ToSchema> Default for CursorQuery<S> {
+    fn default() -> Self {
+        CursorQuery {
+            cursor: None,
+            per_page: None,
+            sort: None,
+            order: None,
+        }
+    }
+}
+
+impl<S: utoipa::ToSchema> CursorQuery<S> {
+    /// The cursor the page starts at, `None` for the first page.
+    ///
+    /// # Errors
+    ///
+    /// A `400` when `cursor` is not a cursor.
+    pub fn cursor(&self) -> Result<Option<Cursor>, AppError> {
+        parse_cursor(self.cursor.as_deref())
+    }
+
+    /// The rows a page holds, with the default and limits applied.
+    #[must_use]
+    pub fn per_page(&self) -> u64 {
+        u64::from(Pagination::new(None, self.per_page).per_page)
+    }
+
+    /// The sort's direction, `desc` unless `order` says otherwise.
+    #[must_use]
+    pub fn sort_order(&self) -> SortOrder {
+        self.order.unwrap_or_default()
+    }
+}
+
+/// `cursor` parsed, a `400` when it is not a cursor.
+fn parse_cursor(cursor: Option<&str>) -> Result<Option<Cursor>, AppError> {
+    cursor.map(str::parse).transpose().map_err(|_| bad_cursor())
+}
+
+/// A cursor list's error: a cursor that doesn't fit the list — the wrong
+/// number of values, or a value of another type than its column's — is a
+/// `400`; anything else maps as usual.
+#[must_use]
+pub fn cursor_error(error: rok_data::Error) -> AppError {
+    let mismatched = match &error {
+        rok_data::Error::InvalidCursor(_) => true,
+        // `operator does not exist`: a cursor value compared with a column
+        // of another type.
+        rok_data::Error::Database(sqlx::Error::Database(database)) => {
+            database.code().as_deref() == Some("42883")
+        }
+        _ => false,
+    };
+    if mismatched {
+        bad_cursor()
+    } else {
+        error.into()
+    }
+}
+
+/// The `400` of a cursor no page of the list gave out.
+fn bad_cursor() -> AppError {
+    AppError::BadRequest("`cursor` is not a cursor of this list".to_owned())
 }

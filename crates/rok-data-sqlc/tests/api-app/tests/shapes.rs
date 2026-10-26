@@ -138,9 +138,10 @@ async fn a_skipped_endpoint_has_no_route() {
         "{answer:?}"
     );
     assert_eq!(get(&db, uri).await.status, StatusCode::OK);
-    // `q` matches `name`.
+    // `q` matches `name` (the list pages by cursor: no `total`).
     let list = get(&db, "/api/v1/labels?q=LAT").await;
-    assert_eq!(list.body["total"], 1, "{list:?}");
+    let items = list.body["items"].as_array().map(Vec::len);
+    assert_eq!(items, Some(1), "{list:?}");
     db.drop().await;
 }
 

@@ -261,8 +261,11 @@ pub fn plan_files_with_queries(
         QueriesModule::None | QueriesModule::Keep => {}
     }
     let mut search = search::render_shared(derives);
-    if config.api.is_some() {
+    if let Some(api) = &config.api {
         search.push_str(api::listing::CONTAINS_ANY);
+        if !api.cursor.is_empty() {
+            search.push_str(api::listing::CONTAINS_PATTERN);
+        }
     }
     files.push((output.join("search.rs"), search));
     if serde {

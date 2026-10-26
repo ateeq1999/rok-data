@@ -384,6 +384,59 @@
         ],
         "type": "object"
       },
+      "CursorResponse_LabelResponse": {
+        "description": "One page of a cursor-paged list: `{\"items\", \"next\", \"prev\", \"per_page\"}`,\n`next` and `prev` the cursors of the pages on either side.",
+        "properties": {
+          "items": {
+            "description": "The page's rows.",
+            "items": {
+              "description": "A `labels` row as the API answers it.",
+              "properties": {
+                "id": {
+                  "description": "The `id` column.",
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "name": {
+                  "description": "The `name` column.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "next": {
+            "description": "The next page's cursor; `null` on the last page.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "per_page": {
+            "description": "The most rows a page holds.",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "prev": {
+            "description": "The previous page's cursor; `null` on the first page.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "per_page"
+        ],
+        "type": "object"
+      },
       "DocumentInclude": {
         "description": "The to-one relationships `?include=` takes, in `snake_case`.",
         "enum": [
@@ -1643,7 +1696,8 @@
       "LabelSort": {
         "description": "The columns `GET /api/v1/labels?sort=` takes, in `snake_case`.",
         "enum": [
-          "id"
+          "id",
+          "name"
         ],
         "type": "string"
       },
@@ -6596,14 +6650,12 @@
         "operationId": "list",
         "parameters": [
           {
-            "description": "The page, from 1. Defaults to 1.",
+            "description": "Where the page starts: a `next_cursor` or `prev_cursor` a page of\nthis list gave out. The first page without one.",
             "in": "query",
-            "name": "page",
+            "name": "cursor",
             "required": false,
             "schema": {
-              "format": "int32",
-              "minimum": 0,
-              "type": "integer"
+              "type": "string"
             }
           },
           {
@@ -6649,7 +6701,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PaginatedResponse_LabelResponse"
+                  "$ref": "#/components/schemas/CursorResponse_LabelResponse"
                 }
               }
             },

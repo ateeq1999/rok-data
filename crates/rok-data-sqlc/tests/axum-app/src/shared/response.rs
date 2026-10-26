@@ -170,3 +170,81 @@ impl PageNumbers {
         }
     }
 }
+
+/// One page of a cursor-paged list: `{"items", "next", "prev", "per_page"}`,
+/// `next` and `prev` the cursors of the pages on either side.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct CursorResponse<T> {
+    /// The page's rows.
+    pub items: Vec<T>,
+    /// The next page's cursor; `null` on the last page.
+    pub next: Option<String>,
+    /// The previous page's cursor; `null` on the first page.
+    pub prev: Option<String>,
+    /// The most rows a page holds.
+    pub per_page: u32,
+}
+
+impl<T> CursorResponse<T> {
+    /// The same page with each item turned into another, such as a row
+    /// into its response.
+    #[must_use]
+    pub fn map<U>(self, f: impl FnMut(T) -> U) -> CursorResponse<U> {
+        CursorResponse {
+            items: self.items.into_iter().map(f).collect(),
+            next: self.next,
+            prev: self.prev,
+            per_page: self.per_page,
+        }
+    }
+}
+
+/// A runtime cursor page on the wire, its cursors as their tokens.
+impl<T> From<rok_data::CursorPage<T>> for CursorResponse<T> {
+    fn from(page: rok_data::CursorPage<T>) -> Self {
+        CursorResponse {
+            items: page.items,
+            next: page.next.map(|cursor| cursor.to_string()),
+            prev: page.prev.map(|cursor| cursor.to_string()),
+            per_page: u32::try_from(page.per_page).unwrap_or(u32::MAX),
+        }
+    }
+}
+
+/// One page of a cursor-paged list as the paginator object: the rows in
+/// `data`, and the cursor and URL of each neighbouring page.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct CursorPaginatorResponse<T> {
+    /// The page's rows.
+    pub data: Vec<T>,
+    /// The request's path.
+    pub path: String,
+    /// The most rows a page holds.
+    pub per_page: u32,
+    /// The next page's cursor; `null` on the last page.
+    pub next_cursor: Option<String>,
+    /// The next page's URL; `null` on the last page.
+    pub next_page_url: Option<String>,
+    /// The previous page's cursor; `null` on the first page.
+    pub prev_cursor: Option<String>,
+    /// The previous page's URL; `null` on the first page.
+    pub prev_page_url: Option<String>,
+}
+
+impl<T> CursorPaginatorResponse<T> {
+    /// `page` as the paginator object, its links built from the request's
+    /// `uri`: every other query parameter is kept.
+    #[must_use]
+    pub fn new(page: CursorResponse<T>, uri: &str) -> Self {
+        let links = rok_data::wire::Links::from_request(uri);
+        CursorPaginatorResponse {
+            data: page.items,
+            path: links.path().to_owned(),
+            per_page: page.per_page,
+            next_page_url: page.next.as_deref().map(|cursor| links.cursor(cursor)),
+            next_cursor: page.next,
+            prev_page_url: page.prev.as_deref().map(|cursor| links.cursor(cursor)),
+            prev_cursor: page.prev,
+        }
+    }
+}

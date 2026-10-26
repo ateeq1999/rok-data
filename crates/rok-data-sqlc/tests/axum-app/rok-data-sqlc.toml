@@ -10,3 +10,4 @@ extractors = ["axum"]
 output = "src/features"
 framework = "axum"
 pagination = "paginator"
+cursor = ["notes"]

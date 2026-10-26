@@ -11,9 +11,10 @@
 //! The many-to-many relationships' writes, through their join tables.
 
 use super::super::labels::models::LabelId;
-use super::super::search::{Sort, Window, push_contains_any};
+use super::super::search::{Direction, Sort, Window, contains_pattern};
 use super::filter::NoteFilter;
 use super::models::{Note, NoteId};
+use rok_data::Model;
 
 /// The columns `GET /api/v1/notes?sort=` takes, in `snake_case`.
 #[derive(
@@ -45,81 +46,51 @@ impl NoteSort {
             _ => None,
         }
     }
+
+    /// The order this key sorts rows in, for the runtime's queries.
+    #[must_use]
+    pub fn order(self, direction: Direction) -> rok_data::Order<Note> {
+        let column = match self {
+            Self::Title => Note::TITLE,
+        };
+        match direction {
+            Direction::Asc => column.asc(),
+            Direction::Desc => column.desc(),
+        }
+    }
 }
 
-/// The columns `q` matches.
-const SEARCH_COLUMNS: &[&str] = &["title", "body"];
-
-/// Fetches one page of rows `owner` owns matching `q`, ordered by `sort`, ties by primary key.
-/// `q` matches a row when one of the [`SEARCH_COLUMNS`] contains it, ignoring
-/// case; `%`, `_` and `\` in it match themselves.
-pub async fn list_matching<'e, E>(
+/// Fetches one page of rows `owner` owns matching `q`, ordered by `sort`, ties by primary key,
+/// starting at `cursor`, the way it points (the first page without one).
+pub async fn list_by_cursor<'e, E>(
     executor: E,
     tenant_id: uuid::Uuid,
     owner: uuid::Uuid,
     q: Option<&str>,
-    sort: Option<Sort<NoteSort>>,
-    page: Window,
-) -> Result<Vec<Note>, sqlx::Error>
+    sort: Sort<NoteSort>,
+    cursor: Option<&rok_data::Cursor>,
+    per_page: u64,
+) -> Result<rok_data::CursorPage<Note>, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
-        r#"
-        SELECT
-            id,
-            owner_id,
-            tenant_id,
-            title,
-            body,
-            revision,
-            deleted_at
-        FROM notes
-        WHERE deleted_at IS NULL
-        "#,
-    );
-    query.push(" AND tenant_id = ");
-    query.push_bind(tenant_id);
-    query.push(" AND owner_id = ");
-    query.push_bind(owner);
-    if let Some(q) = q {
-        push_contains_any(SEARCH_COLUMNS, q, &mut query);
-    }
-    query.push(" ORDER BY ");
-    if let Some(sort) = sort {
-        query.push(sort.key.column());
-        query.push(sort.direction.sql());
-        query.push(", ");
-    }
-    query.push("id");
-    query.push(" LIMIT ");
-    query.push_bind(page.limit());
-    query.push(" OFFSET ");
-    query.push_bind(page.offset());
-    query.build_query_as::<Note>().fetch_all(executor).await
+    Note::filter(Note::DELETED_AT.is_null())
+        .filter(Note::TENANT_ID.eq(tenant_id))
+        .filter(Note::OWNER_ID.eq(owner))
+        .filter_opt(q, matches_q)
+        .order_by(sort.key.order(sort.direction))
+        .cursor_paginate(executor, cursor, per_page)
+        .await
 }
 
-/// Counts the rows `owner` owns matching `q`: every page's rows together.
-pub async fn count_matching<'e, E>(
-    executor: E,
-    tenant_id: uuid::Uuid,
-    owner: uuid::Uuid,
-    q: Option<&str>,
-) -> Result<i64, sqlx::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
-        "SELECT COUNT(*) FROM notes WHERE deleted_at IS NULL",
-    );
-    query.push(" AND tenant_id = ");
-    query.push_bind(tenant_id);
-    query.push(" AND owner_id = ");
-    query.push_bind(owner);
-    if let Some(q) = q {
-        push_contains_any(SEARCH_COLUMNS, q, &mut query);
-    }
-    query.build_query_scalar::<i64>().fetch_one(executor).await
+/// The rows where one of `title`, `body` contains `q`, ignoring case; `%`, `_` and `\`
+/// in it match themselves.
+fn matches_q(q: &str) -> rok_data::Expr<Note> {
+    let pattern = contains_pattern(q);
+    rok_data::Expr::any_of([
+        Note::TITLE.ilike(pattern.as_str()),
+        Note::BODY.ilike(pattern.as_str()),
+    ])
 }
 
 /// Fetches one page of the rows `owner` owns that `filter` matches, ordered by `sort`, ties by primary key.

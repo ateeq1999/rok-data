@@ -18,6 +18,19 @@ compiler finds the call sites.
 
 **What changed**
 
+- **Generated lists can page by cursor** (dx-first ticket 16):
+  `[api] cursor = ["events"]` makes a table's `GET` list take
+  `?cursor=`. Each page answers the cursors of the pages on either side,
+  in the `pagination` shape (`{items, next, prev, per_page}` when
+  compact). Pages stay stable while rows are added. A cursor the list
+  didn't give out is a `400`. The run refuses a listed table without a
+  primary key, or with a nullable sort key.
+- **Keyset cursors carry typed keys**: a sort key or primary key whose
+  type is a newtype over a built-in one (the generated `BookId`, any
+  `impl_value!` / `DbNewtype` over `BIGINT`, `UUID`, `TEXT`, …) now
+  travels in a cursor as its plain value. Before, the cursor of a
+  generated model's page failed to parse, so `cursor_paginate` couldn't
+  go past the first page.
 - **Generated list endpoints answer in the page shape you pick**
   (dx-first ticket 15): `[api] pagination = "compact"` (the default,
   unchanged `{items, page, per_page, total}`), `"paginator"` (the flat

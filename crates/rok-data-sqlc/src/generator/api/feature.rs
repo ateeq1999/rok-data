@@ -188,6 +188,9 @@ pub struct Feature<'a> {
     pub openapi: bool,
     /// The JSON shape the list endpoints answer in (`[api] pagination`).
     pub pagination: crate::ApiPagination,
+    /// Whether the list pages by cursor (`[api] cursor`) instead of by
+    /// page number.
+    pub cursor: bool,
 }
 
 impl<'a> Feature<'a> {
@@ -246,6 +249,11 @@ impl<'a> Feature<'a> {
                 table.display_name()
             ));
         }
+        let cursor =
+            endpoints.contains(&Endpoint::List) && api.cursor.iter().any(|key| names(table, key));
+        if cursor {
+            cursor_fits(table, &sort)?;
+        }
         let lookups = if skipped.contains(&ApiEndpoint::Lookups) {
             Vec::new()
         } else {
@@ -279,6 +287,7 @@ impl<'a> Feature<'a> {
             filter_fallible: !filter_relationships(table, tables).is_empty(),
             openapi: api.openapi,
             pagination: api.pagination,
+            cursor,
         }))
     }
 
@@ -397,6 +406,21 @@ impl<'a> Feature<'a> {
         format!("List{}Query", self.plural())
     }
 
+    /// The type `endpoint`'s page answers in, such as `PaginatedResponse`:
+    /// the `[api] pagination` shape, of a cursor page for a list paged by
+    /// cursor (the search endpoint pages by number either way).
+    pub fn page_type(&self, endpoint: Endpoint) -> &'static str {
+        if endpoint == Endpoint::List && self.cursor {
+            match self.pagination {
+                crate::ApiPagination::Paginator => "CursorPaginatorResponse",
+                crate::ApiPagination::Resource => "CursorResourceResponse",
+                _ => "CursorResponse",
+            }
+        } else {
+            self.pagination.type_name()
+        }
+    }
+
     /// The search body, such as `SearchNotesBody`.
     pub fn search_body(&self) -> String {
         format!("Search{}Body", self.plural())
@@ -504,6 +528,24 @@ fn columns<'a>(table: &'a Table, names: Option<&Vec<String>>) -> Vec<&'a Column>
         .flatten()
         .filter_map(|name| table.columns.iter().find(|column| column.sql_name == *name))
         .collect()
+}
+
+/// Fails unless `table`'s list can page by cursor: the keyset needs a
+/// primary key to break ties, and sort keys that are never `NULL`.
+fn cursor_fits(table: &Table, sort: &[&Column]) -> Result<(), String> {
+    let name = table.display_name();
+    if table.primary_key_columns().is_empty() {
+        return Err(format!(
+            "`{name}` is in `api.cursor`, but a list pages by cursor only with a primary key"
+        ));
+    }
+    if let Some(column) = sort.iter().find(|column| column.nullable) {
+        return Err(format!(
+            "`{name}` is in `api.cursor`, but its sort key `{}` can be NULL; a cursor sorts by columns that never are (name them in `api.sort`)",
+            column.sql_name
+        ));
+    }
+    Ok(())
 }
 
 /// The sort keys of a table without `[api.sort]`: its key columns and

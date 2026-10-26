@@ -122,6 +122,10 @@ and says so. Its `pagination` key picks the JSON shape a list answers a
 page in: `compact` (the default, `{items, page, per_page, total}`),
 `paginator` or `resource` (with links built from the request; see the
 engine's configuring guide). An unknown value fails with the valid ones.
+Its `cursor` key lists the tables whose list pages by cursor instead of
+by page number (`?cursor=`, answering the cursors of the pages on either
+side, in the `pagination` shape); the run fails on a listed table without
+a primary key or with a nullable sort key.
 
 The truth dir holds the **truth** (plain `*.sql` files) and the
 history dir holds the **history** (the staged

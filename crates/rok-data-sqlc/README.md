@@ -988,6 +988,7 @@ prefix          = "/api/v1"       # the default URL prefix
 framework       = "actix_web"     # the default: actix-web or "axum"
 search_endpoint = true            # POST /search with per-field filters; off by default
 pagination      = "compact"       # the default; or "paginator" / "resource": a list's JSON shape
+cursor          = ["events"]      # tables whose list pages by cursor (`?cursor=`), not page number
 openapi         = true            # the default: utoipa schemas for the OpenAPI document
 exclude         = ["audit_log"]   # tables with no API feature
 

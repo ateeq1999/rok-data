@@ -104,8 +104,12 @@ fn derive(template: &str, head: &str, derive: &str) -> String {
 /// be a schema.
 fn describe_pagination(template: &str) -> String {
     let mut text = derive(template, "pub enum SortOrder {", TO_SCHEMA);
-    for query in ["ListQuery", "PageQuery"] {
+    // The cursor queries are there when a list pages by cursor.
+    for query in ["ListQuery", "PageQuery", "CursorListQuery", "CursorQuery"] {
         let head = format!("pub struct {query}<S = String> {{");
+        if !text.contains(&head) {
+            continue;
+        }
         text = derive(&text, &head, INTO_PARAMS);
         text = replace_once(
             &text,
