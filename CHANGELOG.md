@@ -18,6 +18,13 @@ compiler finds the call sites.
 
 **What changed**
 
+- **Generated list endpoints answer in the page shape you pick**
+  (dx-first ticket 15): `[api] pagination = "compact"` (the default,
+  unchanged `{items, page, per_page, total}`), `"paginator"` (the flat
+  paginator object with `current_page`, `last_page`, `from`/`to` and a URL
+  per neighbouring page) or `"resource"` (`{data, links, meta}`). The
+  links come from the request's URI, so every other query parameter is
+  kept; the OpenAPI document describes the chosen shape.
 - **The write verbs live on the generated model** (dx-first ticket 03,
   as 0.3.0 spec D5 and engine ADR 0018 promised): `Book::create(&db,
   input)`, `Book::patch(&db, id, patch)`, `Book::destroy(&db, id)`, and

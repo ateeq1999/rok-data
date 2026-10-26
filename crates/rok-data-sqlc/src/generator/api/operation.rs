@@ -223,9 +223,15 @@ impl Operation {
             output.push_str(&format!("    request_body = {body},\n"));
         }
         let mut responses = vec![self.success()];
-        let is_page = |body: &String| body.starts_with("PaginatedResponse<");
-        if self.body.as_ref().is_some_and(is_page) {
-            uses.add("crate::shared::response::PaginatedResponse");
+        // A page's body names its shape's type (`[api] pagination`).
+        for page in ["PaginatedResponse", "PaginatorResponse", "ResourceResponse"] {
+            if self
+                .body
+                .as_ref()
+                .is_some_and(|body| body.starts_with(&format!("{page}<")))
+            {
+                uses.add(&format!("crate::shared::response::{page}"));
+            }
         }
         let mut errors = self.errors.clone();
         errors.sort_unstable();

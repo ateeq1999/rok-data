@@ -118,7 +118,10 @@ picks the web framework they are generated for: `actix_web` (the default)
 or `axum`; `--api-framework` sets it from the command line. The framework
 needs its extractor in `extractors` (`actix_web` or `axum`), and the flag
 needs the `[api]` section: without it the run generates no API features
-and says so.
+and says so. Its `pagination` key picks the JSON shape a list answers a
+page in: `compact` (the default, `{items, page, per_page, total}`),
+`paginator` or `resource` (with links built from the request; see the
+engine's configuring guide). An unknown value fails with the valid ones.
 
 The truth dir holds the **truth** (plain `*.sql` files) and the
 history dir holds the **history** (the staged

@@ -9,3 +9,4 @@ extractors = ["axum"]
 [api]
 output = "src/features"
 framework = "axum"
+pagination = "paginator"

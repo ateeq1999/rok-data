@@ -46,7 +46,7 @@ pub mod parser;
 #[doc(hidden)]
 pub mod queries;
 
-pub use api_config::{ApiAccess, ApiConfig, ApiEndpoint, ApiFramework};
+pub use api_config::{ApiAccess, ApiConfig, ApiEndpoint, ApiFramework, ApiPagination};
 pub use config::{Config, Conventions, Derive, Extractor, IdGeneration, RelationshipChange};
 pub use project::{discover_config, load_config};
 pub use report::{Error, QueryFailure, RefusedFile, Report, Result, TableFailure};

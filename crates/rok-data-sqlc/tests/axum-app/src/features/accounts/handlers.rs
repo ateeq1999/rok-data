@@ -4,7 +4,7 @@
 //! [`AccountsServiceApi`] method, and answers.
 
 use axum::Json;
-use axum::extract::Extension;
+use axum::extract::{Extension, OriginalUri};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use std::sync::Arc;
@@ -18,7 +18,7 @@ use super::service::AccountsService;
 use super::service_api::AccountsServiceApi;
 use crate::error::AppError;
 use crate::shared::auth::AdminUser;
-use crate::shared::response::{ErrorBody, PaginatedResponse};
+use crate::shared::response::{ErrorBody, PaginatorResponse};
 use crate::shared::tenant::Tenant;
 use crate::shared::validation::{Path, Query, ValidatedJson};
 
@@ -33,7 +33,7 @@ use crate::shared::validation::{Path, Query, ValidatedJson};
         (
             status = 200,
             description = "One page of rows.",
-            body = PaginatedResponse<AccountResponse>,
+            body = PaginatorResponse<AccountResponse>,
         ),
         (status = 400, description = "A malformed path, query or body.", body = ErrorBody),
         (status = 401, description = "No valid bearer token.", body = ErrorBody),
@@ -44,10 +44,12 @@ use crate::shared::validation::{Path, Query, ValidatedJson};
 pub async fn list(
     Extension(service): Extension<Arc<AccountsService>>,
     _: AdminUser,
+    OriginalUri(uri): OriginalUri,
     Query(query): Query<ListAccountsQuery>,
 ) -> Result<Response, AppError> {
     let page = service.list(query).await?;
     let response = page.map(AccountResponse::from);
+    let response = PaginatorResponse::new(response, &uri.to_string());
     Ok(Json(response).into_response())
 }
 
@@ -62,7 +64,7 @@ pub async fn list(
         (
             status = 200,
             description = "One page of the rows the filter matches.",
-            body = PaginatedResponse<AccountResponse>,
+            body = PaginatorResponse<AccountResponse>,
         ),
         (status = 400, description = "A malformed path, query or body.", body = ErrorBody),
         (status = 401, description = "No valid bearer token.", body = ErrorBody),
@@ -75,10 +77,12 @@ pub async fn list(
 pub async fn search(
     Extension(service): Extension<Arc<AccountsService>>,
     _: AdminUser,
+    OriginalUri(uri): OriginalUri,
     body: ValidatedJson<SearchAccountsBody>,
 ) -> Result<Response, AppError> {
     let page = service.search(body.into_inner()).await?;
     let response = page.map(AccountResponse::from);
+    let response = PaginatorResponse::new(response, &uri.to_string());
     Ok(Json(response).into_response())
 }
 

@@ -384,6 +384,10 @@ fn unknown_skip_and_access_names_list_the_valid_ones() -> Result<()> {
             "`public`, `user`, `admin`",
         ),
         ("not_a_key = 1", "`output`, `db_path`, `prefix`"),
+        (
+            "pagination = \"numbered\"",
+            "`compact`, `paginator`, `resource`",
+        ),
     ];
     for (entry, expected) in cases {
         let dir = api_project(&format!("[api]\noutput = \"src/features\"\n{entry}\n"))?;

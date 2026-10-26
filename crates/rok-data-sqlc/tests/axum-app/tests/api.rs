@@ -175,3 +175,52 @@ async fn a_caller_with_a_token_gets_past_the_access_check() {
     // fault: a `500`, never a `401`.
     assert_ne!(status, StatusCode::UNAUTHORIZED, "{body}");
 }
+
+/// `[api] pagination = "paginator"`: a list page answers the paginator
+/// object, field for field what `rok_data::wire` writes for the same page,
+/// its links keeping the request's other query parameters.
+#[test]
+fn a_list_page_answers_as_the_paginator_object() {
+    use rok_data_sqlc_axum_app::shared::pagination::Pagination;
+    use rok_data_sqlc_axum_app::shared::response::{PaginatedResponse, PaginatorResponse};
+    use serde_json::json;
+
+    // Page 2 of 5 rows at 2 a page.
+    let page = PaginatedResponse::new(vec!["c", "d"], Pagination::new(Some(2), Some(2)), 5);
+    let response = PaginatorResponse::new(page, "/books?sort=title&page=2");
+    assert_eq!(
+        serde_json::to_value(response).unwrap(),
+        json!({
+            "current_page": 2,
+            "data": ["c", "d"],
+            "first_page_url": "/books?sort=title&page=1",
+            "from": 3,
+            "last_page": 3,
+            "last_page_url": "/books?sort=title&page=3",
+            "next_page_url": "/books?sort=title&page=3",
+            "path": "/books",
+            "per_page": 2,
+            "prev_page_url": "/books?sort=title&page=1",
+            "to": 4,
+            "total": 5
+        })
+    );
+
+    // A page past the end: no rows, no positions, no next page.
+    let list = PaginatedResponse::new(Vec::<u8>::new(), Pagination::new(Some(9), Some(2)), 5);
+    let past = serde_json::to_value(PaginatorResponse::new(list, "/books")).unwrap();
+    assert_eq!(
+        (past["from"].clone(), past["next_page_url"].clone()),
+        (json!(null), json!(null))
+    );
+}
+
+#[tokio::test]
+async fn the_document_describes_the_paginator_page() {
+    let document = document().await;
+    let list = &document["paths"]["/api/v1/notes"]["get"]["responses"]["200"];
+    let schema = list["content"]["application/json"]["schema"]["$ref"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(schema.contains("PaginatorResponse"), "{list}");
+}

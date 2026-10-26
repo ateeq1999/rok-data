@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
-use crate::{ApiAccess, ApiConfig, ApiEndpoint, ApiFramework};
+use crate::{ApiAccess, ApiConfig, ApiEndpoint, ApiFramework, ApiPagination};
 
 /// The `[api]` keys one source sets. Single keys merge one by one across
 /// sources; a list replaces the lower list; table-keyed sections merge by
@@ -18,6 +18,7 @@ pub(crate) struct ApiKeys {
     prefix: Option<String>,
     framework: Option<FrameworkName>,
     search_endpoint: Option<bool>,
+    pagination: Option<PaginationName>,
     openapi: Option<bool>,
     exclude: Option<Vec<String>>,
     #[serde(default)]
@@ -52,6 +53,26 @@ impl FrameworkName {
         match self {
             FrameworkName::ActixWeb => ApiFramework::ActixWeb,
             FrameworkName::Axum => ApiFramework::Axum,
+        }
+    }
+}
+
+/// The `[api] pagination` value. Deserializing an unknown name fails with the
+/// list of known ones.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum PaginationName {
+    Compact,
+    Paginator,
+    Resource,
+}
+
+impl PaginationName {
+    fn pagination(self) -> ApiPagination {
+        match self {
+            PaginationName::Compact => ApiPagination::Compact,
+            PaginationName::Paginator => ApiPagination::Paginator,
+            PaginationName::Resource => ApiPagination::Resource,
         }
     }
 }
@@ -145,6 +166,7 @@ impl ApiKeys {
             prefix: self.prefix.or(lower.prefix),
             framework: self.framework.or(lower.framework),
             search_endpoint: self.search_endpoint.or(lower.search_endpoint),
+            pagination: self.pagination.or(lower.pagination),
             openapi: self.openapi.or(lower.openapi),
             exclude: self.exclude.or(lower.exclude),
             skip: merge(self.skip, lower.skip),
@@ -173,6 +195,9 @@ impl ApiKeys {
             api.framework = framework.framework();
         }
         api.search_endpoint = self.search_endpoint.unwrap_or_default();
+        if let Some(pagination) = self.pagination {
+            api.pagination = pagination.pagination();
+        }
         api.openapi = self.openapi.unwrap_or(api.openapi);
         api.exclude = self.exclude.unwrap_or_default();
         api.skip = self

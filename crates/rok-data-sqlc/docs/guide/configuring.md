@@ -357,6 +357,31 @@ Some endpoints don't exist to begin with: a table with no primary key has
 no keyed routes, one with nothing to insert no `create`, and one with no
 column to change no `update`.
 
+## `pagination`
+
+```toml
+[api]
+output = "src/features"
+pagination = "paginator"
+```
+
+The JSON shape the list (and `POST /search`) answers a page in:
+
+- `compact`, the default: `{"items", "page", "per_page", "total"}`
+  (`PaginatedResponse`);
+- `paginator`: `{"current_page", "data", "first_page_url", "from",
+  "last_page", "last_page_url", "next_page_url", "path", "per_page",
+  "prev_page_url", "to", "total"}` (`PaginatorResponse`);
+- `resource`: `{"data", "links": {"first", "last", "prev", "next"},
+  "meta": {"current_page", "from", "last_page", "path", "per_page", "to",
+  "total"}}` (`ResourceResponse`).
+
+With `paginator` or `resource`, the handler reads the request's URI, so
+every link keeps the request's other query parameters (`?sort=title&page=3`).
+The OpenAPI document describes the chosen shape. The services are the same
+for every shape: they return the compact `PaginatedResponse`, and the
+handler converts it.
+
 ## `search_endpoint`
 
 ```toml

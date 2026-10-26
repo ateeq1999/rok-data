@@ -42,6 +42,10 @@ pub struct ApiConfig {
     pub framework: ApiFramework,
     /// Generate `POST /search` with per-field filters. Off by default.
     pub search_endpoint: bool,
+    /// The JSON shape the generated list endpoints answer in: `compact`
+    /// (the default, `{items, page, per_page, total}`), `paginator` or
+    /// `resource`, with links built from the request.
+    pub pagination: ApiPagination,
     /// Describe the API for its OpenAPI document: utoipa's `ToSchema` or
     /// `IntoParams` on every type a feature exposes, and `ToSchema` on the
     /// data layer's types inside them. On by default; off, nothing
@@ -87,6 +91,7 @@ impl ApiConfig {
             prefix: Self::DEFAULT_PREFIX.to_owned(),
             framework: ApiFramework::default(),
             search_endpoint: false,
+            pagination: ApiPagination::default(),
             openapi: true,
             exclude: Vec::new(),
             skip: BTreeMap::new(),
@@ -98,6 +103,46 @@ impl ApiConfig {
             search: BTreeMap::new(),
             sort: BTreeMap::new(),
         }
+    }
+}
+
+/// The JSON shape the generated list endpoints answer in
+/// ([`ApiConfig::pagination`]).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ApiPagination {
+    /// `{items, page, per_page, total}`: the generated `PaginatedResponse`.
+    #[default]
+    Compact,
+    /// The paginator object: `data`, the page numbers, `from` / `to`, and
+    /// a URL for each neighbouring page (`PaginatorResponse`).
+    Paginator,
+    /// The resource envelope: `{data, links, meta}` (`ResourceResponse`).
+    Resource,
+}
+
+impl ApiPagination {
+    /// The name the config file and the JSON payload use.
+    pub fn name(self) -> &'static str {
+        match self {
+            ApiPagination::Compact => "compact",
+            ApiPagination::Paginator => "paginator",
+            ApiPagination::Resource => "resource",
+        }
+    }
+
+    /// The generated response type of a page, in `shared::response`.
+    pub(crate) fn type_name(self) -> &'static str {
+        match self {
+            ApiPagination::Compact => "PaginatedResponse",
+            ApiPagination::Paginator => "PaginatorResponse",
+            ApiPagination::Resource => "ResourceResponse",
+        }
+    }
+
+    /// The generated response type of a page of `item`s.
+    pub(crate) fn response(self, item: &str) -> String {
+        format!("{}<{item}>", self.type_name())
     }
 }
 

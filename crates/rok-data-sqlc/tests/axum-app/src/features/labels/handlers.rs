@@ -4,7 +4,7 @@
 //! [`LabelsServiceApi`] method, and answers.
 
 use axum::Json;
-use axum::extract::Extension;
+use axum::extract::{Extension, OriginalUri};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use std::sync::Arc;
@@ -19,7 +19,7 @@ use super::service_api::LabelsServiceApi;
 use crate::db::notes::models::NoteId;
 use crate::error::AppError;
 use crate::shared::auth::AuthUser;
-use crate::shared::response::{ErrorBody, PaginatedResponse};
+use crate::shared::response::{ErrorBody, PaginatorResponse};
 use crate::shared::tenant::Tenant;
 use crate::shared::validation::{Path, Query, ValidatedJson};
 
@@ -31,16 +31,18 @@ use crate::shared::validation::{Path, Query, ValidatedJson};
     operation_id = "list",
     params(ListLabelsQuery),
     responses(
-        (status = 200, description = "One page of rows.", body = PaginatedResponse<LabelResponse>),
+        (status = 200, description = "One page of rows.", body = PaginatorResponse<LabelResponse>),
         (status = 400, description = "A malformed path, query or body.", body = ErrorBody),
     ),
 )]
 pub async fn list(
     Extension(service): Extension<Arc<LabelsService>>,
+    OriginalUri(uri): OriginalUri,
     Query(query): Query<ListLabelsQuery>,
 ) -> Result<Response, AppError> {
     let page = service.list(query).await?;
     let response = page.map(LabelResponse::from);
+    let response = PaginatorResponse::new(response, &uri.to_string());
     Ok(Json(response).into_response())
 }
 
@@ -55,7 +57,7 @@ pub async fn list(
         (
             status = 200,
             description = "One page of the rows the filter matches.",
-            body = PaginatedResponse<LabelResponse>,
+            body = PaginatorResponse<LabelResponse>,
         ),
         (status = 400, description = "A malformed path, query or body.", body = ErrorBody),
         (status = 413, description = "The body is over the limit.", body = ErrorBody),
@@ -64,10 +66,12 @@ pub async fn list(
 )]
 pub async fn search(
     Extension(service): Extension<Arc<LabelsService>>,
+    OriginalUri(uri): OriginalUri,
     body: ValidatedJson<SearchLabelsBody>,
 ) -> Result<Response, AppError> {
     let page = service.search(body.into_inner()).await?;
     let response = page.map(LabelResponse::from);
+    let response = PaginatorResponse::new(response, &uri.to_string());
     Ok(Json(response).into_response())
 }
 

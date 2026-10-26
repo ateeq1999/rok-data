@@ -113,6 +113,13 @@ fn render_handler(
         uses.add(&format!("super::model::{key}"));
         params.push(framework.path_param(uses, &key));
     }
+    // A page in a shape with links reads the request's URI (before a body:
+    // axum takes the body last).
+    let links = matches!(endpoint, Endpoint::List | Endpoint::Search)
+        && feature.pagination != crate::ApiPagination::Compact;
+    if links {
+        params.push(framework.uri_param(uses));
+    }
     match endpoint {
         Endpoint::List => {
             uses.add(&format!("super::dto::{}", feature.list_query()));
@@ -162,6 +169,14 @@ fn render_handler(
                 "    let response = page.map({}::from);\n",
                 feature.response()
             ));
+            if links {
+                let shape = feature.pagination.type_name();
+                uses.add(&format!("crate::shared::response::{shape}"));
+                output.push_str(&format!(
+                    "    let response = {shape}::new(response, &{});\n",
+                    framework.read_uri()
+                ));
+            }
             framework.answer(output, uses, Status::Ok, &[], "response");
         }
         Endpoint::Remove => {

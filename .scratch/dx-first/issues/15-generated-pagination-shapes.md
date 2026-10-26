@@ -10,9 +10,19 @@
 
 **Blocked by:** 13
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `[api] pagination` key in the engine's config and `docs/cli-reference.md`, rejected with the valid values when unknown
-- [ ] `compact` output and OpenAPI byte-identical to today (template contract tests and the milestone record unchanged)
-- [ ] `paginator` and `resource`: generated handlers for actix and axum; contract tests pin each shape's JSON
-- [ ] OpenAPI schemas per shape; fixture compile gates and CLI suites green
+- [x] `[api] pagination` key in the engine's config and `docs/cli-reference.md`, rejected with the valid values when unknown
+- [x] `compact` output and OpenAPI byte-identical to today (template contract tests and the milestone record unchanged)
+- [x] `paginator` and `resource`: generated handlers for actix and axum; contract tests pin each shape's JSON
+- [x] OpenAPI schemas per shape; fixture compile gates and CLI suites green
+
+**How it shipped:** the shapes are generated next to `PaginatedResponse`
+in `shared/response.rs` (`PaginatorResponse<T>`, `ResourceResponse<T>`),
+each built from the service's `PaginatedResponse` plus
+`rok_data::wire::Links::from_request(uri)` rather than from a runtime
+`Page`: the service layer is unchanged and the shape still derives
+`ToSchema` per item type. The axum fixture's test asserts the JSON equals
+the runtime `Page::paginator` output field for field. The default page
+size stays `Pagination::DEFAULT_PER_PAGE` under every shape; a model's
+`per_page` does not feed it (no client-visible change).

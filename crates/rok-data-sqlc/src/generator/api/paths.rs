@@ -52,7 +52,7 @@ fn endpoint_operation(feature: &Feature<'_>, endpoint: Endpoint) -> Operation {
         feature.caller(),
     );
     let response = feature.response();
-    let page = format!("PaginatedResponse<{response}>");
+    let page = feature.pagination.response(&response);
     match endpoint {
         Endpoint::List => {
             op.query(feature.list_query())

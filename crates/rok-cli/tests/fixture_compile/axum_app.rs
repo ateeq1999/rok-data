@@ -41,6 +41,9 @@ fn generate_axum_app() -> Result<Vec<PathBuf>> {
     let mut api = rok_data_sqlc::ApiConfig::new(axum_app_dir().join("src/features"));
     api.framework = rok_data_sqlc::ApiFramework::Axum;
     api.search_endpoint = true;
+    // The list and the search answer in the paginator shape (the api-app
+    // keeps the compact one).
+    api.pagination = rok_data_sqlc::ApiPagination::Paginator;
     api.search
         .insert("notes".into(), vec!["title".into(), "body".into()]);
     api.sort.insert("notes".into(), vec!["title".into()]);

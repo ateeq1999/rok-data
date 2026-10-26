@@ -19,6 +19,7 @@ use crate::generator::HEADER;
 
 pub(super) mod actix;
 pub(super) mod axum;
+mod pages;
 
 /// The data-layer path the templates are written against.
 const TEMPLATE_DB_PATH: &str = "crate::db::";
@@ -56,7 +57,10 @@ pub fn render(output: &Path, api: &ApiConfig) -> Vec<(PathBuf, String)> {
         ],
     };
     for (name, template) in tools {
-        let text = file(template);
+        let mut text = file(template);
+        if name == "response.rs" {
+            text.push_str(&pages::shapes(api.pagination, api.openapi));
+        }
         let text = if api.openapi {
             super::schemas::describe(name, &text)
         } else {

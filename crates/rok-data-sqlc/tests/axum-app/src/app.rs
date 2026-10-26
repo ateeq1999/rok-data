@@ -24,13 +24,15 @@ pub fn app(pool: &PgPool, keys: &JwtKeys) -> Router {
         .merge(features::router(pool))
         .merge(health::routes(pool))
         .route("/api-docs/openapi.json", get(document))
-        .layer(middleware::from_fn(move |mut request: Request, next: Next| {
-            let keys = keys.clone();
-            async move {
-                request.extensions_mut().insert(keys);
-                next.run(request).await
-            }
-        }))
+        .layer(middleware::from_fn(
+            move |mut request: Request, next: Next| {
+                let keys = keys.clone();
+                async move {
+                    request.extensions_mut().insert(keys);
+                    next.run(request).await
+                }
+            },
+        ))
 }
 
 /// The `OpenAPI` document, JSON-wrapped for the `/api-docs/openapi.json`

@@ -4,7 +4,7 @@
 //! [`NotesServiceApi`] method, and answers.
 
 use axum::Json;
-use axum::extract::{Extension, FromRequestParts, Request};
+use axum::extract::{Extension, FromRequestParts, OriginalUri, Request};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use std::sync::Arc;
@@ -20,7 +20,7 @@ use super::service_api::NotesServiceApi;
 use crate::db::labels::models::LabelId;
 use crate::error::AppError;
 use crate::shared::auth::{AdminUser, AuthUser};
-use crate::shared::response::{ErrorBody, PaginatedResponse, etag};
+use crate::shared::response::{ErrorBody, PaginatorResponse, etag};
 use crate::shared::tenant::Tenant;
 use crate::shared::validation::{IdList, IfMatch, Path, Query, ValidatedJson};
 
@@ -32,7 +32,7 @@ use crate::shared::validation::{IdList, IfMatch, Path, Query, ValidatedJson};
     operation_id = "list",
     params(ListNotesQuery),
     responses(
-        (status = 200, description = "One page of rows.", body = PaginatedResponse<NoteResponse>),
+        (status = 200, description = "One page of rows.", body = PaginatorResponse<NoteResponse>),
         (status = 400, description = "A malformed path, query or body.", body = ErrorBody),
         (status = 401, description = "No valid bearer token.", body = ErrorBody),
     ),
@@ -42,10 +42,12 @@ pub async fn list(
     Extension(service): Extension<Arc<NotesService>>,
     user: AuthUser,
     tenant: Tenant<uuid::Uuid>,
+    OriginalUri(uri): OriginalUri,
     Query(query): Query<ListNotesQuery>,
 ) -> Result<Response, AppError> {
     let page = service.list(tenant.into_inner(), user, query).await?;
     let response = page.map(NoteResponse::from);
+    let response = PaginatorResponse::new(response, &uri.to_string());
     Ok(Json(response).into_response())
 }
 
@@ -60,7 +62,7 @@ pub async fn list(
         (
             status = 200,
             description = "One page of the rows the filter matches.",
-            body = PaginatedResponse<NoteResponse>,
+            body = PaginatorResponse<NoteResponse>,
         ),
         (status = 400, description = "A malformed path, query or body.", body = ErrorBody),
         (status = 401, description = "No valid bearer token.", body = ErrorBody),
@@ -73,12 +75,14 @@ pub async fn search(
     Extension(service): Extension<Arc<NotesService>>,
     user: AuthUser,
     tenant: Tenant<uuid::Uuid>,
+    OriginalUri(uri): OriginalUri,
     body: ValidatedJson<SearchNotesBody>,
 ) -> Result<Response, AppError> {
     let page = service
         .search(tenant.into_inner(), user, body.into_inner())
         .await?;
     let response = page.map(NoteResponse::from);
+    let response = PaginatorResponse::new(response, &uri.to_string());
     Ok(Json(response).into_response())
 }
 

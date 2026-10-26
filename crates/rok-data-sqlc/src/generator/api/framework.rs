@@ -100,6 +100,30 @@ impl Framework {
         }
     }
 
+    /// The request's URI, for a page whose links keep the request's query:
+    /// actix-web's `HttpRequest`, axum's `OriginalUri` (the full path, even
+    /// under a nested router).
+    pub(crate) fn uri_param(self, uses: &mut Uses) -> String {
+        match self {
+            Framework::ActixWeb => {
+                uses.add("actix_web::HttpRequest");
+                "request: HttpRequest".to_owned()
+            }
+            Framework::Axum => {
+                uses.add("axum::extract::OriginalUri");
+                "OriginalUri(uri): OriginalUri".to_owned()
+            }
+        }
+    }
+
+    /// How the request's URI is read, as text.
+    pub(crate) fn read_uri(self) -> &'static str {
+        match self {
+            Framework::ActixWeb => "request.uri().to_string()",
+            Framework::Axum => "uri.to_string()",
+        }
+    }
+
     /// The body parameter of a handler: the body it validates.
     pub(crate) fn body_param(self, uses: &mut Uses, ty: &str) -> String {
         match self {

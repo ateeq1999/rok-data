@@ -186,6 +186,8 @@ pub struct Feature<'a> {
     /// Whether the types the feature exposes derive utoipa's `ToSchema` or
     /// `IntoParams` (`[api] openapi`).
     pub openapi: bool,
+    /// The JSON shape the list endpoints answer in (`[api] pagination`).
+    pub pagination: crate::ApiPagination,
 }
 
 impl<'a> Feature<'a> {
@@ -276,6 +278,7 @@ impl<'a> Feature<'a> {
             relations: Vec::new(),
             filter_fallible: !filter_relationships(table, tables).is_empty(),
             openapi: api.openapi,
+            pagination: api.pagination,
         }))
     }
 

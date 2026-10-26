@@ -255,3 +255,33 @@ async fn serves_the_document_and_swagger_ui() -> Result<(), Box<dyn std::error::
     Ok(())
 }
 "#;
+
+/// `[api] pagination = "resource"` on the actix template: the list reads
+/// the request's URI and answers the resource envelope; the project
+/// builds and passes clippy.
+#[test]
+fn init_with_resource_pagination_builds() -> Result<()> {
+    if let Some(reason) = common::generated_code_skip_reason(&api_app_dir()) {
+        eprintln!("{reason}");
+        return Ok(());
+    }
+    let project = scaffold("init-e2e-resource")?;
+    let dir = project.path();
+    let config = dir.join("rok-data-sqlc.toml");
+    let toml = std::fs::read_to_string(&config)?;
+    let output = "output = \"src/features\"";
+    ensure!(toml.contains(output), "{toml}");
+    std::fs::write(
+        &config,
+        toml.replacen(output, &format!("{output}\npagination = \"resource\""), 1),
+    )?;
+    rok_data_sqlc(dir, &["g"])?;
+    let handlers = std::fs::read_to_string(dir.join("src/features/users/handlers.rs"))?;
+    ensure!(
+        handlers.contains("ResourceResponse::new(response, &request.uri().to_string())"),
+        "{handlers}"
+    );
+    rok_data_sqlc(dir, &["check-arch"])?;
+    let manifest = write_manifest(dir, "init-e2e-resource", &[])?;
+    ensure_clippy_clean(dir, &manifest)
+}
