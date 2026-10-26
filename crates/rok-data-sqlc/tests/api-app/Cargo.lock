@@ -1875,6 +1875,7 @@ dependencies = [
  "chrono",
  "ipnetwork",
  "jsonwebtoken",
+ "regex",
  "rok-data",
  "rust_decimal",
  "serde",

@@ -46,7 +46,7 @@ c1e2d23484df2e6f db/members/filter.rs
 686bbb5a2b359e68 db/members/read.rs
 d9f6acd8f4796dd4 db/members/relationships.rs
 f10324c0bb0a71ff db/members/write.rs
-989627e54b943a17 db/mod.rs
+99cc854309f04b60 db/mod.rs
 4ff1ab7e3bbd1d36 db/note_labels/filter.rs
 c9adca06497f7d0e db/note_labels/mod.rs
 b0db800f76264e53 db/note_labels/models.rs
@@ -62,8 +62,14 @@ b65e2c1790d75aff db/notes/mod.rs
 daa0bfc2c90b0a1c db/notes/write.rs
 52d083728ea3168b db/nullable.rs
 993c54e1b474d5d5 db/pool.rs
-d4a2c1662dfa1512 db/schema.json
-9eae852d0eb6e15f db/schema.rs
+7a04f00513492859 db/profiles/filter.rs
+f34e920884ccbb75 db/profiles/listing.rs
+3c4c04050baad93b db/profiles/mod.rs
+54897784ba78046e db/profiles/models.rs
+d3f4ed5e5bddd229 db/profiles/read.rs
+ac9269a76cc52be8 db/profiles/write.rs
+29b429732b670a8b db/schema.json
+679d48ac75711d31 db/schema.rs
 4cfda693c7051234 db/search.rs
 0e05ee07c82cb286 db/task_labels/filter.rs
 dfae95aa607ced05 db/task_labels/mod.rs
@@ -79,7 +85,7 @@ dfae95aa607ced05 db/task_labels/mod.rs
 4b21fc4dbe4bcedc db/tasks/relationships.rs
 876c5971dfc5d5eb db/tasks/write.rs
 bcbe369279e1c767 db/types.rs
-ffad62536ef51617 features/README.md
+d03d807ac6890139 features/README.md
 f12a6c67495f47c8 features/accounts/dto.rs
 d8a0ee7a9a48908e features/accounts/handlers.rs
 ebc9e785412882c7 features/accounts/mod.rs
@@ -120,7 +126,7 @@ b0d853f580c83822 features/gadgets/mod.rs
 c3436c2bd1ad6896 features/gadgets/routes.rs
 f730beb76b0816f0 features/gadgets/service.rs
 9fb6add6188fbc70 features/gadgets/service_api.rs
-15c56a4498122581 features/generated.rs
+58efd0e5f17b3149 features/generated.rs
 38e5fa695cb81664 features/labels/dto.rs
 669ed06b6c021a69 features/labels/handlers.rs
 1595b020ce841f50 features/labels/mod.rs
@@ -145,6 +151,14 @@ b130744e0a0941ba features/notes/mod.rs
 ee13d5f1cfe7880e features/notes/routes.rs
 6e94bfebe5972378 features/notes/service.rs
 92ba0e1966c9398a features/notes/service_api.rs
+1156122b8cfb7e1c features/profiles/dto.rs
+e055684e93b0e10e features/profiles/handlers.rs
+8cf446a3a17fd6b1 features/profiles/mod.rs
+409f123ba2c89cf9 features/profiles/model.rs
+cfc6e624edd900a3 features/profiles/repo.rs
+98c1d403c767004d features/profiles/routes.rs
+28f5d305a4d88a32 features/profiles/service.rs
+888eb19a02f3f0a4 features/profiles/service_api.rs
 d364a0f5219f22d1 features/tasks/dto.rs
 13e6ef10dcbeb2c3 features/tasks/handlers.rs
 873a848b5fb0b4cb features/tasks/mod.rs
@@ -157,4 +171,4 @@ de188530f6cdb117 shared/health.rs
 ebeaef5a1b9c18f0 shared/pagination.rs
 86edd3ec4cf63bab shared/response.rs
 3da08c7ca07d8e4e shared/tenant.rs
-0fb664bcb1ce9b79 shared/validation.rs
+d3315d0cbb8d6c40 shared/validation.rs

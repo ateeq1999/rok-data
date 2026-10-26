@@ -21,6 +21,7 @@
 //! no stability promise (see engine ADR 0012).
 
 mod api_config;
+mod api_rules;
 mod check_arch;
 mod config;
 mod config_file;
@@ -47,6 +48,7 @@ pub mod parser;
 pub mod queries;
 
 pub use api_config::{ApiAccess, ApiConfig, ApiEndpoint, ApiFramework, ApiPagination};
+pub use api_rules::ApiRule;
 pub use config::{Config, Conventions, Derive, Extractor, IdGeneration, RelationshipChange};
 pub use project::{discover_config, load_config};
 pub use report::{Error, QueryFailure, RefusedFile, Report, Result, TableFailure};

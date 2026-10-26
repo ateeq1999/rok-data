@@ -13,6 +13,7 @@ use tempfile::TempDir;
 mod common;
 
 mod api;
+mod api_rules;
 mod check_arch;
 mod collisions;
 mod config;

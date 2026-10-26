@@ -9,6 +9,23 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Added
 
+- From rok-sqlc 0.5.0 (absorbed; workspace ADR 0016, engine ADR 0019):
+  string rules for generated API bodies. `[api.rules.<table>]` maps a
+  text column to rules and transforms by VineJS name (`email`, `url`,
+  `uuid`, `mobile`, `alphaNumeric`, `{ regex = "..." }`, `minLength(3)`,
+  `trim`, `toLowerCase`, `normalizeEmail`, …). The create and update
+  bodies apply the transforms while the body is read, and check the rules.
+  A failed rule is a `422 validation_failed` under its field, with the
+  rule's name as the code. The OpenAPI document gains the `format`,
+  `pattern` and lengths utoipa can carry. The run fails on an unknown
+  rule, bad arguments, a `regex` that doesn't parse (checked with
+  `regex-syntax`, a new engine dependency), and on the rules left out
+  (`confirmed`, `sameAs`, `notSameAs`, `activeUrl`). Rules that match
+  patterns make `db/mod.rs` name `regex = "1"`.
+- `shared/validation.rs` gains `FieldFailures`, which collects a write's
+  field failures into one `422`, for either framework. It is the seam the
+  `exists` and `unique` pre-checks report through.
+
 - The `axum` template (`templates/axum-api/`): the `actix` template's
   twin, generated for axum (`[api] framework = "axum"`), with the same
   `users` and `audit-log` features, the same wire standard, the same

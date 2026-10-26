@@ -125,7 +125,15 @@ engine's configuring guide). An unknown value fails with the valid ones.
 Its `cursor` key lists the tables whose list pages by cursor instead of
 by page number (`?cursor=`, answering the cursors of the pages on either
 side, in the `pagination` shape); the run fails on a listed table without
-a primary key or with a nullable sort key.
+a primary key or with a nullable sort key. `[api.rules.<table>]` maps a
+text column to string rules and transforms by VineJS name (`"email"`,
+`"minLength(3)"`, `{ regex = "..." }`; engine ADR 0019), which the create
+and update bodies check and apply. A column's rules from the JSON payload
+replace the file's. The run fails, writing nothing, on an unknown rule, bad
+arguments, a pattern that is no regular expression, a rule given twice, a
+rule on a column that isn't plain text or that generated code never
+writes, and on the rules left out (`confirmed`, `sameAs`, `notSameAs`,
+`activeUrl`).
 
 The truth dir holds the **truth** (plain `*.sql` files) and the
 history dir holds the **history** (the staged

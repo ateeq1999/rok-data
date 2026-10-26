@@ -1571,6 +1571,7 @@ dependencies = [
  "clap",
  "heck",
  "proc-macro2",
+ "regex-syntax",
  "rok-data-codegen",
  "serde",
  "serde_json",
