@@ -32,6 +32,22 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Added
 
+- From rok-sqlc 0.8.0 (absorbed; engine ADR 0022, B3): schema reading
+  follows `ALTER TABLE … DROP CONSTRAINT [IF EXISTS]`. A dropped unique
+  constraint loses its lookup, and a dropped foreign key its relationship.
+  A dropped check frees its column, so dropping a value-list check and
+  adding a wider one widens the generated enum.
+  - **Names:** unnamed checks and composite foreign keys get PostgreSQL's
+    names.
+  - **Untracked constraints:** dropping one the model doesn't track
+    (`EXCLUDE`, PostgreSQL 18's `*_not_null`) now warns at its `path:line`
+    and generates the table. Before, it failed the table.
+  - **`pg_dump` checks:** `ADD CONSTRAINT … CHECK (col = ANY
+    (ARRAY[…]))` is read as a value list.
+  - **`RENAME CONSTRAINT`:** renames any constraint, and fails on an
+    unknown old name or a taken new one.
+  - **Parser warnings** now reach the run's output; before, they were
+    collected and dropped.
 - From rok-sqlc 0.5.0 (absorbed; workspace ADR 0016, engine ADR 0019):
   string rules for generated API bodies. `[api.rules.<table>]` maps a
   text column to rules and transforms by VineJS name (`email`, `url`,
