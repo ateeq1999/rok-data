@@ -11,6 +11,7 @@ use rok_data::{Include, raw};
 mod collection;
 mod conventions;
 mod has;
+mod many_to_many;
 mod memoized;
 mod pagination;
 mod query_sugar;

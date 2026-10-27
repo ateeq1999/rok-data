@@ -18,9 +18,9 @@ struct BelongsTo {
 /// The relations of one table, resolved against the tables the attributes
 /// name: the belongs-to side per foreign-key column, the has-many and
 /// has-one sides per recorded relationship, and the sibling-model imports
-/// both need. A many-to-many (`through`) records the join tables' own
-/// belongs-tos and carries no attribute of its own: the macro has no
-/// through-kind, so the join table's fields state those instead.
+/// both need. A many-to-many (`through` a join table) becomes
+/// `#[rok(belongs_to_many(…))]` when the join table pairs the two tables'
+/// single-column primary keys, the shape the runtime's pivot verbs write.
 pub(super) struct Relations {
     belongs_to: Vec<BelongsTo>,
     /// The container attribute lines, in recorded order.
@@ -37,11 +37,9 @@ impl Relations {
         let mut belongs_to = Vec::new();
         let mut container = Vec::new();
         let mut imports = std::collections::BTreeSet::new();
-        for relationship in table
-            .relationships
-            .iter()
-            .filter(|relationship| relationship.through.is_none())
-        {
+        for relationship in table.relationships.iter().filter(|relationship| {
+            relationship.through.is_none() || relationship.kind == RelationshipKind::ManyToMany
+        }) {
             // The attr names no skippable table: the schema only records
             // relationships among the tables generated together.
             let Some(other) = tables
@@ -104,7 +102,12 @@ impl Relations {
                         foreign_key.rust_name.to_uppercase()
                     ));
                 }
-                RelationshipKind::ManyToMany => continue,
+                RelationshipKind::ManyToMany => {
+                    if let Some(attr) = many_to_many(table, other, relationship, tables) {
+                        imports.extend(sibling);
+                        container.push(attr);
+                    }
+                }
             }
         }
         Relations {
@@ -144,4 +147,32 @@ fn derived_name<'a>(sql_name: &str, table: &'a Table) -> Option<&'a str> {
         .find(|column| column.sql_name == sql_name)?;
     let name = column.rust_name.strip_suffix("_id")?;
     (!name.is_empty()).then_some(name)
+}
+
+/// `#[rok(belongs_to_many(name = Target, pivot = "join_table", foreign_key
+/// = "…", related_key = "…"))]` for a many-to-many edge, or `None` when the
+/// join table doesn't pair the two tables' single-column primary keys (the
+/// runtime's pivot verbs key on those).
+fn many_to_many(
+    table: &Table,
+    other: &Table,
+    relationship: &crate::schema::Relationship,
+    tables: &[Table],
+) -> Option<String> {
+    let through = relationship.through.as_ref()?;
+    let keyed = |t: &Table, column: &str| t.primary_key.len() == 1 && t.primary_key[0] == column;
+    if !keyed(table, &relationship.column) || !keyed(other, &relationship.target_column) {
+        return None;
+    }
+    let pivot = tables
+        .iter()
+        .find(|candidate| candidate.module_name == through.table)?;
+    let pivot = match &pivot.schema {
+        Some(schema) => format!("{schema}.{}", pivot.sql_name),
+        None => pivot.sql_name.clone(),
+    };
+    Some(format!(
+        "#[rok(belongs_to_many({} = {}, pivot = \"{pivot}\", foreign_key = \"{}\", related_key = \"{}\"))]",
+        relationship.name, other.struct_name, through.column, through.target_column
+    ))
 }

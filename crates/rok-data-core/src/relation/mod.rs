@@ -3,12 +3,14 @@
 use std::fmt;
 
 mod aggregate;
+mod belongs_to_many;
 mod include;
 mod loaded;
 mod relations;
 mod through;
 
 pub use aggregate::{Aggregate, RelationAggregates};
+pub use belongs_to_many::BelongsToMany;
 pub use include::{Include, IntoInclude, PackedInclude, Relation};
 pub use loaded::{Loaded, Many, One};
 pub use relations::{BelongsTo, HasMany, HasOne};

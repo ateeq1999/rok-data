@@ -2,6 +2,7 @@
 
 use super::super::accounts::models::Account;
 use super::super::accounts::models::AccountId;
+use super::super::labels::models::Label;
 use super::super::note_labels::models::NoteLabel;
 use rok_data::Model;
 
@@ -55,6 +56,7 @@ rok_data::impl_value!(NoteId);
 /// A row of the `notes` table.
 #[derive(Debug, Clone, PartialEq, Model, serde::Serialize, serde::Deserialize)]
 #[rok(has_many(note_labels = NoteLabel::NOTE_ID))]
+#[rok(belongs_to_many(labels = Label, pivot = "note_labels", foreign_key = "note_id", related_key = "label_id"))]
 pub struct Note {
     /// The `id` column.
     pub id: NoteId,

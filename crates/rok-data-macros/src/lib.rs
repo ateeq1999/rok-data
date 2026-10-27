@@ -32,6 +32,11 @@ mod test;
 ///   on `Country` — a relation through an intermediate model: generates
 ///   `Country::POSTS` (a `HasManyThrough`) and `country.posts()`;
 ///   `has_one_through(…)` is the one-target form.
+/// - `#[rok(belongs_to_many(roles = Role, pivot = "role_user"))]` on
+///   `User` — many-to-many through a pivot table whose key columns default
+///   to `user_id` and `role_id` (`foreign_key = "…"`, `related_key = "…"`
+///   name others): generates `User::ROLES` (a `BelongsToMany`, with
+///   `attach` / `detach` / `sync` / `toggle`) and `user.roles()`.
 /// - `#[rok(hooks)]` — you implement `rok_data::Hooks` yourself (otherwise a
 ///   no-op implementation is generated).
 /// - `#[rok(validate_with = path::to::fn)]` — record-level validation,

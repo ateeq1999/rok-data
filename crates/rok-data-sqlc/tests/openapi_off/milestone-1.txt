@@ -61,7 +61,7 @@ dc5b27cf339421f0 db/handles/read.rs
 47cef67041adb003 db/labels/filter.rs
 655531a26b54c833 db/labels/listing.rs
 2f146211cd5c7e09 db/labels/mod.rs
-c72547e82724f157 db/labels/models.rs
+c21d8dd7ce20ce25 db/labels/models.rs
 f9348d38444363f3 db/labels/read.rs
 c3c01f91becc23bc db/labels/relationships.rs
 c038d70f1bd7d4c8 db/labels/write.rs
@@ -82,7 +82,7 @@ b0db800f76264e53 db/note_labels/models.rs
 1c096d99e4256e7a db/notes/filter.rs
 82d4b7b32124823c db/notes/listing.rs
 b65e2c1790d75aff db/notes/mod.rs
-6e550b23a9a211a7 db/notes/models.rs
+c05a2a5993a7658d db/notes/models.rs
 15e027d3819f398b db/notes/read.rs
 0a6bc8d4b30d0091 db/notes/relationships.rs
 daa0bfc2c90b0a1c db/notes/write.rs
@@ -112,7 +112,7 @@ dfae95aa607ced05 db/task_labels/mod.rs
 8f1bee65e3964dd6 db/tasks/filter.rs
 3aa54e7d6bf1f812 db/tasks/listing.rs
 65662f0f72e90b76 db/tasks/mod.rs
-28ba54f7c578719e db/tasks/models.rs
+234541ba1a0ed6ac db/tasks/models.rs
 0294be79fb7e74f3 db/tasks/read.rs
 4b21fc4dbe4bcedc db/tasks/relationships.rs
 876c5971dfc5d5eb db/tasks/write.rs

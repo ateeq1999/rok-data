@@ -596,26 +596,59 @@ fn a_unique_foreign_key_gives_the_parent_a_has_one() {
     );
 }
 
-/// A many-to-many goes through the join table's own belongs-tos: the
-/// relationship itself carries no attribute (the macro has no join kind).
+/// A many-to-many over a join table pairing the two primary keys becomes
+/// `belongs_to_many`, naming the pivot and its key columns.
 #[test]
-fn a_many_to_many_records_no_attribute() {
-    let mut users = table(vec![column("id", "i64")], &["id"]);
-    users.relationships.push(Relationship {
+fn a_many_to_many_becomes_belongs_to_many() {
+    let edge = |kind| Relationship {
         through: Some(Through {
             table: "group_members".to_owned(),
             column: "user_id".to_owned(),
             target_column: "group_id".to_owned(),
         }),
         name: "groups".to_owned(),
-        kind: RelationshipKind::HasMany,
+        kind,
         target: "groups".to_owned(),
         column: "id".to_owned(),
         target_column: "id".to_owned(),
-    });
-    let rendered = rendered_pair([users, named(table(vec![], &[]), "groups", "Group")]);
-    assert!(!rendered.contains("groups = "), "{rendered}");
-    assert!(!rendered.contains("!ManyToMany"), "{rendered}");
+    };
+    let render_with = |kind| {
+        let mut users = table(vec![column("id", "i64")], &["id"]);
+        users.relationships.push(edge(kind));
+        let mut tables = [
+            users,
+            named(table(vec![column("id", "i64")], &["id"]), "groups", "Group"),
+            named(table(vec![], &[]), "group_members", "GroupMember"),
+        ];
+        tables[2].sql_name = "group_members".to_owned();
+        apply(&mut tables, &Conventions::default());
+        super::render(
+            &tables[0],
+            DeriveOptions {
+                serde: false,
+                validate: false,
+                openapi: false,
+            },
+            &tables,
+        )
+    };
+    let rendered = render_with(RelationshipKind::ManyToMany);
+    assert!(
+        rendered.contains(concat!(
+            r#"#[rok(belongs_to_many(groups = Group, pivot = "group_members", "#,
+            r#"foreign_key = "user_id", related_key = "group_id"))]"#
+        )),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains(
+            "use super::super::groups::models::Group;
+"
+        ),
+        "{rendered}"
+    );
+    // Another kind going through a join table says nothing.
+    assert!(!render_with(RelationshipKind::HasMany).contains("groups = "));
 }
 
 /// A `parent_id` self-reference names the row's own type from inside: the

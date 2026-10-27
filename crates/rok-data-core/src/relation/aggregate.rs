@@ -197,8 +197,10 @@ where
             children_sql: Box::new(move |rows: &[M]| {
                 self.relation.check()?;
                 let ids = distinct_values(rows, owner_key.name());
-                let mut select =
-                    <R::Target as Model>::query().filter(self.relation.batch_filter(ids));
+                let mut select = self
+                    .relation
+                    .batch_base()
+                    .filter(self.relation.batch_filter(ids));
                 select.group_by.push(owner.term.clone());
                 Ok(select
                     .select((owner.clone().alias("__rok_key"), projection.clone()))

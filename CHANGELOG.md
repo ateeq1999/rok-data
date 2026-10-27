@@ -250,6 +250,16 @@ compiler finds the call sites.
     `where_has`, and count with `with_count` like a direct relation; the
     intermediate model's scopes apply. Declared, not inferred from the
     schema.
+  - **Many-to-many:** `#[rok(belongs_to_many(roles = Role, pivot =
+    "role_user"))]` gives `User::ROLES` (a `BelongsToMany`; pivot columns
+    default to `user_id` / `role_id`) and `user.roles()`, loading,
+    filtering and counting like the others. It writes the pivot:
+    `attach` / `attach_with` (extra pivot columns), `detach` /
+    `detach_all`, `sync`, `sync_without_detaching`, `toggle` and
+    `update_existing_pivot`; `sync` and `toggle` are one statement each.
+    The generator writes the attribute on both sides of a join table that
+    pairs two primary keys (generated models change: a `belongs_to_many`
+    line and an import).
 
 **What does not change**: PostgreSQL 12+ (DATABASE_URL), the migration
 system, `#[rok::test]`, the connection policy, `filter` staying the

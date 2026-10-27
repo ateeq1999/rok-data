@@ -79,6 +79,13 @@ pub trait Relation: Copy + Send + Sync + 'static {
         self.target_key().eq_outer(self.owner_key())
     }
 
+    /// The query a batch over the targets starts from: the target's own
+    /// query, or one joined to what keys its rows (a pivot table).
+    #[doc(hidden)]
+    fn batch_base(self) -> Select<Self::Target> {
+        <Self::Target as Model>::query()
+    }
+
     /// A target row's owner key as an expression over the target, to group
     /// aggregates by: the target key for a direct relation.
     #[doc(hidden)]

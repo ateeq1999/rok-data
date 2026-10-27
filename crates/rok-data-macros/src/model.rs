@@ -1,6 +1,6 @@
 //! The `Model` derive: the row type, its columns, and its relations.
 
-use syn::{Ident, Path, spanned::Spanned};
+use syn::{Ident, LitStr, Path, spanned::Spanned};
 
 pub(crate) mod conventions;
 pub(crate) mod expand;
@@ -86,6 +86,17 @@ struct Relation {
     /// The intermediate model's column holding this model's key, and the
     /// intermediate model.
     through: Option<(Path, Path)>,
+    /// A many-to-many relation's pivot table and its two key columns
+    /// (defaulted from the models' names when not given).
+    pivot: Option<Pivot>,
+}
+
+/// `belongs_to_many(name = Target, pivot = "table", foreign_key = "…",
+/// related_key = "…")`.
+pub(crate) struct Pivot {
+    pub(crate) table: LitStr,
+    pub(crate) foreign_key: Option<LitStr>,
+    pub(crate) related_key: Option<LitStr>,
 }
 
 fn parse_relations(
@@ -115,6 +126,7 @@ fn parse_relations(
             model,
             foreign_key,
             through: None,
+            pivot: None,
         });
         Ok(())
     })
@@ -165,6 +177,54 @@ fn parse_through(
         model: owner_of(&foreign_key)?,
         foreign_key,
         through: Some((owner_of(&through)?, through)),
+        pivot: None,
+    });
+    Ok(())
+}
+
+/// `belongs_to_many(roles = Role, pivot = "role_user")`, with optional
+/// `foreign_key = "user_id"` / `related_key = "role_id"`: one relation per
+/// attribute.
+fn parse_many_to_many(
+    meta: &syn::meta::ParseNestedMeta<'_>,
+    out: &mut Vec<Relation>,
+) -> syn::Result<()> {
+    const EXPECTED: &str = "expected `name = Target, pivot = \"table\"` (and optionally `foreign_key = \"…\"`, `related_key = \"…\"`)";
+    let mut target: Option<(Ident, Path)> = None;
+    let mut table = None;
+    let mut foreign_key = None;
+    let mut related_key = None;
+    meta.parse_nested_meta(|inner| {
+        if inner.path.is_ident("pivot") {
+            table = Some(inner.value()?.parse::<LitStr>()?);
+        } else if inner.path.is_ident("foreign_key") {
+            foreign_key = Some(inner.value()?.parse::<LitStr>()?);
+        } else if inner.path.is_ident("related_key") {
+            related_key = Some(inner.value()?.parse::<LitStr>()?);
+        } else {
+            let name = inner
+                .path
+                .get_ident()
+                .cloned()
+                .ok_or_else(|| inner.error(EXPECTED))?;
+            target = Some((name, inner.value()?.parse()?));
+        }
+        Ok(())
+    })?;
+    let (Some((name, model)), Some(table)) = (target, table) else {
+        return Err(meta.error(EXPECTED));
+    };
+    out.push(Relation {
+        kind: "BelongsToMany",
+        name,
+        foreign_key: model.clone(),
+        model,
+        through: None,
+        pivot: Some(Pivot {
+            table,
+            foreign_key,
+            related_key,
+        }),
     });
     Ok(())
 }

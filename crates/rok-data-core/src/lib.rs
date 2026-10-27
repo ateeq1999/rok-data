@@ -59,8 +59,8 @@ pub use query::{
 };
 pub use raw::{Raw, raw};
 pub use relation::{
-    Aggregate, BelongsTo, HasMany, HasManyThrough, HasOne, HasOneThrough, Include, Loaded,
-    Relation, RelationAggregates,
+    Aggregate, BelongsTo, BelongsToMany, HasMany, HasManyThrough, HasOne, HasOneThrough, Include,
+    Loaded, Relation, RelationAggregates,
 };
 pub use simple_page::SimplePage;
 pub use sql::Sql;

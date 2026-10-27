@@ -7,7 +7,9 @@ use syn::{Data, DeriveInput, Fields, Ident, LitStr, Path, spanned::Spanned};
 use super::conventions::{self, Conventions};
 use super::from_row::from_row_tokens;
 use super::scopes;
-use super::{Field, Relation, Rule, parse_relations, parse_rules, parse_through};
+use super::{
+    Field, Relation, Rule, parse_many_to_many, parse_relations, parse_rules, parse_through,
+};
 use crate::naming::{crate_path, method_ident, pluralize, relation_ident, snake_case, unraw};
 pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     let name = &input.ident;
@@ -65,13 +67,15 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
                 parse_through(&meta, "HasManyThrough", &mut relations)?;
             } else if meta.path.is_ident("has_one_through") {
                 parse_through(&meta, "HasOneThrough", &mut relations)?;
+            } else if meta.path.is_ident("belongs_to_many") {
+                parse_many_to_many(&meta, &mut relations)?;
             } else if meta.path.is_ident("no_from_row") {
                 from_row = false;
             } else if meta.path.is_ident("crate") {
                 krate = Some(meta.value()?.parse::<LitStr>()?.parse()?);
             } else {
                 return Err(meta.error(
-                    "unknown `rok` attribute; expected `table`, `timestamps`, `no_timestamps`, `soft_delete`, `no_soft_delete`, `hooks`, `validate_with`, `default_scope`, `per_page`, `scopes`, `has_many`, `has_one`, `has_many_through`, `has_one_through`, `no_from_row` or `crate`",
+                    "unknown `rok` attribute; expected `table`, `timestamps`, `no_timestamps`, `soft_delete`, `no_soft_delete`, `hooks`, `validate_with`, `default_scope`, `per_page`, `scopes`, `has_many`, `has_one`, `has_many_through`, `has_one_through`, `belongs_to_many`, `no_from_row` or `crate`",
                 ));
             }
             Ok(())
@@ -209,6 +213,7 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
             model,
             foreign_key,
             through,
+            pivot,
         } = r;
         let accessor = method_ident(rel)?;
         let kind = Ident::new(kind, Span::call_site());
@@ -218,11 +223,30 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
             quote!(#model).to_string().replace(' ', ""),
             quote!(#foreign_key).to_string().replace(' ', "")
         );
-        let constant = match through {
-            None => quote! {
+        let constant = match (through, pivot) {
+            (_, Some(pivot)) => {
+                let target = model
+                    .segments
+                    .last()
+                    .map(|s| s.ident.to_string())
+                    .unwrap_or_default();
+                let key = |given: &Option<LitStr>, model: &str| {
+                    given
+                        .as_ref()
+                        .map_or_else(|| format!("{}_id", snake_case(model)), LitStr::value)
+                };
+                let table = &pivot.table;
+                let foreign = key(&pivot.foreign_key, &unraw(name));
+                let related = key(&pivot.related_key, &target);
+                quote! {
+                    pub const #const_name: #krate::#kind<#name, #model> =
+                        #krate::#kind::new(#table, #foreign, #related);
+                }
+            }
+            (None, None) => quote! {
                 pub const #const_name: #krate::#kind<#name, #model> = #krate::#kind::new(#foreign_key);
             },
-            Some((through_model, through_key)) => quote! {
+            (Some((through_model, through_key)), None) => quote! {
                 pub const #const_name: #krate::#kind<#name, #through_model, #model> =
                     #krate::#kind::new(#through_key, #foreign_key);
             },
