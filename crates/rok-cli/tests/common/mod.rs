@@ -27,12 +27,21 @@ pub(crate) fn app_dir(name: &str) -> PathBuf {
 /// `cargo <args>` in the crate at `dir`. Every crate that compiles generated
 /// code builds into one shared target directory, so its dependencies are
 /// built once.
+///
+/// Incremental compilation is off: several gates build in that directory
+/// at once, and an interrupted or concurrent build can leave a corrupt
+/// incremental cache whose `warning:` fails a gate that demands a clean
+/// build. These one-shot builds gain nothing from the cache anyway.
 pub(crate) fn cargo(dir: &Path, args: &[&str]) -> Command {
     let mut command = Command::new("cargo");
-    command.args(args).current_dir(dir).env(
-        "CARGO_TARGET_DIR",
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/fixture-target"),
-    );
+    command
+        .args(args)
+        .current_dir(dir)
+        .env(
+            "CARGO_TARGET_DIR",
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/fixture-target"),
+        )
+        .env("CARGO_INCREMENTAL", "0");
     command
 }
 

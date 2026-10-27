@@ -43,11 +43,11 @@ impl<M: Model> Column<M> {
     }
 
     /// `"table"."column"`, for raw SQL fragments.
-    fn qualified(self) -> String {
+    pub(super) fn qualified(self) -> String {
         crate::sql::qualified(M::TABLE, self.name)
     }
 
-    fn cmp(self, op: &'static str, value: impl Into<Value>) -> Expr<M> {
+    pub(super) fn cmp(self, op: &'static str, value: impl Into<Value>) -> Expr<M> {
         Expr::new(Cond::Cmp {
             term: self.term(),
             op,

@@ -152,6 +152,7 @@ mod insert;
 mod memoized;
 mod projected;
 mod select;
+mod union;
 mod update;
 pub(crate) mod with;
 
@@ -161,5 +162,6 @@ pub use memoized::Memoized;
 pub use projected::Projected;
 pub use select::{__cursor_sql, __paginate_sql, Select, Walk};
 pub(crate) use select::{JoinClause, join_scope};
+pub use union::Union;
 pub use update::Update;
 pub use with::{LoadedPage, WithSelect};

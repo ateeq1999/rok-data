@@ -183,7 +183,7 @@ impl<M: Model, J> Joined<M, J> {
     where
         X: Model + InScope<(M, J), I>,
     {
-        self.select.group_by.push((X::TABLE, column.name()));
+        self.select.group_by.push(column.term());
         self
     }
 

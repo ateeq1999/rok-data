@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use std::time::Duration;
 
 use crate::cursor::Cursor;
-use crate::expr::{Cond, IntoProjections, Projection};
+use crate::expr::{Cond, IntoProjections, Projection, Term};
 use crate::model::push_columns;
 use crate::sql::Sql;
 use crate::{Column, Expr, Model, Order, Result};
@@ -20,7 +20,9 @@ pub(crate) mod exec;
 pub(crate) mod chunk;
 pub use chunk::Walk;
 pub(crate) mod cursor;
+mod has;
 pub(crate) mod paginate;
+mod sugar;
 
 /// Lock mode appended to a `SELECT`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,7 +37,7 @@ pub(crate) enum Lock {
 pub struct Select<M> {
     pub(crate) filters: Vec<Cond>,
     pub(crate) order: Vec<Order<M>>,
-    pub(crate) group_by: Vec<(&'static str, &'static str)>,
+    pub(crate) group_by: Vec<Term>,
     pub(crate) having: Vec<Cond>,
     pub(crate) limit: Option<u64>,
     pub(crate) offset: Option<u64>,
@@ -192,7 +194,7 @@ impl<M: Model> Select<M> {
 
     /// Append a `GROUP BY` column; combine with [`select`](Self::select).
     pub fn group_by(mut self, column: Column<M>) -> Self {
-        self.group_by.push((M::TABLE, column.name()));
+        self.group_by.push(column.term());
         self
     }
 
@@ -361,9 +363,7 @@ impl<M: Model> Select<M> {
         self.write_from_where(sql);
         if !self.group_by.is_empty() {
             sql.push(" GROUP BY ")
-                .push_list(&self.group_by, ", ", |sql, (t, c)| {
-                    sql.push_column(t, c);
-                });
+                .push_list(&self.group_by, ", ", |sql, term| term.write(sql));
         }
         push_where(sql, " HAVING ", &self.having);
         self.write_order(sql, "");

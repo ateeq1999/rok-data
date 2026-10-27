@@ -12,7 +12,7 @@ use std::ops::{Deref, DerefMut};
 use std::vec::IntoIter;
 
 use crate::key::{IntoKey, key_expr, key_string};
-use crate::relation::{IntoInclude, Loaded};
+use crate::relation::{IntoInclude, Loaded, Relation, RelationAggregates};
 use crate::{Error, Executor, Expr, Journey, Model, Result, Select, Value};
 
 /// A set of models in memory, read by [`Select::get`](crate::Select::get)
@@ -284,6 +284,16 @@ impl<M: Model> ModelCollection<M> {
         I: IntoInclude<M>,
     {
         self.load(session, includes).await
+    }
+
+    /// Loads how many records each row has through `relation`, in one
+    /// batched query; read it with [`Loaded::count`].
+    pub async fn load_count<'c, S, R>(self, session: S, relation: R) -> Result<Loaded<M>>
+    where
+        S: Into<Journey<'c>>,
+        R: Relation<Owner = M>,
+    {
+        self.load(session, [relation.count()]).await
     }
 
     /// The rows serialized as a JSON array — the same shape `Serialize`

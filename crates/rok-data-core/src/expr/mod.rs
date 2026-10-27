@@ -1,6 +1,7 @@
 //! The expression layer: columns, expressions, conditions, projections, orders.
 
 mod column;
+mod column_parts;
 mod cond;
 mod order;
 mod projection;

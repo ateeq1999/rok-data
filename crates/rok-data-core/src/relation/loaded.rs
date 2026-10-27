@@ -1,6 +1,5 @@
 //! The loaded view: the rows and the relations beside them.
 
-use std::any::TypeId;
 use std::collections::HashMap;
 use std::fmt;
 use std::marker::PhantomData;
@@ -8,7 +7,7 @@ use std::marker::PhantomData;
 use crate::exec::Journey;
 use crate::{Model, Result};
 
-use super::include::{ErasedState, IntoInclude, Relation};
+use super::include::{ErasedState, Identity, IntoInclude, Relation, relation_identity};
 use super::relations::key;
 
 /// The loaded records of a one-relation, keyed by owner: one record per
@@ -108,7 +107,7 @@ impl<O: Model, T> Many<O, T> {
 /// panic).
 pub struct Loaded<M: Model> {
     rows: Vec<M>,
-    states: HashMap<(TypeId, &'static str), ErasedState>,
+    states: HashMap<Identity, ErasedState>,
 }
 
 impl<M: Model + fmt::Debug> fmt::Debug for Loaded<M> {
@@ -133,8 +132,13 @@ impl<M: Model> Loaded<M> {
     /// identities overwrite (the relation included twice, last shaping
     /// wins).
     /// Parked states are keyed by the include's identity.
-    pub(crate) fn park(&mut self, identity: (TypeId, &'static str), state: ErasedState) {
+    pub(crate) fn park(&mut self, identity: Identity, state: ErasedState) {
         self.states.insert(identity, state);
+    }
+
+    /// The state parked under `identity`.
+    pub(crate) fn state(&self, identity: &Identity) -> Option<&ErasedState> {
+        self.states.get(identity)
     }
 
     /// The rows themselves.
@@ -155,7 +159,7 @@ impl<M: Model> Loaded<M> {
         R::Loaded: 'static,
     {
         self.states
-            .get(&(TypeId::of::<R>(), relation.foreign_key_name()))?
+            .get(&relation_identity(relation))?
             .downcast_ref::<R::Loaded>()
     }
 

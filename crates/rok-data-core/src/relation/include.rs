@@ -262,7 +262,7 @@ pub struct PackedInclude<M: Model> {
     /// Identity (the relation type plus its defining foreign key) for the
     /// state registry. Two inclusions of the same relation overwrite each
     /// other; the last one's shaping wins.
-    pub(crate) identity: (TypeId, &'static str),
+    pub(crate) identity: Identity,
     pub(crate) children_sql: ChildrenSql<M>,
     pub(crate) assemble: StateAssembly,
 }
@@ -273,6 +273,16 @@ impl<M: Model> fmt::Debug for PackedInclude<M> {
             .field("identity", &self.identity)
             .finish_non_exhaustive()
     }
+}
+
+/// What a parked state is keyed by: the include's type, its relation's
+/// foreign key, and for an aggregate its function and column (empty for a
+/// relation).
+pub(crate) type Identity = (TypeId, &'static str, &'static str, &'static str);
+
+/// A relation include's identity.
+pub(crate) fn relation_identity<R: Relation>(relation: R) -> Identity {
+    (TypeId::of::<R>(), relation.foreign_key_name(), "", "")
 }
 
 pub(crate) type ErasedState = Box<dyn Any + Send>;
@@ -290,7 +300,7 @@ where
     let owner_key = relation.owner_key();
     let target_key = relation.target_key();
     PackedInclude {
-        identity: (TypeId::of::<R>(), relation.foreign_key_name()),
+        identity: relation_identity(relation),
         children_sql: Box::new(move |rows: &[M]| {
             relation.check()?;
             let ids = distinct_values(rows, owner_key.name());

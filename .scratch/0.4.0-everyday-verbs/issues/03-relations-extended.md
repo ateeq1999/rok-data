@@ -8,13 +8,13 @@
 
 **Blocked by:** 01 (ModelCollection for load_count), 02 (where_has uses subquery sugar).
 
-**Status:** ready-for-agent
+**Status:** in progress — split by decision: existence filters and aggregates done (2026-10-27); through relations and many-to-many remain (items 1–2, below)
 
 - [ ] New relation structs in `crates/rok-data-core/src/relation/through.rs` and `belongs_to_many.rs`
 - [ ] Derive attributes: `#[rok(has_many_through(name = Final::FK, through = Through::FK))]`, `#[rok(has_one_through(...))]`, `#[rok(belongs_to_many(target = Target, pivot = pivot_table))]`
 - [ ] Generator detects: FK chain A→B→C → `has_many_through`; join table (two FKs + unique) → `belongs_to_many` with pivot methods
-- [ ] `Select::where_has/where_doesnt_have/where_relation` using subquery `EXISTS`/`NOT EXISTS`
-- [ ] `Select::with_count/sum/avg/min/max/exists` adding subquery columns to projection
-- [ ] `ModelCollection::load_count` runs batched aggregate query
-- [ ] Facade tests for each relation type and aggregate
+- [x] `Select::where_has/where_doesnt_have/where_relation` using subquery `EXISTS`/`NOT EXISTS`, plus `has(rel)` / `doesnt_have(rel)`
+- [x] Aggregates — **changed by decision:** not columns on the parent (a Rust struct has no field for them), but batched includes parked on the loaded view: `with_count` / `with_exists` on the chain, `User::POSTS.sum::<i64>(Post::VIEWS)` / `avg` / `min` / `max` handles loaded with `with`, read with `view.count` / `view.exists` / `view.aggregate(handle, row)`
+- [x] `ModelCollection::load_count` runs batched aggregate query
+- [ ] Facade tests for each relation type and aggregate (filters and aggregates done: `tests/features/has.rs`)
 - [ ] Module fixtures for generated pivot methods and through relations

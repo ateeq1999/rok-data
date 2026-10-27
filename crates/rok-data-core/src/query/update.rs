@@ -104,6 +104,17 @@ impl<M: Model> Update<M> {
         self.set_raw(column, raw, [by.into()])
     }
 
+    /// [`increment`](Self::increment) each column by its amount, in one
+    /// `UPDATE`: `.increment_each([(Post::VIEWS, 1), (Post::SCORE, 5)])`.
+    pub fn increment_each<V: Into<Value>>(
+        self,
+        columns: impl IntoIterator<Item = (Column<M>, V)>,
+    ) -> Self {
+        columns
+            .into_iter()
+            .fold(self, |update, (column, by)| update.increment(column, by))
+    }
+
     pub(crate) fn has_sets(&self) -> bool {
         !self.sets.is_empty()
     }

@@ -130,6 +130,27 @@ const RESERVED: &[&str] = &[
     "unscoped",
     "with",
     "with_trashed",
+    // The chain's sugar and relation filters.
+    "debug",
+    "doesnt_have",
+    "filter_all",
+    "filter_any",
+    "filter_none",
+    "filter_raw",
+    "group_by_raw",
+    "has",
+    "having_raw",
+    "order_by_raw",
+    "pipe",
+    "select_raw",
+    "tap",
+    "union",
+    "union_all",
+    "where_doesnt_have",
+    "where_has",
+    "where_relation",
+    "with_count",
+    "with_exists",
 ];
 
 /// The parsed parameters of a scope: what both the entry and the method
@@ -382,6 +403,9 @@ mod reserved_tests {
             "query/select/exec.rs",
             "query/select/chunk.rs",
             "query/select/paginate.rs",
+            "query/select/cursor.rs",
+            "query/select/sugar.rs",
+            "query/select/has.rs",
         ] {
             for line in read(path).lines() {
                 let item = line

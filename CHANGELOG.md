@@ -210,6 +210,39 @@ compiler finds the call sites.
   identifier is the only form that compiles since `where` is a keyword),
   `Select::get` (another name for `all`), and `Select::chunk`
   for walking big tables in windows.
+- **Chain sugar** (0.4.0 ticket 02), every condition typed on its column:
+  - **Several columns, one condition:** `filter_any([User::NAME,
+    User::EMAIL], |c| c.ilike(&pattern))`, `filter_all`, `filter_none`.
+  - **Date parts:** `date()`, `time()`, `year()`, `month()`, `day()`,
+    `hour()` on a column, compared like any value
+    (`Post::PUBLISHED_AT.year().eq(2026)`).
+  - **JSON:** `json_array_len()`, `json_array_len_at(path)`,
+    `json_has_path(path)`, `json_contains_at(path, json)`.
+  - **Two columns of a row:** `eq_column` … `lte_column`
+    (`Task::UPDATED_AT.gt_column(Task::CREATED_AT)`); `NULL`-aware
+    equality with `is_not_distinct_from` / `is_distinct_from`.
+  - **Raw escapes:** `filter_raw`, `having_raw`, `order_by_raw`,
+    `group_by_raw`, `select_raw`, each `?` bound in order.
+  - **Composing:** `pipe(f)` hands the chain to a function and returns
+    its result; `tap(f)` looks at it and goes on; `debug()` prints the
+    statement and its parameters to stderr.
+  - **`UNION`:** `select.union(other)` / `union_all(other)` return a
+    `Union` with its own `order_by`, `limit`, `offset` and `all` / `get` /
+    `first`.
+  - **Counters:** `Update::increment_each([(Post::VIEWS, 1), (Post::SCORE,
+    5)])`, in one `UPDATE`.
+- **Rows by their relations** (0.4.0 ticket 03, first half):
+  - **Filters:** `has(User::POSTS)`, `doesnt_have(…)`, `where_has(rel, |q|
+    q.filter(…))`, `where_doesnt_have(…)` and `where_relation(rel,
+    condition)`, as correlated `EXISTS` subqueries that keep the related
+    model's scopes.
+  - **Aggregates beside the rows:** `with_count(User::POSTS)` and
+    `with_exists(User::PROFILE)` on a chain, `load_count` on a collection,
+    read with `view.count(User::POSTS, user)` / `view.exists(…)`. Sums,
+    averages, minimums and maximums are handles on the relation
+    (`User::POSTS.sum::<i64>(Post::VIEWS)`, `avg`, `min`, `max`), loaded
+    with `with` and read with `view.aggregate(handle, user)`. Each is one
+    batched `GROUP BY` query; the value type picks the SQL cast.
 
 **What does not change**: PostgreSQL 12+ (DATABASE_URL), the migration
 system, `#[rok::test]`, the connection policy, `filter` staying the

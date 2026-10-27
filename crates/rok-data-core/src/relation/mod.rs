@@ -2,10 +2,12 @@
 
 use std::fmt;
 
+mod aggregate;
 mod include;
 mod loaded;
 mod relations;
 
+pub use aggregate::{Aggregate, RelationAggregates};
 pub use include::{Include, IntoInclude, PackedInclude, Relation};
 pub use loaded::{Loaded, Many, One};
 pub use relations::{BelongsTo, HasMany, HasOne};

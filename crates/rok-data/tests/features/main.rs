@@ -10,8 +10,10 @@ use rok_data::{Include, raw};
 
 mod collection;
 mod conventions;
+mod has;
 mod memoized;
 mod pagination;
+mod query_sugar;
 mod relations;
 mod scopes;
 mod streaming;

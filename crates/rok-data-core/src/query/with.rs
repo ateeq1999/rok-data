@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
 use sqlx::postgres::PgRow;
 
 use crate::exec::{self, Journey};
-use crate::relation::{IntoInclude, Loaded, PackedInclude};
+use crate::relation::{IntoInclude, Loaded, PackedInclude, Relation, RelationAggregates};
 use crate::{Expr, Model, Order, Page, Result};
 
 use super::Select;
@@ -60,6 +60,18 @@ impl<M: Model> WithSelect<M> {
     pub fn with<I: IntoInclude<M>>(mut self, include: I) -> Self {
         self.includes.push(include.into_packed());
         self
+    }
+
+    /// Adds how many records each row has through `relation`
+    /// ([`Select::with_count`]).
+    pub fn with_count<R: Relation<Owner = M>>(self, relation: R) -> Self {
+        self.with(relation.count())
+    }
+
+    /// Adds whether each row has any record through `relation`
+    /// ([`Select::with_exists`]).
+    pub fn with_exists<R: Relation<Owner = M>>(self, relation: R) -> Self {
+        self.with(relation.exists())
     }
 
     /// Fetches the rows and every requested relation: the main query,
