@@ -1677,9 +1677,9 @@ fails. With `--resource`, only that table's problems count.
   countries; `mobile` without a locale tries those 16, not every locale.
 - The templates' `/auth` rate limit counts per process: several
   instances each allow `AUTH_RATE_LIMIT` (engine ADR 0020).
-- Only the axum skeleton and template time a request out (`408`, 30 s)
-  and set `x-request-id`; under actix-web, put a timeout in your proxy
-  (engine ADR 0021).
+- Only the axum template times a request out (`408`, 30 s) and sets
+  `x-request-id`; the axum skeleton and actix-web do neither: put a
+  timeout in your proxy (engine ADR 0021).
 
 **Absorbed from rok-sqlc 0.6–0.8** (workspace ADR 0016): the templates'
 authentication surface as hand-written features (registration and

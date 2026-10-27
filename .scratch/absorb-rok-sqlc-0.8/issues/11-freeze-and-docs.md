@@ -4,8 +4,8 @@
 
 **Blocked by:** 01–10, dx-first 14
 
-**Status:** ready-for-agent
+**Status:** done (the rok-sqlc commit is local, not pushed)
 
-- [ ] rok-sqlc README banner + final CHANGELOG entry (no code change, no release)
-- [ ] migration-audit, engine CHANGELOG, guides, AGENTS.md counts
-- [ ] `docs/cli-reference.md` matches the engine's tests
+- [x] rok-sqlc README banner + final CHANGELOG entry (no code change, no release)
+- [x] migration-audit, engine CHANGELOG, guides, AGENTS.md counts
+- [x] `docs/cli-reference.md` matches the engine's tests

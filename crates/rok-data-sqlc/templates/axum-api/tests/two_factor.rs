@@ -42,11 +42,20 @@ fn text(body: &Value, field: &str) -> Result<String, Error> {
 /// secret and its recovery codes. Enabled with the code of the current
 /// step, which is then spent.
 async fn enrolled(pool: &sqlx::PgPool) -> Result<(String, String, Vec<String>), Error> {
+    let (token, secret, codes, _) = enrolled_with_code(pool).await?;
+    Ok((token, secret, codes))
+}
+
+/// [`enrolled`], and the code that enabled it.
+async fn enrolled_with_code(
+    pool: &sqlx::PgPool,
+) -> Result<(String, String, Vec<String>, String), Error> {
     let token = register_verified(pool, EMAIL, PASSWORD).await?;
     let answer = call(pool, Some(&token), Method::POST, SETUP, None).await?;
     assert_eq!(answer.status, StatusCode::OK, "{}", answer.body);
     let secret = text(&answer.body, "secret")?;
-    let body = json!({"code": code(&secret, 0)?});
+    let enabling = code(&secret, 0)?;
+    let body = json!({"code": enabling});
     let answer = call(pool, Some(&token), Method::POST, ENABLE, Some(body)).await?;
     assert_eq!(answer.status, StatusCode::OK, "{}", answer.body);
     let codes = answer.body["recovery_codes"]
@@ -55,7 +64,7 @@ async fn enrolled(pool: &sqlx::PgPool) -> Result<(String, String, Vec<String>), 
         .iter()
         .filter_map(|code| code.as_str().map(str::to_owned))
         .collect();
-    Ok((token, secret, codes))
+    Ok((token, secret, codes, enabling))
 }
 
 /// Signs in with the right password: the pending token it answers.
@@ -183,10 +192,11 @@ async fn the_same_code_is_never_accepted_twice() -> TestResult {
     let Some(db) = Database::fresh().await? else {
         return Ok(());
     };
-    let (_, secret, _) = enrolled(&db.pool).await?;
-    // Enabling spent the current step's code.
+    let (_, secret, _, enabling) = enrolled_with_code(&db.pool).await?;
+    // Enabling spent its code: sent again, it is refused, even once the
+    // step has moved on.
     let pending_token = pending(&db.pool).await?;
-    let answer = verify(&db.pool, &pending_token, &code(&secret, 0)?).await?;
+    let answer = verify(&db.pool, &pending_token, &enabling).await?;
     assert_eq!(answer.status, StatusCode::UNAUTHORIZED, "{}", answer.body);
 
     let next = code(&secret, 1)?;

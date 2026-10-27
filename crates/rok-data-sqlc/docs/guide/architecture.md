@@ -1,7 +1,7 @@
 # Architecture guidelines
 
-A simple, restricted architecture for Rust services on actix-web, SQLx and
-PostgreSQL: **one crate, folders by feature, a fixed set of files per
+A simple, restricted architecture for Rust services on actix-web (or
+axum), SQLx and PostgreSQL: **one crate, folders by feature, a fixed set of files per
 feature, six rules.** Humans and code generators follow this document
 exactly. If a rule gets in your way, change the rule here first, then change
 the code.
@@ -82,7 +82,7 @@ or it belongs in a feature. Decide which.
 |---|---|---|
 | A business rule | the feature's `service.rs`, overriding a `service_api.rs` default | handler, repo |
 | A new endpoint, request or response shape | the schema and `rok-data-sqlc.toml` (`[api]`), then `rok sqlc generate` | generated files |
-| SQL | the data layer: a migration and `rok sqlc generate`, or a query file | service, handler |
+| SQL | the data layer: a migration and `rok sqlc generate`, or the feature's query file, `queries/<feature>.sql` | service, handler |
 | A new table or column | `migrations/000N_name.sql`, then `rok sqlc generate` | anywhere else |
 | An error case | a variant in `error.rs` | a feature folder |
 | Code two features need | `shared/` | one feature |
@@ -114,6 +114,18 @@ or it belongs in a feature. Decide which.
 6. No `unwrap()`, `expect()`, `panic!`, `todo!`, `println!` or `dbg!`. Every
    fallible function returns `Result<_, AppError>`.
 
+Rule 1 names the project's framework (`[api] framework`). Under axum it
+reads:
+
+> In a feature, only `routes.rs` and `handlers.rs` use `axum`. Outside the
+> features, so may `app.rs`, `main.rs`, `error.rs`, the features'
+> `generated.rs`, `shared/` and the data layer.
+
+The other framework's crate is a rule 1 violation everywhere but the data
+layer, whose `extractors` may serve both: an axum project never names
+`actix_web`, and the reverse. The scaffolded `AGENTS.md` states the rules
+for the project's framework.
+
 `lib.rs` only declares the modules, so it needs neither crate. Ports and the
 transaction they share are in section 7.
 
@@ -129,17 +141,28 @@ features' and `bin/`. Test code is exempt from every rule: files under
 functions, and `tests/`, which is not read. Each violation prints as
 `path:line: rule: message`. Rule 3 is yours to keep.
 
-Rule 1 follows the API backend too. `check-arch` reads it from the same
-`rok-data-sqlc.toml` the generation uses: the rule states the API backend
-the `[api] framework` key names, watching its imports (`actix_web` by
-default; `axum` under `framework = "axum"`) over the same allowed files,
-so an axum project is policed exactly the way this chapter polices an
-actix one. The scaffolded `AGENTS.md`s state their own backend, and this
-chapter's samples are the actix-web ones.
+`check-arch` reads the framework from the same `rok-data-sqlc.toml` the
+generation uses, so an axum project is policed exactly the way this
+chapter polices an actix one; this chapter's samples are the actix-web
+ones.
 
-The cross-feature write part of rule 4 is reported as `cross-feature-write`
-and the layout as `layout`. `check-arch` reads `src/` with a Rust parser, so
-comments and strings never count. A path counts wherever it appears: a
+The cross-feature write part of rule 4 is reported as `cross-feature-write`,
+its query part as `cross-feature-query`, and the layout as `layout`.
+
+**Query modules, one per feature.** A query module belongs to the feature
+it is named after: `queries/tasks.sql` generates
+`<db_path>::queries::tasks`, which the `tasks` feature calls and no other
+feature does. Its queries may read and write any table: a hand-written
+feature with no table of its own (the actix template's `auth`, which writes
+`users` and `auth_tokens`) keeps all its SQL there. A query module named
+after no feature (or the single `queries.rs` of a lone query file) is
+anyone's, which is where SQL that `shared/` runs belongs: the actix
+template's `queries/session.sql` holds the check `AuthUser` makes on every
+request, and `queries/mail.sql` the outbox's. Two features that need the
+same SQL each keep a copy, or one calls the other through a port.
+
+`check-arch` reads `src/` with a Rust parser, so comments and strings
+never count. A path counts wherever it appears: a
 `use`, an expression, a type, a pattern, a `#[derive(...)]` list or an
 attribute like `#[actix_web::main]`. A path reached through a `use` binding
 that already breaks a rule is reported once, at the `use`. Rule 6 counts
@@ -307,7 +330,13 @@ as one `422` (configuring guide, "Pre-checks from the schema"). On an owned tabl
 (`user: AuthUser`), reads only the caller's rows, and `update_in` and
 `remove_in` first lock the caller's row (`SELECT … FOR UPDATE`) and then
 update or delete it, so another caller's row is a `404`. On a tenant-scoped
-table every method takes the tenant first.
+table every method takes the tenant first. Before writing, `create_in` and
+`update_in` run the pre-checks: each foreign key in the body must name a
+row the caller can see (`exists`), and no other row may already hold the
+values of a unique key the body holds (`unique`). Every
+failure is collected in `FieldFailures` (`shared/validation.rs`) and
+answered as one `422`, before the write. A create or update whose checks
+need a caller or a tenant the feature's own rows don't takes them too.
 
 `service.rs` is scaffolded: written once, then yours. It holds the service
 struct, `TasksService { pool }`, its constructor `TasksService::new(pool)`
@@ -492,7 +521,8 @@ section lists every route.
 - **Data layer:** generated, and tested by rok-data-sqlc. Test your query files
   with `#[sqlx::test]`.
 - **API:** `tests/<feature>.rs` with `actix_web::test`, building the
-  application with `app::configure`.
+  application with `app::configure`; under axum, `app::router(state)`
+  driven with `tower::ServiceExt::oneshot`.
 - **Shared:** unit tests.
 
 A feature is done with one service test per business rule and one API test

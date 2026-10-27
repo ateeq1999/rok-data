@@ -37,11 +37,12 @@ Without it there is no API: every other `[api]` key is ignored, and `g`
 generates only the data layer. `rok sqlc init` sets it, and `-a`/
 `--api-output` sets it from the command line.
 
-It needs `derive = ["serde", "validate"]` and `actix_web` in `extractors`,
-since the features take validated JSON bodies through the actix-web
-extractor; `init` sets those too. With `output`, a run also generates
-`db/pool.rs` in the data layer and the shared tools in `shared/`, the
-directory beside `output` (`src/shared/`).
+It needs `derive = ["serde", "validate"]` and the framework's extractor
+in `extractors` (`actix_web`, or `axum` under `framework = "axum"`),
+since the features take validated JSON bodies through it; `init` sets
+those too. With `output`, a run also generates `db/pool.rs` in the data
+layer and the shared tools in `shared/`, the directory beside `output`
+(`src/shared/`).
 
 Join tables, which the data layer turns into a many-to-many relationship
 between the two tables they pair, get no feature of their own: the two

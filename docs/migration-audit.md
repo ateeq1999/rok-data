@@ -51,6 +51,14 @@ Sources (each kept as `*_src` sibling clones for reference):
   fixture crate, compile fixtures (`fixture-app`, `api-app`),
   milestone-diff records, README examples that are executed.
 
+- **Absorbed through 0.8.0, then frozen** (workspace ADR 0016): the
+  consolidation ported rok-sqlc as of 0.4; its 0.5 (validation rules,
+  `exists`/`unique` pre-checks), 0.6 (template accounts), 0.7 (axum,
+  actix hardening) and 0.8 (two-factor, API keys, uploads, avatars,
+  constraint changes) were absorbed into `rok-data-sqlc` afterwards, with
+  its ADRs 0017–0020 imported as engine ADRs 0019–0022. rok-sqlc takes no
+  further releases; `rok sqlc` is the one engine.
+
 - Its `@generated` header carries the tool name; staleness checks and
 
   `init` rely on recognizing it.

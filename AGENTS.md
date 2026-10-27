@@ -71,7 +71,7 @@ functions; sqlx is depended on only by `rok-data-core`.
 
 ```console
 $ cargo test --workspace --all-targets        # everything, ~2-3 min
-$ cargo test -p rok-data-sqlc --lib           # engine unit suite (240)
+$ cargo test -p rok-data-sqlc --lib           # engine unit suite (330)
 $ cargo test -p rok-data-cli --test cli        # sqlc CLI suites via the rok binary
 $ cargo test -p rok-data-sqlc --test module_fixtures   # corpus (needs rustc ≥ fixture MSRV)
 ```
