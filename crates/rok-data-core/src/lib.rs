@@ -14,6 +14,8 @@ mod context;
 mod copy;
 mod cursor;
 mod db;
+#[cfg(feature = "encryption")]
+mod encrypted;
 mod error;
 mod exec;
 mod expr;
@@ -46,6 +48,8 @@ pub use context::Executor;
 pub use copy::CopyTarget;
 pub use cursor::{Cursor, CursorPage};
 pub use db::{Db, DbBuilder, Isolation, PoolStats, Retryable, Tx, TxOptions};
+#[cfg(feature = "encryption")]
+pub use encrypted::{ENCRYPTION_KEY_VAR, Encrypted, set_encryption_key};
 pub use error::{Error, Result};
 pub use exec::Journey;
 pub use expr::{Column, Direction, Expr, IntoProjections, Order, Projection};

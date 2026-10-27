@@ -10,6 +10,7 @@ use rok_data::{Include, raw};
 
 mod collection;
 mod conventions;
+mod encrypted;
 mod has;
 mod lifecycle;
 mod many_to_many;
