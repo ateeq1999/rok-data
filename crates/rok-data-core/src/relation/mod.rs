@@ -9,8 +9,9 @@ mod loaded;
 mod relations;
 mod through;
 
-pub use aggregate::{Aggregate, RelationAggregates};
+pub use aggregate::{Aggregate, RelationExt};
 pub use belongs_to_many::BelongsToMany;
+pub(crate) use include::nested_identity;
 pub use include::{Include, IntoInclude, PackedInclude, Relation};
 pub use loaded::{Loaded, Many, One};
 pub use relations::{BelongsTo, HasMany, HasOne};

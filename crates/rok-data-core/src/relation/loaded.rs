@@ -7,7 +7,9 @@ use std::marker::PhantomData;
 use crate::exec::Journey;
 use crate::{Model, Result};
 
-use super::include::{ErasedState, Identity, IntoInclude, Relation, relation_identity};
+use super::include::{
+    ErasedState, Identity, IntoInclude, Relation, nested_identity, relation_identity,
+};
 use super::relations::key;
 
 /// The loaded records of a one-relation, keyed by owner: one record per
@@ -175,6 +177,19 @@ impl<M: Model> Loaded<M> {
         relation.read(self.loaded(relation)?, owner)
     }
 
+    /// The view of `relation`'s records that its nested includes loaded
+    /// on (`.with(Author::POSTS.with(Post::COMMENTS))`): every record the
+    /// relation loaded, as rows, with the nested relations beside them.
+    /// `None` when the query nested nothing under `relation`.
+    pub fn nested<R>(&self, relation: R) -> Option<&Loaded<R::Target>>
+    where
+        R: Relation<Owner = M> + 'static,
+    {
+        self.states
+            .get(&nested_identity(relation_identity(relation)))?
+            .downcast_ref::<Loaded<R::Target>>()
+    }
+
     /// [`try_get`](Self::try_get) that treats an unloaded relation as the
     /// bug it is: [`Error::NotLoaded`](crate::Error::NotLoaded), naming
     /// the relation and the fix, instead of `None`.
@@ -194,6 +209,23 @@ impl<M: Model> Loaded<M> {
                 table: M::TABLE,
                 foreign_key: relation.foreign_key_name(),
             })
+    }
+
+    /// Runs `includes` on this view's rows — one batched query each — and
+    /// parks them, replacing an include of the same relation loaded
+    /// before (to reload it with other shaping, say):
+    ///
+    /// ```ignore
+    /// view.load(&db, [Include::new(User::POSTS).filter(Post::VIEWS.gte(100))]).await?;
+    /// ```
+    pub async fn load<'c, S, I, C>(&mut self, session: S, includes: C) -> Result<()>
+    where
+        S: Into<Journey<'c>>,
+        C: IntoIterator<Item = I>,
+        I: IntoInclude<M>,
+    {
+        let includes = includes.into_iter().map(IntoInclude::into_packed).collect();
+        crate::query::with::load_includes(session.into(), self, includes, true).await
     }
 
     /// Runs the includes this view has not loaded yet — one batched query

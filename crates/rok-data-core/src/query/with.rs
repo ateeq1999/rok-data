@@ -5,7 +5,8 @@ use std::ops::{Deref, DerefMut};
 use sqlx::postgres::PgRow;
 
 use crate::exec::{self, Journey};
-use crate::relation::{IntoInclude, Loaded, PackedInclude, Relation, RelationAggregates};
+use crate::relation::nested_identity;
+use crate::relation::{IntoInclude, Loaded, PackedInclude, Relation, RelationExt};
 use crate::{Expr, Model, Order, Page, Result};
 
 use super::Select;
@@ -202,7 +203,12 @@ pub(crate) async fn load_includes<M: Model>(
         let children: Vec<PgRow> =
             on_journey!(journey, |e| exec::fetch_rows(e, &include_sql, &[], replica)
                 .await)?;
-        view.park(include.identity, (include.assemble)(children)?);
+        let state = (include.assemble)(children)?;
+        if let Some(nested) = include.nested {
+            let view_of_targets = nested(journey.reborrow(), &state, replica).await?;
+            view.park(nested_identity(include.identity), view_of_targets);
+        }
+        view.park(include.identity, state);
     }
     Ok(())
 }

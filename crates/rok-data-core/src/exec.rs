@@ -322,6 +322,18 @@ pub enum Journey<'c> {
     Connection(&'c mut PgConnection),
 }
 
+impl Journey<'_> {
+    /// A shorter borrow of the same session, for one more leg of a query.
+    pub(crate) fn reborrow(&mut self) -> Journey<'_> {
+        match self {
+            Journey::Database(db) => Journey::Database(db),
+            Journey::Transaction(tx) => Journey::Transaction(tx),
+            Journey::Pool(pool) => Journey::Pool(pool),
+            Journey::Connection(connection) => Journey::Connection(connection),
+        }
+    }
+}
+
 impl<'c> From<&'c Db> for Journey<'c> {
     fn from(db: &'c Db) -> Self {
         Self::Database(db)

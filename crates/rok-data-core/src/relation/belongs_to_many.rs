@@ -408,6 +408,10 @@ impl<P: Model, C: Model> Relation for BelongsToMany<P, C> {
         Some(state.get(owner))
     }
 
+    fn targets(self, state: &Many<P, C>) -> Vec<&C> {
+        state.values().collect()
+    }
+
     /// Over the pivot-joined batch: the pivot's `foreign_key` among `ids`.
     fn batch_filter(self, ids: Vec<Value>) -> Expr<C> {
         if ids.is_empty() {

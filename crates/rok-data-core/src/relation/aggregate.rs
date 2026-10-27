@@ -12,7 +12,7 @@ use sqlx::{Decode, Postgres, Row, Type, TypeInfo};
 use crate::sql::qualified;
 use crate::{Column, Model, Projection, Result, Value};
 
-use super::include::{ErasedState, Identity, IntoInclude, PackedInclude, Relation};
+use super::include::{ErasedState, Identity, Include, IntoInclude, PackedInclude, Relation};
 use super::loaded::Loaded;
 use super::relations::{distinct_values, key};
 
@@ -41,7 +41,7 @@ impl Func {
 }
 
 /// One aggregate over relation `R`'s records per owner, read back as `T`:
-/// made by [`RelationAggregates`] (`User::POSTS.count()`,
+/// made by [`RelationExt`] (`User::POSTS.count()`,
 /// `User::POSTS.sum::<i64>(Post::VIEWS)`), loaded by [`Select::with`]
 /// beside the rows in one batched `GROUP BY` query, and read with
 /// [`Loaded::aggregate`] by the same handle.
@@ -87,8 +87,18 @@ impl<R: fmt::Debug, T> fmt::Debug for Aggregate<R, T> {
     }
 }
 
-/// The aggregate handles every relation constant offers; in the prelude.
-pub trait RelationAggregates: Relation {
+/// What every relation constant offers beyond loading: nested includes
+/// ([`with`](Self::with)) and aggregate handles. In the prelude.
+pub trait RelationExt: Relation {
+    /// This relation's include with `include` nested under it:
+    /// `.with(Author::POSTS.with(Post::COMMENTS))`. See [`Include::with`].
+    fn with<I: IntoInclude<Self::Target>>(self, include: I) -> Include<Self>
+    where
+        Self::Target: Clone,
+    {
+        Include::new(self).with(include)
+    }
+
     /// How many related records each owner has.
     fn count(self) -> Aggregate<Self, i64> {
         Aggregate::new(self, Func::Count, "")
@@ -120,7 +130,7 @@ pub trait RelationAggregates: Relation {
     }
 }
 
-impl<R: Relation> RelationAggregates for R {}
+impl<R: Relation> RelationExt for R {}
 
 /// What a loaded aggregate parks: each owner key's value.
 struct State<T>(HashMap<String, T>);
@@ -207,6 +217,7 @@ where
                     .to_sql())
             }),
             assemble: Box::new(|rows| Ok(Box::new(Self::assemble(rows)?) as ErasedState)),
+            nested: None,
         }
     }
 }

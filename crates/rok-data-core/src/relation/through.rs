@@ -230,6 +230,10 @@ macro_rules! through_relation {
                 Some($get)
             }
 
+            fn targets(self, state: &$loaded<P, C>) -> Vec<&C> {
+                state.values().collect()
+            }
+
             fn batch_filter(self, ids: Vec<Value>) -> Expr<C> {
                 self.hops.via(self.hops.through().is_in(ids))
             }

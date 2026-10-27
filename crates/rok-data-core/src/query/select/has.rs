@@ -4,7 +4,7 @@
 //! ([`Select::with_count`], [`Select::with_exists`]).
 
 use crate::query::WithSelect;
-use crate::relation::{Relation, RelationAggregates};
+use crate::relation::{Relation, RelationExt};
 use crate::{Expr, Model};
 
 use super::Select;

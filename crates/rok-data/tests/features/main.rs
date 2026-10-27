@@ -14,6 +14,7 @@ mod has;
 mod lifecycle;
 mod many_to_many;
 mod memoized;
+mod nested;
 mod pagination;
 mod query_sugar;
 mod relations;

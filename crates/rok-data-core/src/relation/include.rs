@@ -6,10 +6,13 @@ use std::fmt;
 
 use sqlx::postgres::PgRow;
 
+use futures_core::future::BoxFuture;
+
+use crate::exec::Journey;
 use crate::sql::Sql;
 use crate::{Column, Expr, Model, Order, Projection, Result, Select, Value};
 
-use super::loaded::{Many, One};
+use super::loaded::{Loaded, Many, One};
 use super::relations::{BelongsTo, HasMany, HasOne, distinct_values, key, require_single_key};
 
 /// A relation value — a generated constant of [`HasMany`], [`HasOne`] or
@@ -55,6 +58,10 @@ pub trait Relation: Copy + Send + Sync + 'static {
     /// [`One::get`]-style: an (empty) slice for `HasMany`, `None` for a
     /// row a `One` state has none of.
     fn read<'a>(self, state: &'a Self::Loaded, owner: &Self::Owner) -> Option<Self::Read<'a>>;
+
+    /// Every record a loaded state holds, for nested includes to load on.
+    #[doc(hidden)]
+    fn targets(self, state: &Self::Loaded) -> Vec<&Self::Target>;
 
     /// The targets of the owners whose keys are `ids`: `target_key IN
     /// (ids)` for a direct relation; a through relation reaches them via
@@ -130,6 +137,10 @@ impl<P: Model, C: Model> Relation for HasMany<P, C> {
     fn read<'a>(self, state: &'a Many<P, C>, owner: &P) -> Option<&'a [C]> {
         Some(state.get(owner))
     }
+
+    fn targets(self, state: &Many<P, C>) -> Vec<&C> {
+        state.values().collect()
+    }
 }
 
 impl<P: Model, C: Model> Relation for HasOne<P, C> {
@@ -167,6 +178,10 @@ impl<P: Model, C: Model> Relation for HasOne<P, C> {
 
     fn read<'a>(self, state: &'a One<P, C>, owner: &P) -> Option<Option<&'a C>> {
         Some(state.get(owner))
+    }
+
+    fn targets(self, state: &One<P, C>) -> Vec<&C> {
+        state.values().collect()
     }
 }
 
@@ -207,14 +222,22 @@ impl<C: Model, P: Model> Relation for BelongsTo<C, P> {
     fn read<'a>(self, state: &'a One<C, P>, owner: &C) -> Option<Option<&'a P>> {
         Some(state.get(owner))
     }
+
+    fn targets(self, state: &One<C, P>) -> Vec<&P> {
+        state.values().collect()
+    }
 }
 
 /// A relation packaged for [`Select::with`], whose batch load is shaped:
 /// filters land in front of the target's implicit scopes, and ordering,
-/// limit and offset apply to the whole batch (as [`load from`]).
+/// limit and offset apply to the whole batch (as [`load from`]). It may
+/// carry nested includes, loaded on the batch's records in turn
+/// ([`with`](Self::with)).
 pub struct Include<R: Relation> {
     relation: R,
     base: Select<R::Target>,
+    nested: Vec<PackedInclude<R::Target>>,
+    runner: Option<NestedRunner<R>>,
 }
 
 impl<R: Relation> Include<R> {
@@ -224,6 +247,8 @@ impl<R: Relation> Include<R> {
         Self {
             relation,
             base: <R::Target as Model>::query(),
+            nested: Vec::new(),
+            runner: None,
         }
     }
 
@@ -253,11 +278,50 @@ impl<R: Relation> Include<R> {
         self
     }
 
+    /// Loads `include` on this relation's records too, one more batched
+    /// query for all of them; read it through
+    /// [`Loaded::nested`](crate::Loaded::nested):
+    ///
+    /// ```ignore
+    /// let view = Author::query()
+    ///     .with(Author::POSTS.with(Post::COMMENTS))
+    ///     .all(&db)
+    ///     .await?;
+    /// let posts = view.nested(Author::POSTS).unwrap();
+    /// for post in view.get(Author::POSTS, &author)? {
+    ///     let comments = posts.get(Post::COMMENTS, post)?;
+    /// }
+    /// ```
+    ///
+    /// Nested includes nest further (`Post::COMMENTS.with(Comment::AUTHOR)`).
+    /// The target rows are cloned into the nested view, hence `Clone`.
+    pub fn with<I: IntoInclude<R::Target>>(mut self, include: I) -> Self
+    where
+        R::Target: Clone,
+    {
+        self.nested.push(include.into_packed());
+        self.runner = Some(run_nested::<R>);
+        self
+    }
+
     fn packed<M: Model>(self) -> PackedInclude<M>
     where
         R: Relation<Owner = M>,
     {
-        packed(self.relation, self.base)
+        let relation = self.relation;
+        let nested = match (self.runner, self.nested) {
+            (Some(runner), nested) if !nested.is_empty() => {
+                let load: NestedLoad = Box::new(move |journey, state, replica| {
+                    runner(relation, journey, state, nested, replica)
+                });
+                Some(load)
+            }
+            _ => None,
+        };
+        PackedInclude {
+            nested,
+            ..packed(relation, self.base)
+        }
     }
 }
 
@@ -266,6 +330,7 @@ impl<R: Relation + fmt::Debug> fmt::Debug for Include<R> {
         f.debug_struct("Include")
             .field("relation", &self.relation)
             .field("base", &self.base.to_sql())
+            .field("nested", &self.nested.len())
             .finish()
     }
 }
@@ -303,6 +368,8 @@ pub struct PackedInclude<M: Model> {
     pub(crate) identity: Identity,
     pub(crate) children_sql: ChildrenSql<M>,
     pub(crate) assemble: StateAssembly,
+    /// The nested includes' load, run on the assembled state's records.
+    pub(crate) nested: Option<NestedLoad>,
 }
 
 impl<M: Model> fmt::Debug for PackedInclude<M> {
@@ -315,12 +382,17 @@ impl<M: Model> fmt::Debug for PackedInclude<M> {
 
 /// What a parked state is keyed by: the include's type, its relation's
 /// foreign key, and for an aggregate its function and column (empty for a
-/// relation).
+/// relation; `nested` for a relation's nested view).
 pub(crate) type Identity = (TypeId, &'static str, &'static str, &'static str);
 
 /// A relation include's identity.
 pub(crate) fn relation_identity<R: Relation>(relation: R) -> Identity {
     (TypeId::of::<R>(), relation.foreign_key_name(), "", "")
+}
+
+/// The identity a relation's nested view is parked under.
+pub(crate) fn nested_identity((ty, foreign_key, _, _): Identity) -> Identity {
+    (ty, foreign_key, "nested", "")
 }
 
 pub(crate) type ErasedState = Box<dyn Any + Send>;
@@ -330,6 +402,46 @@ type ChildrenSql<M> = Box<dyn for<'a> Fn(&'a [M]) -> Result<crate::sql::Sql> + S
 
 /// Rows-to-state assembly, erased so one query can carry several models.
 type StateAssembly = Box<dyn Fn(Vec<PgRow>) -> Result<ErasedState> + Send>;
+
+/// The nested includes' load over a relation's assembled state: the
+/// target rows as a [`Loaded`] view, its includes loaded, erased.
+pub(crate) type NestedLoad = Box<
+    dyn for<'j> FnOnce(Journey<'j>, &ErasedState, bool) -> BoxFuture<'j, Result<ErasedState>>
+        + Send,
+>;
+
+/// [`run_nested`] for one relation type, kept as a plain function pointer
+/// so [`Include::with`] (where `Target: Clone` holds) can pick it.
+type NestedRunner<R> = for<'j> fn(
+    R,
+    Journey<'j>,
+    &ErasedState,
+    Vec<PackedInclude<<R as Relation>::Target>>,
+    bool,
+) -> BoxFuture<'j, Result<ErasedState>>;
+
+/// The records `state` holds, as a [`Loaded`] view with `nested` loaded.
+fn run_nested<'j, R>(
+    relation: R,
+    journey: Journey<'j>,
+    state: &ErasedState,
+    nested: Vec<PackedInclude<R::Target>>,
+    replica: bool,
+) -> BoxFuture<'j, Result<ErasedState>>
+where
+    R: Relation,
+    R::Target: Clone,
+{
+    let rows: Vec<R::Target> = state
+        .downcast_ref::<R::Loaded>()
+        .map(|state| relation.targets(state).into_iter().cloned().collect())
+        .unwrap_or_default();
+    Box::pin(async move {
+        let mut view = Loaded::new(rows);
+        crate::query::with::load_includes(journey, &mut view, nested, replica).await?;
+        Ok(Box::new(view) as ErasedState)
+    })
+}
 
 fn packed<M: Model, R>(relation: R, base: Select<R::Target>) -> PackedInclude<M>
 where
@@ -344,5 +456,6 @@ where
             Ok(relation.batch_sql(base.clone(), ids))
         }),
         assemble: Box::new(move |targets| Ok(Box::new(relation.assemble(targets)?) as ErasedState)),
+        nested: None,
     }
 }

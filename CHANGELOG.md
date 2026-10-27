@@ -273,6 +273,14 @@ compiler finds the call sites.
   `touch(&db)` update in the database without reading first and return
   the stored row. `update_or_create` is the existing `upsert_on`, `fresh`
   the existing `reload`.
+- **Nested eager loading** (0.4.0 ticket 10):
+  `.with(Author::POSTS.with(Post::COMMENTS))` loads each level in one
+  batched query, to any depth; `view.nested(Author::POSTS)` is the
+  `Loaded<Post>` view the nested relations are read from (the nested
+  target must be `Clone`). `Loaded::load(&db, includes)` loads (or
+  reloads with other shaping) beside the existing `load_missing`. The
+  relation-constant extension trait is `RelationExt` (aggregates and
+  `with`).
 - **`INSERT … SELECT`** (0.4.0 ticket 09): a projected query writes its
   rows into another table without fetching them —
   `Post::filter(…).select((Post::TITLE,)).insert_into::<Archive>([Archive::TITLE])`,

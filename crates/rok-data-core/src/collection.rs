@@ -12,7 +12,7 @@ use std::ops::{Deref, DerefMut};
 use std::vec::IntoIter;
 
 use crate::key::{IntoKey, key_expr, key_string};
-use crate::relation::{IntoInclude, Loaded, Relation, RelationAggregates};
+use crate::relation::{IntoInclude, Loaded, Relation, RelationExt};
 use crate::{Error, Executor, Expr, Journey, Model, Result, Select, Value};
 
 /// A set of models in memory, read by [`Select::get`](crate::Select::get)
