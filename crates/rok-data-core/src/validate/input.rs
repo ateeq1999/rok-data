@@ -34,6 +34,23 @@ pub trait Input: Sized + Send + Sync {
         ValidationErrors::new()
     }
 
+    /// The input's schema: its fields' types and the rules a schema can
+    /// say.
+    #[doc(hidden)]
+    fn __schema() -> super::Schema {
+        super::Schema::object(Vec::new(), Vec::new())
+    }
+
+    /// The input as JSON Schema (2020-12): field types, `required`, and
+    /// the field rules a schema can say (`minLength`, `maximum`, `format`,
+    /// …). Database rules and custom rules are left out.
+    #[cfg(any(feature = "json", feature = "axum"))]
+    fn json_schema() -> serde_json::Value {
+        let mut schema = Self::__schema().to_json();
+        schema["$schema"] = "https://json-schema.org/draft/2020-12/schema".into();
+        schema
+    }
+
     /// The built-in database rules (`unique`, `exists`) of every field.
     #[doc(hidden)]
     fn __database_rules(&self) -> Vec<DatabaseRule> {
@@ -111,9 +128,17 @@ pub trait Nested: Sized {
     /// The built-in database rules, under `path`.
     #[doc(hidden)]
     fn __database_nested(&self, path: &str, rules: &mut Vec<DatabaseRule>);
+
+    /// The schema of the nested value.
+    #[doc(hidden)]
+    fn __nested_schema() -> super::Schema;
 }
 
 impl<T: Input> Nested for T {
+    fn __nested_schema() -> super::Schema {
+        T::__schema()
+    }
+
     fn __transform_nested(self) -> Self {
         self.__transform()
     }
@@ -132,6 +157,10 @@ impl<T: Input> Nested for T {
 }
 
 impl<T: Input> Nested for Option<T> {
+    fn __nested_schema() -> super::Schema {
+        T::__schema().nullable()
+    }
+
     fn __transform_nested(self) -> Self {
         self.map(Input::__transform)
     }
@@ -150,6 +179,10 @@ impl<T: Input> Nested for Option<T> {
 }
 
 impl<T: Input> Nested for Vec<T> {
+    fn __nested_schema() -> super::Schema {
+        super::Schema::array(T::__schema())
+    }
+
     fn __transform_nested(self) -> Self {
         self.into_iter().map(Input::__transform).collect()
     }

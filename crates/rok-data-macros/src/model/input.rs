@@ -7,7 +7,9 @@ use syn::{DeriveInput, Path};
 
 use super::Field;
 use super::expand::parse_fields;
-use super::rules::{custom_database_steps, database_rule_steps, field_checks, transform_steps};
+use super::rules::{
+    custom_database_steps, database_rule_steps, field_checks, schema_steps, transform_steps,
+};
 use crate::naming::crate_path;
 
 pub(crate) fn expand(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -52,6 +54,7 @@ fn tokens(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let checks = field_checks(&fields, &krate);
     let steps = transform_steps(&fields, &krate);
     let rule_steps = database_rule_steps(&fields, &krate);
+    let schema = schema_steps(&fields, &krate);
     let custom = custom_database_steps(&fields);
     let record_database = validate_with_database.map(|path| {
         quote! {
@@ -108,6 +111,17 @@ fn tokens(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 errors
             }
 
+            fn __schema() -> #krate::validate::Schema {
+                #[allow(unused_imports)]
+                use #krate::validate::schema::{ProbeAny as _, ProbeTyped as _};
+                #[allow(unused_mut)]
+                let mut properties = ::std::vec::Vec::new();
+                #[allow(unused_mut)]
+                let mut required = ::std::vec::Vec::new();
+                #(#schema)*
+                #krate::validate::Schema::object(properties, required)
+            }
+
             #database_rules_fn
             #custom_fn
         }
@@ -133,10 +147,12 @@ fn enum_tokens(input: &DeriveInput, data: &syn::DataEnum) -> syn::Result<TokenSt
         })?;
     }
     let mut variants = Vec::new();
+    let mut inner = Vec::new();
     for variant in &data.variants {
         match &variant.fields {
             syn::Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
-                variants.push(&variant.ident)
+                variants.push(&variant.ident);
+                inner.push(&fields.unnamed[0].ty);
             }
             _ => {
                 return Err(syn::Error::new(
@@ -160,6 +176,10 @@ fn enum_tokens(input: &DeriveInput, data: &syn::DataEnum) -> syn::Result<TokenSt
                 match self {
                     #(Self::#variants(inner) => #krate::Input::__check(inner),)*
                 }
+            }
+
+            fn __schema() -> #krate::validate::Schema {
+                #krate::validate::Schema::one_of(::std::vec![#(<#inner as #krate::Input>::__schema()),*])
             }
 
             fn __database_rules(&self) -> ::std::vec::Vec<#krate::validate::DatabaseRule> {

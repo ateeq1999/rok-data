@@ -282,6 +282,13 @@ compiler finds the call sites.
   rules; `#[rok(validate_with = path)]` checks the whole input. A
   transform on a model, or a key / timestamp / relation attribute on an
   input, fails to compile.
+- **JSON Schema from an input** (input-validation ticket 06):
+  `Input::json_schema()` (feature `json`) is the input as JSON Schema
+  2020-12 — field types, `required`, and the field rules a schema can say
+  (`minLength`/`maxLength` or `minItems`/`maxItems`, `minimum`/`maximum`,
+  `format: email`); nested inputs inline, enum inputs as `oneOf`; a type
+  it can't describe is `{}`. The mapping is documented on
+  `validate::schema`.
 - **Messages and the reporter** (input-validation ticket 05):
   - **Messages:** every rule takes `message = "{field} needs {min}+
     characters"` (`email(message = "…")` for the bare ones), quoting

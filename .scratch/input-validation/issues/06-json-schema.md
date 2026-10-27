@@ -4,7 +4,7 @@
 
 **Blocked by:** 02, 04
 
-**Status:** ready-for-agent
+**Status:** done (2026-10-27)
 
-- [ ] Snapshot-style tests per rule kind
-- [ ] Documented mapping table
+- [x] Snapshot-style tests per rule kind
+- [x] Documented mapping table

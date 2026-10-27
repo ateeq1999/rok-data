@@ -32,6 +32,7 @@ mod input;
 mod messages;
 #[cfg(any(feature = "json", feature = "axum"))]
 mod report;
+pub mod schema;
 pub mod transform;
 
 pub use database::DatabaseRule;
@@ -39,6 +40,7 @@ pub use input::{Input, Nested};
 pub use messages::{Messages, render};
 #[cfg(any(feature = "json", feature = "axum"))]
 pub use report::{DetailsReporter, ErrorReporter};
+pub use schema::{Probe, Schema, SchemaType};
 
 /// Whether a value counts as given, for `required_if` / `required_unless` /
 /// `required_with`: `Some`, non-empty text, a non-empty list.

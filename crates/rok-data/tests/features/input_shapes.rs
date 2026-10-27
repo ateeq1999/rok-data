@@ -171,3 +171,56 @@ fn an_enum_input_validates_its_variant() {
         [("name".to_owned(), "length")]
     );
 }
+
+/// A field type the schema can't describe.
+#[cfg(feature = "json")]
+#[derive(Debug, Clone, PartialEq)]
+struct Opaque;
+
+#[cfg(feature = "json")]
+#[derive(Debug, Clone, PartialEq, Input)]
+struct Listing {
+    #[rok(validate(length(min = 2, max = 40)))]
+    title: String,
+    #[rok(validate(email))]
+    contact: Option<String>,
+    #[rok(validate(range(min = 0, max = 100)))]
+    discount: i32,
+    #[rok(validate(non_empty))]
+    tags: Vec<String>,
+    #[rok(nested)]
+    address: Address,
+    extra: Opaque,
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn the_schema_says_the_types_and_rules() {
+    use serde_json::json;
+    let schema = Listing::json_schema();
+    assert_eq!(
+        schema,
+        json!({
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "minLength": 2, "maxLength": 40},
+                "contact": {"type": ["string", "null"], "format": "email"},
+                "discount": {"type": "integer", "minimum": 0.0, "maximum": 100.0},
+                "tags": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                "address": {
+                    "type": "object",
+                    "properties": {
+                        "city": {"type": "string", "minLength": 1},
+                        "zip": {"type": "string", "minLength": 4, "maxLength": 10}
+                    },
+                    "required": ["city", "zip"]
+                },
+                "extra": {}
+            },
+            "required": ["title", "discount", "tags", "address", "extra"]
+        })
+    );
+    let customer = Customer::json_schema();
+    assert_eq!(customer["oneOf"].as_array().map(Vec::len), Some(2));
+}

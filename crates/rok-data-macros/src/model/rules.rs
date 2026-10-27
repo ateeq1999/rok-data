@@ -361,3 +361,50 @@ fn rule_params(rule: &Rule, krate: &TokenStream2) -> Vec<TokenStream2> {
         _ => Vec::new(),
     }
 }
+
+/// The statements that add each field's schema to `properties` (and its
+/// name to `required` unless it is nullable).
+pub(crate) fn schema_steps(fields: &[&Field], krate: &TokenStream2) -> Vec<TokenStream2> {
+    fields
+        .iter()
+        .map(|f| {
+            let field = unraw(&f.ident);
+            let ty = &f.ty;
+            let base = if f.nested {
+                quote!(<#ty as #krate::validate::Nested>::__nested_schema())
+            } else {
+                quote!((&#krate::validate::Probe::<#ty>::new()).schema())
+            };
+            let narrowed = f.rules.iter().filter_map(|rule| match rule {
+                Rule::Length(min, max) => {
+                    let (min, max) = (bound(min, quote!(i64)), bound(max, quote!(i64)));
+                    Some(quote!(.length(#min, #max)))
+                }
+                Rule::Range(min, max) => {
+                    let (min, max) = (bound(min, quote!(f64)), bound(max, quote!(f64)));
+                    Some(quote!(.range(#min, #max)))
+                }
+                Rule::Email => Some(quote!(.format("email"))),
+                Rule::NonEmpty => Some(
+                    quote!(.length(::core::option::Option::Some(1), ::core::option::Option::None)),
+                ),
+                _ => None,
+            });
+            quote! {
+                let schema = #base #(#narrowed)*;
+                if !schema.is_nullable() {
+                    required.push(#field);
+                }
+                properties.push((#field, schema));
+            }
+        })
+        .collect()
+}
+
+/// A bound as an `Option<cast>` expression.
+fn bound(e: &Option<syn::Expr>, cast: TokenStream2) -> TokenStream2 {
+    match e {
+        Some(e) => quote!(::core::option::Option::Some((#e) as #cast)),
+        None => quote!(::core::option::Option::None),
+    }
+}
