@@ -113,6 +113,27 @@ the model an entry (`User::popular()`) and the chain a method
 _Avoid_: query filter (when it is named and reusable), global scope (the
 model's `default_scope`)
 
+### Validation
+
+**Input**:
+Untrusted data on its way to becoming rows — a request body, a form, a
+job's payload — checked before anything is written.
+_Avoid_: payload, DTO (when the role, not the type, is meant)
+
+**Field rule**:
+A rule whose outcome depends only on the value it checks: a length, a
+range, an email shape.
+_Avoid_: static rule, sync rule
+
+**Database rule**:
+A rule whose outcome depends on rows in the database — a value is
+`unique` among a table's rows, or a key `exists` — so it runs only when
+input is validated against a session, never implicitly on a write. The
+table's constraint stays the guarantee; the rule reports a breach before
+the write is tried.
+_Avoid_: lookup rule, async rule, DB constraint (the constraint is the
+table's, the rule is the input's)
+
 ### Pipeline pieces (deferred from the engine context)
 
 The terms **Table**, **Resource**, **API feature**, **Template**,
