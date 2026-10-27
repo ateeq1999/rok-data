@@ -149,6 +149,7 @@ macro_rules! on_conflict_methods {
 
 mod conflict;
 mod insert;
+mod insert_select;
 mod memoized;
 mod projected;
 mod select;
@@ -158,6 +159,7 @@ pub(crate) mod with;
 
 pub(crate) use conflict::{Conflict, ConflictAction, ConflictTarget};
 pub use insert::{Insert, InsertMany};
+pub use insert_select::InsertSelect;
 pub use memoized::Memoized;
 pub use projected::Projected;
 pub use select::{__cursor_sql, __paginate_sql, Select, Walk};

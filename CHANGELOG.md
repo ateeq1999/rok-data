@@ -273,6 +273,10 @@ compiler finds the call sites.
   `touch(&db)` update in the database without reading first and return
   the stored row. `update_or_create` is the existing `upsert_on`, `fresh`
   the existing `reload`.
+- **`INSERT … SELECT`** (0.4.0 ticket 09): a projected query writes its
+  rows into another table without fetching them —
+  `Post::filter(…).select((Post::TITLE,)).insert_into::<Archive>([Archive::TITLE])`,
+  then `exec` (the row count) or `returning` (the inserted rows).
 
 **What does not change**: PostgreSQL 12+ (DATABASE_URL), the migration
 system, `#[rok::test]`, the connection policy, `filter` staying the

@@ -8,9 +8,9 @@ Both are low-level `Insert` builder methods (not model statics), available for h
 
 **Blocked by:** 02 (Insert builder methods), 05 (casting for subquery compatibility).
 
-**Status:** ready-for-agent
+**Status:** done (2026-10-27) — one item dropped by decision, below
 
-- [ ] `Insert::insert_get_id` in `crates/rok-data-core/src/query/insert.rs`
-- [ ] `Insert::insert_using` taking a `Select<Other>` with matching projections
-- [ ] Facade tests: returning PK, subquery column matching
-- [ ] Module fixture expectations (if generator uses them)
+- [x] `insert_get_id` — **dropped by decision:** a model's primary key is always one of its fields (its columns are its fields), so `Tag::insert_builder()….exec(&db).await?.id` already returns it with the stored row; the case the spec names (a key outside the struct) can't occur
+- [x] `insert_using` → **`select.insert_into::<Target>([columns])`** on a projected query, read in SQL order: `Post::filter(…).select((Post::TITLE,)).insert_into::<Archive>([Archive::TITLE])`, with `exec` (row count) and `returning` (the inserted rows); a column count different from the selection's is `Error::InvalidQuery`
+- [x] Facade tests: `tests/features/lifecycle.rs` (SQL shape and database)
+- [x] Module fixture expectations — not applicable: the generator doesn't use them

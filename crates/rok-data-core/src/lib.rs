@@ -55,7 +55,8 @@ pub use model::{Hooks, Model, ModelWrite};
 pub use notify::{Change, ChangeOp, ChangeStream, Listener, Notification};
 pub use page::Page;
 pub use query::{
-    Insert, InsertMany, LoadedPage, Memoized, Projected, Select, Union, Update, Walk, WithSelect,
+    Insert, InsertMany, InsertSelect, LoadedPage, Memoized, Projected, Select, Union, Update, Walk,
+    WithSelect,
 };
 pub use raw::{Raw, raw};
 pub use relation::{
