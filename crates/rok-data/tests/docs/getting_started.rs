@@ -52,3 +52,29 @@ async fn tour(db: Db, note_id: i64, user_id: i64) -> rok_data::Result<()> {
     let popular = Note::popular().all(&db).await?;
     Ok(())
 }
+
+async fn everyday(db: Db, user: User) -> rok_data::Result<()> {
+    // conditions stay typed on the column; sugar for several columns
+    let pattern = "%rust%";
+    let found = Note::query()
+        .filter_any([Note::TEXT], |column| column.ilike(pattern))
+        .filter(Note::VIEWS.gt_column(Note::AUTHOR_ID))
+        .get(&db)
+        .await?;
+
+    // filter by a relation, count it beside the rows, nest what it loads
+    let writers = User::query().has(User::NOTES).all(&db).await?;
+    let view = User::query()
+        .with_count(User::NOTES)
+        .with(User::NOTES.with(Note::AUTHOR))
+        .all(&db)
+        .await?;
+    let how_many = view.count(User::NOTES, &user);
+    let notes = view.get(User::NOTES, &user)?;
+
+    // row verbs that write without reading first
+    if let Some(note) = found.first() {
+        let read_again = note.increment(&db, Note::VIEWS, 1).await?;
+    }
+    Ok(())
+}

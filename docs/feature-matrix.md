@@ -14,6 +14,11 @@ equivalent without a ported implementation.
 | Named scopes (`#[rok(scopes(...))]`) | ✔ (named scopes) | —              | —                | —                 | ✔ derive + engine `[scopes]`        |
 | Relations on the model (0.3.0)    | ✔ (belongs_to)  | ✔ (has_many)        | ✔                | —                 | ✔ generated + hand-written rows     |
 | Joins/relationships (runtime)     | ✔               | ✔ (fluent)          | ✔ (fluent)       | —                 | ✔ `rok-data-core`                   |
+| Relation filters + aggregates (0.4.0) | —           | —                   | —                | —                 | ✔ `has`, `where_has`, `with_count`, `sum` handles |
+| Through + many-to-many (0.4.0)    | —               | —                   | —                | —                 | ✔ declared; join tables inferred    |
+| Nested eager loading (0.4.0)      | —               | —                   | —                | —                 | ✔ `with(rel.with(…))`, `view.nested` |
+| Collections (0.4.0)               | —               | —                   | —                | —                 | ✔ `ModelCollection` from `get`       |
+| Encrypted columns, value objects (0.4.0) | —        | —                   | —                | —                 | ✔ `Encrypted`, `value_object`, `set_with` |
 | Migrations: file pairs + journal  | ✔               | —                   | —                | —                 | ✔ core `migration` + `migration_file` |
 | Migrations: single-file sections  | —               | ✔                   | —                | —                 | ✔ same loader accepts both          |
 | Status rows (state/drift/checksum)| ✔               | —                   | —                | —                 | ✔ (`StatusRow` JSON contract)        |

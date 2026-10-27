@@ -180,6 +180,40 @@ let their_notes = user.notes().all(&db).await?;
 let popular = Note::popular().all(&db).await?;
 ```
 
+The everyday verbs keep the same shape. A condition is typed on its column
+(`Note::VIEWS.gt_column(…)`, `PUBLISHED_AT.year().eq(2026)`), a relation
+filters (`has`, `where_has`), counts (`with_count`) and nests
+(`with(User::NOTES.with(Note::AUTHOR))`), and the loaded view reads back
+what the query asked for:
+
+<!-- source: crates/rok-data/tests/docs/getting_started.rs -->
+```rust
+// conditions stay typed on the column; sugar for several columns
+let pattern = "%rust%";
+let found = Note::query()
+    .filter_any([Note::TEXT], |column| column.ilike(pattern))
+    .filter(Note::VIEWS.gt_column(Note::AUTHOR_ID))
+    .get(&db)
+    .await?;
+
+// filter by a relation, count it beside the rows, nest what it loads
+let writers = User::query().has(User::NOTES).all(&db).await?;
+let view = User::query()
+    .with_count(User::NOTES)
+    .with(User::NOTES.with(Note::AUTHOR))
+    .all(&db)
+    .await?;
+let how_many = view.count(User::NOTES, &user);
+let notes = view.get(User::NOTES, &user)?;
+
+// row verbs that write without reading first
+if let Some(note) = found.first() {
+    let read_again = note.increment(&db, Note::VIEWS, 1).await?;
+}
+```
+
+The decisions behind them are workspace ADRs 0017–0020.
+
 With generated models (`rok sqlc generate`), one import brings everything —
 rok-data's prelude, every model with its scopes, and each model's inputs,
 ids and keys:

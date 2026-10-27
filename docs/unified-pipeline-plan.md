@@ -423,6 +423,23 @@ engine's module-fixture corpus (refreshed only through
 `ROK_DATA_SQLC_UPDATE_EXPECTED=1`), and the compile fixtures plus
 `examples/api` (no drift under `rok gen check`).
 
+## Phase 7 — 0.4.0: the everyday verbs
+
+The spec of record: `docs/specs/0.4.0-everyday-verbs.md`; tickets under
+`.scratch/0.4.0-everyday-verbs/issues`. The decisions: workspace ADRs
+0017 (collections and loaded views), 0018 (relations describe their own
+batch), 0019 (a field's type is its cast) and 0020 (typed chain sugar and
+row verbs). Additive; it ships in the release that carries 0.3.0's
+section of `CHANGELOG.md` unless that release is cut first.
+
+- [x] 01 collections, 02 chain sugar, 03 relation filters, aggregates,
+  through and many-to-many, 04 scopes and `Loaded::get`, 05 encrypted
+  columns, value objects and `set_with` (narrowed), 06 pagination shapes
+  (by dx-first 09–16), 07 serialization (resolved by existing mechanisms),
+  08 row lifecycle verbs, 09 `INSERT … SELECT`, 10 nested eager loading.
+- [x] 11 docs: the four ADRs, the feature matrix, `getting-started.md`'s
+  everyday-verbs sample (compiled), this entry.
+
 ## Post-0.2.0 backlog (recorded deferrals, in interview order)
 
 1. `[generate] target = "crate"` mode for `rok gen`.
