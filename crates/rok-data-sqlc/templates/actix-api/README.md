@@ -105,7 +105,7 @@ sha1 = "0.11"
 sha2 = "0.11"
 sqlx = { version = "0.9", features = ["runtime-tokio", "postgres", "derive", "uuid", "chrono", "json"] }
 thiserror = "2"
-tokio = { version = "1", features = ["macros", "sync", "time"] }
+tokio = { version = "1", features = ["macros", "rt", "sync", "time"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 utoipa = { version = "5", features = ["chrono", "uuid"] }
@@ -151,8 +151,8 @@ test needs no database. The lints in `Cargo.toml` deny `unwrap`, `expect`,
 - **Yours** (first line `Scaffolded once`, or no header): `rok-data-sqlc.toml`,
   `schema/` (the truth: the `.sql` files `rok sqlc g` reads), `queries/`,
   `src/{lib,main,app,config,error,openapi}.rs`,
-  `src/shared/{mod,auth,rate_limit}.rs`, `src/shared/security/`,
-  `src/shared/mail/`, `src/features/mod.rs`, the hand-written
+  `src/shared/{mod,auth}.rs`, `src/shared/rate_limit/`,
+  `src/shared/security/`, `src/shared/mail/`, `src/features/mod.rs`, the hand-written
   `src/features/{auth,account}/`, each feature's `service.rs` (business
   rules go there), `tests/`, and this README.
 - **Generated**: `migrations/` is the history — `rok gen --migration` (the
