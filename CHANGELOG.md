@@ -260,6 +260,12 @@ compiler finds the call sites.
     The generator writes the attribute on both sides of a join table that
     pairs two primary keys (generated models change: a `belongs_to_many`
     line and an import).
+- **Scopes and loaded views** (0.4.0 ticket 04): `#[rok(default_scope =
+  …)]` may repeat — every one applies, combined with `AND`, and
+  `.unscoped()` drops them together. `Loaded::get(rel, row)` reads a
+  relation like `try_get` but fails with the new `Error::NotLoaded`
+  (`is_not_loaded()`) when the query didn't load it, its message naming
+  `.with(…)`.
 
 **What does not change**: PostgreSQL 12+ (DATABASE_URL), the migration
 system, `#[rok::test]`, the connection policy, `filter` staying the

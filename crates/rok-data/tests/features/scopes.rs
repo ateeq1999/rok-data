@@ -204,3 +204,34 @@ async fn the_scopes_reach_the_database() {
         ["ann"]
     );
 }
+
+/// A model with two default scopes: both apply, `unscoped` drops both.
+#[derive(Debug, Clone, PartialEq, Model)]
+#[rok(table = "notes", default_scope = published_only_too, default_scope = seen)]
+struct SeenNote {
+    #[rok(generated)]
+    id: i64,
+    title: String,
+    published: bool,
+    views: i32,
+}
+
+fn published_only_too() -> Expr<SeenNote> {
+    SeenNote::PUBLISHED.eq(true)
+}
+
+fn seen() -> Expr<SeenNote> {
+    SeenNote::VIEWS.gt(0)
+}
+
+#[test]
+fn repeated_default_scopes_all_apply() {
+    assert_eq!(
+        SeenNote::query().to_sql().as_str(),
+        r#"SELECT "id", "title", "published", "views" FROM "notes" WHERE ("published" = $1 AND "views" > $2)"#
+    );
+    assert_eq!(
+        SeenNote::query().unscoped().to_sql().as_str(),
+        r#"SELECT "id", "title", "published", "views" FROM "notes""#
+    );
+}

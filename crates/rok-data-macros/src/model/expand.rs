@@ -27,7 +27,7 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     let mut no_soft_delete = false;
     let mut hooks = false;
     let mut validate_with: Option<Path> = None;
-    let mut default_scope: Option<Path> = None;
+    let mut default_scopes: Vec<Path> = Vec::new();
     let mut per_page: Option<syn::LitInt> = None;
     let mut relations = Vec::new();
     let mut named_scopes = Vec::new();
@@ -50,7 +50,7 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
             } else if meta.path.is_ident("validate_with") {
                 validate_with = Some(meta.value()?.parse()?);
             } else if meta.path.is_ident("default_scope") {
-                default_scope = Some(meta.value()?.parse()?);
+                default_scopes.push(meta.value()?.parse()?);
             } else if meta.path.is_ident("per_page") {
                 let value: syn::LitInt = meta.value()?.parse()?;
                 if value.base10_parse::<u64>()? == 0 {
@@ -313,13 +313,20 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
             }
         }
     });
-    let default_scope_fn = default_scope.map(|path| {
-        quote! {
+    // Repeated `default_scope`s all apply, combined with `AND`.
+    let default_scope_fn = match default_scopes.as_slice() {
+        [] => None,
+        [path] => Some(quote! {
             fn default_scope() -> ::core::option::Option<#krate::Expr<Self>> {
                 ::core::option::Option::Some(#path())
             }
-        }
-    });
+        }),
+        paths => Some(quote! {
+            fn default_scope() -> ::core::option::Option<#krate::Expr<Self>> {
+                ::core::option::Option::Some(#krate::Expr::all_of([#(#paths()),*]))
+            }
+        }),
+    };
     let per_page_const = per_page.map(|n| quote! { const PER_PAGE: u64 = #n; });
     let hooks_impl = (!hooks).then(|| quote!(impl #krate::Hooks for #name {}));
     let scope_entries = scopes::entries(name, &named_scopes, &krate);

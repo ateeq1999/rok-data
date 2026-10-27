@@ -42,7 +42,9 @@ mod test;
 /// - `#[rok(validate_with = path::to::fn)]` — record-level validation,
 ///   `fn(&Self) -> Result<(), ValidationErrors>`, run with the field rules.
 /// - `#[rok(default_scope = path::to::fn)]` — `fn() -> Expr<Self>` applied
-///   to every query; remove it with `.unscoped()`.
+///   to every query; remove it with `.unscoped()`. Repeat the attribute
+///   for several: they all apply, combined with `AND`, and `.unscoped()`
+///   removes them together.
 /// - `#[rok(per_page = 25)]` — the rows a page holds when the caller names
 ///   no size (`Select::page`); 15 otherwise.
 /// - `#[rok(no_from_row)]` — don't generate `FromRow` (bring your own).

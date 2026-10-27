@@ -186,3 +186,14 @@ async fn an_owner_without_records_reads_the_default() {
     let counted = collection.load_count(&db, User::POSTS).await.unwrap();
     assert_eq!(counted.count(User::POSTS, &lone), Some(0));
 }
+
+#[tokio::test]
+async fn reading_an_unloaded_relation_with_get_names_the_fix() {
+    let Some(db) = setup().await else { return };
+    let (users, _) = seed(&db).await;
+    let view = User::query().with(User::POSTS).all(&db).await.unwrap();
+    assert_eq!(view.get(User::POSTS, &users[0]).unwrap().len(), 3);
+    let error = view.get(User::PROFILE, &users[0]).unwrap_err();
+    assert!(error.is_not_loaded(), "{error}");
+    assert!(error.to_string().contains("`.with(…)`"), "{error}");
+}

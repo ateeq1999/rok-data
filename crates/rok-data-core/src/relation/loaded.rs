@@ -175,6 +175,27 @@ impl<M: Model> Loaded<M> {
         relation.read(self.loaded(relation)?, owner)
     }
 
+    /// [`try_get`](Self::try_get) that treats an unloaded relation as the
+    /// bug it is: [`Error::NotLoaded`](crate::Error::NotLoaded), naming
+    /// the relation and the fix, instead of `None`.
+    ///
+    /// ```ignore
+    /// let view = User::query().with(User::POSTS).all(&db).await?;
+    /// let posts = view.get(User::POSTS, &user)?;   // &[Post]
+    /// let profile = view.get(User::PROFILE, &user); // Err: not loaded
+    /// ```
+    pub fn get<R>(&self, relation: R, owner: &M) -> Result<R::Read<'_>>
+    where
+        R: Relation<Owner = M> + 'static,
+        R::Loaded: 'static,
+    {
+        self.try_get(relation, owner)
+            .ok_or_else(|| crate::Error::NotLoaded {
+                table: M::TABLE,
+                foreign_key: relation.foreign_key_name(),
+            })
+    }
+
     /// Runs the includes this view has not loaded yet — one batched query
     /// per still-missing relation. An include already parked (by the
     /// query that fetched the rows, or a previous call) stays as it is;

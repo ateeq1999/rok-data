@@ -48,6 +48,17 @@ pub enum Error {
     #[error("configuration error: {0}")]
     Config(String),
 
+    /// A loaded view was read for a relation its query didn't load.
+    #[error(
+        "the relation of `{table}` through `{foreign_key}` was not loaded; add it to the query with `.with(…)`, or load it with `load_missing`"
+    )]
+    NotLoaded {
+        /// The table of the view's rows.
+        table: &'static str,
+        /// The foreign key naming the relation.
+        foreign_key: &'static str,
+    },
+
     /// A query was built in a way that cannot be executed.
     #[error("invalid query: {0}")]
     InvalidQuery(String),
@@ -75,6 +86,12 @@ impl Error {
     #[cfg(any(feature = "json", feature = "axum"))]
     pub fn is_json(&self) -> bool {
         matches!(self, Error::Json(_))
+    }
+
+    /// `true` if this is an [`Error::NotLoaded`]: a loaded view read for a
+    /// relation its query didn't load.
+    pub fn is_not_loaded(&self) -> bool {
+        matches!(self, Error::NotLoaded { .. })
     }
 
     /// `true` if this is a [`Error::NotFound`] (or the driver's own `RowNotFound`).
