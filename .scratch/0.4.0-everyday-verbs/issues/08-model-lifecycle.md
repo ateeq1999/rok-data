@@ -11,12 +11,13 @@ Generator emits these on generated models. Hand-written models get them via `Mod
 
 **Blocked by:** 02 (increment uses Update chain), 05 (casting for increment value types).
 
-**Status:** ready-for-agent
+**Status:** done (2026-10-27) — three items resolved by existing verbs, by decision, below
 
-- [ ] `Model` trait additions: `first_or_create`, `update_or_create`, `fresh`, `replicate`, `increment`, `decrement`, `touch`
-- [ ] Implementation uses `ON CONFLICT` for atomicity (PG-specific, documented)
-- [ ] `replicate` uses `value_of` for all columns except excluded; excluded get `Default::default()`
-- [ ] `touch` only works if model has `updated_at` column
-- [ ] Generator emits on generated models
-- [ ] Facade tests: atomicity, exclude behavior, touch updates timestamp
-- [ ] Module fixture expectations
+- [x] `first_or_create` → **`row.first_or_insert(&db, [Tag::SLUG])`**: the row itself carries the values (typed, no attribute map), the columns name the unique key. One statement (`WITH … INSERT … ON CONFLICT DO NOTHING RETURNING` `UNION ALL` the existing row), so it is atomic without a lock; `after_insert` fires only when it inserted
+- [x] `update_or_create` — **already exists** as `row.upsert_on(&db, [columns])`; no second name
+- [x] `fresh` — **already exists** as `row.reload(&db)`, which returns a new row (it never mutated `self`); no second name
+- [x] `replicate` — **dropped by decision:** `row.insert(&db)` already writes a copy, since inserts skip generated keys and managed timestamps; resetting other fields is a struct update (`Row { title: …, ..row }`), which the compiler checks
+- [x] `increment(&db, col, by)`, `decrement`, `touch(&db)` on `ModelWrite`: `UPDATE … SET col = col + by` without reading first, `updated_at` / version maintained, the stored row returned; `touch` without an `updated_at` column is `Error::InvalidQuery`
+- [x] Generated models get them through the derive's `ModelWrite` impl
+- [x] Facade tests: `tests/features/lifecycle.rs`
+- [x] Module fixture expectations — not applicable: nothing new is emitted

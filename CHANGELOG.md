@@ -266,6 +266,13 @@ compiler finds the call sites.
   relation like `try_get` but fails with the new `Error::NotLoaded`
   (`is_not_loaded()`) when the query didn't load it, its message naming
   `.with(…)`.
+- **Row lifecycle verbs** (0.4.0 ticket 08), on `ModelWrite`:
+  `row.first_or_insert(&db, [Tag::SLUG])` returns the row holding that
+  unique key, inserting this one first when there is none, in one atomic
+  statement; `row.increment(&db, Post::VIEWS, 1)`, `decrement` and
+  `touch(&db)` update in the database without reading first and return
+  the stored row. `update_or_create` is the existing `upsert_on`, `fresh`
+  the existing `reload`.
 
 **What does not change**: PostgreSQL 12+ (DATABASE_URL), the migration
 system, `#[rok::test]`, the connection policy, `filter` staying the

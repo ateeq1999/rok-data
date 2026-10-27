@@ -63,6 +63,89 @@ pub trait ModelWrite: crate::Model + Sized + 'static {
         .await
     }
 
+    /// The row holding this record's values of `columns` (a unique key),
+    /// inserting this record first when there is none — atomically, in one
+    /// statement:
+    ///
+    /// ```ignore
+    /// let tag = Tag { id: 0, slug: "rust".into() }
+    ///     .first_or_insert(&db, [Tag::SLUG])
+    ///     .await?;
+    /// ```
+    ///
+    /// To update the existing row instead, use [`upsert_on`](Self::upsert_on).
+    async fn first_or_insert<'e, E>(
+        &self,
+        executor: E,
+        columns: impl IntoIterator<Item = Column<Self>>,
+    ) -> Result<Self>
+    where
+        E: Executor<'e>,
+    {
+        crate::model::writes::first_or_insert(
+            self,
+            executor,
+            columns.into_iter().map(|c| c.name()).collect(),
+        )
+        .await
+    }
+
+    /// Add `by` to `column` of this record's row in the database
+    /// (`SET column = column + by`, without reading it first) and return
+    /// the stored row; `updated_at` and the version move as for any update.
+    async fn increment<'e, E>(
+        &self,
+        executor: E,
+        column: Column<Self>,
+        by: impl Into<Value>,
+    ) -> Result<Self>
+    where
+        E: Executor<'e>,
+    {
+        Self::filter(self.key_filter())
+            .update()
+            .increment(column, by)
+            .returning_one_or_fail(executor)
+            .await
+    }
+
+    /// Subtract `by` from `column`, like [`increment`](Self::increment).
+    async fn decrement<'e, E>(
+        &self,
+        executor: E,
+        column: Column<Self>,
+        by: impl Into<Value>,
+    ) -> Result<Self>
+    where
+        E: Executor<'e>,
+    {
+        Self::filter(self.key_filter())
+            .update()
+            .decrement(column, by)
+            .returning_one_or_fail(executor)
+            .await
+    }
+
+    /// Set this record's `updated_at` to `now()` and return the stored row.
+    /// A model without an `updated_at` column is an
+    /// [`Error::InvalidQuery`].
+    async fn touch<'e, E>(&self, executor: E) -> Result<Self>
+    where
+        E: Executor<'e>,
+    {
+        let Some(updated_at) = Self::UPDATED_AT_COLUMN else {
+            return Err(Error::InvalidQuery(format!(
+                "`{}` has no `updated_at` column to touch",
+                Self::TABLE
+            )));
+        };
+        Self::filter(self.key_filter())
+            .update()
+            .set_raw(Column::new(updated_at), "now()", [] as [Value; 0])
+            .returning_one_or_fail(executor)
+            .await
+    }
+
     /// `UPDATE` every non-generated column of this record by primary key and
     /// return the stored row.
     async fn update<'e, E>(&self, executor: E) -> Result<Self>

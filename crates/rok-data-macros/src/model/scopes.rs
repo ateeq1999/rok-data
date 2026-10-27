@@ -151,6 +151,11 @@ const RESERVED: &[&str] = &[
     "where_relation",
     "with_count",
     "with_exists",
+    // The row-level write verbs of 0.4.0.
+    "decrement",
+    "first_or_insert",
+    "increment",
+    "touch",
 ];
 
 /// The parsed parameters of a scope: what both the entry and the method

@@ -203,3 +203,78 @@ where
     }
     record.after_delete()
 }
+
+/// `INSERT` the record unless a row already holds its values of `columns`
+/// (a unique key), and return the stored row either way — in one
+/// statement:
+///
+/// ```sql
+/// WITH "__rok_new" AS (INSERT … ON CONFLICT (columns) DO NOTHING RETURNING …)
+/// (SELECT …, TRUE FROM "__rok_new")
+/// UNION ALL (SELECT …, FALSE FROM t WHERE columns = values) LIMIT 1
+/// ```
+///
+/// The validation and `before_insert` run first, `after_insert` only when
+/// the row was inserted.
+pub(crate) async fn first_or_insert<'e, M, E>(
+    record: &M,
+    executor: E,
+    columns: Vec<&'static str>,
+) -> Result<M>
+where
+    M: Model,
+    E: Executor<'e>,
+{
+    if columns.is_empty() {
+        return Err(Error::InvalidQuery(format!(
+            "`first_or_insert` on `{}` names no column to match on",
+            M::TABLE
+        )));
+    }
+    pre_insert(record)?;
+    let conflict = Conflict {
+        target: ConflictTarget::Columns(columns.clone()),
+        action: ConflictAction::Nothing,
+    };
+    let values = record.values();
+    let matching = columns.iter().map(|column| {
+        let value = values
+            .iter()
+            .find(|(c, _)| c == column)
+            .map(|(_, v)| v.clone())
+            .unwrap_or_else(|| Value::from(None::<String>));
+        Column::<M>::new(column).eq(value)
+    });
+    // The row that conflicts may be soft-deleted or outside the default
+    // scope; it is still the one that exists.
+    let existing = M::filter(crate::Expr::all_of(matching))
+        .with_trashed()
+        .unscoped()
+        .limit(1);
+    let mut sql = Sql::new();
+    sql.push(r#"WITH "__rok_new" AS ("#)
+        .append(insert_sql::<M>(
+            std::slice::from_ref(record),
+            false,
+            Some(&conflict),
+        )?)
+        .push(r#") (SELECT *, TRUE AS "__rok_inserted" FROM "__rok_new") UNION ALL ("#);
+    let mut items: Vec<crate::Projection<M>> = M::COLUMNS
+        .iter()
+        .map(|c| crate::Projection::from(Column::<M>::new(c)))
+        .collect();
+    items.push(crate::Projection::raw::<Value>("FALSE", []).alias("__rok_inserted"));
+    sql.append(existing.select(items).to_sql())
+        .push(") LIMIT 1");
+    let row = exec::fetch_rows(executor, &sql, &[M::TABLE], false)
+        .await?
+        .into_iter()
+        .next()
+        .ok_or_else(|| Error::not_found::<M>(None))?;
+    let stored = M::from_row(&row).map_err(Error::from)?;
+    let inserted: bool = sqlx::Row::try_get(&row, "__rok_inserted")?;
+    if inserted {
+        stored.after_insert()?;
+    }
+    Ok(stored)
+}
