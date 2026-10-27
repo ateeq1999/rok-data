@@ -135,6 +135,21 @@ fn rule_check(
             "required",
             required(quote!(#v::Presence::is_present(&self.#other))),
         ),
+        Rule::Check(check) => {
+            let predicate = check.predicate(v);
+            let message = check.message(field);
+            (
+                check.code(),
+                quote! {
+                    match #v::AsText::as_text(&self.#ident) {
+                        ::core::option::Option::Some(text) if !(#predicate) => {
+                            ::core::result::Result::Err(::std::string::String::from(#message))
+                        }
+                        _ => ::core::result::Result::<(), ::std::string::String>::Ok(()),
+                    }
+                },
+            )
+        }
         Rule::Database(_) => return None,
     })
 }

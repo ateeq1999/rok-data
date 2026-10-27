@@ -282,6 +282,17 @@ compiler finds the call sites.
   rules; `#[rok(validate_with = path)]` checks the whole input. A
   transform on a model, or a key / timestamp / relation attribute on an
   input, fails to compile.
+- **The rule catalogue in the runtime** (input-validation ticket 07,
+  first part): `validate(url, uuid(versions = [4]), ulid, ip(version =
+  4), alpha(spaces, dashes, underscores), alpha_numeric(…), ascii,
+  one_of(values = [...]), not_one_of(…), starts_with = "…", ends_with =
+  "…", hex_code, iban, jwt, credit_card(providers = [...]), coordinates)`
+  on models and inputs, each answering the generated APIs' code
+  (`alphaNumeric`, `ipAddress`, `in`, …) and message. The checks live in
+  `validate::catalogue`, moved from the engine's generated
+  `shared/validation.rs`. The `normalize_email` transform now normalizes
+  as the generated APIs' `normalizeEmail` does (provider subaddresses,
+  Gmail dots) and no longer trims: add `trim` before it.
 - **JSON Schema from an input** (input-validation ticket 06):
   `Input::json_schema()` (feature `json`) is the input as JSON Schema
   2020-12 — field types, `required`, and the field rules a schema can say

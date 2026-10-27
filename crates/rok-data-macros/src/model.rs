@@ -3,6 +3,7 @@
 use syn::{Ident, LitStr, Path, spanned::Spanned};
 
 mod accessors;
+pub(crate) mod checks;
 pub(crate) mod conventions;
 pub(crate) mod expand;
 pub(crate) mod from_row;
@@ -56,6 +57,8 @@ enum Rule {
     },
     /// `required_with(other)`: the field must be given when `other` is.
     RequiredWith(Ident),
+    /// A catalogue rule: `url`, `uuid`, `ip`, `alpha`, `one_of`, …
+    Check(checks::Check),
 }
 
 fn parse_bounds(
@@ -135,11 +138,13 @@ fn parse_rules(
             let content;
             syn::parenthesized!(content in r.input);
             rules.push(Rule::RequiredWith(content.parse()?));
+        } else if let Some(check) = checks::parse_check(&r, &mut message)? {
+            rules.push(Rule::Check(check));
         } else if let Some(rule) = rules::parse_database_rule(&r, &mut message)? {
             rules.push(Rule::Database(rule));
         } else {
             return Err(r.error(
-                "unknown rule; expected `length`, `range`, `email`, `non_empty`, `custom`, `required_if`, `required_unless`, `required_with`, `unique`, `exists` or `database`",
+                "unknown rule; expected `length`, `range`, `email`, `non_empty`, `custom`, `required_if`, `required_unless`, `required_with`, `url`, `uuid`, `ulid`, `ip`, `alpha`, `alpha_numeric`, `ascii`, `one_of`, `not_one_of`, `starts_with`, `ends_with`, `hex_code`, `iban`, `jwt`, `credit_card`, `coordinates`, `unique`, `exists` or `database`",
             ));
         }
         messages.push(message);

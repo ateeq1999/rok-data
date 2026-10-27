@@ -9,6 +9,7 @@ use rok_data::prelude::*;
 use rok_data::{Include, raw};
 
 mod backstop;
+mod catalogue;
 mod collection;
 mod conventions;
 mod database_rules;

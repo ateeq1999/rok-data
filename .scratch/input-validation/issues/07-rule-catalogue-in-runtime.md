@@ -9,3 +9,7 @@
 - [ ] Each rule in the derive grammar, with its code and default message unchanged
 - [ ] Engine generation switched to the runtime functions; snapshots refreshed by the sanctioned run only
 - [ ] Template gates unchanged on the wire
+
+**Progress (2026-10-27) — split by decision:**
+- [x] **07a:** the regex-free rules (`url`, `uuid`, `ulid`, `ip`, `alpha`, `alpha_numeric`, `ascii`, `one_of`/`not_one_of` (the engine's `in`/`notIn`; `in` is a Rust keyword), `starts_with`, `ends_with`, `hex_code`, `iban`, `jwt`, `credit_card`, `coordinates`) in the derive grammar; their checks extracted verbatim from the engine's snippets into `rok-data-core::validate::catalogue`; codes and messages are the engine's (the wire contract: codes stay camelCase where the engine's are, e.g. `alphaNumeric`, overriding the spec's "snake_case" for these). `normalize_email` follows the engine's semantics.
+- [ ] **07b:** `mobile` (locales), `postal_code` (countries) and `regex` (a `regex` dependency behind a runtime feature), length-in-characters rules (`min_length`/`max_length`/`fixed_length` as the engine's), and the engine's generation switched to call the runtime catalogue (sanctioned snapshot refresh).

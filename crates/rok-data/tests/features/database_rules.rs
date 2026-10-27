@@ -34,7 +34,7 @@ CREATE TEMP TABLE accounts_dr (
 #[rok(validate_with_database = not_reserved)]
 struct NewAccount {
     #[rok(
-        transform(normalize_email),
+        transform(trim, normalize_email),
         validate(email, unique(Account::EMAIL, case_insensitive))
     )]
     email: String,

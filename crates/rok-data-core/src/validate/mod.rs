@@ -27,6 +27,7 @@
 
 use std::fmt;
 
+pub mod catalogue;
 mod database;
 mod input;
 mod messages;

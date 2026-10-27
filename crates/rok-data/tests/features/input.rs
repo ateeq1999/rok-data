@@ -6,7 +6,7 @@ use rok_data::ValidationErrors;
 #[derive(Debug, Clone, PartialEq, Input)]
 #[rok(validate_with = names_differ)]
 struct SignUp {
-    #[rok(transform(normalize_email), validate(email))]
+    #[rok(transform(trim, normalize_email), validate(email))]
     email: String,
     #[rok(transform(trim), validate(length(min = 2, max = 20)))]
     name: String,

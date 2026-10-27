@@ -35,10 +35,12 @@ pub fn uppercase<T: Transformable>(value: T) -> T {
     value.map_text(|s| s.to_uppercase())
 }
 
-/// An email address trimmed and lowercased, the form a unique index on
-/// `lower(email)` compares.
+/// An email address normalized as the generated APIs' `normalizeEmail`
+/// does it ([`catalogue::normalize_email`](super::catalogue::normalize_email)):
+/// the domain and local part lowercased, a provider's subaddress and
+/// Gmail's single dots removed.
 pub fn normalize_email<T: Transformable>(value: T) -> T {
-    value.map_text(|s| s.trim().to_lowercase())
+    value.map_text(|s| super::catalogue::normalize_email(&s))
 }
 
 #[cfg(test)]
@@ -51,8 +53,8 @@ mod tests {
         assert_eq!(lowercase(Some("AbC".to_owned())), Some("abc".to_owned()));
         assert_eq!(uppercase(None::<String>), None);
         assert_eq!(
-            normalize_email(" Ann@Example.COM ".to_owned()),
-            "ann@example.com"
+            normalize_email("A.nn+news@GoogleMail.com".to_owned()),
+            "ann@gmail.com"
         );
     }
 }
