@@ -10,14 +10,13 @@ use crate::{Expr, Model};
 use super::Select;
 
 /// The target's rows related to the enclosing query's row, shaped by
-/// `shape`: `target.target_key = owner.owner_key` beside the shaped
+/// `shape`: [`Relation::correlate`] beside the shaped
 /// filters and the target's implicit scopes.
 fn related<R: Relation>(
     relation: R,
     shape: impl FnOnce(Select<R::Target>) -> Select<R::Target>,
 ) -> Select<R::Target> {
-    shape(<R::Target as Model>::query())
-        .filter(relation.target_key().eq_outer(relation.owner_key()))
+    shape(<R::Target as Model>::query()).filter(relation.correlate())
 }
 
 impl<M: Model> Select<M> {

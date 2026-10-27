@@ -28,6 +28,10 @@ mod test;
 ///   generates `User::POSTS` (a [`HasMany`]) and `user.posts()` (a query).
 /// - `#[rok(has_one(profile = Profile::USER_ID))]` — a one-to-one relation:
 ///   generates `User::PROFILE` and `user.profile()`.
+/// - `#[rok(has_many_through(posts = Post::USER_ID, through = User::COUNTRY_ID))]`
+///   on `Country` — a relation through an intermediate model: generates
+///   `Country::POSTS` (a `HasManyThrough`) and `country.posts()`;
+///   `has_one_through(…)` is the one-target form.
 /// - `#[rok(hooks)]` — you implement `rok_data::Hooks` yourself (otherwise a
 ///   no-op implementation is generated).
 /// - `#[rok(validate_with = path::to::fn)]` — record-level validation,

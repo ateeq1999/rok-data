@@ -75,12 +75,17 @@ fn parse_rules(meta: &syn::meta::ParseNestedMeta<'_>, rules: &mut Vec<Rule>) -> 
     })
 }
 
-/// `has_many(name = Model::FK_COLUMN)` / `has_one(…)`.
+/// `has_many(name = Model::FK_COLUMN)` / `has_one(…)`, or a through
+/// relation, `has_many_through(name = Model::FK_COLUMN, through =
+/// Through::FK_COLUMN)` / `has_one_through(…)`.
 struct Relation {
     kind: &'static str,
     name: Ident,
     model: Path,
     foreign_key: Path,
+    /// The intermediate model's column holding this model's key, and the
+    /// intermediate model.
+    through: Option<(Path, Path)>,
 }
 
 fn parse_relations(
@@ -109,7 +114,57 @@ fn parse_relations(
             name,
             model,
             foreign_key,
+            through: None,
         });
         Ok(())
     })
+}
+
+/// The model a column constant belongs to (`Post::USER_ID` → `Post`).
+fn owner_of(column: &Path) -> syn::Result<Path> {
+    let mut model = column.clone();
+    if model.segments.len() < 2 {
+        return Err(syn::Error::new(
+            column.span(),
+            "expected a column constant such as `Post::USER_ID`",
+        ));
+    }
+    model.segments.pop();
+    model.segments.pop_punct();
+    Ok(model)
+}
+
+/// `has_many_through(name = Target::FK, through = Through::FK)`: one
+/// relation per attribute.
+fn parse_through(
+    meta: &syn::meta::ParseNestedMeta<'_>,
+    kind: &'static str,
+    out: &mut Vec<Relation>,
+) -> syn::Result<()> {
+    let mut target: Option<(Ident, Path)> = None;
+    let mut through: Option<Path> = None;
+    meta.parse_nested_meta(|inner| {
+        if inner.path.is_ident("through") {
+            through = Some(inner.value()?.parse()?);
+        } else {
+            let name = inner.path.get_ident().cloned().ok_or_else(|| {
+                inner.error("expected `name = Target::FOREIGN_KEY, through = Through::FOREIGN_KEY`")
+            })?;
+            target = Some((name, inner.value()?.parse()?));
+        }
+        Ok(())
+    })?;
+    let (Some((name, foreign_key)), Some(through)) = (target, through) else {
+        return Err(
+            meta.error("expected `name = Target::FOREIGN_KEY, through = Through::FOREIGN_KEY`")
+        );
+    };
+    out.push(Relation {
+        kind,
+        name,
+        model: owner_of(&foreign_key)?,
+        foreign_key,
+        through: Some((owner_of(&through)?, through)),
+    });
+    Ok(())
 }

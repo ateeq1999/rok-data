@@ -1,0 +1,274 @@
+//! Relations that reach their target through an intermediate model: a
+//! country has many posts through its users.
+
+use std::collections::HashMap;
+use std::fmt;
+use std::marker::PhantomData;
+
+use sqlx::postgres::PgRow;
+
+use crate::sql::{Sql, push_ident, qualified};
+use crate::{Column, Executor, Expr, Model, Projection, Result, Select, Value};
+
+use super::include::Relation;
+use super::loaded::{Many, One};
+use super::relations::{distinct_values, key, require_single_key};
+
+/// The parts both through relations share: `T.through_key → P.pk` and
+/// `C.target_key → T.pk`.
+struct Hops<P, T, C> {
+    through_key: &'static str,
+    target_key: &'static str,
+    _models: Models<P, T, C>,
+}
+
+/// The three models a through relation ties, as a marker.
+type Models<P, T, C> = PhantomData<fn() -> (P, T, C)>;
+
+impl<P: Model, T: Model, C: Model> Hops<P, T, C> {
+    const fn new(through_key: Column<T>, target_key: Column<C>) -> Self {
+        Self {
+            through_key: through_key.name(),
+            target_key: target_key.name(),
+            _models: PhantomData,
+        }
+    }
+
+    /// The targets whose intermediate row matches `on_through`:
+    /// `C.target_key IN (SELECT T.pk FROM T WHERE on_through)`, the
+    /// intermediate model's scopes applying.
+    fn via(self, on_through: Expr<T>) -> Expr<C> {
+        Column::<C>::new(self.target_key)
+            .in_subquery(T::filter(on_through).select((T::primary_key_column(),)))
+    }
+
+    fn through(self) -> Column<T> {
+        Column::new(self.through_key)
+    }
+
+    fn query(self, parent: &P) -> Select<C> {
+        C::filter(self.via(self.through().eq(parent.primary_key())))
+    }
+
+    fn check(self) -> Result<()> {
+        require_single_key::<P>()?;
+        require_single_key::<T>()
+    }
+
+    /// `(SELECT T.through_key FROM T WHERE T.pk = C.target_key)`: each
+    /// target row's owner key.
+    fn owner_of_target(self) -> Projection<C> {
+        let mut from = String::new();
+        push_ident(&mut from, T::TABLE);
+        Projection::raw::<Value>(
+            format!(
+                "SELECT {} FROM {from} WHERE {} = {}",
+                qualified(T::TABLE, self.through_key),
+                qualified(T::TABLE, T::PRIMARY_KEY),
+                qualified(C::TABLE, self.target_key),
+            ),
+            [],
+        )
+    }
+
+    /// The batch: the targets' columns and each row's owner key as
+    /// `__rok_owner`.
+    fn batch_sql(self, base: Select<C>, ids: Vec<Value>) -> Sql {
+        let mut items: Vec<Projection<C>> = C::COLUMNS
+            .iter()
+            .map(|c| Projection::from(Column::<C>::new(c)))
+            .collect();
+        items.push(self.owner_of_target().alias("__rok_owner"));
+        base.filter(self.via(self.through().is_in(ids)))
+            .select(items)
+            .to_sql()
+    }
+
+    /// The fetched targets grouped by owner key.
+    fn group(rows: Vec<PgRow>) -> Result<HashMap<String, Vec<C>>> {
+        let mut map: HashMap<String, Vec<C>> = HashMap::new();
+        for row in rows {
+            let target = C::from_row(&row).map_err(crate::Error::from)?;
+            let owner = Value::from_row_column(&row, "__rok_owner")?;
+            if let Some(owner) = key(Some(owner)) {
+                map.entry(owner).or_default().push(target);
+            }
+        }
+        Ok(map)
+    }
+
+    async fn fetch<'e, E: Executor<'e>>(self, executor: E, parents: &[P]) -> Result<Vec<PgRow>> {
+        self.check()?;
+        let ids = distinct_values(parents, P::PRIMARY_KEY);
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        crate::exec::fetch_rows(executor, &self.batch_sql(C::query(), ids), &[], true).await
+    }
+}
+
+/// `P` has many `C` through `T`: `T.through_key → P.pk` and
+/// `C.target_key → T.pk` (a country has many posts through its users).
+///
+/// Generated as an associated constant by
+/// `#[rok(has_many_through(posts = Post::USER_ID, through = User::COUNTRY_ID))]`
+/// on `P` (`Country::POSTS`).
+pub struct HasManyThrough<P, T, C> {
+    hops: Hops<P, T, C>,
+}
+
+impl<P: Model, T: Model, C: Model> HasManyThrough<P, T, C> {
+    /// Declare the relation: `through` is `T`'s column holding `P`'s key,
+    /// `target` is `C`'s column holding `T`'s key.
+    pub const fn new(through: Column<T>, target: Column<C>) -> Self {
+        Self {
+            hops: Hops::new(through, target),
+        }
+    }
+
+    /// Query the targets of `parent`.
+    pub fn query(&self, parent: &P) -> Select<C> {
+        self.hops.query(parent)
+    }
+
+    /// Load the targets of every record in `parents` with one query.
+    pub async fn load<'e, E: Executor<'e>>(
+        &self,
+        executor: E,
+        parents: &[P],
+    ) -> Result<Many<P, C>> {
+        let rows = self.hops.fetch(executor, parents).await?;
+        Ok(Many::new(Hops::<P, T, C>::group(rows)?, P::PRIMARY_KEY))
+    }
+}
+
+/// `P` has at most one `C` through `T`, the one-target form of
+/// [`HasManyThrough`]. Generated by `#[rok(has_one_through(…))]`.
+pub struct HasOneThrough<P, T, C> {
+    hops: Hops<P, T, C>,
+}
+
+impl<P: Model, T: Model, C: Model> HasOneThrough<P, T, C> {
+    /// Declare the relation: `through` is `T`'s column holding `P`'s key,
+    /// `target` is `C`'s column holding `T`'s key.
+    pub const fn new(through: Column<T>, target: Column<C>) -> Self {
+        Self {
+            hops: Hops::new(through, target),
+        }
+    }
+
+    /// Query the target of `parent`.
+    pub fn query(&self, parent: &P) -> Select<C> {
+        self.hops.query(parent)
+    }
+
+    /// Load the target of every record in `parents` with one query.
+    pub async fn load<'e, E: Executor<'e>>(&self, executor: E, parents: &[P]) -> Result<One<P, C>> {
+        let rows = self.hops.fetch(executor, parents).await?;
+        Ok(One::new(
+            last_of_each(Hops::<P, T, C>::group(rows)?),
+            P::PRIMARY_KEY,
+        ))
+    }
+}
+
+/// One target per owner, the last fetched, as the direct `One` loaders keep.
+fn last_of_each<C>(map: HashMap<String, Vec<C>>) -> HashMap<String, C> {
+    map.into_iter()
+        .filter_map(|(owner, mut targets)| targets.pop().map(|t| (owner, t)))
+        .collect()
+}
+
+macro_rules! through_relation {
+    ($ty:ident, $loaded:ident, $read:ty, |$state:ident, $owner:ident| $get:expr, |$map:ident| $assemble:expr) => {
+        impl<P, T, C> Clone for $ty<P, T, C> {
+            fn clone(&self) -> Self {
+                *self
+            }
+        }
+
+        impl<P, T, C> Copy for $ty<P, T, C> {}
+
+        impl<P, T, C> fmt::Debug for $ty<P, T, C> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.debug_struct(stringify!($ty))
+                    .field("through_key", &self.hops.through_key)
+                    .field("target_key", &self.hops.target_key)
+                    .finish()
+            }
+        }
+
+        impl<P: Model, T: Model, C: Model> Relation for $ty<P, T, C> {
+            type Owner = P;
+            type Target = C;
+            type Loaded = $loaded<P, C>;
+            type Read<'a> = $read;
+
+            fn foreign_key_name(self) -> &'static str {
+                self.hops.target_key
+            }
+
+            fn owner_key(self) -> Column<P> {
+                P::primary_key_column()
+            }
+
+            /// The target's column toward the intermediate model.
+            fn target_key(self) -> Column<C> {
+                Column::new(self.hops.target_key)
+            }
+
+            fn check(self) -> Result<()> {
+                self.hops.check()
+            }
+
+            fn assemble(self, targets: Vec<PgRow>) -> Result<$loaded<P, C>> {
+                let $map = Hops::<P, T, C>::group(targets)?;
+                Ok($loaded::new($assemble, P::PRIMARY_KEY))
+            }
+
+            fn read<'a>(self, $state: &'a $loaded<P, C>, $owner: &P) -> Option<$read> {
+                Some($get)
+            }
+
+            fn batch_filter(self, ids: Vec<Value>) -> Expr<C> {
+                self.hops.via(self.hops.through().is_in(ids))
+            }
+
+            fn batch_sql(self, base: Select<C>, ids: Vec<Value>) -> Sql {
+                self.hops.batch_sql(base, ids)
+            }
+
+            fn correlate(self) -> Expr<C> {
+                self.hops
+                    .via(self.hops.through().eq_outer(P::primary_key_column()))
+            }
+
+            fn owner_of_target(self) -> Projection<C> {
+                self.hops.owner_of_target()
+            }
+        }
+    };
+}
+
+through_relation!(
+    HasManyThrough,
+    Many,
+    &'a [C],
+    |state, owner| state.get(owner),
+    |map| map
+);
+through_relation!(
+    HasOneThrough,
+    One,
+    Option<&'a C>,
+    |state, owner| state.get(owner),
+    |map| last_of_each(map)
+);
+
+impl<P, T, C> Clone for Hops<P, T, C> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<P, T, C> Copy for Hops<P, T, C> {}

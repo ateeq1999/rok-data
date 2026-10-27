@@ -6,11 +6,13 @@ mod aggregate;
 mod include;
 mod loaded;
 mod relations;
+mod through;
 
 pub use aggregate::{Aggregate, RelationAggregates};
 pub use include::{Include, IntoInclude, PackedInclude, Relation};
 pub use loaded::{Loaded, Many, One};
 pub use relations::{BelongsTo, HasMany, HasOne};
+pub use through::{HasManyThrough, HasOneThrough};
 
 macro_rules! relation_boilerplate {
     ($($ty:ident<$a:ident, $b:ident>),*) => {

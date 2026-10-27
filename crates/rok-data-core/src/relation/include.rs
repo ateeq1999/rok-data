@@ -6,7 +6,8 @@ use std::fmt;
 
 use sqlx::postgres::PgRow;
 
-use crate::{Column, Expr, Model, Order, Result, Select};
+use crate::sql::Sql;
+use crate::{Column, Expr, Model, Order, Projection, Result, Select, Value};
 
 use super::loaded::{Many, One};
 use super::relations::{BelongsTo, HasMany, HasOne, distinct_values, key, require_single_key};
@@ -54,6 +55,36 @@ pub trait Relation: Copy + Send + Sync + 'static {
     /// [`One::get`]-style: an (empty) slice for `HasMany`, `None` for a
     /// row a `One` state has none of.
     fn read<'a>(self, state: &'a Self::Loaded, owner: &Self::Owner) -> Option<Self::Read<'a>>;
+
+    /// The targets of the owners whose keys are `ids`: `target_key IN
+    /// (ids)` for a direct relation; a through relation reaches them via
+    /// its intermediate model.
+    #[doc(hidden)]
+    fn batch_filter(self, ids: Vec<Value>) -> Expr<Self::Target> {
+        self.target_key().is_in(ids)
+    }
+
+    /// The batched load's statement: `base` narrowed to the owners' targets,
+    /// with whatever [`assemble`](Self::assemble) needs to key each row.
+    #[doc(hidden)]
+    fn batch_sql(self, base: Select<Self::Target>, ids: Vec<Value>) -> Sql {
+        base.filter(self.batch_filter(ids)).to_sql()
+    }
+
+    /// The targets of the enclosing query's owner row, for a correlated
+    /// `EXISTS`: `target.target_key = owner.owner_key` for a direct
+    /// relation.
+    #[doc(hidden)]
+    fn correlate(self) -> Expr<Self::Target> {
+        self.target_key().eq_outer(self.owner_key())
+    }
+
+    /// A target row's owner key as an expression over the target, to group
+    /// aggregates by: the target key for a direct relation.
+    #[doc(hidden)]
+    fn owner_of_target(self) -> Projection<Self::Target> {
+        Projection::from(self.target_key())
+    }
 }
 
 impl<P: Model, C: Model> Relation for HasMany<P, C> {
@@ -298,13 +329,12 @@ where
     R: Relation<Owner = M>,
 {
     let owner_key = relation.owner_key();
-    let target_key = relation.target_key();
     PackedInclude {
         identity: relation_identity(relation),
         children_sql: Box::new(move |rows: &[M]| {
             relation.check()?;
             let ids = distinct_values(rows, owner_key.name());
-            Ok(base.clone().filter(target_key.is_in(ids)).to_sql())
+            Ok(relation.batch_sql(base.clone(), ids))
         }),
         assemble: Box::new(move |targets| Ok(Box::new(relation.assemble(targets)?) as ErasedState)),
     }

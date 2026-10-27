@@ -243,6 +243,13 @@ compiler finds the call sites.
     (`User::POSTS.sum::<i64>(Post::VIEWS)`, `avg`, `min`, `max`), loaded
     with `with` and read with `view.aggregate(handle, user)`. Each is one
     batched `GROUP BY` query; the value type picks the SQL cast.
+  - **Through relations:** `#[rok(has_many_through(posts = Post::USER_ID,
+    through = User::COUNTRY_ID))]` on `Country` gives `Country::POSTS` (a
+    `HasManyThrough`) and `country.posts()`; `has_one_through(…)` the
+    one-target form. They load with `with`, filter with `has` /
+    `where_has`, and count with `with_count` like a direct relation; the
+    intermediate model's scopes apply. Declared, not inferred from the
+    schema.
 
 **What does not change**: PostgreSQL 12+ (DATABASE_URL), the migration
 system, `#[rok::test]`, the connection policy, `filter` staying the

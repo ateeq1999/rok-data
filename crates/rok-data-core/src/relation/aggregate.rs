@@ -190,20 +190,18 @@ where
 {
     fn into_packed(self) -> PackedInclude<M> {
         let owner_key = self.relation.owner_key();
-        let target_key = self.relation.target_key();
+        let owner = self.relation.owner_of_target();
         let projection = self.projection();
         PackedInclude {
             identity: self.identity(),
             children_sql: Box::new(move |rows: &[M]| {
                 self.relation.check()?;
                 let ids = distinct_values(rows, owner_key.name());
-                Ok(<R::Target as Model>::query()
-                    .filter(target_key.is_in(ids))
-                    .group_by(target_key)
-                    .select((
-                        Projection::from(target_key).alias("__rok_key"),
-                        projection.clone(),
-                    ))
+                let mut select =
+                    <R::Target as Model>::query().filter(self.relation.batch_filter(ids));
+                select.group_by.push(owner.term.clone());
+                Ok(select
+                    .select((owner.clone().alias("__rok_key"), projection.clone()))
                     .to_sql())
             }),
             assemble: Box::new(|rows| Ok(Box::new(Self::assemble(rows)?) as ErasedState)),
