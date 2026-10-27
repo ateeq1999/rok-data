@@ -2,6 +2,7 @@
 
 use syn::{Ident, LitStr, Path, spanned::Spanned};
 
+mod accessors;
 pub(crate) mod conventions;
 pub(crate) mod expand;
 pub(crate) mod from_row;
@@ -21,6 +22,10 @@ pub(crate) struct Field {
     tenant: bool,
     belongs_to: Option<(Ident, Path)>,
     rules: Vec<Rule>,
+    /// The field's type, for the setters the derive writes.
+    ty: syn::Type,
+    /// `set_with = path`: a `set_<field>` that writes `path(value)`.
+    set_with: Option<Path>,
 }
 
 /// A `#[rok(validate(…))]` rule.

@@ -273,6 +273,16 @@ compiler finds the call sites.
   `touch(&db)` update in the database without reading first and return
   the stored row. `update_or_create` is the existing `upsert_on`, `fresh`
   the existing `reload`.
+- **What a field type can't say** (0.4.0 ticket 05, narrowed by
+  decision: a field's Rust type already is its cast):
+  - **Encrypted columns:** `Encrypted` (feature `encryption`) stores
+    `base64(nonce ‖ AES-256-GCM ciphertext)` in a `TEXT` column and gives
+    the plain text back; the key comes from `set_encryption_key` or
+    `ROK_DATA_ENCRYPTION_KEY`.
+  - **Value objects:** `#[rok(value_object(address: Address = (street,
+    city)))]` generates `address()` and `set_address(…)`.
+  - **Write-time transforms:** `#[rok(set_with = hash)]` on a field
+    generates `set_<field>(value)` storing `hash(value)`.
 - **Nested eager loading** (0.4.0 ticket 10):
   `.with(Author::POSTS.with(Post::COMMENTS))` loads each level in one
   batched query, to any depth; `view.nested(Author::POSTS)` is the

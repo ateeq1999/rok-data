@@ -31,6 +31,7 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     let mut per_page: Option<syn::LitInt> = None;
     let mut relations = Vec::new();
     let mut named_scopes = Vec::new();
+    let mut value_objects = Vec::new();
     let mut from_row = true;
     let mut krate: Option<Path> = None;
     for attr in input.attrs.iter().filter(|a| a.path().is_ident("rok")) {
@@ -59,6 +60,8 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
                 per_page = Some(value);
             } else if meta.path.is_ident("scopes") {
                 scopes::parse_scopes(&meta, &mut named_scopes)?;
+            } else if meta.path.is_ident("value_object") {
+                super::accessors::parse_value_object(&meta, &mut value_objects)?;
             } else if meta.path.is_ident("has_many") {
                 parse_relations(&meta, "HasMany", &mut relations)?;
             } else if meta.path.is_ident("has_one") {
@@ -75,7 +78,7 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
                 krate = Some(meta.value()?.parse::<LitStr>()?.parse()?);
             } else {
                 return Err(meta.error(
-                    "unknown `rok` attribute; expected `table`, `timestamps`, `no_timestamps`, `soft_delete`, `no_soft_delete`, `hooks`, `validate_with`, `default_scope`, `per_page`, `scopes`, `has_many`, `has_one`, `has_many_through`, `has_one_through`, `belongs_to_many`, `no_from_row` or `crate`",
+                    "unknown `rok` attribute; expected `table`, `timestamps`, `no_timestamps`, `soft_delete`, `no_soft_delete`, `hooks`, `validate_with`, `default_scope`, `per_page`, `scopes`, `has_many`, `has_one`, `has_many_through`, `has_one_through`, `belongs_to_many`, `value_object`, `no_from_row` or `crate`",
                 ));
             }
             Ok(())
@@ -329,6 +332,7 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     };
     let per_page_const = per_page.map(|n| quote! { const PER_PAGE: u64 = #n; });
     let hooks_impl = (!hooks).then(|| quote!(impl #krate::Hooks for #name {}));
+    let accessor_items = super::accessors::tokens(&value_objects, &fields)?;
     let scope_entries = scopes::entries(name, &named_scopes, &krate);
     let scope_trait = scopes::trait_declaration(name, &named_scopes, &krate);
     let scope_checks = scopes::signature_checks(name, &named_scopes, &krate);
@@ -404,6 +408,7 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
             #(#consts)*
             #(#relation_items)*
             #(#scope_entries)*
+            #accessor_items
         }
 
         #scope_trait
@@ -478,6 +483,8 @@ pub(crate) fn parse_fields(input: &DeriveInput, derive: &str) -> syn::Result<Vec
             tenant: false,
             belongs_to: None,
             rules: Vec::new(),
+            ty: field.ty.clone(),
+            set_with: None,
         };
         for attr in field.attrs.iter().filter(|a| a.path().is_ident("rok")) {
             attr.parse_nested_meta(|meta| {
@@ -519,11 +526,13 @@ pub(crate) fn parse_fields(input: &DeriveInput, derive: &str) -> syn::Result<Vec
                             Ok(())
                         })?;
                     }
+                } else if meta.path.is_ident("set_with") {
+                    f.set_with = Some(super::accessors::parse_set_with(&meta)?);
                 } else if meta.path.is_ident("column") || meta.path.is_ident("rename") {
                     f.column = meta.value()?.parse::<LitStr>()?.value();
                 } else {
                     return Err(meta.error(
-                        "unknown `rok` attribute; expected `primary_key`, `generated`, `column`, `skip`, `created_at`, `updated_at`, `deleted_at`, `version`, `tenant`, `validate` or `belongs_to`",
+                        "unknown `rok` attribute; expected `primary_key`, `generated`, `column`, `skip`, `created_at`, `updated_at`, `deleted_at`, `version`, `tenant`, `validate`, `set_with` or `belongs_to`",
                     ));
                 }
                 Ok(())

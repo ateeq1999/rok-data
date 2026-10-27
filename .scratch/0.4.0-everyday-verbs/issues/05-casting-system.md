@@ -1,31 +1,15 @@
 # 05: Casting system — standard casts, custom casts, value objects, inbound-only, castables, parameters
 
-**What to build:** A `Cast<M>` trait in `crates/rok-data-core/src/cast.rs` with `get(&M, &str) -> Value` and `set(&mut M, &str, Value) -> Vec<(&str, Value)>`. The derive expands `#[rok(casts(...))]` and `#[rok(cast(...))]` into field accessors/mutators that wire the caster.
+**What to build (as specified):** a `Cast<M>` trait and `#[rok(casts(...))]` / `#[rok(cast(...))]` attributes: standard casts (`boolean`, `json`, `array`, `datetime`/`date`/`timestamp` with formats, `encrypted`, `enum`), custom casts with parameters, inbound-only casts, value objects and castables; the generator inferring casts from column types.
 
-Standard casts (inferred by generator from column type):
-- `boolean` — `i16`/`int` ↔ `bool`
-- `json` — `serde_json::Value` ↔ `String` (JSONB/JSON)
-- `array` — `Vec<String>` ↔ `String` (text[])
-- `datetime`/`date`/`timestamp` — `DateTime<Utc>`/`NaiveDate`/`NaiveDateTime` with optional format `datetime:Y-m-d`
-- `encrypted` — `String` ↔ encrypted `String` (needs key source from config)
-- `enum` — already works via `DbEnum`
+**Blocked by:** 01, 03.
 
-Custom casts:
-- `#[rok(cast(field = AsCustomCast:param1,param2))]` — user type implements `Cast<M>`; params passed to `AsCustomCast::with_params(&[&str])`
-- Inbound-only: implement only `CastInbound` (has `set`, no `get`); derive skips getter
-- Value object: `#[rok(cast(address = AsAddress))]` where `AsAddress::get(&M) -> Address`, `AsAddress::set(&mut M, Address) -> Vec<(&str, Value)>`
-- Castable: `#[rok(cast(address = Address))]` where `Address: Castable` with `type Caster: Cast<Address>; fn caster() -> Self::Caster`
+**Status:** done (2026-10-27) — narrowed by decision with the user to what Rust types don't already give
 
-Generator: infers casts from column types (`BOOLEAN`→`boolean`, `JSONB`→`json`, `TIMESTAMPTZ`→`datetime`, `DATE`→`date`, `ENUM`→`enum`, `password` column→`encrypted` or inbound hash).
+**Decision.** A Rust field's type already is its cast: `bool`, `serde_json::Value`, `Vec<String>`, chrono's types and `DbEnum` decode straight from their columns, checked by the compiler, and the generator already picks them from the column types. A cast layer on top would duplicate that untyped. What types don't give, and what was built:
 
-**Blocked by:** 01 (ModelCollection for fresh), 03 (value objects can be related models).
-
-**Status:** ready-for-agent
-
-- [ ] `Cast<M>`, `CastInbound<M>`, `Castable` traits in `cast.rs`
-- [ ] Derive expansion for `casts` (repeatable field-level) and `cast` (single field with params)
-- [ ] Standard caster implementations in `crates/rok-data-core/src/cast/standard.rs`
-- [ ] Generator emits `casts` for standard column types; `password` → inbound hash or `encrypted`
-- [ ] `serialize_date` global + per-field format via `datetime:format`
-- [ ] Facade tests: each standard cast, custom cast, value object, inbound-only, castable, parameters
-- [ ] Module fixture expectations for generated casts
+- [x] **Encrypted columns:** `Encrypted` (feature `encryption`), a text column stored as `base64(nonce ‖ AES-256-GCM ciphertext)`; the key from `set_encryption_key` or `ROK_DATA_ENCRYPTION_KEY`; `Debug` hides it (`crates/rok-data-core/src/encrypted.rs`, test `tests/features/encrypted.rs`)
+- [x] **Value objects over several columns:** `#[rok(value_object(address: Address = (street, city)))]` generates `address()` / `set_address(…)`, through `From` / `Into` the fields' tuple (`tests/features/value_objects.rs`)
+- [x] **Write-time transforms** (the spec's inbound-only cast): field attribute `#[rok(set_with = path)]` generates `set_<field>(value)` storing `path(value)`
+- [x] Standard casts, custom casts with parameters, castables, generator-inferred casts — **dropped by decision** (the field type is the cast)
+- [x] Date formats — **dropped by decision:** serde's own field attributes (`#[serde(with = …)]`) pass through the derive (ticket 07)

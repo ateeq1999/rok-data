@@ -37,6 +37,14 @@ mod test;
 ///   to `user_id` and `role_id` (`foreign_key = "…"`, `related_key = "…"`
 ///   name others): generates `User::ROLES` (a `BelongsToMany`, with
 ///   `attach` / `detach` / `sync` / `toggle`) and `user.roles()`.
+/// - `#[rok(value_object(address: Address = (street, city)))]` — a value
+///   object over several fields: generates `shop.address()` (an `Address`
+///   built with `From<(String, String)>`) and `shop.set_address(…)` (written
+///   back through `Into<(String, String)>`).
+///
+/// Field attribute `#[rok(set_with = path::to::fn)]` generates
+/// `set_<field>(value)`, which stores `path(value)` — a password hash, a
+/// normalized email.
 /// - `#[rok(hooks)]` — you implement `rok_data::Hooks` yourself (otherwise a
 ///   no-op implementation is generated).
 /// - `#[rok(validate_with = path::to::fn)]` — record-level validation,

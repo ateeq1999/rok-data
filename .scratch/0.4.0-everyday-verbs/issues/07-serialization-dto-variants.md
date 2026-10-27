@@ -1,23 +1,12 @@
 # 07: Serialization — DTO variants (Public/WithExtras), date formats, hidden/visible via DTOs
 
-**What to build:**
-1. **DTO variants from generator**:
-   - `UserDto` — all columns (current `UserDto`)
-   - `UserPublicDto` — visible subset (excludes `password`, `secret`, `token` columns by convention)
-   - `UserWithExtrasDto { #[serde(flatten)] base: UserDto, is_admin: bool, ... }` — computed fields from accessors (`#[rok(accessor)]` on model)
-2. **Date serialization**:
-   - Global `#[rok(serialize_date = "format")]` on model → all `DateTime<Utc>`/`NaiveDateTime` fields use this `serde` format unless overridden
-   - Per-field `#[rok(cast(created_at = "datetime:Y-m-d"))]` overrides global
-4. **No runtime hidden/visible/appends** — DTO selection is the mechanism. `make_visible`/`set_hidden` not needed.
+**What to build (as specified):** `UserDto` / `UserPublicDto` / `UserWithExtrasDto` per model from the generator, a global `serialize_date` format and per-field formats through `cast`.
 
-**Blocked by:** 05 (casting system provides the `cast` attribute for date formats).
+**Blocked by:** 05.
 
-**Status:** ready-for-agent
+**Status:** done (2026-10-27) — resolved by existing mechanisms, by decision with the user
 
-- [ ] Generator emits three DTOs per model when accessors exist or sensitive columns detected
-- [ ] `UserPublicDto` excludes columns named `password`, `secret`, `token`, `api_key`, `private_key` (configurable via `#[rok(hidden_columns = [...])]`)
-- [ ] `UserWithExtrasDto` includes `#[serde(flatten)] base: UserDto` plus accessor return types
-- [ ] `serialize_date` derive attribute → `#[serde(with = "...")]` on all date fields
-- [ ] Per-field format in `cast` attribute overrides global
-- [ ] Facade tests: DTO variants, date formats
-- [ ] Module fixture expectations for generated DTOs
+- [x] **The public shape without sensitive columns** — already generated: every generated API feature answers a response DTO that leaves out the table's `[api.hidden]` columns (the templates hide `password_hash`, `totp_secret`, …), and its OpenAPI schema says so. A second, convention-named `PublicDto` (guessing sensitivity from column names) would compete with that explicit list
+- [x] **Computed fields** — a hand-written DTO with `#[serde(flatten)]` over the generated one, or a service method; no `#[rok(accessor)]` layer
+- [x] **Date formats** — serde's field attributes (`#[serde(with = …)]`, `serialize_with`) on the model or DTO; no `serialize_date` attribute
+- [x] No runtime hidden/visible/appends (as specified)

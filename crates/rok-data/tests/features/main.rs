@@ -24,6 +24,7 @@ mod streaming;
 mod surface;
 mod through;
 mod timestamps;
+mod value_objects;
 mod walking;
 
 #[derive(Debug, Clone, PartialEq, Model)]
