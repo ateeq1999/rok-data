@@ -212,3 +212,12 @@ pub(crate) async fn load_includes<M: Model>(
     }
     Ok(())
 }
+
+/// Runs `sql` on `journey` and returns its rows, the session kept for
+/// the next leg.
+pub(crate) async fn fetch_rows_on(
+    journey: &mut Journey<'_>,
+    sql: &crate::sql::Sql,
+) -> Result<Vec<PgRow>> {
+    on_journey!(*journey, |e| exec::fetch_rows(e, sql, &[], false).await)
+}

@@ -282,6 +282,15 @@ compiler finds the call sites.
   rules; `#[rok(validate_with = path)]` checks the whole input. A
   transform on a model, or a key / timestamp / relation attribute on an
   input, fails to compile.
+- **Database rules on input** (input-validation ticket 03):
+  `unique(User::EMAIL, except = id, case_insensitive, scope = path)` and
+  `exists(Org::ID, scope = path)` in an input field's `validate(…)`, the
+  target model's own scopes applying; `database = path` on a field and
+  `#[rok(validate_with_database = path)]` on the input for checks of
+  their own. `validate(&session)` runs them only on fields whose field
+  rules passed, the built-in ones in one statement. On a
+  `#[derive(Model)]`, a database rule fails to compile. New:
+  `Column::eq_ignore_case`, `Journey::reborrow` (public).
 - **Validation errors carry paths; violations read as field errors**
   (input-validation ticket 01, workspace ADR 0021). Breaking:
   `FieldError::field` is a `String` path (`address.city`, `items.2.sku`)

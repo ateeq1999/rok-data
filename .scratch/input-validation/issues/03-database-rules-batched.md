@@ -4,8 +4,8 @@
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** done (2026-10-27)
 
-- [ ] Batched statement (SQL-shape test) and DB-backed tests for each option
-- [ ] `except` naming a missing field is a compile error
-- [ ] Validating inside a transaction (test)
+- [x] Batched statement (SQL-shape test) and DB-backed tests for each option
+- [x] `except` naming a missing field is a compile error
+- [x] Validating inside a transaction (test)

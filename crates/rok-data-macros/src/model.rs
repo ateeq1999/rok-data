@@ -39,6 +39,8 @@ enum Rule {
     Email,
     NonEmpty,
     Custom(Path),
+    /// A database rule (input only): `unique(…)`, `exists(…)`, `database = path`.
+    Database(rules::DatabaseRule),
 }
 
 fn parse_bounds(
@@ -75,9 +77,11 @@ fn parse_rules(meta: &syn::meta::ParseNestedMeta<'_>, rules: &mut Vec<Rule>) -> 
             rules.push(Rule::NonEmpty);
         } else if r.path.is_ident("custom") {
             rules.push(Rule::Custom(r.value()?.parse()?));
+        } else if let Some(rule) = rules::parse_database_rule(&r)? {
+            rules.push(Rule::Database(rule));
         } else {
             return Err(r.error(
-                "unknown rule; expected `length`, `range`, `email`, `non_empty` or `custom`",
+                "unknown rule; expected `length`, `range`, `email`, `non_empty`, `custom`, `unique`, `exists` or `database`",
             ));
         }
         Ok(())

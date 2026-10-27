@@ -323,8 +323,9 @@ pub enum Journey<'c> {
 }
 
 impl Journey<'_> {
-    /// A shorter borrow of the same session, for one more leg of a query.
-    pub(crate) fn reborrow(&mut self) -> Journey<'_> {
+    /// A shorter borrow of the same session, for one more leg of a query
+    /// (or one more check of a validation).
+    pub fn reborrow(&mut self) -> Journey<'_> {
         match self {
             Journey::Database(db) => Journey::Database(db),
             Journey::Transaction(tx) => Journey::Transaction(tx),

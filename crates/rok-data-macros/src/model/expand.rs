@@ -526,6 +526,16 @@ pub(crate) fn parse_fields(input: &DeriveInput, derive: &str) -> syn::Result<Vec
                 "`skip` fields are not columns and can't have other `rok` attributes",
             ));
         }
+        if derive == "Model"
+            && f.rules
+                .iter()
+                .any(|rule| matches!(rule, super::Rule::Database(_)))
+        {
+            return Err(syn::Error::new(
+                f.ident.span(),
+                "database rules (`unique`, `exists`, `database`) belong to input: use `#[derive(Input)]`; the table's constraint already guards this model's writes",
+            ));
+        }
         if managed && f.generated {
             return Err(syn::Error::new(
                 f.ident.span(),

@@ -27,9 +27,11 @@
 
 use std::fmt;
 
+mod database;
 mod input;
 pub mod transform;
 
+pub use database::DatabaseRule;
 pub use input::Input;
 
 /// One failed rule.

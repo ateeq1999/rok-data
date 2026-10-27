@@ -11,6 +11,7 @@ use rok_data::{Include, raw};
 mod backstop;
 mod collection;
 mod conventions;
+mod database_rules;
 mod encrypted;
 mod has;
 mod input;

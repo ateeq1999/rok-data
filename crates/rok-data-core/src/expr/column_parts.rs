@@ -135,6 +135,15 @@ impl<M: Model> Column<M> {
         self.columns("<=", other)
     }
 
+    /// `lower(column) = lower(value)`: equality ignoring case, the form a
+    /// unique index on `lower(column)` compares.
+    pub fn eq_ignore_case(self, value: impl Into<Value>) -> Expr<M> {
+        Expr::raw(
+            format!("lower({}) = lower(?)", self.qualified()),
+            [value.into()],
+        )
+    }
+
     /// `column IS NOT DISTINCT FROM value`: equality where two `NULL`s are
     /// equal, so `None` matches the rows whose column is `NULL`.
     pub fn is_not_distinct_from(self, value: impl Into<Value>) -> Expr<M> {

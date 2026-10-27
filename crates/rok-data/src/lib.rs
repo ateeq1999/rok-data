@@ -307,6 +307,15 @@ pub mod prelude {
 /// struct User { id: i64, #[rok(transform(trim))] name: String }
 /// ```
 ///
+/// …as does a database rule; the table's constraint guards a model's
+/// writes:
+///
+/// ```compile_fail
+/// use rok_data::prelude::*;
+/// #[derive(Model)]
+/// struct User { id: i64, #[rok(validate(unique(User::EMAIL)))] email: String }
+/// ```
+///
 /// …and a key, timestamp or relation attribute belongs to a model, not to
 /// input:
 ///
