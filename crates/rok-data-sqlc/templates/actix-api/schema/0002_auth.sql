@@ -10,7 +10,8 @@ CREATE TABLE auth_tokens (
     id UUID PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     purpose TEXT NOT NULL CHECK (
-        purpose IN ('email_verification', 'password_reset', 'email_change', 'invitation')
+        purpose IN ('email_verification', 'password_reset', 'email_change',
+                    'invitation', 'two_factor_pending')
     ),
     token_hash TEXT NOT NULL UNIQUE,
     -- The address an `email_change` token moves the account to.

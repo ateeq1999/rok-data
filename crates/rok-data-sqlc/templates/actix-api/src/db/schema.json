@@ -22,7 +22,8 @@
         "email_verification",
         "password_reset",
         "email_change",
-        "invitation"
+        "invitation",
+        "two_factor_pending"
       ],
       "module": ""
     },
@@ -133,6 +134,17 @@
           "sql_type": "INTEGER",
           "nullable": false,
           "default": "1"
+        },
+        {
+          "name": "totp_last_step",
+          "sql_type": "BIGINT",
+          "nullable": true
+        },
+        {
+          "name": "avatar_url",
+          "sql_type": "TEXT",
+          "nullable": true,
+          "generated": "'/api/v1/' || avatar_key"
         }
       ],
       "primary_key": [
@@ -455,6 +467,54 @@
       ],
       "primary_key": [
         "id"
+      ]
+    },
+    {
+      "name": "totp_recovery_codes",
+      "module": "totp_recovery_codes",
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "code_hash",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "used_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "foreign_keys": [
+        {
+          "name": "totp_recovery_codes_user_id_fkey",
+          "columns": [
+            "user_id"
+          ],
+          "ref_table": "users",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "CASCADE"
+        }
       ]
     }
   ],

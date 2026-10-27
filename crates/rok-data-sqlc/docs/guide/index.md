@@ -4,7 +4,7 @@ How to build an actix-web API with rok-data-sqlc: `rok sqlc init` scaffolds the
 application, `rok sqlc generate` generates the data layer and one API feature per
 table, and `rok sqlc check-arch` keeps the architecture. The
 [README](../../README.md#generated-apis) documents the commands and the
-`[api]` configuration. The decisions behind them are in ADR 0016
+`[api]` configuration. The decisions behind them are in engine ADR 0016
 (`docs/adr/0016-api-features-for-actix-web.md`).
 
 The guide's code samples come from projects that compile, mostly
@@ -29,10 +29,11 @@ How the code is organized:
   which are yours, and what regeneration does to each.
 - [Customizing the generated API](customizing.md): service overrides,
   state, ports, and hand-written features.
-- [Accounts and sign-in](auth.md): the templates' hand-written
-  account flows (sign-up, sign-in, verification, password reset and
-  change, email change, invitations), their settings, the mail outbox and
-  adding a flow.
+- [Accounts and sign-in](auth.md): the templates' sign-up,
+  sign-in, password and email flows, two-factor sign-in, API keys,
+  sessions, mail, and adding a flow.
+- [Files and storage](files.md): the templates' uploads, profile photos,
+  the storage port, S3 and the limits.
 
 What the API answers:
 

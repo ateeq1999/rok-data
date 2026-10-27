@@ -1178,6 +1178,11 @@ from the first command to production:
   rok-data-sqlc's, which are yours, and what regeneration does to each;
 - [Customizing the generated API](docs/guide/customizing.md): overrides,
   ports and hand-written features;
+- [Accounts and sign-in](docs/guide/auth.md): the templates'
+  sign-up, sign-in, password and email flows, two-factor sign-in, API keys,
+  sessions and mail;
+- [Files and storage](docs/guide/files.md): the templates' uploads,
+  profile photos, the storage port and S3;
 - [The wire standard](docs/guide/wire-standard.md): every status, error
   code, body and header;
 - [The OpenAPI document](docs/guide/openapi.md): what is generated, your
@@ -1366,6 +1371,20 @@ printed next steps say. The template's pinned `Cargo.lock` is copied when the
 project has none. When the project already has a `Cargo.toml`, it is kept and
 the template's Rust files name the project's library crate (`use
 myapi::app` instead of `use actix_api::app`).
+
+Both templates have the account flows of the API contract as hand-written
+features you own: sign-up with email verification, sign-in with a lockout,
+password reset and change, email change, admin invitations, and the
+signed-in user's account, with argon2id passwords, single-use mailed links,
+a mail outbox (SMTP or the log) and a per-IP rate limit on `/auth`; and
+two-factor sign-in (TOTP and recovery codes), API keys, uploads behind a
+storage port (local files or S3) and profile photos. Their `AuthUser`
+checks the account (or the API key) in the database on every request. See
+[Accounts and sign-in](docs/guide/auth.md),
+[Files and storage](docs/guide/files.md), engine ADR 0020 and engine ADR
+0022. Their framework-independent code (services, DTOs, queries,
+migrations, mail, storage, security and the rate limit's counting) is
+byte-identical, and a repository test keeps it so (engine ADR 0021).
 
 ## Checking the architecture: `rok sqlc check-arch`
 
@@ -1640,26 +1659,37 @@ fails. With `--resource`, only that table's problems count.
   the run that wrote them saw the migrations up to that statement. A table
   that fails at its own `CREATE TABLE` (an edited migration, say) has none,
   so its earlier files are removed as stale.
-- Default constraint names follow renamed indexes, sequences, views and key
-  constraints, but foreign key and check constraint names aren't tracked.
+- Default constraint names follow renamed indexes, sequences, views and
+  constraints. `DROP CONSTRAINT … CASCADE` of a key doesn't drop the foreign
+  keys other tables hold to it, and dropping a constraint the model doesn't
+  track (an `EXCLUDE`, PostgreSQL 18's `*_not_null`) only warns and changes
+  nothing. A value-list check is read from `IN (…)`, and in an added
+  constraint from `pg_dump`'s `= ANY (ARRAY[…])` too.
 - A versioned `update` of a row that a concurrent transaction deletes while
   the `UPDATE` waits for its lock reports `VersionConflict`. A retry reports
   `NotFound`.
+- The `unique` and `exists` pre-checks leave some writes to the database
+  constraint's `409`: a race between the check and the write, a reference
+  from a public route to an owned table, a reference to anything but a
+  whole single-column key, and a `PATCH` holding part of a composite key
+  (engine ADR 0019).
+- `mobile` carries 16 of validator.js's locales and `postalCode` 7
+  countries; `mobile` without a locale tries those 16, not every locale.
+- The templates' `/auth` rate limit counts per process: several
+  instances each allow `AUTH_RATE_LIMIT` (engine ADR 0020).
+- Only the axum skeleton and template time a request out (`408`, 30 s)
+  and set `x-request-id`; under actix-web, put a timeout in your proxy
+  (engine ADR 0021).
 
-**Planned:**
-
-- Validation rules for generated APIs:
-  - **`unique`:** derived from unique keys, including `lower(col)` indexes.
-  - **`exists`:** derived from foreign keys.
-  - **VineJS-style string rules and transforms:** `[api.rules]`, such as `email`, `url`, `mobile`, `trim` and `toLowerCase`.
-  - **Errors:** each answers `422 validation_failed` with field details instead of a constraint's `409`.
-- The authentication surface, as hand-written features in the template:
-  - registration and sign-in;
-  - password reset and change;
-  - email verification;
-  - verified email change (`[api.immutable]` keeps `email` out of the plain update until then);
-  - uploads and avatars;
-  - API keys.
+**Absorbed from rok-sqlc 0.6–0.8** (workspace ADR 0016): the templates'
+authentication surface as hand-written features (registration and
+sign-in, email verification, password reset and change, verified email
+change, invitations); axum as a second framework (`[api] framework =
+"axum"`, `init --api-framework axum`) with the same wire answers and
+OpenAPI document, and `templates/axum-api/`; two-factor sign-in (TOTP,
+recovery codes), API keys (read and write scopes), uploads behind a
+storage port over `object_store` (local files, S3, memory) and profile
+photos; and `DROP CONSTRAINT` / `ADD CONSTRAINT … CHECK` in the generator.
 
 **Not planned** (possible later):
 
@@ -1672,6 +1702,7 @@ fails. With `--resource`, only that table's problems count.
 - SQLx versions other than 0.9, a user-facing module-directory input layout,
   and databases other than PostgreSQL.
 - JSONB operators in typed filters.
+- OAuth, passkeys and QR-code sign-in in the templates.
 
 ## Contributing
 

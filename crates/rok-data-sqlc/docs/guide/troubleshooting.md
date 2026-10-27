@@ -168,6 +168,23 @@ Error: schema directory `migrations` contains no `*.sql` migrations
 
 A fresh `init` project: write a migration first.
 
+### A constraint the model doesn't track
+
+```text
+warning: migrations/0002_nullable.sql:2: table `bookings`: DROP CONSTRAINT: constraint `bookings_room_not_null` is not one rok sqlc tracks (such as an EXCLUDE or NOT NULL constraint); the statement changes nothing in the generated code
+```
+
+rok-data-sqlc follows `DROP CONSTRAINT` for primary keys, unique constraints,
+foreign keys and checks. Any other name, such as an `EXCLUDE` constraint
+or the `<table>_<column>_not_null` constraints PostgreSQL 18 names, is
+skipped with this warning, and generation goes on. If the statement
+changes a column (dropping a NOT NULL constraint makes it nullable), say so
+the way rok-data-sqlc reads: `ALTER TABLE bookings ALTER COLUMN room DROP NOT
+NULL`. `DROP CONSTRAINT IF EXISTS` skips an unknown name silently.
+`RENAME CONSTRAINT` of an unknown name fails its table
+(``RENAME CONSTRAINT: constraint `x` does not exist``), unless the name has the form
+of an untracked kind (`…_not_null`, `…_excl`), which warns.
+
 ### A file that isn't rok-data-sqlc's
 
 ```text
@@ -347,6 +364,54 @@ Set the variable ([Deploying](deploying.md#configuration)). The
 application doesn't read `.env`; export it into the environment.
 
 ```text
+error: environment variable `JWT_SECRET` is 9 bytes long; it needs at least 32 (try `openssl rand -base64 48`)
+```
+
+The templates refuse an HS256 key shorter than 32 bytes, which is
+easier to guess than the signature is to forge. Generate one with the
+command it names and keep it secret: whoever holds it can sign tokens.
+
+```text
+error: environment variable `TOTP_ENCRYPTION_KEY` is not set
+```
+
+```text
+error: environment variable `TOTP_ENCRYPTION_KEY` is not 32 bytes in base64 (try `openssl rand -base64 32`)
+```
+
+The templates seal two-factor secrets with this key, and derive the
+recovery codes' HMAC key from it, so they don't start without one:
+exactly 32 random bytes, standard base64 (44 characters ending in `=`).
+Generate it once, keep it with `JWT_SECRET`, and never change it on a
+running system: secrets and recovery codes stored under the old key no
+longer match ([Accounts](auth.md#two-factor-sign-in)).
+
+```text
+error: environment variable `STORAGE_URL` is `storage`, which is not one of file://<dir>, s3://<bucket>, memory://
+```
+
+The templates' uploads go where `STORAGE_URL` says: `file://./storage`
+(relative to the working directory), `file:///srv/uploads`,
+`s3://<bucket>` with no path, or `memory://`
+([Files and storage](files.md#storage)).
+
+```text
+error: Generic LocalFileSystem error: Cannot create a file when that file already exists. (os error 183)
+```
+
+The `file://` directory couldn't be created or opened: here it names a
+file (the message is Windows'; other systems word it their way). The application opens the store at startup and stops when it can't.
+An `s3://` bucket is only reached on the first upload: wrong credentials
+or region show then, as a `500` with the cause in the log.
+
+```text
+error: environment variable `SMTP_URL` is not set
+```
+
+`MAIL_TRANSPORT=smtp` needs the relay's URL
+([Accounts](auth.md#sending-real-mail)).
+
+```text
 error: pool timed out while waiting for an open connection
 ```
 
@@ -368,3 +433,90 @@ table, it means no middleware put the tenant in the request's extensions
 
 **`/docs` answers `303`.** Swagger UI lives at `/docs/`, with the slash;
 `/docs` redirects there.
+
+## Accounts and mail (the templates)
+
+**Every request is `401` with `the token is no longer valid`.** The token
+is well signed, but its account is deleted or disabled, or its `tv` is
+older than the account's `token_version`: a password change or reset
+signed it out. Sign in again ([Accounts](auth.md#sessions)).
+
+**Sign-in answers `403` with `the email address is not verified yet`.**
+`REQUIRE_VERIFIED_EMAIL` is on (the default) and the link wasn't followed.
+In development the link is in the server's log: `MAIL_TRANSPORT=log` logs
+each mail's address and subject at `info`, and its body at `debug`
+(`RUST_LOG=debug`). Post the link's token to `/api/v1/auth/email/verify`.
+
+**No mail arrives.** With the default `MAIL_TRANSPORT=log`, nothing is
+sent: set `smtp` ([Accounts](auth.md#sending-real-mail)). With SMTP, the
+log has a `WARN` per failed attempt and an `ERROR` when a mail goes
+`dead`, and each row keeps its `last_error`:
+
+```sql
+SELECT payload->>'to' AS "to", status, attempts, last_error
+FROM outbound_mail ORDER BY created_at DESC LIMIT 20;
+```
+
+A mailed link points at the wrong host: set `APP_URL` to your front end's
+URL.
+
+**Every `/auth` request answers `429` behind a proxy.** Without
+`TRUST_PROXY`, every client has the proxy's address and shares one limit.
+Set `TRUST_PROXY=true` behind a proxy you run, which appends the client's
+address to `X-Forwarded-For`. Behind a CDN and a load balancer, the last
+address is the CDN's: make the last hop put the client's IP last, or set
+`AUTH_RATE_LIMIT=0` and limit at the edge.
+
+```http
+HTTP/1.1 429 Too Many Requests
+retry-after: 3
+content-type: application/json
+
+{"error":{"code":"too_many_requests","message":"too many requests; retry in 3s"}}
+```
+
+**A test answers `429`.** Tests that share an `AppState` (`call_with`)
+share its rate limit; `call` builds a fresh state per request.
+
+**A test answers `500` with `` `PgPool` is not registered as app data ``
+in the log.** `AuthUser` checks the account in the database, so the app
+needs the pool as `web::Data<PgPool>`. Build it with `app::configure` and
+an `AppState`, as `tests/support/mod.rs` does.
+Under axum, build the router with `app::router(AppState::new(..)?)`, which
+puts the pool in every request's extensions.
+
+**axum: `a rate-limited request has no peer address` in the log, and one
+`429` for everyone.** The router was served without the peer's address,
+so every client counts as `0.0.0.0` and shares one limit. Serve it with
+`into_make_service_with_connect_info::<SocketAddr>()`, as the template's
+`app::serve` does. Tests that send requests with `oneshot` see this once,
+which is harmless there.
+
+**axum: a `408` with `request_timeout`.** A request took longer than
+`app.rs`' `REQUEST_TIMEOUT` (30 seconds) and its handler was dropped. Find
+the slow query, move the work out of the request, or raise the timeout in
+`app.rs`. actix-web has no such timeout: put one in your proxy.
+
+**axum: a `500` with `something went wrong` from a route you added.** A
+route path without the parameters its handler's `Path` takes (`/notes`
+for `Path<Uuid>`, say) is a wiring bug, not the caller's: the log has
+`internal error` with axum's rejection. Give the route its `{id}`.
+
+**An API key answers `403` with `an API key can't reach this; sign in
+instead`.** Keys never reach `/api/v1/auth/*` or `/api/v1/api-keys`,
+however the path is spelled: sign in for those. `a read API key may only
+GET, HEAD or OPTIONS` means the key's scope is `read`; make a `write` key
+([Accounts](auth.md#api-keys)).
+
+**An API key answers `401` with `the API key is not valid`.** It is
+unknown, revoked or expired, or its owner is disabled or deleted. A
+password reset revokes every key of the account.
+
+**Sign-in answers `requires_totp` instead of a token.** The account has
+two-factor on: post the `pending_token` with a code to
+`/api/v1/auth/2fa/verify` within 5 minutes. A `401` there is a wrong or
+already-used code (each code works once), and counts toward the lockout.
+
+**Every session stopped working after turning two-factor off.** That is
+on purpose: disabling two-factor signs every session out, like a password
+change. Sign in again.

@@ -6,6 +6,9 @@
 //! `app.rs`.
 
 pub mod account;
+pub mod api_keys;
 pub mod auth;
 mod generated;
+pub mod media;
+pub mod two_factor;
 pub use generated::*;

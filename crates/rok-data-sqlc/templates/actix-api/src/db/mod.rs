@@ -27,6 +27,7 @@ pub mod pool;
 pub mod queries;
 pub mod schema;
 pub mod search;
+pub mod totp_recovery_codes;
 pub mod types;
 pub mod users;
 
@@ -46,6 +47,8 @@ pub mod prelude {
     pub use super::media::models::*;
     pub use super::outbound_mail::models::OutboundMail;
     pub use super::outbound_mail::models::*;
+    pub use super::totp_recovery_codes::models::TotpRecoveryCode;
+    pub use super::totp_recovery_codes::models::*;
     pub use super::users::models::User;
     pub use super::users::models::*;
 }

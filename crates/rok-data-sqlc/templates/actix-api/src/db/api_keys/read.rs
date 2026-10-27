@@ -24,6 +24,19 @@ where
         .map(|count| count > 0)
 }
 
+/// Fetches the row with the given `key_hash`, or `None` if there is none.
+pub async fn get_by_key_hash<'e, E>(
+    executor: E,
+    key_hash: &str,
+) -> Result<Option<ApiKey>, rok_data::Error>
+where
+    E: rok_data::Executor<'e>,
+{
+    ApiKey::filter(ApiKey::KEY_HASH.eq(key_hash))
+        .first(executor)
+        .await
+}
+
 /// Fetches every row, ordered by primary key.
 pub async fn list<'e, E>(executor: E) -> Result<Vec<ApiKey>, rok_data::Error>
 where

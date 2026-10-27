@@ -28,6 +28,10 @@ const SHARED: &[&str] = &[
     // The rate limit's counting and `client_ip`; each `rate_limit/mod.rs`
     // is the framework's middleware around it.
     "src/shared/rate_limit/limiter.rs",
+    // The `Storage` port and its `object_store` implementation.
+    "src/shared/storage",
+    // The profile photos' image processing: decode, crop, re-encode.
+    "src/shared/thumbnail.rs",
 ];
 
 /// The features whose framework-independent files both templates share.
@@ -39,10 +43,10 @@ const FEATURES: &[&str] = &["users", "audit_log_entry"];
 /// names the framework's wiring (`register_services` or `router`).
 const FEATURE_FILES: &[&str] = &["dto.rs", "model.rs", "repo.rs", "service_api.rs"];
 
-/// The hand-written features (the M5 account flows) whose [`HAND_WRITTEN_FILES`]
-/// both templates share: they have no `model.rs`, `repo.rs` or
-/// `service_api.rs`.
-const HAND_WRITTEN: &[&str] = &["auth", "account"];
+/// The hand-written features (the account flows, API keys and uploads) whose
+/// [`HAND_WRITTEN_FILES`] both templates share: they have no `model.rs`,
+/// `repo.rs` or `service_api.rs`.
+const HAND_WRITTEN: &[&str] = &["auth", "account", "api_keys", "media", "two_factor"];
 
 /// The files of a hand-written feature no framework shows through.
 const HAND_WRITTEN_FILES: &[&str] = &["dto.rs", "service.rs"];

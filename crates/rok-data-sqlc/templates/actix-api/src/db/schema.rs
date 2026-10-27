@@ -5,9 +5,8 @@
 /// Verbatim snapshot of the input schema; never executed.
 pub const SCHEMA_SQL: &str = r#"-- The schema of the target API (api-starter-axum's OpenAPI document), as
 -- far as generation covers it. `users` and `audit_log` have API features;
--- `media` and `api_keys` are here because the hand-written features of a
--- later release use them, and `rok-data-sqlc.toml` excludes them from the API
--- for now.
+-- `media` and `api_keys` belong to the hand-written `media` and `api_keys`
+-- features, so `rok-data-sqlc.toml` excludes them from the generated API.
 
 CREATE TYPE role AS ENUM ('user', 'admin');
 CREATE TYPE api_key_scope AS ENUM ('read', 'write');
@@ -36,7 +35,7 @@ CREATE TABLE users (
     email_verified BOOLEAN NOT NULL DEFAULT false,
     totp_secret TEXT,
     totp_enabled BOOLEAN NOT NULL DEFAULT false,
-    -- Answered as `avatar_url` once uploads exist.
+    -- The profile photo's storage key; `avatar_url` below is its URL.
     avatar_key TEXT,
     failed_logins INTEGER NOT NULL DEFAULT 0,
     locked_until TIMESTAMPTZ,
@@ -45,7 +44,16 @@ CREATE TABLE users (
     deleted_at TIMESTAMPTZ,
     -- Bumped by a password change or a reset. A token whose `tv` claim no
     -- longer matches is rejected on its next request.
-    token_version INTEGER NOT NULL DEFAULT 1
+    token_version INTEGER NOT NULL DEFAULT 1,
+    -- The time step of the last two-factor code accepted, so a code is
+    -- never accepted twice.
+    totp_last_step BIGINT,
+    -- The profile photo's public URL, `/api/v1/avatars/<random>.jpg` (`GET
+    -- /avatars/{file}`), or `NULL` without a photo; `avatar_key` is its
+    -- storage key, set by `PUT /users/me/avatar`. Computed here, so the
+    -- generated `users` feature answers it too; `rok-data-sqlc.toml` hides
+    -- the key.
+    avatar_url TEXT GENERATED ALWAYS AS ('/api/v1/' || avatar_key) STORED
 );
 
 -- One live account per email, whatever its case.
@@ -103,7 +111,8 @@ CREATE TABLE auth_tokens (
     id UUID PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     purpose TEXT NOT NULL CHECK (
-        purpose IN ('email_verification', 'password_reset', 'email_change', 'invitation')
+        purpose IN ('email_verification', 'password_reset', 'email_change',
+                    'invitation', 'two_factor_pending')
     ),
     token_hash TEXT NOT NULL UNIQUE,
     -- The address an `email_change` token moves the account to.
@@ -135,4 +144,31 @@ CREATE TRIGGER outbound_mail_touch_updated_at BEFORE UPDATE ON outbound_mail
 
            
                                                              
+-- Two-factor sign-in (TOTP). `users.totp_secret` holds the authenticator
+-- secret encrypted with AES-256-GCM under `TOTP_ENCRYPTION_KEY` (base64 of
+-- the nonce, then the ciphertext); it is set while a setup waits for its
+-- first code, and `totp_enabled` turns on once `POST /auth/2fa/enable`
+-- confirms one. `users.totp_last_step` (in `0001_init.sql`) keeps a code
+-- from being accepted twice, and a right password on a two-factor account
+-- issues a short-lived `two_factor_pending` token (`0002_auth.sql`), which
+-- `POST /auth/2fa/verify` spends.
+
+-- Single-use recovery codes, issued when two-factor is enabled. Only a
+-- keyed hash of each is kept; `used_at` spends it.
+CREATE TABLE totp_recovery_codes (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    code_hash TEXT NOT NULL,
+    used_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX totp_recovery_codes_user ON totp_recovery_codes (user_id);
+-- API keys (the `api_keys` feature; the table is in `0001_init.sql`). Every
+-- request sending a key looks it up by its hash, and a user's active keys
+-- are listed and counted.
+
+CREATE UNIQUE INDEX api_keys_key_hash_key ON api_keys (key_hash);
+
+CREATE INDEX api_keys_user_id_active_idx ON api_keys (user_id) WHERE revoked_at IS NULL;
 "#;

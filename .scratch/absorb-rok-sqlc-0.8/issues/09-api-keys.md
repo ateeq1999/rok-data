@@ -4,8 +4,8 @@
 
 **Blocked by:** 07
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Both templates; template `api_keys` tests ported
-- [ ] Encoded-path guard test
-- [ ] Reset-revokes-keys test
+- [x] Both templates; template `api_keys` tests ported
+- [x] Encoded-path guard test
+- [x] Reset-revokes-keys test

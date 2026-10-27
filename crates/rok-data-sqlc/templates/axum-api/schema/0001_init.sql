@@ -1,8 +1,7 @@
 -- The schema of the target API (api-starter-axum's OpenAPI document), as
 -- far as generation covers it. `users` and `audit_log` have API features;
--- `media` and `api_keys` are here because the hand-written features of a
--- later release use them, and `rok-data-sqlc.toml` excludes them from the API
--- for now.
+-- `media` and `api_keys` belong to the hand-written `media` and `api_keys`
+-- features, so `rok-data-sqlc.toml` excludes them from the generated API.
 
 CREATE TYPE role AS ENUM ('user', 'admin');
 CREATE TYPE api_key_scope AS ENUM ('read', 'write');
@@ -31,7 +30,7 @@ CREATE TABLE users (
     email_verified BOOLEAN NOT NULL DEFAULT false,
     totp_secret TEXT,
     totp_enabled BOOLEAN NOT NULL DEFAULT false,
-    -- Answered as `avatar_url` once uploads exist.
+    -- The profile photo's storage key; `avatar_url` below is its URL.
     avatar_key TEXT,
     failed_logins INTEGER NOT NULL DEFAULT 0,
     locked_until TIMESTAMPTZ,
@@ -40,7 +39,16 @@ CREATE TABLE users (
     deleted_at TIMESTAMPTZ,
     -- Bumped by a password change or a reset. A token whose `tv` claim no
     -- longer matches is rejected on its next request.
-    token_version INTEGER NOT NULL DEFAULT 1
+    token_version INTEGER NOT NULL DEFAULT 1,
+    -- The time step of the last two-factor code accepted, so a code is
+    -- never accepted twice.
+    totp_last_step BIGINT,
+    -- The profile photo's public URL, `/api/v1/avatars/<random>.jpg` (`GET
+    -- /avatars/{file}`), or `NULL` without a photo; `avatar_key` is its
+    -- storage key, set by `PUT /users/me/avatar`. Computed here, so the
+    -- generated `users` feature answers it too; `rok-data-sqlc.toml` hides
+    -- the key.
+    avatar_url TEXT GENERATED ALWAYS AS ('/api/v1/' || avatar_key) STORED
 );
 
 -- One live account per email, whatever its case.

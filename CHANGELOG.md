@@ -31,6 +31,14 @@ compiler finds the call sites.
     framework-independent files are byte-identical to actix's, which
     `template_drift` checks. `rok init -w axum` (and `rok sqlc init -w
     axum`) scaffolds the skeleton for axum.
+  - **Both templates gain two-factor sign-in, API keys, uploads and
+    profile photos** (rok-sqlc 0.8, engine ADR 0022). New required
+    setting `TOTP_ENCRYPTION_KEY`; uploads are stored where `STORAGE_URL`
+    says (`file://`, `s3://`, `memory://`); a disallowed upload type
+    answers `415 unsupported_media_type`. Three new migrations
+    (`0003_two_factor`, `0004_api_keys`, `0005_avatars`), and new
+    dependencies in the templates' own manifests only. See the engine's
+    [Files and storage](crates/rok-data-sqlc/docs/guide/files.md).
   - **Guide:** see the engine's
     [Accounts and sign-in](crates/rok-data-sqlc/docs/guide/auth.md).
 - **Generated writes answer a missing reference or a taken value as a

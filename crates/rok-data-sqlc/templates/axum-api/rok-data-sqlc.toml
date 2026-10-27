@@ -24,6 +24,7 @@ managed_columns = [
     "email_verified",
     "totp_secret",
     "totp_enabled",
+    "totp_last_step",
     "avatar_key",
     "failed_logins",
     "locked_until",
@@ -40,10 +41,10 @@ prefix = "/api/v1"
 # The features are generated for axum: the routes are a `Router`'s and the
 # handlers take axum's extractors.
 framework = "axum"
-# `media` and `api_keys` are hand-written features of a later release
-# (uploads, API keys); `auth_tokens` and `outbound_mail` belong to the
-# account flows and the mail outbox.
-exclude = ["media", "api_keys", "auth_tokens", "outbound_mail"]
+# `media` and `api_keys` are hand-written features (uploads, API keys);
+# `auth_tokens`, `totp_recovery_codes` and `outbound_mail` belong to the
+# account flows, two-factor sign-in and the mail outbox.
+exclude = ["media", "api_keys", "auth_tokens", "outbound_mail", "totp_recovery_codes"]
 
 [api.access]
 users = "admin"
@@ -63,6 +64,7 @@ audit_log = ["create", "update", "remove", "relationships"]
 users = [
     "password_hash",
     "totp_secret",
+    "totp_last_step",
     "avatar_key",
     "failed_logins",
     "locked_until",

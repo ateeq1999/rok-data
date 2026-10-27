@@ -4,8 +4,8 @@
 
 **Blocked by:** 07
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Both templates; new dependencies only in the templates' own manifests
-- [ ] Template tests: media, avatars (DB-backed, printed skip)
-- [ ] CHANGELOG: `STORAGE_URL`, the 415 answer
+- [x] Both templates; new dependencies only in the templates' own manifests
+- [x] Template tests: media, avatars (DB-backed, printed skip)
+- [x] CHANGELOG: `STORAGE_URL`, the 415 answer

@@ -9,6 +9,41 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Breaking changes to the templates
 
+- From rok-sqlc 0.8.0 (absorbed; engine ADR 0022): both templates gain
+  two-factor sign-in, API keys, uploads and profile photos, as
+  hand-written features (`src/features/{two_factor,api_keys,media}/`, the
+  photo routes in `account`). See [Accounts and sign-in](docs/guide/auth.md)
+  and [Files and storage](docs/guide/files.md).
+  - **Two-factor** (`/auth/2fa/*`): TOTP with ten recovery codes. Secrets
+    are sealed with `TOTP_ENCRYPTION_KEY` (required: 32 bytes in base64)
+    and bound to their account; recovery codes are HMACs under a key
+    derived from it. Sign-in with two-factor on answers `{requires_totp,
+    pending_token}`; disabling it signs every session out.
+  - **API keys** (`/api-keys`): `read` or `write` scope, at most 25 active
+    per account, only a hash kept. `AuthUser` accepts one as `Bearer
+    rok_…` or `X-API-Key`; no key reaches `/auth` or `/api-keys`, however
+    the path is encoded (`403`). `AuthUser` gains a `credential` field.
+  - **Uploads** (`/media`) go through a `Storage` port opened from
+    `STORAGE_URL` (`file://`, `s3://`, `memory://`): a raw body capped by
+    `MEDIA_MAX_UPLOAD_BYTES` (`413`), its type detected from its bytes
+    and checked against `MEDIA_ALLOWED_TYPES` (`415
+    unsupported_media_type`, a new `AppError` variant). actix reads the
+    body only after `AuthUser` succeeds.
+  - **Profile photos:** `PUT`/`DELETE /users/me/avatar` and the public
+    `GET /avatars/{file}`; `users.avatar_url` is a generated column.
+  - **A password reset** revokes the account's API keys and spends its
+    pending two-factor sign-ins.
+  - **The schema:** new truth files `schema/0003_two_factor.sql` and
+    `schema/0004_api_keys.sql`, and `users.totp_last_step` and
+    `users.avatar_url` in `0001_init.sql`, staged as the migration pairs
+    `0003_two_factor`, `0004_api_keys` and `0005_avatars`.
+  - **New dependencies** (the templates' own manifests only): `aes-gcm`,
+    `bytes`, `hmac`, `image`, `infer`, `object_store`, `qrcode`, `subtle`,
+    `totp-rs`, `zeroize`.
+  - **Breaking for a project made from an older template:** set
+    `TOTP_ENCRYPTION_KEY`, apply the three migrations, and build the
+    state with `AppState::new(pool, &config)?` (it opens the store and
+    can fail).
 - From rok-sqlc 0.7.0 (absorbed; engine ADR 0021): `rok sqlc init
   --template axum` makes the same API with accounts as the actix template.
   It has the same flows, services, DTOs, queries, migrations,

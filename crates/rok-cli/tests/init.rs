@@ -165,9 +165,14 @@ fn a_template_copys_migrations_load_as_history() -> Result<()> {
     assert_success(&run_in(dir.path(), &["init", "--template", "actix"])?);
 
     let migrations = rok_data::migration_file::load(&dir.path().join("migrations"))?;
-    // `init`, then the account flows' `auth` (engine ADR 0020).
+    // `init`, the account flows' `auth` (engine ADR 0020), then two-factor,
+    // API keys and avatars (engine ADR 0022).
     let names: Vec<&str> = migrations.iter().map(|m| m.name).collect();
-    assert_eq!(names, ["init", "auth"], "{migrations:?}");
+    assert_eq!(
+        names,
+        ["init", "auth", "two_factor", "api_keys", "avatars"],
+        "{migrations:?}"
+    );
     assert!(
         migrations[1].up.contains("CREATE TABLE \"auth_tokens\""),
         "{}",
