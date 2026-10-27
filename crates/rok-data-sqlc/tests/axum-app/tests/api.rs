@@ -140,6 +140,24 @@ async fn a_malformed_path_answers_400() {
     let (status, body) = send(request("GET", "/api/v1/labels/not-a-number", "")).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(error(&body)["code"], "bad_request");
+    // Worded as actix-web words it, so both frameworks answer the same.
+    assert_eq!(
+        error(&body)["message"],
+        "Path deserialize error: can not parse \"not-a-number\" to a i64"
+    );
+}
+
+/// A query string that doesn't parse answers `400`, worded as actix-web
+/// words it, without the field path axum adds.
+#[tokio::test]
+async fn a_malformed_query_answers_400() {
+    let (status, body) = send(request("GET", "/api/v1/labels?page=abc", "")).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(error(&body)["code"], "bad_request");
+    assert_eq!(
+        error(&body)["message"],
+        "Query deserialize error: invalid digit found in string"
+    );
 }
 
 /// A body that is not JSON answers `400`, in the wire standard's shape: the

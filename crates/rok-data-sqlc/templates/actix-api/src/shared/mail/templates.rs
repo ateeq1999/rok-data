@@ -57,7 +57,7 @@ impl Templates {
                 "Confirm that this is your email address to activate your account. The link is valid for 24 hours.",
                 "If you didn't create an account, ignore this email.",
             ],
-            Some(Action {
+            Some(&Action {
                 label: "Verify email",
                 url: self.link(VERIFY_EMAIL_PATH, token),
             }),
@@ -74,7 +74,7 @@ impl Templates {
                 "Someone asked to reset the password of your account. Choose a new one with the link below; it is valid for 1 hour.",
                 "If it wasn't you, ignore this email: your password stays the same.",
             ],
-            Some(Action {
+            Some(&Action {
                 label: "Reset password",
                 url: self.link(RESET_PASSWORD_PATH, token),
             }),
@@ -94,7 +94,7 @@ impl Templates {
                 &request,
                 "If it wasn't you, ignore this email: nothing changes.",
             ],
-            Some(Action {
+            Some(&Action {
                 label: "Confirm email",
                 url: self.link(CONFIRM_EMAIL_CHANGE_PATH, token),
             }),
@@ -143,7 +143,7 @@ impl Templates {
                 "An account was created for you. Choose your password with the link below to sign in; it is valid for 7 days.",
                 "If you weren't expecting this, ignore this email.",
             ],
-            Some(Action {
+            Some(&Action {
                 label: "Accept invitation",
                 url: self.link(ACCEPT_INVITATION_PATH, token),
             }),
@@ -153,7 +153,7 @@ impl Templates {
 
 /// A message to `to`: the paragraphs, then the action's link, in both
 /// bodies. The HTML body escapes every value.
-fn compose(to: &str, subject: &str, paragraphs: &[&str], action: Option<Action<'_>>) -> Mail {
+fn compose(to: &str, subject: &str, paragraphs: &[&str], action: Option<&Action<'_>>) -> Mail {
     let mut text = format!("{subject}\n\n");
     let mut html = format!(
         "<!doctype html>\n<html><body>\n<h1>{}</h1>\n",
@@ -164,7 +164,7 @@ fn compose(to: &str, subject: &str, paragraphs: &[&str], action: Option<Action<'
         text.push_str("\n\n");
         html.push_str(&format!("<p>{}</p>\n", escape(paragraph)));
         if index == 0
-            && let Some(action) = &action
+            && let Some(action) = action
         {
             text.push_str(&format!("{}: {}\n\n", action.label, action.url));
             let url = escape(&action.url);

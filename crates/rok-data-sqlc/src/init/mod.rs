@@ -19,20 +19,27 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
+use crate::ApiFramework;
 use crate::output::{SCAFFOLD_HEADER, write_absent};
 use crate::report::display_path;
 
-/// The skeleton: each file's path in the project and its text. Rust files
-/// get [`SCAFFOLD_HEADER`] as their first line; the others carry it in
-/// their own comment syntax.
-const TEMPLATES: &[(&str, &str)] = &[
+/// The skeleton's files every framework shares: each file's path in the
+/// project and its text. Rust files get [`SCAFFOLD_HEADER`] as their first
+/// line; the others carry it in their own comment syntax.
+const COMMON: &[(&str, &str)] = &[
     ("AGENTS.md", include_str!("templates/AGENTS.md")),
+    ("src/config.rs", include_str!("templates/config.rs")),
+    ("src/openapi.rs", include_str!("templates/openapi.rs")),
+    ("src/shared/mod.rs", include_str!("templates/shared/mod.rs")),
+];
+
+/// The actix-web skeleton's own files: its wiring, extractors and config.
+const ACTIX_WEB: &[(&str, &str)] = &[
     (
         "rok-data-sqlc.toml",
         include_str!("templates/rok-data-sqlc.toml"),
     ),
     ("src/app.rs", include_str!("templates/app.rs")),
-    ("src/config.rs", include_str!("templates/config.rs")),
     ("src/error.rs", include_str!("templates/error.rs")),
     (
         "src/features/mod.rs",
@@ -40,12 +47,31 @@ const TEMPLATES: &[(&str, &str)] = &[
     ),
     ("src/lib.rs", include_str!("templates/lib.rs")),
     ("src/main.rs", include_str!("templates/main.rs")),
-    ("src/openapi.rs", include_str!("templates/openapi.rs")),
     (
         "src/shared/auth.rs",
         include_str!("templates/shared/auth.rs"),
     ),
-    ("src/shared/mod.rs", include_str!("templates/shared/mod.rs")),
+];
+
+/// The axum skeleton's own files (engine ADR 0021): the same paths, with
+/// its `router(pool)` wiring and axum's extractors.
+const AXUM: &[(&str, &str)] = &[
+    (
+        "rok-data-sqlc.toml",
+        include_str!("templates/axum/rok-data-sqlc.toml"),
+    ),
+    ("src/app.rs", include_str!("templates/axum/app.rs")),
+    ("src/error.rs", include_str!("templates/axum/error.rs")),
+    (
+        "src/features/mod.rs",
+        include_str!("templates/axum/features/mod.rs"),
+    ),
+    ("src/lib.rs", include_str!("templates/axum/lib.rs")),
+    ("src/main.rs", include_str!("templates/axum/main.rs")),
+    (
+        "src/shared/auth.rs",
+        include_str!("templates/axum/shared/auth.rs"),
+    ),
 ];
 
 /// The truth dir the schema files go in, created empty. The migration
@@ -59,21 +85,24 @@ const CRATE_PLACEHOLDER: &str = "{crate}";
 const RULES_PLACEHOLDER: &str = "{rules}";
 
 /// The skeleton's files under `dir`, with their contents, for the library
-/// crate `krate`. Line endings are `\n` whichever way the templates were
-/// checked out.
-pub(crate) fn plan(dir: &Path, krate: &str) -> Vec<(PathBuf, String)> {
-    TEMPLATES
+/// crate `krate` and `framework`. Line endings are `\n` whichever way the
+/// templates were checked out.
+pub(crate) fn plan(dir: &Path, krate: &str, framework: ApiFramework) -> Vec<(PathBuf, String)> {
+    let own = match framework {
+        ApiFramework::ActixWeb => ACTIX_WEB,
+        ApiFramework::Axum => AXUM,
+    };
+    COMMON
         .iter()
+        .chain(own)
         .map(|(path, text)| {
             let text = text
                 .replace("\r\n", "\n")
                 .replace(CRATE_PLACEHOLDER, krate)
+                // Rule 1 names the framework the skeleton is written for.
                 .replace(
                     RULES_PLACEHOLDER,
-                    // The skeleton generates for actix-web, so its rule texts
-                    // name `actix_web`; the templates' own `AGENTS.md`s carry
-                    // the framework each template's code is written for.
-                    &crate::check_arch::rules_markdown(crate::ApiFramework::ActixWeb),
+                    &crate::check_arch::rules_markdown(framework),
                 );
             let contents = if path.ends_with(".rs") {
                 format!("{SCAFFOLD_HEADER}\n\n{text}")
@@ -150,9 +179,10 @@ fn is_cargo_default_main(text: &str) -> bool {
     text.replace("\r\n", "\n").trim_end_matches('\n') == CARGO_DEFAULT_MAIN
 }
 
-/// Scaffolds the skeleton into `dir`, keeping every file that exists but
-/// cargo's untouched default `src/main.rs`, and creates `schema/`.
-pub fn init(dir: &Path) -> Result<Scaffolded> {
+/// Scaffolds `framework`'s skeleton into `dir`, keeping every file that
+/// exists but cargo's untouched default `src/main.rs`, and creates
+/// `schema/`.
+pub fn init(dir: &Path, framework: ApiFramework) -> Result<Scaffolded> {
     let truth = dir.join(SCHEMA);
     fs::create_dir_all(&truth)
         .with_context(|| format!("failed to create directory `{}`", display_path(&truth)))?;
@@ -164,7 +194,7 @@ pub fn init(dir: &Path) -> Result<Scaffolded> {
             .with_context(|| format!("failed to replace `{}`", display_path(&main)))?;
     }
     Ok(Scaffolded {
-        written: write_absent(&plan(dir, &crate_name(dir)))?,
+        written: write_absent(&plan(dir, &crate_name(dir), framework))?,
         replaced_default_main,
         wrote_manifest: false,
     })

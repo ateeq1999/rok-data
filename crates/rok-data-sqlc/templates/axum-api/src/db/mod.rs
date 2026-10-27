@@ -15,14 +15,17 @@
 //   serde_path_to_error = "0.1"
 //   tracing = "0.1"
 //   utoipa = { version = "5", features = ["chrono", "uuid"] }
-//   utoipa-swagger-ui = { version = "9", features = ["actix-web", "vendored"] }
+//   utoipa-swagger-ui = { version = "9", features = ["axum", "vendored"] }
 
 pub mod api_keys;
 pub mod audit_log_entry;
+pub mod auth_tokens;
 pub mod http;
 pub mod media;
 pub mod nullable;
+pub mod outbound_mail;
 pub mod pool;
+pub mod queries;
 pub mod schema;
 pub mod search;
 pub mod types;
@@ -38,8 +41,12 @@ pub mod prelude {
     pub use super::api_keys::models::*;
     pub use super::audit_log_entry::models::AuditLogEntry;
     pub use super::audit_log_entry::models::*;
+    pub use super::auth_tokens::models::AuthToken;
+    pub use super::auth_tokens::models::*;
     pub use super::media::models::Media;
     pub use super::media::models::*;
+    pub use super::outbound_mail::models::OutboundMail;
+    pub use super::outbound_mail::models::*;
     pub use super::users::models::User;
     pub use super::users::models::*;
 }

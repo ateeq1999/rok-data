@@ -27,6 +27,10 @@ compiler finds the call sites.
     be at least 32 bytes, there is a new schema file and migration
     (`0002_auth`), and `app::configure` takes the `AppState`.
   - **Rule:** `rok sqlc check-arch` gains `cross-feature-query`.
+  - **The axum template** has the same accounts (rok-sqlc 0.7). Its
+    framework-independent files are byte-identical to actix's, which
+    `template_drift` checks. `rok init -w axum` (and `rok sqlc init -w
+    axum`) scaffolds the skeleton for axum.
   - **Guide:** see the engine's
     [Accounts and sign-in](crates/rok-data-sqlc/docs/guide/auth.md).
 - **Generated writes answer a missing reference or a taken value as a

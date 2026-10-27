@@ -115,6 +115,16 @@
           "name": "deleted_at",
           "sql_type": "TIMESTAMPTZ",
           "nullable": true
+        },
+        {
+          "name": "token_version",
+          "sql_type": "INTEGER",
+          "nullable": false,
+          "default": "1",
+          "doc": [
+            "Bumped by a password change or a reset. A token whose `tv` claim no",
+            "longer matches is rejected on its next request."
+          ]
         }
       ],
       "primary_key": [
@@ -322,6 +332,155 @@
           ]
         }
       ]
+    },
+    {
+      "name": "auth_tokens",
+      "module": "types",
+      "doc": [
+        "Single-use tokens mailed as links. Only the SHA-256 of the token is",
+        "kept; `used_at` spends it, and issuing a new one for the same user and",
+        "purpose invalidates the older ones."
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "purpose",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "token_hash",
+          "sql_type": "TEXT",
+          "nullable": false
+        },
+        {
+          "name": "new_email",
+          "sql_type": "TEXT",
+          "nullable": true,
+          "doc": [
+            "The address an `email_change` token moves the account to."
+          ]
+        },
+        {
+          "name": "expires_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": false
+        },
+        {
+          "name": "used_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "uniques": [
+        {
+          "name": "auth_tokens_token_hash_key",
+          "columns": [
+            "token_hash"
+          ]
+        }
+      ],
+      "foreign_keys": [
+        {
+          "name": "auth_tokens_user_id_fkey",
+          "columns": [
+            "user_id"
+          ],
+          "ref_table": "users",
+          "ref_columns": [
+            "id"
+          ],
+          "on_delete": "CASCADE"
+        }
+      ],
+      "checks": [
+        {
+          "name": "auth_tokens_purpose_check",
+          "expr": "purpose IN ('email_verification', 'password_reset', 'email_change', 'invitation')"
+        }
+      ]
+    },
+    {
+      "name": "outbound_mail",
+      "module": "types",
+      "doc": [
+        "The mail outbox: a row is written on the flow's transaction and deleted",
+        "once sent. A row that keeps failing becomes `dead`, keeping its error."
+      ],
+      "columns": [
+        {
+          "name": "id",
+          "sql_type": "UUID",
+          "nullable": false
+        },
+        {
+          "name": "payload",
+          "sql_type": "JSONB",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "sql_type": "TEXT",
+          "nullable": false,
+          "default": "'pending'"
+        },
+        {
+          "name": "attempts",
+          "sql_type": "INTEGER",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "next_attempt_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "last_error",
+          "sql_type": "TEXT",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "primary_key": [
+        "id"
+      ],
+      "checks": [
+        {
+          "name": "outbound_mail_status_check",
+          "expr": "status IN ('pending', 'dead')"
+        }
+      ]
     }
   ],
   "indexes": [
@@ -329,6 +488,16 @@
       "name": "users_email_key",
       "table": "users",
       "sql": "CREATE UNIQUE INDEX users_email_key ON users(lower(email)) WHERE deleted_at IS NULL"
+    },
+    {
+      "name": "auth_tokens_user_purpose",
+      "table": "auth_tokens",
+      "sql": "CREATE INDEX auth_tokens_user_purpose ON auth_tokens(user_id, purpose)"
+    },
+    {
+      "name": "outbound_mail_due",
+      "table": "outbound_mail",
+      "sql": "CREATE INDEX outbound_mail_due ON outbound_mail(next_attempt_at) WHERE status = 'pending'"
     }
   ],
   "extras": [
@@ -339,6 +508,10 @@
     {
       "up": "CREATE TRIGGER users_touch_updated_at BEFORE UPDATE ON users\n    FOR EACH ROW EXECUTE FUNCTION touch_updated_at()",
       "down": "DROP TRIGGER users_touch_updated_at ON users"
+    },
+    {
+      "up": "CREATE TRIGGER outbound_mail_touch_updated_at BEFORE UPDATE ON outbound_mail\n    FOR EACH ROW EXECUTE FUNCTION touch_updated_at()",
+      "down": "DROP TRIGGER outbound_mail_touch_updated_at ON outbound_mail"
     }
   ]
 }

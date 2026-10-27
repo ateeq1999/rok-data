@@ -291,6 +291,10 @@ pub fn plan_files_with_queries(
             .api
             .as_ref()
             .is_some_and(crate::api_rules::uses_regex),
+        framework: config
+            .api
+            .as_ref()
+            .map_or_else(crate::ApiFramework::default, |api| api.framework),
     };
     if let Some(session) = session {
         files.push((output.join("session.rs"), session));

@@ -119,6 +119,8 @@ use std::ops::Deref;
 use std::str::FromStr;
 
 use axum::extract::FromRequestParts;
+use axum::extract::path::ErrorKind;
+use axum::extract::rejection::{PathRejection, QueryRejection};
 use axum::http::header;
 use axum::http::request::Parts;
 
@@ -156,11 +158,46 @@ where
     type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let path = axum::extract::Path::<T>::from_request_parts(parts, state)
-            .await
-            .map_err(|rejection| AppError::BadRequest(rejection.body_text()))?;
-        Ok(Path(path.0))
+        match axum::extract::Path::<T>::from_request_parts(parts, state).await {
+            Ok(axum::extract::Path(value)) => Ok(Path(value)),
+            Err(rejection) => Err(path_error(rejection)),
+        }
     }
+}
+
+/// A path that didn't parse is the caller's `400`, worded as actix-web
+/// words it: `Path deserialize error: ` and the value's failure, such as
+/// `can not parse "abc" to a i64`. A path axum can't read at all (a route
+/// without the parameters its handler takes, or a type no path holds) is a
+/// wiring bug: a `500`, its detail logged.
+fn path_error(rejection: PathRejection) -> AppError {
+    let PathRejection::FailedToDeserializePathParams(failed) = &rejection else {
+        return AppError::Internal(Box::new(rejection));
+    };
+    let why = match failed.kind() {
+        ErrorKind::Message(message) | ErrorKind::DeserializeError { message, .. } => {
+            message.clone()
+        }
+        ErrorKind::ParseError {
+            value,
+            expected_type,
+        }
+        | ErrorKind::ParseErrorAtKey {
+            value,
+            expected_type,
+            ..
+        }
+        | ErrorKind::ParseErrorAtIndex {
+            value,
+            expected_type,
+            ..
+        } => format!("can not parse {value:?} to a {expected_type}"),
+        ErrorKind::InvalidUtf8InPathParam { .. } => {
+            return AppError::BadRequest(rejection.body_text());
+        }
+        _ => return AppError::Internal(Box::new(rejection)),
+    };
+    AppError::BadRequest(format!("Path deserialize error: {why}"))
 }
 
 /// The query of a request, deserialized into `T`: a query string that
@@ -192,11 +229,26 @@ where
     type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let query = axum::extract::Query::<T>::from_request_parts(parts, state)
-            .await
-            .map_err(|rejection| AppError::BadRequest(rejection.body_text()))?;
-        Ok(Query(query.0))
+        match axum::extract::Query::<T>::from_request_parts(parts, state).await {
+            Ok(axum::extract::Query(value)) => Ok(Query(value)),
+            Err(rejection) => Err(AppError::BadRequest(query_message(&rejection))),
+        }
     }
+}
+
+/// Why a query string didn't parse, worded as actix-web words it: `Query
+/// deserialize error: ` and the failure, such as `invalid digit found in
+/// string`, without the field path axum adds.
+fn query_message(rejection: &QueryRejection) -> String {
+    let mut source = std::error::Error::source(rejection);
+    while let Some(error) = source {
+        type Failure = serde_path_to_error::Error<serde::de::value::Error>;
+        if let Some(failure) = error.downcast_ref::<Failure>() {
+            return format!("Query deserialize error: {}", failure.inner());
+        }
+        source = error.source();
+    }
+    rejection.body_text()
 }
 
 /// The version an `If-Match` header holds, `"<version>"`: the `ETag` a

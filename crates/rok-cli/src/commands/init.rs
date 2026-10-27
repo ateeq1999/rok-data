@@ -10,6 +10,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use rok_data_sqlc::ApiFramework;
 use rok_data_sqlc::init::{Scaffolded, init as init_skeleton, init_template};
 
 use crate::output::display_path;
@@ -21,10 +22,11 @@ const SCHEMA_DIR: &str = "schema";
 /// The file a seeded schema is written as.
 const SCHEMA_FILE: &str = "0001_init.sql";
 
-/// `rok init [NAME] [--template <NAME>] [--schema <PATH>]`.
+/// `rok init [NAME] [--template <NAME> | --api-framework <FW>] [--schema <PATH>]`.
 pub(crate) fn run(
     name: Option<PathBuf>,
     template: Option<String>,
+    api_framework: Option<&str>,
     schema: Option<PathBuf>,
 ) -> Result<ExitCode, String> {
     let dir = name.unwrap_or_else(|| PathBuf::from("."));
@@ -37,7 +39,13 @@ pub(crate) fn run(
     };
     let scaffolded = match template {
         Some(template) => init_template(&dir, &template).map_err(|err| format!("{err:#}"))?,
-        None => init_skeleton(&dir).map_err(|err| format!("{err:#}"))?,
+        None => {
+            let framework = match api_framework {
+                Some("axum") => ApiFramework::Axum,
+                _ => ApiFramework::ActixWeb,
+            };
+            init_skeleton(&dir, framework).map_err(|err| format!("{err:#}"))?
+        }
     };
     report(&scaffolded);
     let seeded = match content {

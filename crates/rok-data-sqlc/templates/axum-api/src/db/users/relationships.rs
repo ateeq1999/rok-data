@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use super::super::api_keys::models::ApiKey;
 use super::super::audit_log_entry::models::AuditLogEntry;
+use super::super::auth_tokens::models::AuthToken;
 use super::super::media::models::Media;
 use super::models::{User, UserId};
 use rok_data::Model;
@@ -128,6 +129,37 @@ where
     }
     let related = ApiKey::filter(ApiKey::USER_ID.is_in(keys))
         .order_by(ApiKey::ID)
+        .all(executor)
+        .await?;
+    for row in related {
+        if let Some(list) = loaded.get_mut(&row.user_id) {
+            list.push(row);
+        }
+    }
+    Ok(loaded)
+}
+
+/// Loads the `auth_tokens` of each of `rows`: the `auth_tokens` rows whose
+/// `user_id` references it, keyed by `id`, in one query.
+/// Every row's key has an entry, empty when no row references it.
+pub async fn load_auth_tokens<'e, E>(
+    executor: E,
+    rows: &[User],
+) -> Result<HashMap<UserId, Vec<AuthToken>>, rok_data::Error>
+where
+    E: rok_data::Executor<'e>,
+{
+    let mut loaded = HashMap::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        loaded.insert(row.id, Vec::new());
+        keys.push(row.id);
+    }
+    if keys.is_empty() {
+        return Ok(loaded);
+    }
+    let related = AuthToken::filter(AuthToken::USER_ID.is_in(keys))
+        .order_by(AuthToken::ID)
         .all(executor)
         .await?;
     for row in related {

@@ -1,31 +1,41 @@
 //! What the API tests share: the whole application over a PostgreSQL schema
-//! of its own, requests to it, and callers' tokens.
+//! of its own, requests to it, and callers' accounts and tokens.
 //!
 //! The tests need `DATABASE_URL`; without it they print a note and pass.
 //! Each one creates a fresh schema holding the tables (`db::schema`'s
-//! snapshot of `migrations/`) and drops it when done, so tests run in
+//! snapshot of `schema/`) and drops it when done, so tests run in
 //! parallel without seeing each other's rows.
 
 #![allow(dead_code, reason = "each test file uses some of the helpers")]
 
+use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::Arc;
+use std::time::Duration;
 
-use axum::body::Body;
+use axum::body::{Body, to_bytes};
 use axum::http::{Method, Request, StatusCode, header};
-use axum_api::app::app;
+use axum_api::app::{AppState, router};
+use axum_api::config::Config;
 use axum_api::db::schema::SCHEMA_SQL;
-use axum_api::shared::auth::{Claims, JwtKeys, Role};
-use http_body_util::BodyExt;
+use axum_api::db::types::Role;
+use axum_api::db::users::models::{NewUser, User};
+use axum_api::shared::mail::{Mail, MemoryMailer, Outbox, Sender};
+use axum_api::shared::security::jwt::JwtKeys;
 use serde_json::Value;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::{AssertSqlSafe, PgPool};
 use tower::ServiceExt;
+use uuid::Uuid;
 
 /// What a test returns.
 pub type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 /// The JWT secret the test application verifies tokens with.
-const SECRET: &str = "test secret";
+const SECRET: &str = "a test secret of at least 32 bytes";
+
+/// The `APP_URL` the test application's mailed links start with.
+pub const APP_URL: &str = "http://app.test";
 
 /// A schema of the test database, and a pool whose connections use it.
 pub struct Database {
@@ -87,7 +97,8 @@ impl Answer {
 }
 
 /// Sends `method uri`, with the bearer `token` and the JSON `body` when
-/// given, to the whole application over `pool`.
+/// given, to the whole application over `pool`, built afresh from
+/// [`state`] (so its rate limit starts empty).
 pub async fn call(
     pool: &PgPool,
     token: Option<&str>,
@@ -95,21 +106,31 @@ pub async fn call(
     uri: &str,
     body: Option<Value>,
 ) -> Result<Answer, Box<dyn std::error::Error>> {
-    let keys = JwtKeys::new(SECRET);
-    let mut builder = Request::builder().method(method).uri(uri);
+    call_with(&state(pool)?, token, method, uri, body).await
+}
+
+/// Sends `method uri` like [`call`], to the application over `state`:
+/// calls sharing a state share its rate limit.
+pub async fn call_with(
+    state: &AppState,
+    token: Option<&str>,
+    method: Method,
+    uri: &str,
+    body: Option<Value>,
+) -> Result<Answer, Box<dyn std::error::Error>> {
+    let mut request = Request::builder().method(method).uri(uri);
     if let Some(token) = token {
-        builder = builder.header(header::AUTHORIZATION, format!("Bearer {token}"));
+        request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
     }
-    let request = if let Some(body) = body {
-        builder
+    let request = match body {
+        Some(body) => request
             .header(header::CONTENT_TYPE, "application/json")
-            .body(Body::from(body.to_string()))?
-    } else {
-        builder.body(Body::empty())?
+            .body(Body::from(serde_json::to_vec(&body)?))?,
+        None => request.body(Body::empty())?,
     };
-    let response = app(pool, &keys).oneshot(request).await?;
+    let response = router(state.clone()).oneshot(request).await?;
     let status = response.status();
-    let bytes = response.into_body().collect().await?.to_bytes();
+    let bytes = to_bytes(response.into_body(), usize::MAX).await?;
     let body = if bytes.is_empty() {
         Value::Null
     } else {
@@ -118,26 +139,154 @@ pub async fn call(
     Ok(Answer { status, body })
 }
 
-/// A bearer token for the caller `id` with `role`, valid for an hour.
-pub fn token(id: uuid::Uuid, role: Role) -> Result<String, Box<dyn std::error::Error>> {
-    let exp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)?
-        .as_secs()
-        + 3600;
-    let claims = Claims { sub: id, role, exp };
-    Ok(jsonwebtoken::encode(
-        &jsonwebtoken::Header::default(),
-        &claims,
-        &jsonwebtoken::EncodingKey::from_secret(SECRET.as_bytes()),
-    )?)
+/// The keys the test application signs and verifies tokens with.
+pub fn keys() -> JwtKeys {
+    JwtKeys::new(SECRET, Duration::from_secs(3600))
 }
 
-/// An admin's token.
-pub fn admin() -> Result<String, Box<dyn std::error::Error>> {
-    token(uuid::Uuid::now_v7(), Role::Admin)
+/// A bearer token for the account `id` with `role` and `token_version`,
+/// valid for an hour.
+pub fn token(
+    id: Uuid,
+    role: Role,
+    token_version: i32,
+) -> Result<String, Box<dyn std::error::Error>> {
+    Ok(keys().issue(id, role, token_version)?)
 }
 
-/// A signed-in user's token, not an admin's.
-pub fn user() -> Result<String, Box<dyn std::error::Error>> {
-    token(uuid::Uuid::now_v7(), Role::User)
+/// A new account with `role`, and a token for it: what signing in gives.
+pub async fn account(
+    pool: &PgPool,
+    role: Role,
+) -> Result<(Uuid, String), Box<dyn std::error::Error>> {
+    let id = Uuid::now_v7();
+    let row = User::create(
+        pool,
+        NewUser {
+            id: Some(id.into()),
+            email: format!("caller-{}@test.invalid", id.simple()),
+            display_name: None,
+            role: Some(role),
+            is_active: None,
+        },
+    )
+    .await?;
+    Ok((id, token(id, role, row.token_version)?))
+}
+
+/// A token of a new admin account.
+pub async fn admin(pool: &PgPool) -> Result<String, Box<dyn std::error::Error>> {
+    Ok(account(pool, Role::Admin).await?.1)
+}
+
+/// A token of a new account that is not an admin's.
+pub async fn user(pool: &PgPool) -> Result<String, Box<dyn std::error::Error>> {
+    Ok(account(pool, Role::User).await?.1)
+}
+
+/// The settings the test application runs with: [`SECRET`] for 1h tokens,
+/// links under [`APP_URL`] and the defaults, with `overrides` (such as
+/// `("REQUIRE_VERIFIED_EMAIL", "false")`) set on top.
+pub fn config(overrides: &[(&str, &str)]) -> Result<Config, Box<dyn std::error::Error>> {
+    let mut vars: HashMap<&str, &str> = HashMap::from([
+        ("DATABASE_URL", "postgres://unused"),
+        ("JWT_SECRET", SECRET),
+        ("JWT_TTL", "3600"),
+        ("APP_URL", APP_URL),
+    ]);
+    vars.extend(overrides.iter().copied());
+    Ok(Config::from_vars(|name| {
+        vars.get(name).map(|value| (*value).to_owned())
+    })?)
+}
+
+/// The application's state over `pool`, as the tests configure it.
+pub fn state(pool: &PgPool) -> Result<AppState, Box<dyn std::error::Error>> {
+    state_with(pool, &[])
+}
+
+/// The application's state over `pool`, with the settings `overrides` (see
+/// [`config`]).
+pub fn state_with(
+    pool: &PgPool,
+    overrides: &[(&str, &str)],
+) -> Result<AppState, Box<dyn std::error::Error>> {
+    Ok(AppState::new(pool.clone(), &config(overrides)?))
+}
+
+/// Delivers every due mail in `pool`'s outbox, as the sender would, and
+/// returns what was sent, oldest first.
+pub async fn mailed(pool: &PgPool) -> Result<Vec<Mail>, Box<dyn std::error::Error>> {
+    let mailer = Arc::new(MemoryMailer::default());
+    let sender = Sender::new(pool.clone(), mailer.clone(), &Outbox::new());
+    while sender.deliver_due().await?.sent > 0 {}
+    Ok(mailer.sent())
+}
+
+/// The token of the link `mail` carries (`…?token=<token>`), if any.
+pub fn mailed_token(mail: &Mail) -> Option<String> {
+    let start = mail.text.find("?token=")? + "?token=".len();
+    let token: String = mail.text[start..]
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+        .collect();
+    (!token.is_empty()).then_some(token)
+}
+/// A password the sign-up helpers use: within the policy, and not one a
+/// breach check knows.
+pub const PASSWORD: &str = "a long and unusual passphrase";
+
+/// Signs `email` up with `password` (`POST /auth/register`), verifies it
+/// with the mailed link, and signs in: the new account's bearer token. The
+/// outbox is delivered (and its mail dropped) on the way.
+pub async fn register_verified(
+    pool: &PgPool,
+    email: &str,
+    password: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let credentials = serde_json::json!({"email": email, "password": password});
+    let register = "/api/v1/auth/register";
+    let answer = call(
+        pool,
+        None,
+        Method::POST,
+        register,
+        Some(credentials.clone()),
+    )
+    .await?;
+    if answer.status != StatusCode::CREATED {
+        return Err(format!("register answered {}: {}", answer.status, answer.body).into());
+    }
+    let address = email.trim().to_lowercase();
+    let link = mailed(pool)
+        .await?
+        .iter()
+        .rev()
+        .find(|mail| mail.to == address)
+        .and_then(mailed_token)
+        .ok_or("no verification mail")?;
+    let body = serde_json::json!({"token": link});
+    let answer = call(
+        pool,
+        None,
+        Method::POST,
+        "/api/v1/auth/email/verify",
+        Some(body),
+    )
+    .await?;
+    if answer.status != StatusCode::OK {
+        return Err(format!("verify answered {}: {}", answer.status, answer.body).into());
+    }
+    let answer = call(
+        pool,
+        None,
+        Method::POST,
+        "/api/v1/auth/login",
+        Some(credentials),
+    )
+    .await?;
+    match answer.body["access_token"].as_str() {
+        Some(token) => Ok(token.to_owned()),
+        None => Err(format!("login answered {}: {}", answer.status, answer.body).into()),
+    }
 }

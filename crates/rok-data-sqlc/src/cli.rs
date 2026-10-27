@@ -119,6 +119,12 @@ enum Command {
             value_parser = clap::builder::PossibleValuesParser::new(crate::init::template_names())
         )]
         template: Option<String>,
+
+        /// The web framework the skeleton is written for: `actix_web` (the
+        /// default) or `axum`. A template has its own, so this doesn't
+        /// combine with `--template`
+        #[arg(short = 'w', long, value_name = "FW", conflicts_with = "template")]
+        api_framework: Option<FrameworkArg>,
     },
 
     /// Check the project against engine ADR 0016's architecture: the feature
@@ -166,6 +172,7 @@ where
         Command::Init {
             dir,
             template: Some(template),
+            ..
         } => {
             let scaffolded = crate::init::init_template(&dir, &template)?;
             let mut steps = Vec::new();
@@ -186,8 +193,10 @@ where
         Command::Init {
             dir,
             template: None,
+            api_framework,
         } => {
-            print_scaffolded(crate::init::init(&dir)?);
+            let framework = api_framework.map_or(ApiFramework::ActixWeb, ApiFramework::from);
+            print_scaffolded(crate::init::init(&dir, framework)?);
             print_next_steps(&[
                 "add the dependencies listed at the end of rok-data-sqlc.toml to Cargo.toml",
                 "add truth files to schema/ (0001_init.sql, ...)",

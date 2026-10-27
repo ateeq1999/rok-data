@@ -1,6 +1,6 @@
 # actix-api
 
-A complete actix-web API made by [rok-sqlc](https://github.com/ateeq1999/rok-sqlc)
+A complete actix-web API made by [`rok sqlc`](https://github.com/ateeq1999/rok-data)
 from one schema: the `users` and `audit_log` part of the axum starter's
 OpenAPI document (`tests/spec/openapi.json`), with the same wire standard,
 routes and schemas. `tests/contract.rs` checks the document this application

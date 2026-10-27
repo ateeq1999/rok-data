@@ -1,7 +1,7 @@
 -- The schema of the target API (api-starter-axum's OpenAPI document), as
 -- far as generation covers it. `users` and `audit_log` have API features;
 -- `media` and `api_keys` are here because the hand-written features of a
--- later release use them, and `rok-sqlc.toml` excludes them from the API
+-- later release use them, and `rok-data-sqlc.toml` excludes them from the API
 -- for now.
 
 CREATE TYPE role AS ENUM ('user', 'admin');
@@ -37,7 +37,10 @@ CREATE TABLE users (
     locked_until TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at TIMESTAMPTZ
+    deleted_at TIMESTAMPTZ,
+    -- Bumped by a password change or a reset. A token whose `tv` claim no
+    -- longer matches is rejected on its next request.
+    token_version INTEGER NOT NULL DEFAULT 1
 );
 
 -- One live account per email, whatever its case.

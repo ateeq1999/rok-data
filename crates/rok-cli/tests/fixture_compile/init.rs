@@ -33,6 +33,11 @@ const LIST_ONLY: &str = "\n[api.skip]\ntags = [\"create\", \"get_one\", \"update
 /// A project as after `cargo new <name>`, then `rok sqlc init`, with the
 /// [`MIGRATION`] truth and `init`'s `rok-data-sqlc.toml` plus [`LIST_ONLY`].
 fn scaffold(name: &str) -> Result<tempfile::TempDir> {
+    scaffold_with(name, &["init"])
+}
+
+/// [`scaffold`] with `init`'s own arguments, such as `--api-framework axum`.
+fn scaffold_with(name: &str, init: &[&str]) -> Result<tempfile::TempDir> {
     let project = tempfile::TempDir::new()?;
     let dir = project.path();
     // A package already exists, as after `cargo new`, so `init` knows the
@@ -41,7 +46,7 @@ fn scaffold(name: &str) -> Result<tempfile::TempDir> {
         dir.join("Cargo.toml"),
         format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n"),
     )?;
-    rok_data_sqlc(dir, &["init"])?;
+    rok_data_sqlc(dir, init)?;
     // Inside the repository the `rok-data = "0.2"` the hints name resolves
     // to the workspace crate (the release publishes it afterwards); cargo
     // substitutes it for crates.io while the tests run.
@@ -79,7 +84,8 @@ fn write_manifest(dir: &Path, name: &str, left_out: &[&str]) -> Result<String> {
         }
     }
     ensure!(
-        dependencies.contains_key("actix-web") && dependencies.contains_key("sqlx"),
+        (dependencies.contains_key("actix-web") || dependencies.contains_key("axum"))
+            && dependencies.contains_key("sqlx"),
         "the hints name no dependencies: {dependencies:?}"
     );
     // The `# [lints.clippy]` block after it.
@@ -155,6 +161,23 @@ fn init_then_generate_builds_end_to_end() -> Result<()> {
         String::from_utf8_lossy(&output.stderr)
     );
     Ok(())
+}
+
+/// The same, with `init --api-framework axum` (engine ADR 0021): the axum
+/// skeleton, generated for axum, obeys the architecture and passes `cargo
+/// clippy --all-targets -- -D warnings`.
+#[test]
+fn init_axum_then_generate_builds_end_to_end() -> Result<()> {
+    if let Some(reason) = common::generated_code_skip_reason(&api_app_dir()) {
+        eprintln!("{reason}");
+        return Ok(());
+    }
+    let project = scaffold_with("init-e2e-axum", &["init", "--api-framework", "axum"])?;
+    let dir = project.path();
+    rok_data_sqlc(dir, &["g"])?;
+    rok_data_sqlc(dir, &["check-arch"])?;
+    let manifest = write_manifest(dir, "init-e2e-axum", &[])?;
+    ensure_clippy_clean(dir, &manifest)
 }
 
 /// Removes from the file at `path` every line whose text, less its

@@ -57,6 +57,7 @@ schema seeding and the report.
 | Flag                  | Meaning                                                            |
 | --------------------- | ------------------------------------------------------------------ |
 | `-t, --template NAME` | copy this Template instead of the skeleton (`actix` or `axum`)      |
+| `-w, --api-framework FW` | the skeleton's web framework: `actix_web` (the default) or `axum`; not with `--template`, which has its own |
 | `-s, --schema PATH`   | seed the truth directory (`schema/`) with this file's content       |
 
 `NAME` is the project directory: it is created when missing, and the current
@@ -291,7 +292,7 @@ is a library; `rok` forwards the tokens verbatim). Subcommand set:
 | Command        | Alias | One-liner                                                                 |
 | -------------- | ----- | ------------------------------------------------------------------------- |
 | `generate`     | `g`   | parse the schema and emit `src/db/<table>/{…}` modules, optional api/openapi |
-| `init`         | `i`   | scaffold a project (engine ADR 0016 skeleton or `--template actix`/`axum`), files-if-absent |
+| `init`         | `i`   | scaffold a project (engine ADR 0016 skeleton, `-w axum` for axum, or `--template actix`/`axum`), files-if-absent |
 | `check-arch`   | `a`   | check `src/` layout against the engine's ADR 0016 rules; violations → exit 1 |
 
 Executive summary of the main flags (full text: `rok sqlc generate --help`):

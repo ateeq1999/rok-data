@@ -9,6 +9,29 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Breaking changes to the templates
 
+- From rok-sqlc 0.7.0 (absorbed; engine ADR 0021): `rok sqlc init
+  --template axum` makes the same API with accounts as the actix template.
+  It has the same flows, services, DTOs, queries, migrations,
+  `shared/security/`, `shared/mail/` and rate-limit counter, all
+  byte-identical, which `template_drift` (a rok-cli test) checks.
+  - **The generated routes stay stateless** (`features::router(pool)`,
+    services as extensions).
+  - **The hand-written `auth` and `account` routes** are a
+    `Router<AppState>`.
+  - **`AuthUser`** reads the JWT keys and the pool from the request's
+    extensions, which `app::router` puts there, and checks the account on
+    every request.
+  - **The server** gets tracing, request ids, CORS, a 2 MiB body limit, a
+    30-second timeout (`408 request_timeout`), graceful shutdown and the
+    mail sender beside it.
+  - **Breaking for a project made from the old axum template:** the same
+    as actix's (`JWT_SECRET` of 32 bytes, `0002_auth`), and `app::app(&pool,
+    &keys)` becomes `app::router(AppState::new(pool, &config))`.
+- The actix template, from 0.7: passwords are hashed on tokio's blocking
+  pool, the rate limiter moves to `shared/rate_limit/{mod,limiter}.rs`, and
+  an unknown path or method under `/api/v1/auth` answers the wire
+  standard's `404`.
+
 - From rok-sqlc 0.6.0 (absorbed; engine ADR 0020): `rok sqlc init
   --template actix` makes an API with accounts.
   - **The flows:** sign-up, email verification, sign-in, password reset
@@ -38,6 +61,25 @@ the *generated* API count as breaking (see ADR 0012).
   trimmed, lowercased and checked, and a display name is trimmed.
 
 ### Added
+
+- `rok sqlc init -w/--api-framework axum` (and the same flag on `rok
+  init`) scaffolds the skeleton for axum: `app::app(&pool, &keys)` over the
+  generated `router(pool)`, axum's `AuthUser` and errors, and a config
+  generating for axum. It doesn't combine with `--template`, which has its
+  framework. From rok-sqlc 0.7.0's `init --framework`, spelled as
+  `generate`'s flag.
+- Under axum, a malformed path or query answers `400 bad_request` worded as
+  actix-web words it (`Path deserialize error: can not parse "abc" to a
+  i64`, `Query deserialize error: …`), so both frameworks answer the same.
+  A path rejection that is a wiring bug is a `500`. From rok-sqlc 0.7.0.
+
+### Fixed
+
+- The data layer's `mod.rs` hinted `utoipa-swagger-ui` with the `actix-web`
+  feature for every project; it now names the API's framework (`axum` for
+  an axum project).
+
+### Added (check-arch)
 
 - `rok sqlc check-arch` reports the other framework's crate as a `rule-1`
   violation everywhere but the data layer, whose `extractors` may serve

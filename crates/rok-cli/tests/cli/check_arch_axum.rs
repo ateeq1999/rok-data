@@ -111,3 +111,38 @@ fn rule_1_axum_in_an_actix_project_is_reported() -> Result<()> {
     );
     Ok(())
 }
+
+/// `init --api-framework axum`'s `AGENTS.md` states rule 1 for axum, and the
+/// scaffolded project passes `check-arch`.
+#[test]
+fn init_framework_axum_states_rule_1_for_axum() -> Result<()> {
+    let dir = TempDir::new()?;
+    assert_success(&run_binary_in(
+        dir.path(),
+        &["init", "--api-framework", "axum"],
+    ));
+    let agents = fs::read_to_string(dir.path().join("AGENTS.md"))?;
+    let agents = agents.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(
+        agents.contains("1. In a feature, only `routes.rs` and `handlers.rs` use `axum`."),
+        "{agents}"
+    );
+    assert!(!agents.contains("actix"), "{agents}");
+    let config = fs::read_to_string(dir.path().join("rok-data-sqlc.toml"))?;
+    assert!(config.contains("framework = \"axum\""), "{config}");
+    assert_success(&run_binary_in(dir.path(), &["check-arch"]));
+    Ok(())
+}
+
+/// A template has its framework: `--api-framework` doesn't combine with
+/// `--template`.
+#[test]
+fn init_framework_and_template_do_not_combine() -> Result<()> {
+    let dir = TempDir::new()?;
+    let output = run_binary_in(
+        dir.path(),
+        &["init", "--template", "actix", "--api-framework", "axum"],
+    );
+    assert!(!output.status.success());
+    Ok(())
+}

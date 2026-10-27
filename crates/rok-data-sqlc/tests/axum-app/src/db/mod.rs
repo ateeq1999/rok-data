@@ -15,7 +15,7 @@
 //   serde_path_to_error = "0.1"
 //   tracing = "0.1"
 //   utoipa = { version = "5", features = ["chrono", "uuid"] }
-//   utoipa-swagger-ui = { version = "9", features = ["actix-web", "vendored"] }
+//   utoipa-swagger-ui = { version = "9", features = ["axum", "vendored"] }
 
 pub mod accounts;
 pub mod http;

@@ -61,6 +61,17 @@ pub(crate) enum Command {
             )
         )]
         template: Option<String>,
+        /// The web framework the skeleton is written for: `actix_web` (the
+        /// default) or `axum`. A template has its own, so this doesn't
+        /// combine with `--template`.
+        #[arg(
+            short = 'w',
+            long,
+            value_name = "FW",
+            conflicts_with = "template",
+            value_parser = ["actix_web", "axum"]
+        )]
+        api_framework: Option<String>,
         /// Seed the schema directory (migrations/) with this file's content.
         #[arg(short, long, value_name = "PATH")]
         schema: Option<PathBuf>,
