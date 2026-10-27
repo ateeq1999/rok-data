@@ -7,9 +7,7 @@ use syn::{Data, DeriveInput, Fields, Ident, LitStr, Path, spanned::Spanned};
 use super::conventions::{self, Conventions};
 use super::from_row::from_row_tokens;
 use super::scopes;
-use super::{
-    Field, Relation, Rule, parse_many_to_many, parse_relations, parse_rules, parse_through,
-};
+use super::{Field, Relation, parse_many_to_many, parse_relations, parse_rules, parse_through};
 use crate::naming::{crate_path, method_ident, pluralize, relation_ident, snake_case, unraw};
 pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     let name = &input.ident;
@@ -267,38 +265,7 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
         });
     }
 
-    let validations: Vec<TokenStream2> = columns
-        .iter()
-        .flat_map(|f| {
-            let ident = &f.ident;
-            let field = unraw(ident);
-            let v = quote!(#krate::validate);
-            f.rules.iter().map(move |rule| {
-                let opt = |e: &Option<syn::Expr>, cast: TokenStream2| match e {
-                    Some(e) => quote!(::core::option::Option::Some((#e) as #cast)),
-                    None => quote!(::core::option::Option::None),
-                };
-                let (code, check) = match rule {
-                    Rule::Length(min, max) => {
-                        let (min, max) = (opt(min, quote!(usize)), opt(max, quote!(usize)));
-                        ("length", quote!(#v::length(&self.#ident, #min, #max)))
-                    }
-                    Rule::Range(min, max) => {
-                        let (min, max) = (opt(min, quote!(f64)), opt(max, quote!(f64)));
-                        ("range", quote!(#v::range(&self.#ident, #min, #max)))
-                    }
-                    Rule::Email => ("email", quote!(#v::email(&self.#ident))),
-                    Rule::NonEmpty => ("non_empty", quote!(#v::non_empty(&self.#ident))),
-                    Rule::Custom(path) => ("custom", quote!(#path(&self.#ident))),
-                };
-                quote! {
-                    if let ::core::result::Result::Err(message) = #check {
-                        errors.add(#field, #code, message);
-                    }
-                }
-            })
-        })
-        .collect();
+    let validations = super::rules::field_checks(&columns, &krate);
     let validate_fn = (!validations.is_empty() || validate_with.is_some()).then(|| {
         let record = validate_with.as_ref().map(|path| {
             quote! {
@@ -485,6 +452,7 @@ pub(crate) fn parse_fields(input: &DeriveInput, derive: &str) -> syn::Result<Vec
             rules: Vec::new(),
             ty: field.ty.clone(),
             set_with: None,
+            transforms: Vec::new(),
         };
         for attr in field.attrs.iter().filter(|a| a.path().is_ident("rok")) {
             attr.parse_nested_meta(|meta| {
@@ -526,13 +494,20 @@ pub(crate) fn parse_fields(input: &DeriveInput, derive: &str) -> syn::Result<Vec
                             Ok(())
                         })?;
                     }
+                } else if meta.path.is_ident("transform") {
+                    if derive == "Model" {
+                        return Err(meta.error(
+                            "`transform` belongs to input: use `#[derive(Input)]` for data on its way to becoming rows",
+                        ));
+                    }
+                    super::rules::parse_transforms(&meta, &mut f.transforms)?;
                 } else if meta.path.is_ident("set_with") {
                     f.set_with = Some(super::accessors::parse_set_with(&meta)?);
                 } else if meta.path.is_ident("column") || meta.path.is_ident("rename") {
                     f.column = meta.value()?.parse::<LitStr>()?.value();
                 } else {
                     return Err(meta.error(
-                        "unknown `rok` attribute; expected `primary_key`, `generated`, `column`, `skip`, `created_at`, `updated_at`, `deleted_at`, `version`, `tenant`, `validate`, `set_with` or `belongs_to`",
+                        "unknown `rok` attribute; expected `primary_key`, `generated`, `column`, `skip`, `created_at`, `updated_at`, `deleted_at`, `version`, `tenant`, `validate`, `transform`, `set_with` or `belongs_to`",
                     ));
                 }
                 Ok(())

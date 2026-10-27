@@ -6,6 +6,8 @@ mod accessors;
 pub(crate) mod conventions;
 pub(crate) mod expand;
 pub(crate) mod from_row;
+pub(crate) mod input;
+pub(crate) mod rules;
 pub(crate) mod scopes;
 #[cfg(test)]
 mod tests;
@@ -26,6 +28,8 @@ pub(crate) struct Field {
     ty: syn::Type,
     /// `set_with = path`: a `set_<field>` that writes `path(value)`.
     set_with: Option<Path>,
+    /// `transform(…)`: what an input's field goes through before its rules.
+    transforms: Vec<rules::Transform>,
 }
 
 /// A `#[rok(validate(…))]` rule.
@@ -232,4 +236,20 @@ fn parse_many_to_many(
         }),
     });
     Ok(())
+}
+
+impl Field {
+    /// Whether the field carries an attribute only a model column has
+    /// (a key, a managed timestamp, a relation, `set_with`).
+    pub(crate) fn is_column_only(&self) -> bool {
+        self.primary_key
+            || self.generated
+            || self.created_at
+            || self.updated_at
+            || self.deleted_at
+            || self.version
+            || self.tenant
+            || self.belongs_to.is_some()
+            || self.set_with.is_some()
+    }
 }

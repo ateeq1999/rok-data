@@ -13,6 +13,7 @@ mod collection;
 mod conventions;
 mod encrypted;
 mod has;
+mod input;
 mod lifecycle;
 mod many_to_many;
 mod memoized;

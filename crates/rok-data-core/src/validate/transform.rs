@@ -1,0 +1,58 @@
+//! Transforms an input's fields go through before their rules:
+//! `#[rok(transform(trim, lowercase))]`. Each takes the field's value and
+//! returns the new one, so `Option` fields keep `None`.
+
+/// A field a built-in transform can apply to: text, or optional text.
+pub trait Transformable: Sized {
+    /// The value with `f` applied to its text (`None` stays `None`).
+    fn map_text(self, f: impl FnOnce(String) -> String) -> Self;
+}
+
+impl Transformable for String {
+    fn map_text(self, f: impl FnOnce(String) -> String) -> Self {
+        f(self)
+    }
+}
+
+impl Transformable for Option<String> {
+    fn map_text(self, f: impl FnOnce(String) -> String) -> Self {
+        self.map(f)
+    }
+}
+
+/// Leading and trailing whitespace removed.
+pub fn trim<T: Transformable>(value: T) -> T {
+    value.map_text(|s| s.trim().to_owned())
+}
+
+/// Lowercased.
+pub fn lowercase<T: Transformable>(value: T) -> T {
+    value.map_text(|s| s.to_lowercase())
+}
+
+/// Uppercased.
+pub fn uppercase<T: Transformable>(value: T) -> T {
+    value.map_text(|s| s.to_uppercase())
+}
+
+/// An email address trimmed and lowercased, the form a unique index on
+/// `lower(email)` compares.
+pub fn normalize_email<T: Transformable>(value: T) -> T {
+    value.map_text(|s| s.trim().to_lowercase())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn transforms_apply_to_text_and_keep_none() {
+        assert_eq!(trim("  a b ".to_owned()), "a b");
+        assert_eq!(lowercase(Some("AbC".to_owned())), Some("abc".to_owned()));
+        assert_eq!(uppercase(None::<String>), None);
+        assert_eq!(
+            normalize_email(" Ann@Example.COM ".to_owned()),
+            "ann@example.com"
+        );
+    }
+}

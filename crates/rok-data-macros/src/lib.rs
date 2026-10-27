@@ -109,6 +109,17 @@ pub fn derive_model(input: TokenStream) -> TokenStream {
         .into()
 }
 
+/// Derive `rok_data::Input` for an input struct: untrusted data on its way to
+/// becoming rows (workspace ADR 0021). Fields take the model's
+/// `#[rok(validate(…))]` rules and `#[rok(transform(trim, lowercase,
+/// uppercase, normalize_email, custom = path))]`, applied before the rules;
+/// the struct takes `#[rok(validate_with = path)]`. `input.validate(&db)`
+/// returns the transformed input, or every failure.
+#[proc_macro_derive(Input, attributes(rok))]
+pub fn derive_input(input: TokenStream) -> TokenStream {
+    model::input::expand(input)
+}
+
 /// Derive `sqlx::FromRow` for decoding query results into a plain struct,
 /// e.g. the output of [`Select::select`] with aliased projections — without
 /// depending on sqlx directly.

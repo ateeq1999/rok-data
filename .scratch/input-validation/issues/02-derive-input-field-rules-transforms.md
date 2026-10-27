@@ -4,9 +4,9 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done (2026-10-27) — `validate(session) -> rok_data::Result<Self>` (rule failures are `Error::Validation`), plus `validate_fields()` without a session
 
-- [ ] Derive in `rok-data-macros`, runtime trait in `rok-data-core::validate` (split into a module directory)
-- [ ] Settle the return type (`rok_data::Result<Self>` with `Error::Validation`) and document it
-- [ ] Facade tests: every transform, every existing field rule, collected failures
-- [ ] Prelude export; reserved-name check if any chain names are touched
+- [x] Derive in `rok-data-macros`, runtime trait in `rok-data-core::validate` (split into a module directory)
+- [x] Settle the return type (`rok_data::Result<Self>` with `Error::Validation`) and document it
+- [x] Facade tests: every transform, every existing field rule, collected failures
+- [x] Prelude export; reserved-name check if any chain names are touched

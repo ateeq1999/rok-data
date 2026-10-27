@@ -71,7 +71,7 @@ pub use relation::{
 pub use simple_page::SimplePage;
 pub use sql::Sql;
 pub use tracked::Tracked;
-pub use validate::ValidationErrors;
+pub use validate::{Input, ValidationErrors};
 pub use value::{CustomType, CustomValue, Value};
 
 /// A boxed `Send` future, as returned by [`Db::transaction`] closures.

@@ -27,6 +27,11 @@
 
 use std::fmt;
 
+mod input;
+pub mod transform;
+
+pub use input::Input;
+
 /// One failed rule.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldError {

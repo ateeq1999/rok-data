@@ -273,6 +273,15 @@ compiler finds the call sites.
   `touch(&db)` update in the database without reading first and return
   the stored row. `update_or_create` is the existing `upsert_on`, `fresh`
   the existing `reload`.
+- **Input validation** (input-validation ticket 02, workspace ADR 0021):
+  `#[derive(Input)]` on any struct gives `input.validate(&db).await?`
+  (and `validate_fields()` without a session), returning the input
+  transformed or every failure as `Error::Validation`. Fields take the
+  model's `#[rok(validate(…))]` rules and `#[rok(transform(trim,
+  lowercase, uppercase, normalize_email, custom = path))]`, run before the
+  rules; `#[rok(validate_with = path)]` checks the whole input. A
+  transform on a model, or a key / timestamp / relation attribute on an
+  input, fails to compile.
 - **Validation errors carry paths; violations read as field errors**
   (input-validation ticket 01, workspace ADR 0021). Breaking:
   `FieldError::field` is a `String` path (`address.city`, `items.2.sku`)

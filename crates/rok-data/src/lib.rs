@@ -221,6 +221,10 @@ pub use rok_data_macros::DbEnum;
 /// Derive a column type for a single-field tuple struct.
 pub use rok_data_macros::DbNewtype;
 
+/// Derive [`Input`] for an input struct: transforms and rules checked by
+/// `validate` before it becomes rows.
+pub use rok_data_macros::Input;
+
 /// Run an async test against a fresh, temporary database (feature `testing`).
 #[cfg(feature = "testing")]
 pub use rok_data_macros::test;
@@ -229,8 +233,8 @@ pub use rok_data_macros::test;
 pub mod prelude {
     pub use crate::RelationExt as _;
     pub use crate::{
-        Column, Cursor, CursorPage, Db, DbEnum, DbNewtype, Executor, Expr, Model, ModelCollection,
-        ModelWrite, Page, Projection, Select, SimplePage, Tx,
+        Column, Cursor, CursorPage, Db, DbEnum, DbNewtype, Executor, Expr, Input, Model,
+        ModelCollection, ModelWrite, Page, Projection, Select, SimplePage, Tx,
     };
     pub use futures_util_reexports::*;
 
@@ -293,6 +297,23 @@ pub mod prelude {
 ///     let users = User::query().get(db).await?;
 ///     Ok(users.find(1).map(|user| user.name.clone()))
 /// }
+/// ```
+///
+/// A transform belongs to input, not to a model (workspace ADR 0021):
+///
+/// ```compile_fail
+/// use rok_data::prelude::*;
+/// #[derive(Model)]
+/// struct User { id: i64, #[rok(transform(trim))] name: String }
+/// ```
+///
+/// …and a key, timestamp or relation attribute belongs to a model, not to
+/// input:
+///
+/// ```compile_fail
+/// use rok_data::prelude::*;
+/// #[derive(Input)]
+/// struct SignUp { #[rok(primary_key)] id: i64 }
 /// ```
 #[doc(hidden)]
 pub mod __compile_checks {}
