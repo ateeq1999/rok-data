@@ -30,6 +30,10 @@ pub(crate) struct Field {
     set_with: Option<Path>,
     /// `transform(…)`: what an input's field goes through before its rules.
     transforms: Vec<rules::Transform>,
+    /// `nested`: the field holds input of its own, validated with this one.
+    nested: bool,
+    /// `when = path`: the field's rules run only when `path(self)` holds.
+    when: Option<Path>,
 }
 
 /// A `#[rok(validate(…))]` rule.
@@ -41,6 +45,15 @@ enum Rule {
     Custom(Path),
     /// A database rule (input only): `unique(…)`, `exists(…)`, `database = path`.
     Database(rules::DatabaseRule),
+    /// `required_if(field = other, equals = value)` / `required_unless(…)`:
+    /// the field must be given when `self.other == value` holds (or doesn't).
+    RequiredIf {
+        other: Ident,
+        equals: syn::Expr,
+        negated: bool,
+    },
+    /// `required_with(other)`: the field must be given when `other` is.
+    RequiredWith(Ident),
 }
 
 fn parse_bounds(
@@ -77,11 +90,32 @@ fn parse_rules(meta: &syn::meta::ParseNestedMeta<'_>, rules: &mut Vec<Rule>) -> 
             rules.push(Rule::NonEmpty);
         } else if r.path.is_ident("custom") {
             rules.push(Rule::Custom(r.value()?.parse()?));
+        } else if r.path.is_ident("required_if") || r.path.is_ident("required_unless") {
+            let negated = r.path.is_ident("required_unless");
+            let (mut other, mut equals) = (None, None);
+            r.parse_nested_meta(|option| {
+                if option.path.is_ident("field") {
+                    other = Some(option.value()?.parse()?);
+                } else if option.path.is_ident("equals") {
+                    equals = Some(option.value()?.parse()?);
+                } else {
+                    return Err(option.error("expected `field = other_field` and `equals = value`"));
+                }
+                Ok(())
+            })?;
+            let (Some(other), Some(equals)) = (other, equals) else {
+                return Err(r.error("expected `field = other_field` and `equals = value`"));
+            };
+            rules.push(Rule::RequiredIf { other, equals, negated });
+        } else if r.path.is_ident("required_with") {
+            let content;
+            syn::parenthesized!(content in r.input);
+            rules.push(Rule::RequiredWith(content.parse()?));
         } else if let Some(rule) = rules::parse_database_rule(&r)? {
             rules.push(Rule::Database(rule));
         } else {
             return Err(r.error(
-                "unknown rule; expected `length`, `range`, `email`, `non_empty`, `custom`, `unique`, `exists` or `database`",
+                "unknown rule; expected `length`, `range`, `email`, `non_empty`, `custom`, `required_if`, `required_unless`, `required_with`, `unique`, `exists` or `database`",
             ));
         }
         Ok(())

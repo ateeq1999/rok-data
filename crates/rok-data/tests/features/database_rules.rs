@@ -193,3 +193,36 @@ async fn validation_runs_inside_a_transaction() {
     assert_eq!(codes(error), [("email".to_owned(), "unique")]);
     tx.rollback().await.unwrap();
 }
+
+/// A nested input's database rules join the outer input's statement.
+#[derive(Debug, Clone, PartialEq, Input)]
+struct Invite {
+    #[rok(nested)]
+    accounts: Vec<InvitedAccount>,
+}
+
+#[derive(Debug, Clone, PartialEq, Input)]
+struct InvitedAccount {
+    #[rok(validate(unique(Account::EMAIL)))]
+    email: String,
+}
+
+#[tokio::test]
+async fn nested_database_rules_report_their_paths() {
+    let Some(db) = setup().await else { return };
+    seeded(&db).await;
+    let invite = Invite {
+        accounts: vec![
+            InvitedAccount {
+                email: "new@x.io".into(),
+            },
+            InvitedAccount {
+                email: "ann@x.io".into(),
+            },
+        ],
+    };
+    assert_eq!(
+        codes(invite.validate(&db).await.unwrap_err()),
+        [("accounts.1.email".to_owned(), "unique")]
+    );
+}

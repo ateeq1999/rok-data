@@ -47,38 +47,93 @@ pub(crate) fn parse_transforms(
 pub(crate) fn field_checks(fields: &[&Field], krate: &TokenStream2) -> Vec<TokenStream2> {
     fields
         .iter()
-        .flat_map(|f| {
+        .filter_map(|f| {
             let ident = &f.ident;
             let field = unraw(ident);
             let v = quote!(#krate::validate);
-            f.rules.iter().filter_map(move |rule| {
-                let opt = |e: &Option<syn::Expr>, cast: TokenStream2| match e {
-                    Some(e) => quote!(::core::option::Option::Some((#e) as #cast)),
-                    None => quote!(::core::option::Option::None),
-                };
-                let (code, check) = match rule {
-                    Rule::Length(min, max) => {
-                        let (min, max) = (opt(min, quote!(usize)), opt(max, quote!(usize)));
-                        ("length", quote!(#v::length(&self.#ident, #min, #max)))
-                    }
-                    Rule::Range(min, max) => {
-                        let (min, max) = (opt(min, quote!(f64)), opt(max, quote!(f64)));
-                        ("range", quote!(#v::range(&self.#ident, #min, #max)))
-                    }
-                    Rule::Email => ("email", quote!(#v::email(&self.#ident))),
-                    Rule::NonEmpty => ("non_empty", quote!(#v::non_empty(&self.#ident))),
-                    Rule::Custom(path) => ("custom", quote!(#path(&self.#ident))),
-                    // Database rules run against a session, after these.
-                    Rule::Database(_) => return None,
-                };
-                Some(quote! {
-                    if let ::core::result::Result::Err(message) = #check {
-                        errors.add(#field, #code, message);
-                    }
+            let mut checks: Vec<TokenStream2> = f
+                .rules
+                .iter()
+                .filter_map(|rule| {
+                    let (code, check) = rule_check(rule, ident, &field, &v)?;
+                    Some(quote! {
+                        if let ::core::result::Result::Err(message) = #check {
+                            errors.add(#field, #code, message);
+                        }
+                    })
                 })
-            })
+                .collect();
+            if f.nested {
+                checks.push(quote! {
+                    #v::Nested::__check_nested(&self.#ident, #field, &mut errors);
+                });
+            }
+            (!checks.is_empty()).then(|| guarded(f, quote!(#(#checks)*)))
         })
         .collect()
+}
+
+/// `body`, run only when the field's `when` holds.
+pub(crate) fn guarded(field: &Field, body: TokenStream2) -> TokenStream2 {
+    match &field.when {
+        Some(path) => quote!(if #path(self) { #body }),
+        None => body,
+    }
+}
+
+/// A field rule's code and its check, an expression of type
+/// `Result<(), String>`; `None` for a database rule (run later, against a
+/// session).
+fn rule_check(
+    rule: &Rule,
+    ident: &Ident,
+    field: &str,
+    v: &TokenStream2,
+) -> Option<(&'static str, TokenStream2)> {
+    let opt = |e: &Option<syn::Expr>, cast: TokenStream2| match e {
+        Some(e) => quote!(::core::option::Option::Some((#e) as #cast)),
+        None => quote!(::core::option::Option::None),
+    };
+    let required = |condition: TokenStream2| {
+        let message = format!("{field} is required");
+        quote! {
+            if (#condition) && !#v::Presence::is_present(&self.#ident) {
+                ::core::result::Result::Err(::std::string::String::from(#message))
+            } else {
+                ::core::result::Result::<(), ::std::string::String>::Ok(())
+            }
+        }
+    };
+    Some(match rule {
+        Rule::Length(min, max) => {
+            let (min, max) = (opt(min, quote!(usize)), opt(max, quote!(usize)));
+            ("length", quote!(#v::length(&self.#ident, #min, #max)))
+        }
+        Rule::Range(min, max) => {
+            let (min, max) = (opt(min, quote!(f64)), opt(max, quote!(f64)));
+            ("range", quote!(#v::range(&self.#ident, #min, #max)))
+        }
+        Rule::Email => ("email", quote!(#v::email(&self.#ident))),
+        Rule::NonEmpty => ("non_empty", quote!(#v::non_empty(&self.#ident))),
+        Rule::Custom(path) => ("custom", quote!(#path(&self.#ident))),
+        Rule::RequiredIf {
+            other,
+            equals,
+            negated,
+        } => {
+            let condition = if *negated {
+                quote!(self.#other != #equals)
+            } else {
+                quote!(self.#other == #equals)
+            };
+            ("required", required(condition))
+        }
+        Rule::RequiredWith(other) => (
+            "required",
+            required(quote!(#v::Presence::is_present(&self.#other))),
+        ),
+        Rule::Database(_) => return None,
+    })
 }
 
 /// The statements that run every field's transforms on `self`, in order.
@@ -87,12 +142,18 @@ pub(crate) fn transform_steps(fields: &[&Field], krate: &TokenStream2) -> Vec<To
         .iter()
         .flat_map(|f| {
             let ident = &f.ident;
-            f.transforms.iter().map(move |transform| match transform {
-                Transform::Builtin(name) => {
-                    quote!(self.#ident = #krate::validate::transform::#name(self.#ident);)
-                }
-                Transform::Custom(path) => quote!(self.#ident = #path(self.#ident);),
-            })
+            let nested = f.nested.then(
+                || quote!(self.#ident = #krate::validate::Nested::__transform_nested(self.#ident);),
+            );
+            f.transforms
+                .iter()
+                .map(move |transform| match transform {
+                    Transform::Builtin(name) => {
+                        quote!(self.#ident = #krate::validate::transform::#name(self.#ident);)
+                    }
+                    Transform::Custom(path) => quote!(self.#ident = #path(self.#ident);),
+                })
+                .chain(nested)
         })
         .collect()
 }
@@ -165,13 +226,33 @@ fn model_of(column: &Path) -> Path {
 
 /// The expressions that build each field's built-in database rules, each
 /// an `Option<DatabaseRule>`.
-pub(crate) fn database_rule_builders(fields: &[&Field], krate: &TokenStream2) -> Vec<TokenStream2> {
+pub(crate) fn database_rule_steps(fields: &[&Field], krate: &TokenStream2) -> Vec<TokenStream2> {
     fields
         .iter()
-        .flat_map(|f| {
+        .filter_map(|f| {
             let ident = &f.ident;
             let field = unraw(ident);
-            f.rules.iter().filter_map(move |rule| {
+            let mut steps: Vec<TokenStream2> = rule_builders(f, krate)
+                .into_iter()
+                .map(|builder| quote!(rules.extend(#builder);))
+                .collect();
+            if f.nested {
+                steps.push(quote! {
+                    #krate::validate::Nested::__database_nested(&self.#ident, #field, &mut rules);
+                });
+            }
+            (!steps.is_empty()).then(|| guarded(f, quote!(#(#steps)*)))
+        })
+        .collect()
+}
+
+/// The expressions that build one field's built-in database rules.
+fn rule_builders(f: &Field, krate: &TokenStream2) -> Vec<TokenStream2> {
+    let ident = &f.ident;
+    let field = unraw(ident);
+    std::iter::once(f)
+        .flat_map(|f| {
+            f.rules.iter().filter_map(|rule| {
                 let Rule::Database(rule) = rule else {
                     return None;
                 };
@@ -221,13 +302,16 @@ pub(crate) fn custom_database_steps(fields: &[&Field]) -> Vec<TokenStream2> {
             let ident = &f.ident;
             let field = unraw(ident);
             f.rules.iter().filter_map(move |rule| match rule {
-                Rule::Database(DatabaseRule::Custom(path)) => Some(quote! {
-                    if failed.field(#field).next().is_none() {
-                        if let ::core::result::Result::Err(message) = #path(&self.#ident, journey.reborrow()).await {
-                            found.add(#field, "database", message);
+                Rule::Database(DatabaseRule::Custom(path)) => Some(guarded(
+                    f,
+                    quote! {
+                        if failed.field(#field).next().is_none() {
+                            if let ::core::result::Result::Err(message) = #path(&self.#ident, journey.reborrow()).await {
+                                found.add(#field, "database", message);
+                            }
                         }
-                    }
-                }),
+                    },
+                )),
                 _ => None,
             })
         })

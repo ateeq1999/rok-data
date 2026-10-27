@@ -453,6 +453,8 @@ pub(crate) fn parse_fields(input: &DeriveInput, derive: &str) -> syn::Result<Vec
             ty: field.ty.clone(),
             set_with: None,
             transforms: Vec::new(),
+            nested: false,
+            when: None,
         };
         for attr in field.attrs.iter().filter(|a| a.path().is_ident("rok")) {
             attr.parse_nested_meta(|meta| {
@@ -494,6 +496,15 @@ pub(crate) fn parse_fields(input: &DeriveInput, derive: &str) -> syn::Result<Vec
                             Ok(())
                         })?;
                     }
+                } else if meta.path.is_ident("nested") {
+                    if derive == "Model" {
+                        return Err(meta.error(
+                            "`nested` belongs to input: a model's fields are columns",
+                        ));
+                    }
+                    f.nested = true;
+                } else if meta.path.is_ident("when") {
+                    f.when = Some(meta.value()?.parse()?);
                 } else if meta.path.is_ident("transform") {
                     if derive == "Model" {
                         return Err(meta.error(
@@ -507,7 +518,7 @@ pub(crate) fn parse_fields(input: &DeriveInput, derive: &str) -> syn::Result<Vec
                     f.column = meta.value()?.parse::<LitStr>()?.value();
                 } else {
                     return Err(meta.error(
-                        "unknown `rok` attribute; expected `primary_key`, `generated`, `column`, `skip`, `created_at`, `updated_at`, `deleted_at`, `version`, `tenant`, `validate`, `transform`, `set_with` or `belongs_to`",
+                        "unknown `rok` attribute; expected `primary_key`, `generated`, `column`, `skip`, `created_at`, `updated_at`, `deleted_at`, `version`, `tenant`, `validate`, `transform`, `nested`, `when`, `set_with` or `belongs_to`",
                     ));
                 }
                 Ok(())

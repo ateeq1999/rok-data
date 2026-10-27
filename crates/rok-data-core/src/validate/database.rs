@@ -17,7 +17,7 @@ use super::ValidationErrors;
 /// target table, and whether finding a row is the failure (`unique`) or
 /// not finding one is (`exists`).
 pub struct DatabaseRule {
-    pub(crate) field: &'static str,
+    pub(crate) field: String,
     code: &'static str,
     message: String,
     fails_when_found: bool,
@@ -37,6 +37,14 @@ impl fmt::Debug for DatabaseRule {
 }
 
 impl DatabaseRule {
+    /// This rule at `prefix.field`, for a nested input's rule.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn prefixed(mut self, prefix: &str) -> Self {
+        self.field = format!("{prefix}.{}", self.field);
+        self
+    }
+
     fn new<T: Model>(
         field: &'static str,
         code: &'static str,
@@ -45,7 +53,7 @@ impl DatabaseRule {
         select: Select<T>,
     ) -> Self {
         Self {
-            field,
+            field: field.to_owned(),
             code,
             message,
             fails_when_found,

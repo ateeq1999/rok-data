@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 (03 for nested database rules)
 
-**Status:** ready-for-agent
+**Status:** done (2026-10-27) — nested fields are marked `#[rok(nested)]`; enum inputs wrap one input per variant; a nested input's custom database rules run through its own `validate` only
 
-- [ ] Facade tests for each conditional form, nested paths, arrays, enums
-- [ ] Nested database rules join the one batched statement
+- [x] Facade tests for each conditional form, nested paths, arrays, enums
+- [x] Nested database rules join the one batched statement

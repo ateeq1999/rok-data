@@ -69,7 +69,7 @@ pub trait Input: Sized + Send + Sync {
         let rules: Vec<DatabaseRule> = input
             .__database_rules()
             .into_iter()
-            .filter(|rule| errors.field(rule.field).next().is_none())
+            .filter(|rule| errors.field(&rule.field).next().is_none())
             .collect();
         errors.merge(super::database::run(&mut journey, rules).await?);
         let custom = input.__custom_database(&mut journey, &errors).await?;
@@ -90,6 +90,79 @@ pub trait Input: Sized + Send + Sync {
             Ok(input)
         } else {
             Err(Error::Validation(errors))
+        }
+    }
+}
+
+/// A field holding input of its own — an [`Input`], or an `Option` or a
+/// `Vec` of them — marked `#[rok(nested)]`: its transforms, field rules
+/// and built-in database rules run with the outer input's, their errors
+/// at `field.inner` (and `items.2.inner` in a list). A nested input's
+/// custom database rules run only through its own `validate`.
+pub trait Nested: Sized {
+    /// The transforms, applied to every inner input.
+    #[doc(hidden)]
+    fn __transform_nested(self) -> Self;
+
+    /// The field and record rules' failures, under `path`.
+    #[doc(hidden)]
+    fn __check_nested(&self, path: &str, errors: &mut ValidationErrors);
+
+    /// The built-in database rules, under `path`.
+    #[doc(hidden)]
+    fn __database_nested(&self, path: &str, rules: &mut Vec<DatabaseRule>);
+}
+
+impl<T: Input> Nested for T {
+    fn __transform_nested(self) -> Self {
+        self.__transform()
+    }
+
+    fn __check_nested(&self, path: &str, errors: &mut ValidationErrors) {
+        errors.merge(self.__check().prefixed(path));
+    }
+
+    fn __database_nested(&self, path: &str, rules: &mut Vec<DatabaseRule>) {
+        rules.extend(
+            self.__database_rules()
+                .into_iter()
+                .map(|rule| rule.prefixed(path)),
+        );
+    }
+}
+
+impl<T: Input> Nested for Option<T> {
+    fn __transform_nested(self) -> Self {
+        self.map(Input::__transform)
+    }
+
+    fn __check_nested(&self, path: &str, errors: &mut ValidationErrors) {
+        if let Some(inner) = self {
+            inner.__check_nested(path, errors);
+        }
+    }
+
+    fn __database_nested(&self, path: &str, rules: &mut Vec<DatabaseRule>) {
+        if let Some(inner) = self {
+            inner.__database_nested(path, rules);
+        }
+    }
+}
+
+impl<T: Input> Nested for Vec<T> {
+    fn __transform_nested(self) -> Self {
+        self.into_iter().map(Input::__transform).collect()
+    }
+
+    fn __check_nested(&self, path: &str, errors: &mut ValidationErrors) {
+        for (i, inner) in self.iter().enumerate() {
+            inner.__check_nested(&format!("{path}.{i}"), errors);
+        }
+    }
+
+    fn __database_nested(&self, path: &str, rules: &mut Vec<DatabaseRule>) {
+        for (i, inner) in self.iter().enumerate() {
+            inner.__database_nested(&format!("{path}.{i}"), rules);
         }
     }
 }

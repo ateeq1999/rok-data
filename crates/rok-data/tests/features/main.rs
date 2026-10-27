@@ -15,6 +15,7 @@ mod database_rules;
 mod encrypted;
 mod has;
 mod input;
+mod input_shapes;
 mod lifecycle;
 mod many_to_many;
 mod memoized;

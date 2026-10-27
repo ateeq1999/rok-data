@@ -282,6 +282,14 @@ compiler finds the call sites.
   rules; `#[rok(validate_with = path)]` checks the whole input. A
   transform on a model, or a key / timestamp / relation attribute on an
   input, fails to compile.
+- **Input shapes** (input-validation ticket 04): `required_if(field =
+  kind, equals = "company")`, `required_unless(…)` and
+  `required_with(other)` (code `required`, presence by the `Presence`
+  trait: `Some`, non-empty text or list); `#[rok(when = path)]` gates a
+  field's rules; `#[rok(nested)]` validates an input field, an `Option`
+  or a `Vec` of them with the outer one — transforms, rules and built-in
+  database rules — at paths like `address.city` / `lines.2.sku`; an enum
+  whose variants each wrap an input delegates to its variant.
 - **Database rules on input** (input-validation ticket 03):
   `unique(User::EMAIL, except = id, case_insensitive, scope = path)` and
   `exists(Org::ID, scope = path)` in an input field's `validate(…)`, the

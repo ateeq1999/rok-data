@@ -32,7 +32,38 @@ mod input;
 pub mod transform;
 
 pub use database::DatabaseRule;
-pub use input::Input;
+pub use input::{Input, Nested};
+
+/// Whether a value counts as given, for `required_if` / `required_unless` /
+/// `required_with`: `Some`, non-empty text, a non-empty list.
+pub trait Presence {
+    /// `true` when the value is given.
+    fn is_present(&self) -> bool;
+}
+
+impl<T> Presence for Option<T> {
+    fn is_present(&self) -> bool {
+        self.is_some()
+    }
+}
+
+impl Presence for String {
+    fn is_present(&self) -> bool {
+        !self.is_empty()
+    }
+}
+
+impl Presence for &str {
+    fn is_present(&self) -> bool {
+        !self.is_empty()
+    }
+}
+
+impl<T> Presence for Vec<T> {
+    fn is_present(&self) -> bool {
+        !self.is_empty()
+    }
+}
 
 /// One failed rule.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,6 +127,20 @@ impl ValidationErrors {
     /// Failures of one field.
     pub fn field(&self, field: &str) -> impl Iterator<Item = &FieldError> {
         self.errors.iter().filter(move |e| e.field == field)
+    }
+
+    /// Every error moved under `prefix`: `city` becomes `address.city`, a
+    /// record-level error becomes `address`'s own.
+    #[must_use]
+    pub fn prefixed(mut self, prefix: &str) -> Self {
+        for error in &mut self.errors {
+            error.field = if error.field.is_empty() {
+                prefix.to_owned()
+            } else {
+                format!("{prefix}.{}", error.field)
+            };
+        }
+        self
     }
 
     /// `Ok(())` if empty, `Err(self)` otherwise.
