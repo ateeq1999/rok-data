@@ -57,16 +57,19 @@ async fn errors_become_json_responses() {
         key: Some("7".into()),
     })
     .await;
-    assert_eq!((status, body["error"].as_str()), (404, Some("not_found")));
-    assert!(body["message"].as_str().unwrap().contains("users"));
+    assert_eq!(
+        (status, body["error"]["code"].as_str()),
+        (404, Some("not_found"))
+    );
+    assert!(body["error"]["message"].as_str().unwrap().contains("users"));
 
     let mut errors = ValidationErrors::new();
     errors.add("email", "email", "must be a valid email address");
     let (status, body) = respond(Error::Validation(errors)).await;
     assert_eq!(status, 422);
     assert_eq!(
-        body["fields"],
-        json!([{"field": "email", "code": "email", "message": "must be a valid email address"}])
+        body["error"]["details"],
+        json!({"email": [{"code": "email", "message": "must be a valid email address", "params": {}}]})
     );
 
     let (status, body) = respond(Error::Conflict {
@@ -74,12 +77,15 @@ async fn errors_become_json_responses() {
         key: "1".into(),
     })
     .await;
-    assert_eq!((status, body["error"].as_str()), (409, Some("conflict")));
+    assert_eq!(
+        (status, body["error"]["code"].as_str()),
+        (409, Some("conflict"))
+    );
     let (status, _) = respond(Error::InvalidCursor("bad".into())).await;
     assert_eq!(status, 400);
     let (status, body) = respond(Error::hook("not allowed")).await;
     assert_eq!(
-        (status, body["message"].as_str()),
+        (status, body["error"]["message"].as_str()),
         (422, Some("not allowed"))
     );
 
@@ -88,7 +94,7 @@ async fn errors_become_json_responses() {
     assert_eq!(status, 500);
     assert_eq!(
         body,
-        json!({"error": "internal_error", "message": "internal server error"})
+        json!({"error": {"code": "internal_error", "message": "internal server error"}})
     );
 }
 
@@ -111,11 +117,14 @@ async fn database_errors_map_to_statuses() {
         .unwrap_err();
     let (status, body) = respond(dup).await;
     assert_eq!(
-        (status, body["error"].as_str()),
+        (status, body["error"]["code"].as_str()),
         (409, Some("already_exists"))
     );
     assert!(
-        !body["message"].as_str().unwrap().contains("parents_pkey"),
+        !body["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("parents_pkey"),
         "constraint names stay private"
     );
     let orphan = rok_data::raw("INSERT INTO kids VALUES (1, 42)")

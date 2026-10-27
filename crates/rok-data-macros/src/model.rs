@@ -24,6 +24,8 @@ pub(crate) struct Field {
     tenant: bool,
     belongs_to: Option<(Ident, Path)>,
     rules: Vec<Rule>,
+    /// Each rule's own `message = "…"`, parallel to `rules`.
+    messages: Vec<Option<LitStr>>,
     /// The field's type, for the setters the derive writes.
     ty: syn::Type,
     /// `set_with = path`: a `set_<field>` that writes `path(value)`.
@@ -58,6 +60,7 @@ enum Rule {
 
 fn parse_bounds(
     meta: &syn::meta::ParseNestedMeta<'_>,
+    message: &mut Option<LitStr>,
 ) -> syn::Result<(Option<syn::Expr>, Option<syn::Expr>)> {
     let (mut min, mut max) = (None, None);
     meta.parse_nested_meta(|b| {
@@ -65,8 +68,10 @@ fn parse_bounds(
             min = Some(b.value()?.parse()?);
         } else if b.path.is_ident("max") {
             max = Some(b.value()?.parse()?);
+        } else if b.path.is_ident("message") {
+            *message = Some(b.value()?.parse()?);
         } else {
-            return Err(b.error("expected `min` or `max`"));
+            return Err(b.error("expected `min`, `max` or `message`"));
         }
         Ok(())
     })?;
@@ -76,18 +81,35 @@ fn parse_bounds(
     Ok((min, max))
 }
 
-fn parse_rules(meta: &syn::meta::ParseNestedMeta<'_>, rules: &mut Vec<Rule>) -> syn::Result<()> {
+fn parse_rules(
+    meta: &syn::meta::ParseNestedMeta<'_>,
+    rules: &mut Vec<Rule>,
+    messages: &mut Vec<Option<LitStr>>,
+) -> syn::Result<()> {
     meta.parse_nested_meta(|r| {
+        let mut message: Option<LitStr> = None;
         if r.path.is_ident("length") {
-            let (min, max) = parse_bounds(&r)?;
+            let (min, max) = parse_bounds(&r, &mut message)?;
             rules.push(Rule::Length(min, max));
         } else if r.path.is_ident("range") {
-            let (min, max) = parse_bounds(&r)?;
+            let (min, max) = parse_bounds(&r, &mut message)?;
             rules.push(Rule::Range(min, max));
-        } else if r.path.is_ident("email") {
-            rules.push(Rule::Email);
-        } else if r.path.is_ident("non_empty") {
-            rules.push(Rule::NonEmpty);
+        } else if r.path.is_ident("email") || r.path.is_ident("non_empty") {
+            if r.input.peek(syn::token::Paren) {
+                r.parse_nested_meta(|option| {
+                    if option.path.is_ident("message") {
+                        message = Some(option.value()?.parse()?);
+                        Ok(())
+                    } else {
+                        Err(option.error("expected `message = \"…\"`"))
+                    }
+                })?;
+            }
+            rules.push(if r.path.is_ident("email") {
+                Rule::Email
+            } else {
+                Rule::NonEmpty
+            });
         } else if r.path.is_ident("custom") {
             rules.push(Rule::Custom(r.value()?.parse()?));
         } else if r.path.is_ident("required_if") || r.path.is_ident("required_unless") {
@@ -98,8 +120,10 @@ fn parse_rules(meta: &syn::meta::ParseNestedMeta<'_>, rules: &mut Vec<Rule>) -> 
                     other = Some(option.value()?.parse()?);
                 } else if option.path.is_ident("equals") {
                     equals = Some(option.value()?.parse()?);
+                } else if option.path.is_ident("message") {
+                    message = Some(option.value()?.parse()?);
                 } else {
-                    return Err(option.error("expected `field = other_field` and `equals = value`"));
+                    return Err(option.error("expected `field = other_field`, `equals = value` and `message`"));
                 }
                 Ok(())
             })?;
@@ -111,13 +135,14 @@ fn parse_rules(meta: &syn::meta::ParseNestedMeta<'_>, rules: &mut Vec<Rule>) -> 
             let content;
             syn::parenthesized!(content in r.input);
             rules.push(Rule::RequiredWith(content.parse()?));
-        } else if let Some(rule) = rules::parse_database_rule(&r)? {
+        } else if let Some(rule) = rules::parse_database_rule(&r, &mut message)? {
             rules.push(Rule::Database(rule));
         } else {
             return Err(r.error(
                 "unknown rule; expected `length`, `range`, `email`, `non_empty`, `custom`, `required_if`, `required_unless`, `required_with`, `unique`, `exists` or `database`",
             ));
         }
+        messages.push(message);
         Ok(())
     })
 }

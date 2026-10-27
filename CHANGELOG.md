@@ -282,6 +282,21 @@ compiler finds the call sites.
   rules; `#[rok(validate_with = path)]` checks the whole input. A
   transform on a model, or a key / timestamp / relation attribute on an
   input, fails to compile.
+- **Messages and the reporter** (input-validation ticket 05):
+  - **Messages:** every rule takes `message = "{field} needs {min}+
+    characters"` (`email(message = "…")` for the bare ones), quoting
+    `{field}` and the rule's arguments. A `Messages` provider (rule code
+    and field → template) applies through `errors.localized(&provider)`,
+    leaving a rule's own message alone.
+  - **Errors:** a `FieldError` carries its rule's arguments as
+    `params: Vec<(&str, Value)>`.
+  - **Reporter:** `ErrorReporter` turns errors into a body;
+    `DetailsReporter` writes the generated APIs' `{"error": {"code":
+    "validation_failed", "message", "details": {path: [{code, message,
+    params}]}}}`.
+  - **Breaking:** the `axum` responses of every `rok_data::Error` use the
+    wire standard's `{"error": {"code", "message", "details"?}}` shape
+    instead of `{"error": code, "message", "fields"?}`.
 - **Input shapes** (input-validation ticket 04): `required_if(field =
   kind, equals = "company")`, `required_unless(…)` and
   `required_with(other)` (code `required`, presence by the `Presence`

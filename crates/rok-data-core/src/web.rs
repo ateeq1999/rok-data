@@ -2,12 +2,14 @@
 //! (feature `axum`).
 //!
 //! With `axum`, handlers can return `rok_data::Result<T>` (or use `?` on rok-data
-//! calls) and errors become JSON responses:
+//! calls) and errors become JSON responses in the wire standard's shape,
+//! `{"error": {"code", "message", "details"?}}` — the generated APIs' body
+//! (`details` from [`DetailsReporter`](crate::validate::DetailsReporter)):
 //!
-//! | error | status | `error` code |
+//! | error | status | `error.code` |
 //! |---|---|---|
 //! | `NotFound` | 404 | `not_found` |
-//! | `Validation` | 422 | `validation_failed` (with `fields`) |
+//! | `Validation` | 422 | `validation_failed` (with `details` by field path) |
 //! | `Hook` | 422 | `rejected` |
 //! | foreign-key violation | 422 | `invalid_reference` |
 //! | `Conflict` | 409 | `conflict` |
@@ -125,10 +127,13 @@ mod axum_impls {
                 "invalid_reference" => "a referenced record does not exist".to_owned(),
                 _ => self.to_string(),
             };
-            let mut body = serde_json::json!({ "error": code, "message": message });
-            if let Error::Validation(errors) = &self {
-                body["fields"] = serde_json::to_value(errors).unwrap_or_default();
-            }
+            let body = match &self {
+                Error::Validation(errors) => {
+                    use crate::validate::ErrorReporter;
+                    crate::validate::DetailsReporter.report(errors)
+                }
+                _ => serde_json::json!({ "error": { "code": code, "message": message } }),
+            };
             let mut response = Response::new(Body::from(body.to_string()));
             *response.status_mut() = status;
             response.headers_mut().insert(

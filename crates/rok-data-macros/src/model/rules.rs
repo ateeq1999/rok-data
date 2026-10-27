@@ -54,11 +54,14 @@ pub(crate) fn field_checks(fields: &[&Field], krate: &TokenStream2) -> Vec<Token
             let mut checks: Vec<TokenStream2> = f
                 .rules
                 .iter()
-                .filter_map(|rule| {
+                .zip(&f.messages)
+                .filter_map(|(rule, message)| {
                     let (code, check) = rule_check(rule, ident, &field, &v)?;
+                    let params = rule_params(rule, krate);
+                    let template = template(message.as_ref());
                     Some(quote! {
                         if let ::core::result::Result::Err(message) = #check {
-                            errors.add(#field, #code, message);
+                            errors.add_rule(#field, #code, message, #template, ::std::vec![#(#params),*]);
                         }
                     })
                 })
@@ -176,6 +179,7 @@ pub(crate) enum DatabaseRule {
 /// `unique(…)`, `exists(…)` or `database = path`; `None` for any other rule.
 pub(crate) fn parse_database_rule(
     meta: &syn::meta::ParseNestedMeta<'_>,
+    message: &mut Option<syn::LitStr>,
 ) -> syn::Result<Option<DatabaseRule>> {
     if meta.path.is_ident("database") {
         return Ok(Some(DatabaseRule::Custom(meta.value()?.parse()?)));
@@ -188,6 +192,8 @@ pub(crate) fn parse_database_rule(
     meta.parse_nested_meta(|option| {
         if option.path.is_ident("scope") {
             scope = Some(option.value()?.parse()?);
+        } else if option.path.is_ident("message") {
+            *message = Some(option.value()?.parse()?);
         } else if unique && option.path.is_ident("except") {
             except = Some(option.value()?.parse()?);
         } else if unique && option.path.is_ident("case_insensitive") {
@@ -252,10 +258,11 @@ fn rule_builders(f: &Field, krate: &TokenStream2) -> Vec<TokenStream2> {
     let field = unraw(ident);
     std::iter::once(f)
         .flat_map(|f| {
-            f.rules.iter().filter_map(|rule| {
+            f.rules.iter().zip(&f.messages).filter_map(|(rule, message)| {
                 let Rule::Database(rule) = rule else {
                     return None;
                 };
+                let template = template(message.as_ref());
                 let value = quote!(#krate::Value::from(&self.#ident));
                 let scope = |scope: &Option<Path>, column: &Path| {
                     let model = model_of(column);
@@ -277,13 +284,13 @@ fn rule_builders(f: &Field, krate: &TokenStream2) -> Vec<TokenStream2> {
                         };
                         let scope = scope(s, column);
                         Some(quote! {
-                            #krate::validate::DatabaseRule::unique(#field, #column, #value, #case_insensitive, #except, #scope)
+                            #krate::validate::DatabaseRule::unique(#field, #column, #value, #case_insensitive, #except, #scope).map(|rule| rule.with_message(#template))
                         })
                     }
                     DatabaseRule::Exists { column, scope: s } => {
                         let scope = scope(s, column);
                         Some(quote! {
-                            #krate::validate::DatabaseRule::exists(#field, #column, #value, #scope)
+                            #krate::validate::DatabaseRule::exists(#field, #column, #value, #scope).map(|rule| rule.with_message(#template))
                         })
                     }
                     DatabaseRule::Custom(_) => None,
@@ -316,4 +323,41 @@ pub(crate) fn custom_database_steps(fields: &[&Field]) -> Vec<TokenStream2> {
             })
         })
         .collect()
+}
+
+/// A rule's own message as an `Option<&str>` expression.
+pub(crate) fn template(message: Option<&syn::LitStr>) -> TokenStream2 {
+    match message {
+        Some(message) => quote!(::core::option::Option::Some(#message)),
+        None => quote!(::core::option::Option::<&str>::None),
+    }
+}
+
+/// A rule's arguments as `(name, Value)` pairs, for messages and reports.
+fn rule_params(rule: &Rule, krate: &TokenStream2) -> Vec<TokenStream2> {
+    let bound = |name: &str, e: &Option<syn::Expr>, cast: TokenStream2| {
+        e.as_ref()
+            .map(|e| quote!((#name, #krate::Value::from((#e) as #cast))))
+    };
+    match rule {
+        Rule::Length(min, max) => [
+            bound("min", min, quote!(i64)),
+            bound("max", max, quote!(i64)),
+        ]
+        .into_iter()
+        .flatten()
+        .collect(),
+        Rule::Range(min, max) => [
+            bound("min", min, quote!(f64)),
+            bound("max", max, quote!(f64)),
+        ]
+        .into_iter()
+        .flatten()
+        .collect(),
+        Rule::RequiredIf { other, .. } | Rule::RequiredWith(other) => {
+            let other = unraw(other);
+            vec![quote!(("other", #krate::Value::from(#other)))]
+        }
+        _ => Vec::new(),
+    }
 }

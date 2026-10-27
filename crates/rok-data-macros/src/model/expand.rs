@@ -450,6 +450,7 @@ pub(crate) fn parse_fields(input: &DeriveInput, derive: &str) -> syn::Result<Vec
             tenant: false,
             belongs_to: None,
             rules: Vec::new(),
+            messages: Vec::new(),
             ty: field.ty.clone(),
             set_with: None,
             transforms: Vec::new(),
@@ -475,7 +476,7 @@ pub(crate) fn parse_fields(input: &DeriveInput, derive: &str) -> syn::Result<Vec
                 } else if meta.path.is_ident("tenant") {
                     f.tenant = true;
                 } else if meta.path.is_ident("validate") {
-                    parse_rules(&meta, &mut f.rules)?;
+                    parse_rules(&meta, &mut f.rules, &mut f.messages)?;
                 } else if meta.path.is_ident("belongs_to") {
                     if meta.input.peek(syn::Token![=]) {
                         let model: Path = meta.value()?.parse()?;

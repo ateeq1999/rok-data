@@ -20,6 +20,7 @@ pub struct DatabaseRule {
     pub(crate) field: String,
     code: &'static str,
     message: String,
+    custom: bool,
     fails_when_found: bool,
     body: Box<dyn Fn(&mut Sql) + Send + Sync>,
 }
@@ -37,6 +38,18 @@ impl fmt::Debug for DatabaseRule {
 }
 
 impl DatabaseRule {
+    /// This rule with its own message, `template` rendered with the
+    /// field; `None` keeps the built-in one.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn with_message(mut self, template: Option<&str>) -> Self {
+        if let Some(template) = template {
+            self.message = super::render(template, &self.field, &[]);
+            self.custom = true;
+        }
+        self
+    }
+
     /// This rule at `prefix.field`, for a nested input's rule.
     #[doc(hidden)]
     #[must_use]
@@ -56,6 +69,7 @@ impl DatabaseRule {
             field: field.to_owned(),
             code,
             message,
+            custom: false,
             fails_when_found,
             body: Box::new(move |sql| select.write_exists_body(sql)),
         }
@@ -148,7 +162,14 @@ pub(crate) async fn run(
     for (i, rule) in rules.into_iter().enumerate() {
         let found: bool = row.try_get(i)?;
         if found == rule.fails_when_found {
-            errors.add(rule.field, rule.code, rule.message);
+            let template = rule.custom.then_some(rule.message.as_str());
+            errors.add_rule(
+                rule.field.clone(),
+                rule.code,
+                rule.message.clone(),
+                template,
+                Vec::new(),
+            );
         }
     }
     Ok(errors)

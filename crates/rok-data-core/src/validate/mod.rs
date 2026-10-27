@@ -29,10 +29,16 @@ use std::fmt;
 
 mod database;
 mod input;
+mod messages;
+#[cfg(any(feature = "json", feature = "axum"))]
+mod report;
 pub mod transform;
 
 pub use database::DatabaseRule;
 pub use input::{Input, Nested};
+pub use messages::{Messages, render};
+#[cfg(any(feature = "json", feature = "axum"))]
+pub use report::{DetailsReporter, ErrorReporter};
 
 /// Whether a value counts as given, for `required_if` / `required_unless` /
 /// `required_with`: `Some`, non-empty text, a non-empty list.
@@ -66,7 +72,7 @@ impl<T> Presence for Vec<T> {
 }
 
 /// One failed rule.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FieldError {
     /// Where the failing value is: the field's name, or a dotted path into
     /// nested input (`address.city`, `items.2.sku`); `""` for record-level
@@ -77,13 +83,23 @@ pub struct FieldError {
     pub code: &'static str,
     /// Human-readable message.
     pub message: String,
-    /// The rule's arguments (`min`, `max`, …), for messages that quote
-    /// them.
-    pub params: Vec<(&'static str, String)>,
+    /// The rule's arguments (`min`, `max`, …), which messages quote as
+    /// `{min}` and the reporter answers as `params`.
+    pub params: Vec<(&'static str, crate::Value)>,
+    /// Whether the message is the rule's own (`message = "…"`), which a
+    /// [`Messages`] provider leaves as it is.
+    custom: bool,
+}
+
+impl FieldError {
+    /// Whether the message came from the rule's `message = "…"`.
+    pub fn has_custom_message(&self) -> bool {
+        self.custom
+    }
 }
 
 /// Every validation failure of a record.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct ValidationErrors {
     errors: Vec<FieldError>,
 }
@@ -106,6 +122,7 @@ impl ValidationErrors {
             code,
             message: message.into(),
             params: Vec::new(),
+            custom: false,
         });
     }
 

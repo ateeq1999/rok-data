@@ -90,3 +90,63 @@ async fn validate_takes_a_session() {
         .unwrap();
     assert_eq!(valid.age, 2);
 }
+
+/// Messages: a rule's own, a provider's, the built-in one.
+#[derive(Debug, Clone, PartialEq, Input)]
+struct Profile {
+    #[rok(validate(length(min = 3, message = "{field} needs {min}+ characters")))]
+    handle: String,
+    #[rok(validate(length(min = 2)))]
+    bio: String,
+    #[rok(validate(email(message = "that doesn't look like an email")))]
+    email: String,
+}
+
+struct Shouting;
+
+impl rok_data::validate::Messages for Shouting {
+    fn template(&self, code: &str, _field: &str) -> Option<String> {
+        (code == "length").then(|| "{field} TOO SHORT (MIN {min})".to_owned())
+    }
+}
+
+#[test]
+fn messages_come_from_the_rule_then_the_provider_then_the_default() {
+    let error = Profile {
+        handle: "ab".into(),
+        bio: "x".into(),
+        email: "nope".into(),
+    }
+    .validate_fields()
+    .unwrap_err();
+    let rok_data::Error::Validation(errors) = error else {
+        panic!("expected validation errors");
+    };
+    let messages = |errors: &ValidationErrors| -> Vec<String> {
+        errors.errors().iter().map(|e| e.message.clone()).collect()
+    };
+    assert_eq!(
+        messages(&errors),
+        [
+            "handle needs 3+ characters",
+            "length must be at least 2",
+            "that doesn't look like an email",
+        ]
+    );
+    let localized = errors.clone().localized(&Shouting);
+    assert_eq!(
+        messages(&localized),
+        [
+            "handle needs 3+ characters",
+            "bio TOO SHORT (MIN 2)",
+            "that doesn't look like an email",
+        ]
+    );
+    #[cfg(feature = "json")]
+    {
+        use rok_data::validate::ErrorReporter;
+        let report = rok_data::validate::DetailsReporter.report(&errors);
+        assert_eq!(report["error"]["code"], "validation_failed");
+        assert_eq!(report["error"]["details"]["bio"][0]["params"]["min"], 2);
+    }
+}
