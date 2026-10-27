@@ -1,6 +1,6 @@
 # 11: Cursor pagination in both directions
 
-**What to build:** Laravel's `cursorPaginate` parity: a page knows its next **and previous** cursor, and a client can walk either way.
+**What to build:** Cursor pagination both ways: a page knows its next **and previous** cursor, and a client can walk either way.
 
 ```rust
 let page = Post::order_by(Post::CREATED_AT.desc()).cursor_paginate(&db, cursor, 20).await?;

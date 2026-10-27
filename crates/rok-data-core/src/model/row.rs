@@ -55,7 +55,7 @@ pub trait Model:
     /// `delete` fail with [`Error::Conflict`] if it changed since loading.
     const VERSION_COLUMN: Option<&'static str> = None;
     /// Rows on a page when the caller names no page size: what
-    /// [`Select::page`](crate::Select::page) uses. Laravel's default, 15;
+    /// [`Select::page`](crate::Select::page) uses: 15 by default;
     /// `#[rok(per_page = 25)]` sets it per model.
     const PER_PAGE: u64 = 15;
 
@@ -126,7 +126,7 @@ pub trait Model:
         Select::new().filter(expr)
     }
 
-    /// Start a `SELECT` filtered by `expr` — the Eloquent spelling of
+    /// Start a `SELECT` filtered by `expr` — another name for
     /// [`filter`](Model::filter).
     ///
     /// `where` is a Rust keyword, so the alias is spelled `where_`;

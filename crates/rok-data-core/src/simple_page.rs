@@ -25,12 +25,12 @@ impl<T> SimplePage<T> {
         }
     }
 
-    /// `true` if a later page exists — Laravel's `hasMorePages`.
+    /// `true` if a later page exists.
     pub fn has_more(&self) -> bool {
         self.has_more
     }
 
-    /// `true` on page 1 — Laravel's `onFirstPage`.
+    /// `true` on page 1.
     pub fn on_first_page(&self) -> bool {
         self.page <= 1
     }

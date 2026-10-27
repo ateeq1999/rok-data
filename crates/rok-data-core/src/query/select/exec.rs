@@ -43,8 +43,7 @@ impl<M: Model> Select<M> {
         exec::fetch_all(executor, &self.to_sql(), &[], self.use_replica()).await
     }
 
-    /// Fetch every matching row as a [`ModelCollection`] — Eloquent's
-    /// `get`, which returns a Collection. The collection verbs (`find`,
+    /// Fetch every matching row as a [`ModelCollection`]. The collection verbs (`find`,
     /// `load`, `fresh`, `to_query`, …) work on it at once, and through
     /// `Deref` it is still a `Vec`; [`all`](Self::all) returns the plain
     /// `Vec`.

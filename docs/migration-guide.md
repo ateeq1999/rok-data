@@ -85,13 +85,13 @@ let user = User::insert_builder()
 user.update(&db).await?;
 ```
 
-`save` is **removed, not aliased**: it is the one Eloquent verb whose
+`save` is **removed, not aliased**: it is the one verb whose
 meaning is ambiguous (insert *or* update), and a non-optional typed key
 leaves the runtime nothing to decide on. Use the explicit verbs — `insert`,
 `update`, `upsert`, `upsert_on` — instead.
 
 The generated data layer changes with the runtime: its write verbs move
-onto the model and take the Eloquent-shaped names (the table above):
+onto the model and take the model's verb names (the table above):
 `update` becomes `User::patch` (the instance verb `update` already means
 "write this row"), `delete` becomes `User::destroy`, and a missing row is
 `Error::NotFound` rather than a `None` or a `0` (*One "not found"
@@ -111,8 +111,8 @@ working.
 | Verb                | Signature                                  | Notes |
 | ------------------- | ------------------------------------------ | ----- |
 | `Model::exists`     | `fn exists(executor) -> Result<bool>`      | does the table have a row? the model's own scope applies (soft deletes, default scope, tenant) |
-| `Model::where_`    | `fn where_(expr) -> Select<Self>`         | the Eloquent spelling of `filter` |
-| `Select::where_`   | `fn where_(expr) -> Self`                 | the Eloquent spelling of `filter`, on the chain |
+| `Model::where_`    | `fn where_(expr) -> Select<Self>`         | another name for `filter` |
+| `Select::where_`   | `fn where_(expr) -> Self`                 | another name for `filter`, on the chain |
 | `Select::get`       | `fn get(executor) -> Result<ModelCollection<Self>>` | the rows as a `ModelCollection`; `all` keeps the `Vec` |
 | `Select::chunk`     | `fn chunk(session, size, f) -> Result<()>` | the rows in windows of `size`, one query each, so a large table need not fit in memory |
 
@@ -147,16 +147,16 @@ User::query()
 primary key when the query has no order), so only one window is in memory
 and no connection is held while the callback runs — a callback that writes
 back works even with a pool of one. The callback returns `Ok(())` to go on
-or `Ok(false)` to stop (Laravel's `return false`); the first error stops the
+or `Ok(false)` to stop; the first error stops the
 walk and is returned.
 
-The rest of Laravel's table walks, for large tables:
+The other table walks, for large tables:
 
-| Laravel | rok-data | Notes |
-| ------- | -------- | ----- |
-| `chunkById(100, fn)` | `.chunk_by_id(db, 100, f)` | keyset windows by primary key: correct when `f` deletes or updates the rows it was handed |
-| `lazy()` / `lazyById()` / `lazyByIdDesc()` | `.lazy(db, n)?` / `.lazy_by_id(db, n)?` / `.lazy_by_id_desc(db, n)?` | a `Stream` of rows, read `n` at a time |
-| `each(fn)` / `eachById(fn)` | `.each(db, f)` / `.each_by_id(db, f)` | one row per call, a thousand per query |
+| Call | What it does |
+| ---- | ------------ |
+| `.chunk_by_id(db, 100, f)` | keyset windows by primary key: correct when `f` deletes or updates the rows it was handed |
+| `.lazy(db, n)?` / `.lazy_by_id(db, n)?` / `.lazy_by_id_desc(db, n)?` | a `Stream` of rows, read `n` at a time |
+| `.each(db, f)` / `.each_by_id(db, f)` | one row per call, a thousand per query |
 
 ### Relations
 

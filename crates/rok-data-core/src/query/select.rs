@@ -97,7 +97,7 @@ impl<M: Model> Select<M> {
         self
     }
 
-    /// Add a `WHERE` condition — the Eloquent spelling of
+    /// Add a `WHERE` condition — another name for
     /// [`filter`](Self::filter).
     ///
     /// `where` is a Rust keyword, so the alias is spelled `where_`;

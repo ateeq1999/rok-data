@@ -46,14 +46,14 @@ impl<M: Model> Select<M> {
     }
 
     /// One page at the model's page size — [`paginate`](Self::paginate)
-    /// with [`Model::PER_PAGE`] rows (15, or `#[rok(per_page = N)]`):
-    /// Laravel's `paginate()` without an argument. `page` is 1-based.
+    /// with [`Model::PER_PAGE`] rows (15, or `#[rok(per_page = N)]`).
+    /// `page` is 1-based.
     pub async fn page<'e, E: Executor<'e>>(self, executor: E, page: u64) -> Result<Page<M>> {
         self.paginate(executor, page, M::PER_PAGE).await
     }
 
     /// One page and whether another follows, in a single query and without
-    /// a `COUNT(*)` — Laravel's `simplePaginate`, for a "next" link where
+    /// a `COUNT(*)`, for a "next" link where
     /// the total does not matter or costs too much. Reads `per_page + 1`
     /// rows and keeps `per_page`. `page` is 1-based.
     pub async fn simple_paginate<'e, E: Executor<'e>>(
@@ -79,7 +79,7 @@ impl<M: Model> Select<M> {
     }
 
     /// Narrows the chain to page `page` of `per_page` rows (`LIMIT` and
-    /// `OFFSET`), 1-based — Laravel's `forPage`, for when the total is not
+    /// `OFFSET`), 1-based, for when the total is not
     /// wanted at all.
     pub fn for_page(self, page: u64, per_page: u64) -> Self {
         let offset = (page.max(1) - 1).saturating_mul(per_page);

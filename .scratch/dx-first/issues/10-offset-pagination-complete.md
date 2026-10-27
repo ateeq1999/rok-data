@@ -1,8 +1,8 @@
-# 10: Offset pagination — the whole Laravel surface
+# 10: Offset pagination — the whole surface
 
-**What to build:** Every offset-pagination call a Laravel developer reaches for, on a query, on a relation, and with eager loads:
+**What to build:** Every offset-pagination call a developer reaches for, on a query, on a relation, and with eager loads:
 
-| Laravel | rok-data |
+| Familiar name | rok-data |
 |---|---|
 | `->paginate(15)` | `.paginate(&db, page, 15)` → `Page<M>` (exists) |
 | `->simplePaginate(15)` | `.simple_paginate(&db, page, 15)` → `SimplePage<M>`: one query, fetches `per_page + 1`, `has_more` — no `COUNT(*)` |

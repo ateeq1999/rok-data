@@ -1,6 +1,6 @@
 # 02: Query builder sugar — where_any/all/none, JSON, date-parts, column compare, union, raw, tap/pipe, debug
 
-**What to build:** Chain methods on `Select<M>` for common Laravel query patterns: `where_any(columns, op, value)`, `where_all`, `where_none`; `where_json_contains(col, path, value)`, `where_json_contains_key(col, path)`, `where_json_length(col, path, op, n)`; `where_date/month/day/year/time(col, value)`; `where_column(col1, op, col2)`, `where_null_safe_eq(col, value)`; `union(other)`, `union_all(other)`; `increment_each(&[(Col, Value)])`; `tap(f)`, `pipe(f)`; `debug()`, `debug_raw()`; `select_raw`, `where_raw`, `having_raw`, `order_by_raw`, `group_by_raw`. All return `Self` for chaining.
+**What to build:** Chain methods on `Select<M>` for common query patterns: `where_any(columns, op, value)`, `where_all`, `where_none`; `where_json_contains(col, path, value)`, `where_json_contains_key(col, path)`, `where_json_length(col, path, op, n)`; `where_date/month/day/year/time(col, value)`; `where_column(col1, op, col2)`, `where_null_safe_eq(col, value)`; `union(other)`, `union_all(other)`; `increment_each(&[(Col, Value)])`; `tap(f)`, `pipe(f)`; `debug()`, `debug_raw()`; `select_raw`, `where_raw`, `having_raw`, `order_by_raw`, `group_by_raw`. All return `Self` for chaining.
 
 **Blocked by:** None (can start immediately).
 

@@ -1,6 +1,6 @@
 # 01: Fix generator write API naming (create / patch / destroy)
 
-**What to build:** The generated model's static write verbs use the spec's naming — `create`, `patch`, `destroy` — instead of the current `create`, `update`, `delete`, `restore`, `delete_permanently`. A caller writes `User::create(&db, input)`, `User::patch(&db, id, patch)`, `User::destroy(&db, id)` and gets the same behaviour the engine already provides, just with the Eloquent-shaped names.
+**What to build:** The generated model's static write verbs use the spec's naming — `create`, `patch`, `destroy` — instead of the current `create`, `update`, `delete`, `restore`, `delete_permanently`. A caller writes `User::create(&db, input)`, `User::patch(&db, id, patch)`, `User::destroy(&db, id)` and gets the same behaviour the engine already provides, just with the model-shaped names.
 
 **Blocked by:** None (can start immediately).
 

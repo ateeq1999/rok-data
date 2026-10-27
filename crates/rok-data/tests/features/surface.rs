@@ -12,7 +12,7 @@ struct Tag {
 
 // ----- SQL shape -------------------------------------------------------------
 
-/// `where_` is the Eloquent spelling of `filter`, on the model and on the
+/// `where_` is another name for `filter`, on the model and on the
 /// chain: the same statement, the same parameters.
 #[test]
 fn where_is_an_alias_of_filter() {

@@ -13,6 +13,6 @@
 - [ ] **ADR 0016** — ModelCollection and collection methods
 - [ ] **ADR 0017** — Relationship extensions (through, many-to-many, aggregates, existence)
 - [ ] **ADR 0018** — Casting system (standard, custom, value objects, inbound, castables)
-- [ ] **ADR 0019** — Pagination shapes (simple_paginate, Laravel JSON, cursor prev, OpenAPI)
+- [ ] **ADR 0019** — Pagination shapes (simple_paginate, paginator JSON, cursor prev, OpenAPI)
 - [ ] `examples/api` — regenerate with all 0.4.0 features; verify `rok gen check` passes
 - [ ] CI: `cargo fmt --all`, `cargo clippy --workspace --all-targets -D warnings`, `cargo test --workspace --all-targets` green

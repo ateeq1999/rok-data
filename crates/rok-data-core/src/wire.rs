@@ -2,7 +2,8 @@
 //! (the shapes need the `serde` feature), with its links built from the
 //! request ([`Links`], always available).
 //!
-//! [`Page`], [`SimplePage`] and [`CursorPage`] each answer in two shapes:
+//! [`Page`](crate::Page), [`SimplePage`](crate::SimplePage) and
+//! [`CursorPage`](crate::CursorPage) each answer in two shapes:
 //!
 //! - **`paginator(links)`** — the paginator object: `data`,
 //!   `current_page`, `per_page`, `total`, `last_page`, `from`, `to` and the

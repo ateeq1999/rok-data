@@ -272,7 +272,7 @@ impl<M: Model> ModelCollection<M> {
         Ok(view)
     }
 
-    /// Loads the `includes` not loaded yet — Eloquent's `loadMissing`. A
+    /// Loads the `includes` not loaded yet. A
     /// collection of bare rows has none loaded, so this is
     /// [`load`](Self::load); on the loaded view,
     /// [`Loaded::load_missing`] skips the ones already there, so the

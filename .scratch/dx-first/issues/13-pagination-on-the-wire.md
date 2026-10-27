@@ -6,7 +6,7 @@
   - `compact` — today's `{items, page, per_page, total}`
   - `paginator` — `{data, current_page, per_page, total, last_page, from, to, first_page_url, last_page_url, next_page_url, prev_page_url, path}`; simple pages omit `total`/`last_page`; cursor pages `{data, per_page, next_cursor, prev_cursor, next_page_url, prev_page_url, path}`
   - `resource` — rok-fluent's `{data, meta: {...}, links: {first, last, prev, next}}`
-- **Links**: built from the request path, preserving the query string (Laravel's `withQueryString`), with a configurable page parameter name (`pageName`) and optional fragment
+- **Links**: built from the request path, preserving the query string, with a configurable page parameter name (`pageName`) and optional fragment
 - **Generated cursor lists**: a table can opt into cursor listing (`?cursor=…&per_page=…`) in `[api]`
 - **OpenAPI**: generic schemas for each page shape, referenced by every list operation
 - the `paginate` runtime types gain `Serialize` for the chosen shape behind the web features, so hand-written handlers match generated ones

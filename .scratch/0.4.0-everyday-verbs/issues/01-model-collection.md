@@ -1,6 +1,6 @@
 # 01: ModelCollection — in-memory collection methods
 
-**What to build:** A `ModelCollection<M>` wrapper around `Vec<M>` with `Deref<Target = Vec<M>>` that provides the high-value Laravel Collection methods: `find`, `find_or_fail`, `model_keys`, `load`, `load_missing`, `unique`, `to_query`, `contains`, `partition`, `intersect`, `diff`, `except`, `only`, `fresh`, `to_json`, plus `Serialize` impl. Generated models get `fn to_collection(&self) -> ModelCollection<Self>` and `fn to_collection_vec(models: &[Self]) -> ModelCollection<Self>`.
+**What to build:** A `ModelCollection<M>` wrapper around `Vec<M>` with `Deref<Target = Vec<M>>` that provides the high-value collection methods: `find`, `find_or_fail`, `model_keys`, `load`, `load_missing`, `unique`, `to_query`, `contains`, `partition`, `intersect`, `diff`, `except`, `only`, `fresh`, `to_json`, plus `Serialize` impl. Generated models get `fn to_collection(&self) -> ModelCollection<Self>` and `fn to_collection_vec(models: &[Self]) -> ModelCollection<Self>`.
 
 **Blocked by:** None (can start immediately — 0.3.0 runtime is stable).
 

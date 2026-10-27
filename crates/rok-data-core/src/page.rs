@@ -40,31 +40,31 @@ impl<T> Page<T> {
         self.page > 1
     }
 
-    /// The number of the last page (at least 1) — Laravel's `lastPage`;
+    /// The number of the last page (at least 1);
     /// the same as [`total_pages`](Self::total_pages).
     pub fn last_page(&self) -> u64 {
         self.total_pages()
     }
 
-    /// `true` on page 1 — Laravel's `onFirstPage`.
+    /// `true` on page 1.
     pub fn on_first_page(&self) -> bool {
         self.page <= 1
     }
 
-    /// `true` on the last page, or past it — Laravel's `onLastPage`.
+    /// `true` on the last page, or past it.
     pub fn on_last_page(&self) -> bool {
         self.page >= self.last_page()
     }
 
-    /// `true` when the rows span more than one page — Laravel's
-    /// `hasPages`, for whether to show page links at all.
+    /// `true` when the rows span more than one page, for whether to show
+    /// page links at all.
     pub fn has_pages(&self) -> bool {
         self.last_page() > 1
     }
 
     /// The 1-based position of this page's first row among all matches
-    /// (`(page - 1) * per_page + 1`), or `None` on an empty page —
-    /// Laravel's `firstItem`, for "showing 21–40 of 95".
+    /// (`(page - 1) * per_page + 1`), or `None` on an empty page, for
+    /// "showing 21–40 of 95".
     pub fn first_item(&self) -> Option<u64> {
         (!self.items.is_empty()).then(|| {
             (self.page - 1)
@@ -74,14 +74,14 @@ impl<T> Page<T> {
     }
 
     /// The 1-based position of this page's last row, or `None` on an empty
-    /// page — Laravel's `lastItem`.
+    /// page.
     pub fn last_item(&self) -> Option<u64> {
         self.first_item()
             .map(|first| first + self.items.len() as u64 - 1)
     }
 
-    /// The rows as a [`ModelCollection`](crate::ModelCollection) — Laravel's
-    /// `getCollection` — dropping the page's numbers.
+    /// The rows as a [`ModelCollection`](crate::ModelCollection), dropping
+    /// the page's numbers.
     pub fn into_collection(self) -> crate::ModelCollection<T> {
         crate::ModelCollection::new(self.items)
     }
@@ -146,7 +146,7 @@ mod tests {
     }
 
     #[test]
-    fn the_laravel_helpers() {
+    fn the_page_position_helpers() {
         // Page 2 of 95 rows at 20 a page: rows 21–40 of 5 pages.
         let middle = Page::new(vec![0; 20], 95, 2, 20);
         assert_eq!(middle.last_page(), 5);

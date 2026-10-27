@@ -72,8 +72,8 @@ primary key — `find`, `contains_key`, `only`/`except`, `unique`,
 `intersect`/`diff` — and go back to the database: `to_query` (the rows'
 keys as a `WHERE`), `fresh` (re-read them), `load`/`load_missing` (the
 relations beside them, into a **Loaded** view).
-_Avoid_: result set, rows (for the collection type), Laravel's untyped
-Collection
+_Avoid_: result set, rows (for the collection type), an untyped
+collection
 
 **Page**:
 One page of rows with what a client needs to page on: `Page<T>` holds the

@@ -12,7 +12,7 @@ structs, typed column constants like `User::AGE`, chainable
 `rok sqlc generate` emits plain sqlx function modules that cannot touch
 the ORM. The two idioms neither interoperate nor converge, and the
 product direction — write schema SQL, get a running API, with fluent,
-Eloquent-like DX, unified — demands one answer.
+readable call sites, unified — demands one answer.
 
 ## Decision
 

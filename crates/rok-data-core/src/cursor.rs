@@ -69,7 +69,7 @@ impl<T> CursorPage<T> {
         self.next.is_some()
     }
 
-    /// `true` if a later page exists — Laravel's `hasMorePages`.
+    /// `true` if a later page exists.
     pub fn has_more(&self) -> bool {
         self.has_next()
     }
@@ -79,12 +79,12 @@ impl<T> CursorPage<T> {
         self.prev.is_some()
     }
 
-    /// The cursor for the following page — Laravel's `nextCursor`.
+    /// The cursor for the following page.
     pub fn next_cursor(&self) -> Option<&Cursor> {
         self.next.as_ref()
     }
 
-    /// The cursor for the preceding page — Laravel's `previousCursor`.
+    /// The cursor for the preceding page.
     pub fn prev_cursor(&self) -> Option<&Cursor> {
         self.prev.as_ref()
     }

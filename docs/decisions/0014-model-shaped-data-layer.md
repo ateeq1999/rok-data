@@ -5,7 +5,7 @@ Date: 2026-10-22 · Status: accepted
 ## Context
 
 The data layer is fluent, but it is not *legible* to a developer who knows
-SQL and knows Eloquent. Three things make a call site cost a moment of
+SQL and expects the model to carry its own verbs. Three things make a call site cost a moment of
 hesitation:
 
 - **The verbs are on the wrong object.** A read is `users::read::get_by_id(&db,
@@ -72,8 +72,8 @@ release and the engine's ADR 0018 for the generated code's shape.
   `fn where(..)` does not compile, and the raw identifier (`r#where`) reads
   badly in a chain, so the alias is spelled `where_`. The
   canonical verb stays `filter` (the Diesel/SeaORM convention) and `where_`
-  is offered as an alias for Eloquent muscle memory.
-- **Keep `save()` as "insert or update".** Rejected: Eloquent's `save()`
+  is offered as an alias that reads like the SQL.
+- **Keep `save()` as "insert or update".** Rejected: a `save()` that
   decides by whether the key is set, and our keys are non-optional typed
   values, so the decision would need a sentinel. The explicit verbs
   (`insert`, `update`, `upsert`) replace it — `save` is removed, not aliased.

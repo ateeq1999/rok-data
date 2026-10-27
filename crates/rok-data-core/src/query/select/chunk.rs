@@ -23,8 +23,7 @@ const EACH_WINDOW: usize = 1000;
 
 /// Whether a walk goes on after a callback — what a [`Select::chunk`] or
 /// [`Select::each`] callback returns. `()` always goes on; `false` (or
-/// [`ControlFlow::Break`]) stops the walk there, like Laravel's `return
-/// false`:
+/// [`ControlFlow::Break`]) stops the walk there:
 ///
 /// ```ignore
 /// User::query().chunk_by_id(&db, 100, |rows| async move {
@@ -56,7 +55,7 @@ impl Walk for ControlFlow<()> {
 
 impl<M: Model> Select<M> {
     /// Process the matching rows in windows of `size`, handing each window to
-    /// `f`, in the query's order — Laravel's `chunk`.
+    /// `f`, in the query's order.
     ///
     /// Each window is its own `LIMIT`/`OFFSET` query on the session (an
     /// unordered query is ordered by its primary key), so only
@@ -94,8 +93,8 @@ impl<M: Model> Select<M> {
         Ok(())
     }
 
-    /// Process the matching rows in windows of `size`, by primary key —
-    /// Laravel's `chunkById`. Each window is its own keyset query (`WHERE
+    /// Process the matching rows in windows of `size`, by primary key.
+    /// Each window is its own keyset query (`WHERE
     /// key > the last window's last key ORDER BY key LIMIT size`), so no
     /// connection is held between windows and the walk stays correct when
     /// `f` updates or deletes the rows it was handed: every row that
@@ -136,7 +135,7 @@ impl<M: Model> Select<M> {
     }
 
     /// The matching rows as a stream, read `size` at a time in the query's
-    /// order (`LIMIT`/`OFFSET` windows) — Laravel's `lazy`. One window is in
+    /// order (`LIMIT`/`OFFSET` windows). One window is in
     /// memory at a time, and no connection is held between windows; for
     /// rows that change during the walk, prefer
     /// [`lazy_by_id`](Self::lazy_by_id).
@@ -149,7 +148,7 @@ impl<M: Model> Select<M> {
     }
 
     /// The matching rows as a stream, read `size` at a time by primary key
-    /// ascending — Laravel's `lazyById`: keyset windows, correct while the
+    /// ascending: keyset windows, correct while the
     /// rows change, no connection held between windows.
     pub fn lazy_by_id<'c, S>(self, session: S, size: usize) -> Result<BoxStream<'c, Result<M>>>
     where
@@ -159,8 +158,7 @@ impl<M: Model> Select<M> {
         Ok(flatten(self.by_key(false).windows(session.into(), size)?))
     }
 
-    /// [`lazy_by_id`](Self::lazy_by_id), by primary key descending —
-    /// Laravel's `lazyByIdDesc`.
+    /// [`lazy_by_id`](Self::lazy_by_id), by primary key descending.
     pub fn lazy_by_id_desc<'c, S>(self, session: S, size: usize) -> Result<BoxStream<'c, Result<M>>>
     where
         S: Into<Journey<'c>>,
@@ -169,8 +167,8 @@ impl<M: Model> Select<M> {
         Ok(flatten(self.by_key(true).windows(session.into(), size)?))
     }
 
-    /// Hand every matching row to `f`, one at a time, in the query's order —
-    /// Laravel's `each`: [`chunk`](Self::chunk) underneath, a thousand rows
+    /// Hand every matching row to `f`, one at a time, in the query's order:
+    /// [`chunk`](Self::chunk) underneath, a thousand rows
     /// a window, no connection held while `f` runs. `f` returns `Ok(())` to
     /// go on or `Ok(false)` to stop.
     pub async fn each<'c, S, F, Fut, W>(self, session: S, mut f: F) -> Result<()>
@@ -191,8 +189,8 @@ impl<M: Model> Select<M> {
         Ok(())
     }
 
-    /// Hand every matching row to `f`, one at a time, by primary key —
-    /// Laravel's `eachById`: [`chunk_by_id`](Self::chunk_by_id)
+    /// Hand every matching row to `f`, one at a time, by primary key:
+    /// [`chunk_by_id`](Self::chunk_by_id)
     /// underneath, a thousand rows a window, so `f` may change the rows.
     pub async fn each_by_id<'c, S, F, Fut, W>(self, session: S, mut f: F) -> Result<()>
     where
@@ -231,8 +229,8 @@ impl<M: Model> Select<M> {
 
     /// The `LIMIT`/`OFFSET` windows of this query, in its own order: one
     /// `for_page` query per window on `journey`, until a short window. A
-    /// query without an `ORDER BY` is ordered by its primary key, as
-    /// Laravel orders an unordered `chunk`: offsets over an unordered query
+    /// query without an `ORDER BY` is ordered by its primary key: offsets
+    /// over an unordered query
     /// are not stable from one window's query to the next.
     fn offset_windows<'c>(
         mut self,

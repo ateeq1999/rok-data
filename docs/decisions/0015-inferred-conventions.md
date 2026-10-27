@@ -18,9 +18,9 @@ no ORM-managed timestamps even when the table has `created_at` and
 ceremony is paid twice: by the developer who writes the model, and by the
 generator, which cannot apply the convention it can see in the column names.
 
-Eloquent needs no ceremony: a `created_at`/`updated_at` pair *is* the signal,
+A column name can be the whole declaration: a `created_at`/`updated_at` pair *is* the signal,
 a `deleted_at` column *is* the signal. The friction is that a developer who
-knows Eloquent has to restate, in every model, what the table's column names
+knows the schema has to restate, in every model, what the table's column names
 already say.
 
 ## Decision

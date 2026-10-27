@@ -14,7 +14,7 @@ struct Ticket {
 
 #[test]
 fn a_model_carries_its_page_size() {
-    assert_eq!(User::PER_PAGE, 15, "Laravel's default");
+    assert_eq!(User::PER_PAGE, 15, "the default");
     assert_eq!(Ticket::PER_PAGE, 25);
 }
 

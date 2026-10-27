@@ -125,7 +125,7 @@ compiler finds the call sites.
   (`Cursor::before`, `is_backward()`); a backward token starts with `-`,
   and forward tokens are byte-for-byte those of 0.2. The JSON of a
   `CursorPage` gains `"prev"`. The size argument is named `per_page`.
-- **Offset pagination, the Laravel surface** (dx-first ticket 10):
+- **Offset pagination, complete** (dx-first ticket 10):
   `simple_paginate(&db, page, per_page)` returns a `SimplePage` (the rows
   and `has_more`, one query, no `COUNT(*)`); `page(&db, n)` paginates at
   the model's size — `#[rok(per_page = 25)]`, 15 by default
@@ -206,9 +206,9 @@ compiler finds the call sites.
   (one `#[rok(scopes(name = path))]` attribute per scope; the app owns
   the functions). `default_scope` and `.unscoped()` are unchanged.
 - **Chain additions and spellings**: `Model::exists`, `Model::where_` /
-  `Select::where_` (the Eloquent spelling of `filter`; the raw
+  `Select::where_` (another name for `filter`; the raw
   identifier is the only form that compiles since `where` is a keyword),
-  `Select::get` (the Eloquent spelling of `all`), and `Select::chunk`
+  `Select::get` (another name for `all`), and `Select::chunk`
   for walking big tables in windows.
 
 **What does not change**: PostgreSQL 12+ (DATABASE_URL), the migration
