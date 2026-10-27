@@ -10,6 +10,7 @@ pub mod audit;
 mod cache;
 mod cache_sync;
 mod collection;
+mod constraint;
 mod context;
 mod copy;
 mod cursor;

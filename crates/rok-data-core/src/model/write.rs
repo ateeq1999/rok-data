@@ -14,7 +14,9 @@ pub trait ModelWrite: crate::Model + Sized + 'static {
     where
         E: Executor<'e>,
     {
-        crate::model::writes::insert(self, executor).await
+        crate::model::writes::insert(self, executor)
+            .await
+            .map_err(crate::constraint::as_field_error::<Self>)
     }
 
     /// `INSERT` many records in a single statement and return the stored rows.
@@ -22,7 +24,10 @@ pub trait ModelWrite: crate::Model + Sized + 'static {
     where
         E: Executor<'e>,
     {
-        Self::insert_many(records).exec(executor).await
+        Self::insert_many(records)
+            .exec(executor)
+            .await
+            .map_err(crate::constraint::as_field_error::<Self>)
     }
 
     /// Bulk-load `records` with PostgreSQL's binary `COPY`, typically 5–20×
@@ -42,7 +47,9 @@ pub trait ModelWrite: crate::Model + Sized + 'static {
     where
         E: Executor<'e>,
     {
-        crate::model::writes::upsert(self, executor).await
+        crate::model::writes::upsert(self, executor)
+            .await
+            .map_err(crate::constraint::as_field_error::<Self>)
     }
 
     /// `INSERT` this record, or update it if it conflicts on `columns` (a
@@ -61,6 +68,7 @@ pub trait ModelWrite: crate::Model + Sized + 'static {
             columns.into_iter().map(|c| c.name()).collect(),
         )
         .await
+        .map_err(crate::constraint::as_field_error::<Self>)
     }
 
     /// The row holding this record's values of `columns` (a unique key),
@@ -88,6 +96,7 @@ pub trait ModelWrite: crate::Model + Sized + 'static {
             columns.into_iter().map(|c| c.name()).collect(),
         )
         .await
+        .map_err(crate::constraint::as_field_error::<Self>)
     }
 
     /// Add `by` to `column` of this record's row in the database
@@ -153,7 +162,9 @@ pub trait ModelWrite: crate::Model + Sized + 'static {
         E: Executor<'e>,
     {
         let pre = crate::model::writes::pre_save(self);
-        crate::model::writes::update_only(self, executor, None, pre).await
+        crate::model::writes::update_only(self, executor, None, pre)
+            .await
+            .map_err(crate::constraint::as_field_error::<Self>)
     }
 
     /// Like `update`, but only write `columns` (managed columns such as
@@ -176,7 +187,9 @@ pub trait ModelWrite: crate::Model + Sized + 'static {
             )));
         }
         let pre = crate::model::writes::pre_save(self);
-        crate::model::writes::update_only(self, executor, Some(columns), pre).await
+        crate::model::writes::update_only(self, executor, Some(columns), pre)
+            .await
+            .map_err(crate::constraint::as_field_error::<Self>)
     }
 
     /// Delete this record by primary key.

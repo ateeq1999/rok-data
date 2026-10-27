@@ -30,13 +30,18 @@ use std::fmt;
 /// One failed rule.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldError {
-    /// Field name (`""` for record-level errors).
-    pub field: &'static str,
+    /// Where the failing value is: the field's name, or a dotted path into
+    /// nested input (`address.city`, `items.2.sku`); `""` for record-level
+    /// errors.
+    pub field: String,
     /// Machine-readable rule name: `length`, `range`, `email`,
     /// `non_empty`, `custom`, …
     pub code: &'static str,
     /// Human-readable message.
     pub message: String,
+    /// The rule's arguments (`min`, `max`, …), for messages that quote
+    /// them.
+    pub params: Vec<(&'static str, String)>,
 }
 
 /// Every validation failure of a record.
@@ -52,11 +57,17 @@ impl ValidationErrors {
     }
 
     /// Record a failure.
-    pub fn add(&mut self, field: &'static str, code: &'static str, message: impl Into<String>) {
+    pub fn add(
+        &mut self,
+        field: impl Into<String>,
+        code: &'static str,
+        message: impl Into<String>,
+    ) {
         self.errors.push(FieldError {
-            field,
+            field: field.into(),
             code,
             message: message.into(),
+            params: Vec::new(),
         });
     }
 

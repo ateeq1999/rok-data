@@ -128,20 +128,31 @@ impl Error {
             .is_some_and(|code| code == "40001" || code == "40P01")
     }
 
-    /// `true` if the database rejected the query because of a unique constraint.
+    /// `true` if the database rejected the query because of a unique constraint
+    /// — directly, or as the `unique` field error a model write reports it
+    /// as.
     pub fn is_unique_violation(&self) -> bool {
-        self.db_error().is_some_and(|e| e.is_unique_violation())
+        self.db_error().is_some_and(|e| e.is_unique_violation()) || self.has_field_code("unique")
     }
 
-    /// `true` if the database rejected the query because of a foreign key constraint.
+    /// `true` if the database rejected the query because of a foreign key
+    /// constraint — directly, or as the `exists` field error a model write
+    /// reports it as.
     pub fn is_foreign_key_violation(&self) -> bool {
         self.db_error()
             .is_some_and(|e| e.is_foreign_key_violation())
+            || self.has_field_code("exists")
     }
 
     /// The name of the violated constraint, if any.
     pub fn constraint(&self) -> Option<&str> {
         self.db_error().and_then(|e| e.constraint())
+    }
+
+    /// A validation error with a field error of `code` (what the
+    /// constraint backstop reports a violation as).
+    fn has_field_code(&self, code: &str) -> bool {
+        matches!(self, Error::Validation(errors) if errors.errors().iter().any(|e| e.code == code))
     }
 
     fn db_error(&self) -> Option<&dyn sqlx::error::DatabaseError> {

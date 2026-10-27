@@ -301,6 +301,25 @@ and writes the opt-out only where the database owns the column. Regenerate
 and read the diff — a row that now carries `#[rok(no_timestamps)]` or
 `#[rok(no_soft_delete)]` is a table whose columns the database fills.
 
+### Validation errors carry paths; constraint violations read as field errors
+
+`FieldError::field` is an owned path now (`String`, `"address.city"`,
+`"items.2.sku"` for nested input), and a `FieldError` carries the rule's
+`params`. Compare with `e.field.as_str()` / `e.field == "email"`;
+`ValidationErrors::add` takes any `impl Into<String>`, so calls that pass
+a literal still compile.
+
+A unique or foreign-key violation on a row write (`insert`, `insert_all`,
+`upsert`, `upsert_on`, `first_or_insert`, `update`, `update_only`) comes
+back as `Error::Validation` with the column as the field and code
+`unique` / `exists` — the same error a database rule reports (workspace
+ADR 0021) — instead of `Error::Database`. `is_unique_violation()` /
+`is_foreign_key_violation()` stay true for it; `constraint()` is `None`.
+Code that matched `Error::Database` for these cases matches
+`Error::Validation`, or keeps calling the two predicates. A violation on
+columns the model has no field for, and any violation from the builders
+(`insert_builder`, `update_all`, `Insert`), stays a database error.
+
 ### Unchanged on purpose
 
 - `filter` stays the canonical verb (the Diesel/SeaORM convention);

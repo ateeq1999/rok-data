@@ -71,7 +71,7 @@ mod serde_impls {
     impl Serialize for FieldError {
         fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
             let mut st = s.serialize_struct("FieldError", 3)?;
-            st.serialize_field("field", self.field)?;
+            st.serialize_field("field", &self.field)?;
             st.serialize_field("code", self.code)?;
             st.serialize_field("message", &self.message)?;
             st.end()

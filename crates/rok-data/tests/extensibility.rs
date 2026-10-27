@@ -210,7 +210,11 @@ fn person(name: &str, age: i32, email: Option<&str>, handle: &str) -> Person {
 #[test]
 fn validation_collects_every_error() {
     let errors = person("", 200, Some("nope"), "a b").validate().unwrap_err();
-    let codes: Vec<_> = errors.errors().iter().map(|e| (e.field, e.code)).collect();
+    let codes: Vec<_> = errors
+        .errors()
+        .iter()
+        .map(|e| (e.field.as_str(), e.code))
+        .collect();
     assert_eq!(
         codes,
         [

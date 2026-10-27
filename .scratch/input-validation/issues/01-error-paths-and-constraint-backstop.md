@@ -4,9 +4,9 @@
 
 **Blocked by:** None
 
-**Status:** ready-for-agent
+**Status:** done (2026-10-27) — the mapping covers the row write verbs; the builders keep the database error (documented)
 
-- [ ] `FieldError { field: String, code, message, params }`; model derive and engine call sites updated
-- [ ] Violation mapping on insert/update/upsert, multi-column keys reported on each column
-- [ ] Facade tests (DB-backed): duplicate email → `Error::Validation` at `email`, code `unique`; FK miss → `exists`
-- [ ] Migration guide + CHANGELOG (breaking)
+- [x] `FieldError { field: String, code, message, params }`; model derive and engine call sites updated
+- [x] Violation mapping on insert/update/upsert, multi-column keys reported on each column
+- [x] Facade tests (DB-backed): duplicate email → `Error::Validation` at `email`, code `unique`; FK miss → `exists`
+- [x] Migration guide + CHANGELOG (breaking)

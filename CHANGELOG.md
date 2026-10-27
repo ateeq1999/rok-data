@@ -273,6 +273,13 @@ compiler finds the call sites.
   `touch(&db)` update in the database without reading first and return
   the stored row. `update_or_create` is the existing `upsert_on`, `fresh`
   the existing `reload`.
+- **Validation errors carry paths; violations read as field errors**
+  (input-validation ticket 01, workspace ADR 0021). Breaking:
+  `FieldError::field` is a `String` path (`address.city`, `items.2.sku`)
+  and `FieldError` gains `params`. A unique or foreign-key violation on a
+  row write is `Error::Validation` at the column, code `unique` /
+  `exists`, instead of `Error::Database`; `is_unique_violation()` /
+  `is_foreign_key_violation()` stay true. See the migration guide.
 - **What a field type can't say** (0.4.0 ticket 05, narrowed by
   decision: a field's Rust type already is its cast):
   - **Encrypted columns:** `Encrypted` (feature `encryption`) stores
