@@ -26,15 +26,20 @@ pub mod schema;
 pub mod search;
 
 /// Everything a call site needs: `use crate::db::prelude::*;` brings
-/// rok-data's prelude, every model with its scopes, and each model's
-/// inputs, ids and keys (`NewBook`, `UpdateBook`, `BookId`).
+/// rok-data's prelude, every model with its scopes, each model's
+/// inputs, ids and keys (`NewBook`, `UpdateBook`, `BookId`), its filter
+/// and sort key, and the shared search and enum types.
 pub mod prelude {
     pub use rok_data::prelude::*;
 
+    pub use super::authors::filter::{AuthorFilter, AuthorSortKey};
     pub use super::authors::models::Author;
     pub use super::authors::models::*;
+    pub use super::books::filter::{BookFilter, BookSortKey};
     pub use super::books::models::Book;
     pub use super::books::models::*;
+    pub use super::loans::filter::{LoanFilter, LoanSortKey};
     pub use super::loans::models::Loan;
     pub use super::loans::models::*;
+    pub use super::search::{Direction, Equality, Ordered, Sort, Text};
 }

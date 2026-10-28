@@ -111,30 +111,42 @@ pub fn render_db_mod(tables: &[Table], db_mod: &DbMod<'_>) -> String {
     if tables.iter().any(write::has_versioned_patch) {
         output.push_str(UPDATE_OUTCOME);
     }
-    output.push_str(&prelude(tables));
+    output.push_str(&prelude(tables, has_types));
     output
 }
 
 /// The `prelude` module: one `use crate::db::prelude::*;` brings rok-data's
 /// prelude, every model, and the scope trait of each model that declares
-/// scopes, so a call site never imports a trait by hand. A model named like
-/// one of rok-data's items (`Page`) shadows it: the explicit `use` wins over
-/// the glob.
-fn prelude(tables: &[Table]) -> String {
-    let mut tables: Vec<&Table> = tables.iter().collect();
-    tables.sort_unstable_by(|a, b| a.module_name.cmp(&b.module_name));
-    let mut output = String::from(
-        "\n/// Everything a call site needs: `use crate::db::prelude::*;` brings\n\
-         /// rok-data's prelude, every model with its scopes, and each model's\n\
-         /// inputs, ids and keys (`NewBook`, `UpdateBook`, `BookId`).\n\
-         pub mod prelude {\n    pub use rok_data::prelude::*;\n",
-    );
-    if !tables.is_empty() {
-        output.push('\n');
+/// scopes, so a call site never imports a trait by hand. It also brings the
+/// search vocabulary (each model's filter and sort key, `Sort`, `Direction`
+/// and the condition enums) and the generated enums, so
+/// `User::search(filter)?.order_by(sort).paginate(..)` needs no other `use`.
+/// A model named like one of rok-data's items (`Page`) shadows it: the
+/// explicit `use` wins over the glob.
+fn prelude(tables: &[Table], has_types: bool) -> String {
+    // `(module, lines)`, sorted by module the way rustfmt sorts the `use`s.
+    let mut groups: Vec<(&str, String)> = vec![(
+        "search",
+        "    pub use super::search::{Direction, Equality, Ordered, Sort, Text};\n".to_owned(),
+    )];
+    if has_types {
+        groups.push(("types", "    pub use super::types::*;\n".to_owned()));
     }
     for table in tables {
         let model = &table.struct_name;
         let module = &table.module_name;
+        let mut lines = String::new();
+        let search = super::search::SearchApi::for_table(table);
+        if search.any() {
+            let path = format!("super::{module}::filter");
+            let filter = format!("{model}Filter");
+            if search.search {
+                let sort_key = format!("{model}SortKey");
+                lines.push_str(&pub_use_list(&path, &[&filter, &sort_key]));
+            } else {
+                lines.push_str(&format!("    pub use {path}::{filter};\n"));
+            }
+        }
         let items = if table.scopes.is_empty() {
             model.clone()
         } else {
@@ -146,15 +158,41 @@ fn prelude(tables: &[Table]) -> String {
         let named = format!("    pub use super::{module}::models::{items};\n");
         let glob = format!("    pub use super::{module}::models::*;\n");
         if table.scopes.is_empty() {
-            output.push_str(&named);
-            output.push_str(&glob);
+            lines.push_str(&named);
+            lines.push_str(&glob);
         } else {
-            output.push_str(&glob);
-            output.push_str(&named);
+            lines.push_str(&glob);
+            lines.push_str(&named);
         }
+        groups.push((module, lines));
+    }
+    groups.sort_by(|a, b| a.0.cmp(b.0));
+    let mut output = String::from(
+        "\n/// Everything a call site needs: `use crate::db::prelude::*;` brings\n\
+         /// rok-data's prelude, every model with its scopes, each model's\n\
+         /// inputs, ids and keys (`NewBook`, `UpdateBook`, `BookId`), its filter\n\
+         /// and sort key, and the shared search and enum types.\n\
+         pub mod prelude {\n    pub use rok_data::prelude::*;\n\n",
+    );
+    for (_, lines) in groups {
+        output.push_str(&lines);
     }
     output.push_str("}\n");
     output
+}
+
+/// `    pub use {path}::{a, b};` inside the prelude, wrapped as rustfmt
+/// wraps a list too long for its line (it keeps a use list on one line
+/// only up to 98 columns, as `use_list` does).
+fn pub_use_list(path: &str, names: &[&str]) -> String {
+    let one_line = format!("    pub use {path}::{{{}}};", names.join(", "));
+    if one_line.len() < super::MAX_WIDTH - 1 {
+        return format!("{one_line}\n");
+    }
+    format!(
+        "    pub use {path}::{{\n        {},\n    }};\n",
+        names.join(", ")
+    )
 }
 
 /// The result of every versioned `patch` (a table with a version column),
@@ -448,8 +486,11 @@ mod tests {
         assert!(
             rendered.ends_with(
                 "pub mod prelude {\n    pub use rok_data::prelude::*;\n\n    \
+                 pub use super::posts::filter::{PostFilter, PostSortKey};\n    \
                  pub use super::posts::models::*;\n    \
                  pub use super::posts::models::{Post, PostScopes};\n    \
+                 pub use super::search::{Direction, Equality, Ordered, Sort, Text};\n    \
+                 pub use super::users::filter::{UserFilter, UserSortKey};\n    \
                  pub use super::users::models::User;\n    \
                  pub use super::users::models::*;\n}\n"
             ),

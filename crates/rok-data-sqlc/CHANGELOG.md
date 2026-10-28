@@ -61,6 +61,17 @@ Generated data calls move onto the runtime (engine ADR 0023):
 - **Service imports:** a service that never calls `repo::` no longer
   imports it.
 
+### Added
+
+- **`db::prelude` brings the search vocabulary too:** each model's filter
+  and sort key, `Sort`, `Direction`, `Equality`, `Ordered`, `Text`, and the
+  generated enums (`types::*`). So `use crate::db::prelude::*;` is the only
+  import a call site like this needs:
+
+  ```rust
+  User::search(filter)?.order_by(Sort::desc(UserSortKey::CreatedAt)).paginate(..)
+  ```
+
 ## Workspace 0.3.0 - 2026-10-28
 
 Published as `rok-data-sqlc` 0.3.0 with the workspace (root `CHANGELOG.md`);

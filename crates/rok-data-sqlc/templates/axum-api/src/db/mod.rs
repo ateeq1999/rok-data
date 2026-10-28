@@ -32,23 +32,33 @@ pub mod types;
 pub mod users;
 
 /// Everything a call site needs: `use crate::db::prelude::*;` brings
-/// rok-data's prelude, every model with its scopes, and each model's
-/// inputs, ids and keys (`NewBook`, `UpdateBook`, `BookId`).
+/// rok-data's prelude, every model with its scopes, each model's
+/// inputs, ids and keys (`NewBook`, `UpdateBook`, `BookId`), its filter
+/// and sort key, and the shared search and enum types.
 pub mod prelude {
     pub use rok_data::prelude::*;
 
+    pub use super::api_keys::filter::{ApiKeyFilter, ApiKeySortKey};
     pub use super::api_keys::models::ApiKey;
     pub use super::api_keys::models::*;
+    pub use super::audit_log_entry::filter::{AuditLogEntryFilter, AuditLogEntrySortKey};
     pub use super::audit_log_entry::models::AuditLogEntry;
     pub use super::audit_log_entry::models::*;
+    pub use super::auth_tokens::filter::{AuthTokenFilter, AuthTokenSortKey};
     pub use super::auth_tokens::models::AuthToken;
     pub use super::auth_tokens::models::*;
+    pub use super::media::filter::{MediaFilter, MediaSortKey};
     pub use super::media::models::Media;
     pub use super::media::models::*;
+    pub use super::outbound_mail::filter::{OutboundMailFilter, OutboundMailSortKey};
     pub use super::outbound_mail::models::OutboundMail;
     pub use super::outbound_mail::models::*;
+    pub use super::search::{Direction, Equality, Ordered, Sort, Text};
+    pub use super::totp_recovery_codes::filter::{TotpRecoveryCodeFilter, TotpRecoveryCodeSortKey};
     pub use super::totp_recovery_codes::models::TotpRecoveryCode;
     pub use super::totp_recovery_codes::models::*;
+    pub use super::types::*;
+    pub use super::users::filter::{UserFilter, UserSortKey};
     pub use super::users::models::User;
     pub use super::users::models::*;
 }
