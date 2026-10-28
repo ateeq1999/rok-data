@@ -42,7 +42,9 @@ pub(crate) struct Field {
 /// A `#[rok(validate(…))]` rule.
 enum Rule {
     Length(Option<syn::Expr>, Option<syn::Expr>),
-    Range(Option<syn::Expr>, Option<syn::Expr>),
+    /// `range(min, max)`, each bound `(value, exclusive)`: `exclusive_min` /
+    /// `exclusive_max` give an exclusive one.
+    Range(Option<(syn::Expr, bool)>, Option<(syn::Expr, bool)>),
     Email,
     NonEmpty,
     Custom(Path),
@@ -61,18 +63,32 @@ enum Rule {
     Check(checks::Check),
 }
 
+/// A rule's two bounds, each `(value, exclusive)`.
+type Bounds = (Option<(syn::Expr, bool)>, Option<(syn::Expr, bool)>);
+
+/// A rule's `min` and `max`, each `(value, exclusive)`; `exclusive_min` /
+/// `exclusive_max` only where `exclusive` allows them (`range`).
 fn parse_bounds(
     meta: &syn::meta::ParseNestedMeta<'_>,
     message: &mut Option<LitStr>,
-) -> syn::Result<(Option<syn::Expr>, Option<syn::Expr>)> {
+    exclusive: bool,
+) -> syn::Result<Bounds> {
     let (mut min, mut max) = (None, None);
     meta.parse_nested_meta(|b| {
         if b.path.is_ident("min") {
-            min = Some(b.value()?.parse()?);
+            min = Some((b.value()?.parse()?, false));
         } else if b.path.is_ident("max") {
-            max = Some(b.value()?.parse()?);
+            max = Some((b.value()?.parse()?, false));
+        } else if exclusive && b.path.is_ident("exclusive_min") {
+            min = Some((b.value()?.parse()?, true));
+        } else if exclusive && b.path.is_ident("exclusive_max") {
+            max = Some((b.value()?.parse()?, true));
         } else if b.path.is_ident("message") {
             *message = Some(b.value()?.parse()?);
+        } else if exclusive {
+            return Err(
+                b.error("expected `min`, `max`, `exclusive_min`, `exclusive_max` or `message`")
+            );
         } else {
             return Err(b.error("expected `min`, `max` or `message`"));
         }
@@ -92,10 +108,11 @@ fn parse_rules(
     meta.parse_nested_meta(|r| {
         let mut message: Option<LitStr> = None;
         if r.path.is_ident("length") {
-            let (min, max) = parse_bounds(&r, &mut message)?;
-            rules.push(Rule::Length(min, max));
+            let (min, max) = parse_bounds(&r, &mut message, false)?;
+            let value = |bound: Option<(syn::Expr, bool)>| bound.map(|(e, _)| e);
+            rules.push(Rule::Length(value(min), value(max)));
         } else if r.path.is_ident("range") {
-            let (min, max) = parse_bounds(&r, &mut message)?;
+            let (min, max) = parse_bounds(&r, &mut message, true)?;
             rules.push(Rule::Range(min, max));
         } else if r.path.is_ident("email") || r.path.is_ident("non_empty") {
             if r.input.peek(syn::token::Paren) {

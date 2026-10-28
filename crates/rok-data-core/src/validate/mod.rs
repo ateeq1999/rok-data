@@ -242,6 +242,16 @@ macro_rules! as_number {
 
 as_number!(i8, i16, i32, i64, u8, u16, u32, u64, f32, f64);
 
+/// A decimal compares as the nearest `f64`: exact for the scales a
+/// `numeric(p, s)` column holds in practice, approximate only within
+/// `f64`'s precision of a bound.
+#[cfg(feature = "decimal")]
+impl AsNumber for sqlx::types::Decimal {
+    fn as_number(&self) -> Option<f64> {
+        f64::try_from(*self).ok()
+    }
+}
+
 impl<T: AsNumber> AsNumber for Option<T> {
     fn as_number(&self) -> Option<f64> {
         self.as_ref().and_then(AsNumber::as_number)
@@ -308,9 +318,66 @@ pub fn range<T: AsNumber + ?Sized>(
     min: Option<f64>,
     max: Option<f64>,
 ) -> Result<(), String> {
+    bounded(value, min.map(Bound::inclusive), max.map(Bound::inclusive))
+}
+
+/// One end of a `range` rule: the number, and whether the number itself
+/// is out of range (`exclusive_min = 0` reads "greater than 0").
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Bound {
+    /// The number.
+    pub value: f64,
+    /// The number itself is out of range.
+    pub exclusive: bool,
+}
+
+impl Bound {
+    /// A bound the number itself meets: `min` / `max`.
+    #[must_use]
+    pub fn inclusive(value: f64) -> Self {
+        Bound {
+            value,
+            exclusive: false,
+        }
+    }
+
+    /// A bound the number itself breaks: `exclusive_min` / `exclusive_max`.
+    #[must_use]
+    pub fn exclusive(value: f64) -> Self {
+        Bound {
+            value,
+            exclusive: true,
+        }
+    }
+}
+
+/// `range(…)` rule with bounds of either kind: `"must be between 1 and
+/// 5"`, `"must be greater than 0 and at most 1"`, `"must be at least 0"`.
+pub fn bounded<T: AsNumber + ?Sized>(
+    value: &T,
+    min: Option<Bound>,
+    max: Option<Bound>,
+) -> Result<(), String> {
     let Some(n) = value.as_number() else {
         return Ok(());
     };
+    let below = min.is_some_and(|b| {
+        if b.exclusive {
+            n <= b.value
+        } else {
+            n < b.value
+        }
+    });
+    let above = max.is_some_and(|b| {
+        if b.exclusive {
+            n >= b.value
+        } else {
+            n > b.value
+        }
+    });
+    if !below && !above {
+        return Ok(());
+    }
     let fmt = |x: f64| {
         if x.fract() == 0.0 {
             format!("{x:.0}")
@@ -318,14 +385,31 @@ pub fn range<T: AsNumber + ?Sized>(
             x.to_string()
         }
     };
-    match (min, max) {
-        (Some(lo), Some(hi)) if n < lo || n > hi => {
-            Err(format!("must be between {} and {}", fmt(lo), fmt(hi)))
+    let phrase = match (min, max) {
+        (Some(lo), Some(hi)) if !lo.exclusive && !hi.exclusive => {
+            format!("between {} and {}", fmt(lo.value), fmt(hi.value))
         }
-        (Some(lo), None) if n < lo => Err(format!("must be at least {}", fmt(lo))),
-        (None, Some(hi)) if n > hi => Err(format!("must be at most {}", fmt(hi))),
-        _ => Ok(()),
-    }
+        _ => {
+            let lower = min.map(|b| {
+                let word = if b.exclusive {
+                    "greater than"
+                } else {
+                    "at least"
+                };
+                format!("{word} {}", fmt(b.value))
+            });
+            let upper = max.map(|b| {
+                let word = if b.exclusive { "less than" } else { "at most" };
+                format!("{word} {}", fmt(b.value))
+            });
+            [lower, upper]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>()
+                .join(" and ")
+        }
+    };
+    Err(format!("must be {phrase}"))
 }
 
 /// `email` rule: a pragmatic syntax check (`local@domain.tld`, no

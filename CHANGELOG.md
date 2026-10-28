@@ -311,6 +311,12 @@ compiler finds the call sites.
   empty, for compatibility). A project made from a template keeps
   compiling once its `error.rs` imports `rok_data::ValidationErrors` in
   place of `validator::ValidationErrors` (migration guide).
+- **Exclusive ranges and decimal ranges** (input-validation ticket 08):
+  `range(exclusive_min = 0, max = 5)` leaves a bound out (`"must be
+  greater than 0 and at most 5"`, JSON Schema `exclusiveMinimum`); a
+  `Decimal` field takes `range` (feature `decimal`); an integer bound
+  stays an integer in the rule's `params`. New: `validate::Bound`,
+  `validate::bounded`.
 - **The rest of the catalogue** (input-validation ticket 07, second
   part): `min_length = n`, `max_length = n`, `fixed_length = n`
   (characters, codes `minLength` / `maxLength` / `fixedLength`), and with

@@ -113,8 +113,8 @@ fn rule_check(
             ("length", quote!(#v::length(&self.#ident, #min, #max)))
         }
         Rule::Range(min, max) => {
-            let (min, max) = (opt(min, quote!(f64)), opt(max, quote!(f64)));
-            ("range", quote!(#v::range(&self.#ident, #min, #max)))
+            let (min, max) = (range_bound(min, v), range_bound(max, v));
+            ("range", quote!(#v::bounded(&self.#ident, #min, #max)))
         }
         Rule::Email => ("email", quote!(#v::email(&self.#ident))),
         Rule::NonEmpty => ("non_empty", quote!(#v::non_empty(&self.#ident))),
@@ -369,13 +369,24 @@ fn rule_params(rule: &Rule, krate: &TokenStream2) -> Vec<TokenStream2> {
         .into_iter()
         .flatten()
         .collect(),
-        Rule::Range(min, max) => [
-            bound("min", min, quote!(f64)),
-            bound("max", max, quote!(f64)),
-        ]
-        .into_iter()
-        .flatten()
-        .collect(),
+        Rule::Range(min, max) => [("min", min), ("max", max)]
+            .into_iter()
+            .filter_map(|(name, bound)| {
+                let (e, exclusive) = bound.as_ref()?;
+                let name = if *exclusive {
+                    format!("exclusive_{name}")
+                } else {
+                    name.to_owned()
+                };
+                // An integer literal stays an integer on the wire (`"min": 13`).
+                let cast = if is_integer(e) {
+                    quote!(i64)
+                } else {
+                    quote!(f64)
+                };
+                Some(quote!((#name, #krate::Value::from((#e) as #cast))))
+            })
+            .collect(),
         Rule::RequiredIf { other, .. } | Rule::RequiredWith(other) => {
             let other = unraw(other);
             vec![quote!(("other", #krate::Value::from(#other)))]
@@ -403,8 +414,9 @@ pub(crate) fn schema_steps(fields: &[&Field], krate: &TokenStream2) -> Vec<Token
                     Some(quote!(.length(#min, #max)))
                 }
                 Rule::Range(min, max) => {
-                    let (min, max) = (bound(min, quote!(f64)), bound(max, quote!(f64)));
-                    Some(quote!(.range(#min, #max)))
+                    let v = quote!(#krate::validate);
+                    let (min, max) = (range_bound(min, &v), range_bound(max, &v));
+                    Some(quote!(.bounds(#min, #max)))
                 }
                 Rule::Email => Some(quote!(.format("email"))),
                 Rule::NonEmpty => Some(
@@ -428,5 +440,24 @@ fn bound(e: &Option<syn::Expr>, cast: TokenStream2) -> TokenStream2 {
     match e {
         Some(e) => quote!(::core::option::Option::Some((#e) as #cast)),
         None => quote!(::core::option::Option::None),
+    }
+}
+
+/// A `range` bound as an `Option<Bound>` expression.
+fn range_bound(bound: &Option<(syn::Expr, bool)>, v: &TokenStream2) -> TokenStream2 {
+    match bound {
+        Some((e, false)) => quote!(::core::option::Option::Some(#v::Bound::inclusive((#e) as f64))),
+        Some((e, true)) => quote!(::core::option::Option::Some(#v::Bound::exclusive((#e) as f64))),
+        None => quote!(::core::option::Option::None),
+    }
+}
+
+/// `e` is an integer literal, negated or not.
+fn is_integer(e: &syn::Expr) -> bool {
+    match e {
+        syn::Expr::Lit(lit) => matches!(lit.lit, syn::Lit::Int(_)),
+        syn::Expr::Unary(unary) => matches!(unary.op, syn::UnOp::Neg(_)) && is_integer(&unary.expr),
+        syn::Expr::Group(group) => is_integer(&group.expr),
+        _ => false,
     }
 }

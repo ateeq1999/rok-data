@@ -158,3 +158,64 @@ fn pattern_rules_check_their_tables() {
     let codes: Vec<&str> = errors.errors().iter().map(|e| e.code).collect();
     assert_eq!(codes, ["mobile", "postalCode", "regex"]);
 }
+
+/// `range` with exclusive bounds, as a column's `CHECK (price > 0 AND
+/// price < 100)` reads.
+#[derive(Debug, Clone, PartialEq, Input)]
+struct Offer {
+    #[rok(validate(range(exclusive_min = 0, max = 5)))]
+    rating: Option<i32>,
+    #[rok(validate(range(min = 0.5, exclusive_max = 1.5)))]
+    ratio: f64,
+}
+
+#[test]
+fn exclusive_bounds_leave_the_bound_out() {
+    let offer = |rating, ratio| Offer { rating, ratio };
+    assert!(offer(Some(1), 0.5).validate_fields().is_ok());
+    assert!(offer(None, 1.4).validate_fields().is_ok());
+    let rok_data::Error::Validation(errors) = offer(Some(0), 1.5).validate_fields().unwrap_err()
+    else {
+        panic!("expected validation errors");
+    };
+    let rating = &errors.errors()[0];
+    assert_eq!((rating.field.as_str(), rating.code), ("rating", "range"));
+    assert_eq!(rating.message, "must be greater than 0 and at most 5");
+    // An integer bound stays an integer, an exclusive one says so.
+    assert_eq!(
+        rating.params,
+        [
+            ("exclusive_min", rok_data::Value::from(0_i64)),
+            ("max", rok_data::Value::from(5_i64))
+        ]
+    );
+    let ratio = &errors.errors()[1];
+    assert_eq!(ratio.message, "must be at least 0.5 and less than 1.5");
+    assert_eq!(
+        ratio.params[1],
+        ("exclusive_max", rok_data::Value::from(1.5))
+    );
+}
+
+#[cfg(feature = "json")]
+#[test]
+fn exclusive_bounds_reach_the_schema() {
+    let schema = Offer::json_schema();
+    assert_eq!(schema["properties"]["rating"]["exclusiveMinimum"], 0.0);
+    assert_eq!(schema["properties"]["rating"]["maximum"], 5.0);
+    assert_eq!(schema["properties"]["ratio"]["exclusiveMaximum"], 1.5);
+}
+
+#[cfg(feature = "decimal")]
+#[test]
+fn a_decimal_takes_a_range() {
+    use rok_data::validate::Bound;
+    use rok_data::validate::bounded;
+    let price = |text: &str| text.parse::<rok_data::sqlx::types::Decimal>().unwrap();
+    let (min, max) = (Some(Bound::inclusive(0.0)), Some(Bound::exclusive(99.95)));
+    assert!(bounded(&price("99.94"), min, max).is_ok());
+    assert_eq!(
+        bounded(&price("99.95"), min, max).unwrap_err(),
+        "must be at least 0 and less than 99.95"
+    );
+}

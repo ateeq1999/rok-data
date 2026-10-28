@@ -12,6 +12,7 @@
 //! | a type it can't describe | `{}` (any value) |
 //! | `length(min, max)` | `minLength` / `maxLength` (`minItems` / `maxItems` on an array) |
 //! | `range(min, max)` | `minimum` / `maximum` |
+//! | `range(exclusive_min, exclusive_max)` | `exclusiveMinimum` / `exclusiveMaximum` |
 //! | `email` | `format: email` |
 //! | `non_empty` | `minLength: 1` (`minItems: 1`) |
 //! | conditional, database and custom rules | — |
@@ -26,8 +27,8 @@ pub struct Schema {
     format: Option<&'static str>,
     min_length: Option<i64>,
     max_length: Option<i64>,
-    minimum: Option<f64>,
-    maximum: Option<f64>,
+    minimum: Option<super::Bound>,
+    maximum: Option<super::Bound>,
     items: Option<Box<Schema>>,
     properties: Vec<(&'static str, Schema)>,
     required: Vec<&'static str>,
@@ -112,7 +113,18 @@ impl Schema {
     /// A range rule: `minimum` / `maximum`.
     #[doc(hidden)]
     #[must_use]
-    pub fn range(mut self, min: Option<f64>, max: Option<f64>) -> Self {
+    pub fn range(self, min: Option<f64>, max: Option<f64>) -> Self {
+        self.bounds(
+            min.map(super::Bound::inclusive),
+            max.map(super::Bound::inclusive),
+        )
+    }
+
+    /// A range rule with its bounds: `minimum` / `maximum`, or
+    /// `exclusiveMinimum` / `exclusiveMaximum` for an exclusive bound.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn bounds(mut self, min: Option<super::Bound>, max: Option<super::Bound>) -> Self {
         self.minimum = min.or(self.minimum);
         self.maximum = max.or(self.maximum);
         self
@@ -148,10 +160,20 @@ impl Schema {
             out.insert(max_key.into(), json!(max));
         }
         if let Some(min) = self.minimum {
-            out.insert("minimum".into(), json!(min));
+            let key = if min.exclusive {
+                "exclusiveMinimum"
+            } else {
+                "minimum"
+            };
+            out.insert(key.into(), json!(min.value));
         }
         if let Some(max) = self.maximum {
-            out.insert("maximum".into(), json!(max));
+            let key = if max.exclusive {
+                "exclusiveMaximum"
+            } else {
+                "maximum"
+            };
+            out.insert(key.into(), json!(max.value));
         }
         if let Some(items) = &self.items {
             out.insert("items".into(), items.to_json());
