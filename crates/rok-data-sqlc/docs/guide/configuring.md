@@ -258,7 +258,7 @@ ignoring it:
 HTTP/1.1 422 Unprocessable Entity
 content-type: application/json
 
-{"error":{"code":"validation_failed","message":"the request body failed validation","details":{"email":[{"code":"immutable","message":"`email` can't be changed","params":{"value":"b@example.com"}}]}}}
+{"error":{"code":"validation_failed","message":"the request body failed validation","details":{"email":[{"code":"immutable","message":"`email` can't be changed","params":{}}]}}}
 ```
 
 The data layer's patch, `UpdateUser`, keeps the column, so your own code
@@ -296,7 +296,7 @@ column:
 HTTP/1.1 422 Unprocessable Entity
 content-type: application/json
 
-{"error":{"code":"validation_failed","message":"the request body failed validation","details":{"country":[{"code":"in","message":"country must be one of SA, AE, EG","params":{"value":"US"}}]}}}
+{"error":{"code":"validation_failed","message":"the request body failed validation","details":{"country":[{"code":"in","message":"country must be one of SA, AE, EG","params":{}}]}}}
 ```
 
 | Rule | Checks |

@@ -210,7 +210,7 @@ async fn a_body_breaking_rules_fails_validation_with_details() {
                     "name": [{
                         "code": "length",
                         "message": "name must be between 2 and 40 characters",
-                        "params": {"min": 2, "max": 40, "value": "N"}
+                        "params": {"min": 2, "max": 40}
                     }]
                 }
             }
@@ -241,7 +241,7 @@ async fn a_hand_written_type_goes_through_the_same_extractor() {
                         "email": [{
                             "code": "email",
                             "message": "email must be an email address",
-                            "params": {"value": "ada"}
+                            "params": {}
                         }]
                     }
                 }

@@ -23,7 +23,6 @@
 //! }
 //! ```
 
-#[cfg(feature = "serde")]
 mod serde_impls {
     use serde::ser::SerializeStruct;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -80,10 +79,113 @@ mod serde_impls {
         }
     }
 
-    /// A list of `{"field", "code", "message"}`.
+    /// The wire standard's `details`: each failing path's errors, in the
+    /// order the paths first failed, as `{"code", "message", "params"}`.
     impl Serialize for ValidationErrors {
         fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-            self.errors().serialize(s)
+            use serde::ser::SerializeMap;
+            let mut paths: Vec<&str> = Vec::new();
+            for error in self.errors() {
+                if !paths.contains(&error.field.as_str()) {
+                    paths.push(&error.field);
+                }
+            }
+            let mut map = s.serialize_map(Some(paths.len()))?;
+            for path in paths {
+                let entries: Vec<Entry<'_>> = self.field(path).map(Entry).collect();
+                map.serialize_entry(path, &entries)?;
+            }
+            map.end()
+        }
+    }
+
+    /// One error of a path in `details`.
+    struct Entry<'a>(&'a FieldError);
+
+    impl Serialize for Entry<'_> {
+        fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+            let mut st = s.serialize_struct("Entry", 3)?;
+            st.serialize_field("code", self.0.code)?;
+            st.serialize_field("message", &self.0.message)?;
+            let params: std::collections::BTreeMap<&str, Param<'_>> = self
+                .0
+                .params
+                .iter()
+                .map(|(name, value)| (*name, Param(value)))
+                .collect();
+            st.serialize_field("params", &params)?;
+            st.end()
+        }
+    }
+
+    /// A parameter as its JSON type.
+    struct Param<'a>(&'a crate::Value);
+
+    impl Serialize for Param<'_> {
+        fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+            use crate::Value;
+            match self.0 {
+                Value::Bool(Some(b)) => s.serialize_bool(*b),
+                Value::I16(Some(n)) => s.serialize_i16(*n),
+                Value::I32(Some(n)) => s.serialize_i32(*n),
+                Value::I64(Some(n)) => s.serialize_i64(*n),
+                Value::F32(Some(n)) => s.serialize_f32(*n),
+                Value::F64(Some(n)) => s.serialize_f64(*n),
+                Value::String(Some(text)) => s.serialize_str(text),
+                other if other.is_null() => s.serialize_none(),
+                other => s.serialize_str(&other.to_string()),
+            }
+        }
+    }
+
+    /// The wire standard's `details` read back (a client, a test).
+    impl<'de> Deserialize<'de> for ValidationErrors {
+        fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+            #[derive(Deserialize)]
+            #[serde(untagged)]
+            enum Raw {
+                Bool(bool),
+                Int(i64),
+                Float(f64),
+                Text(String),
+                Other(serde::de::IgnoredAny),
+            }
+            #[derive(Deserialize)]
+            struct RawEntry {
+                code: String,
+                message: String,
+                #[serde(default)]
+                params: std::collections::BTreeMap<String, Raw>,
+            }
+            let paths: std::collections::BTreeMap<String, Vec<RawEntry>> =
+                std::collections::BTreeMap::deserialize(d)?;
+            let mut errors = ValidationErrors::new();
+            for (path, entries) in paths {
+                for entry in entries {
+                    let params = entry
+                        .params
+                        .into_iter()
+                        .filter_map(|(name, raw)| {
+                            let value = match raw {
+                                Raw::Bool(b) => crate::Value::from(b),
+                                Raw::Int(n) => crate::Value::from(n),
+                                Raw::Float(n) => crate::Value::from(n),
+                                Raw::Text(text) => crate::Value::from(text),
+                                Raw::Other(_) => return None,
+                            };
+                            Some((crate::validate::intern(&name), value))
+                        })
+                        .collect();
+                    errors.add_rule(
+                        path.clone(),
+                        crate::validate::intern(&entry.code),
+                        entry.message,
+                        None,
+                        params,
+                    );
+                }
+            }
+            Ok(errors)
         }
     }
 }

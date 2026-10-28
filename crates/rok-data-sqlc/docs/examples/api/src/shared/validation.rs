@@ -94,13 +94,12 @@ pub struct IdList<T> {
 /// `422 validation_failed` lists them all, in the `details` shape of the
 /// body's rules.
 #[derive(Debug, Default)]
-pub struct FieldFailures(validator::ValidationErrors);
+pub struct FieldFailures(rok_data::ValidationErrors);
 
 impl FieldFailures {
     /// Adds the failure `code` of `field`, with `message`.
     pub fn add(&mut self, field: &'static str, code: &'static str, message: String) {
-        let error = validator::ValidationError::new(code).with_message(message.into());
-        self.0.add(field, error);
+        self.0.add(field, code, message);
     }
 
     /// Adds the `exists` failure of `field`, which names no `singular` row

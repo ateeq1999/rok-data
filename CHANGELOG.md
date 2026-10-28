@@ -300,6 +300,17 @@ compiler finds the call sites.
   validate it with `input.validate_with(&db, &caller)` (`validate(&db)`
   stays for inputs without a context). `Input` gains `type Context`
   (`()` unless declared); nested inputs share their parent's.
+- **Generated APIs answer with the runtime's validation errors**
+  (input-validation ticket 08, second part). The generated
+  `ValidatedJson`, `FieldFailures` and the scaffolded `AppError` carry
+  `rok_data::ValidationErrors`, so a generated `422` and a hand-written
+  `input.validate(&db)` answer the same body. Breaking on the wire: a
+  generated failure's `params` no longer echo the rejected `value`.
+  `rok_data::Error::Validation` now maps to a `422` with its `details`.
+  The runtime's `serde` support is always on (the `serde` feature stays,
+  empty, for compatibility). A project made from a template keeps
+  compiling once its `error.rs` imports `rok_data::ValidationErrors` in
+  place of `validator::ValidationErrors` (migration guide).
 - **The rest of the catalogue** (input-validation ticket 07, second
   part): `min_length = n`, `max_length = n`, `fixed_length = n`
   (characters, codes `minLength` / `maxLength` / `fixedLength`), and with

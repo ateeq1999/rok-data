@@ -317,7 +317,7 @@ async fn a_body_breaking_rules_fails_validation_with_details() {
                     "name": [{
                         "code": "length",
                         "message": "name must be between 2 and 40 characters",
-                        "params": {"min": 2, "max": 40, "value": "N"}
+                        "params": {"min": 2, "max": 40}
                     }]
                 }
             }
@@ -348,7 +348,7 @@ async fn a_hand_written_type_goes_through_the_same_extractor() {
                         "email": [{
                             "code": "email",
                             "message": "email must be an email address",
-                            "params": {"value": "ada"}
+                            "params": {}
                         }]
                     }
                 }
@@ -373,9 +373,8 @@ async fn a_hand_written_type_goes_through_the_same_extractor() {
 }
 
 /// The same request gets the same status, `Content-Type` and body from both
-/// frameworks, accepted or rejected. A JSON body is compared as JSON:
-/// validator keeps an error's `params` in a `HashMap`, whose key order
-/// differs from one rejection to the next whichever framework answers.
+/// frameworks, accepted or rejected. A JSON body is compared as JSON,
+/// so neither whitespace nor key order counts.
 #[actix_web::test]
 async fn both_frameworks_answer_the_same_input_with_the_same_body() {
     fn comparable((status, content_type, text): Answer) -> (u16, Option<String>, Value) {

@@ -898,14 +898,14 @@ frameworks:
         {
           "code": "length",
           "message": "name must be between 1 and 80 characters",
-          "params": { "min": 1, "max": 80, "value": "" }
+          "params": { "min": 1, "max": 80 }
         }
       ],
       "age": [
         {
           "code": "range",
           "message": "age must be between 13 and 130",
-          "params": { "min": 13, "max": 130, "value": 7 }
+          "params": { "min": 13, "max": 130 }
         }
       ]
     }

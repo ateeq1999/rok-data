@@ -239,7 +239,7 @@ The rules come from the schema (`VARCHAR(80)` gives a length rule, a
 HTTP/1.1 422 Unprocessable Entity
 content-type: application/json
 
-{"error":{"code":"validation_failed","message":"the request body failed validation","details":{"open_tasks":[{"code":"range","message":"open_tasks must be at least 0","params":{"min":0,"value":-1}}]}}}
+{"error":{"code":"validation_failed","message":"the request body failed validation","details":{"open_tasks":[{"code":"range","message":"open_tasks must be at least 0","params":{"min":0}}]}}}
 ```
 
 A `PATCH` body naming an immutable column (`[api.immutable]`), even as
@@ -250,7 +250,7 @@ ignored, though fields the body doesn't know are:
 HTTP/1.1 422 Unprocessable Entity
 content-type: application/json
 
-{"error":{"code":"validation_failed","message":"the request body failed validation","details":{"email":[{"code":"immutable","message":"`email` can't be changed","params":{"value":"b@example.com"}}]}}}
+{"error":{"code":"validation_failed","message":"the request body failed validation","details":{"email":[{"code":"immutable","message":"`email` can't be changed","params":{}}]}}}
 ```
 
 JSON that doesn't fit the body answers serde's message, without details:

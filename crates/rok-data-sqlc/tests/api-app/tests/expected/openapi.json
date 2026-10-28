@@ -2337,7 +2337,7 @@
             "type": "string"
           },
           "details": {
-            "description": "The broken validation rules by field, as validator serializes them,\nwhen there are any.",
+            "description": "The broken validation rules by field path, `{\"path\": [{\"code\",\n\"message\", \"params\"}]}`, when there are any.",
             "type": [
               "object",
               "null"

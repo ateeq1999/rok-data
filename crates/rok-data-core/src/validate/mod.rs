@@ -352,6 +352,27 @@ pub fn email<T: AsText + ?Sized>(value: &T) -> Result<(), String> {
     }
 }
 
+/// `text` as a `&'static str`: each distinct text is kept once for the
+/// process. For the codes and parameter names that arrive at run time
+/// (read back from a body, converted from another validator) — a small,
+/// fixed vocabulary.
+#[doc(hidden)]
+pub fn intern(text: &str) -> &'static str {
+    use std::collections::HashSet;
+    use std::sync::{Mutex, OnceLock};
+    static TEXTS: OnceLock<Mutex<HashSet<&'static str>>> = OnceLock::new();
+    let mut texts = TEXTS
+        .get_or_init(|| Mutex::new(HashSet::new()))
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(known) = texts.get(text) {
+        return known;
+    }
+    let kept: &'static str = Box::leak(text.to_owned().into_boxed_str());
+    texts.insert(kept);
+    kept
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

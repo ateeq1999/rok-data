@@ -6,8 +6,8 @@
 
 use actix_web::http::StatusCode;
 use actix_web::{HttpResponse, ResponseError};
+use rok_data::ValidationErrors;
 use sqlx::error::ErrorKind;
-use validator::ValidationErrors;
 
 use crate::shared::response::{ErrorBody, ErrorPayload};
 
@@ -37,7 +37,7 @@ pub enum AppError {
     /// `413 payload_too_large`: a body over the limit.
     #[error("{0}")]
     PayloadTooLarge(String),
-    /// `422 validation_failed`: broken rules, with validator's `details`
+    /// `422 validation_failed`: broken rules, with their `details` by field path
     /// when there are any; also a check violation.
     #[error("{message}")]
     Validation {
@@ -166,10 +166,7 @@ impl From<rok_data::Error> for AppError {
             rok_data::Error::Conflict { .. } => {
                 AppError::VersionConflict("the record changed before the write".to_owned())
             }
-            rok_data::Error::Validation(_) => AppError::Validation {
-                message: error.to_string(),
-                details: None,
-            },
+            rok_data::Error::Validation(details) => AppError::from(details),
             rok_data::Error::Database(sqlx_error) => AppError::from(sqlx_error),
             other => AppError::Internal(Box::new(other)),
         }

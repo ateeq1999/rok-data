@@ -1,6 +1,5 @@
-//! Pagination on the wire: a page in the JSON shape an API client expects
-//! (the shapes need the `serde` feature), with its links built from the
-//! request ([`Links`], always available).
+//! Pagination on the wire: a page in the JSON shape an API client expects,
+//! with its links built from the request ([`Links`]).
 //!
 //! [`Page`](crate::Page), [`SimplePage`](crate::SimplePage) and
 //! [`CursorPage`](crate::CursorPage) each answer in two shapes:
@@ -102,11 +101,9 @@ impl<'a> Links<'a> {
     }
 }
 
-#[cfg(feature = "serde")]
 pub use shapes::{Paginator, Resource};
 
-/// The page shapes, serialized: needs the `serde` feature.
-#[cfg(feature = "serde")]
+/// The page shapes, serialized.
 mod shapes {
     use serde::ser::SerializeStruct;
     use serde::{Serialize, Serializer};

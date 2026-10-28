@@ -350,7 +350,6 @@ fn as_i64(value: &Value) -> Option<i64> {
 /// A collection serializes as the JSON array of its rows — what
 /// [`to_json`](ModelCollection::to_json) writes, and what a handler
 /// returning the collection sends.
-#[cfg(any(feature = "serde", feature = "json"))]
 impl<M: serde::Serialize> serde::Serialize for ModelCollection<M> {
     fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
         self.rows.serialize(s)

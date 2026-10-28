@@ -320,6 +320,31 @@ Code that matched `Error::Database` for these cases matches
 columns the model has no field for, and any violation from the builders
 (`insert_builder`, `update_all`, `Insert`), stays a database error.
 
+### Generated validation errors are the runtime's
+
+A project made from a template carries its own `src/error.rs`. After
+regenerating, change its validation import and the `rok_data::Error`
+mapping:
+
+<!-- not compiled: a line-by-line edit of a scaffolded file -->
+```rust,ignore
+// before
+use validator::ValidationErrors;
+// after
+use rok_data::ValidationErrors;
+
+// before
+rok_data::Error::Validation(_) => AppError::Validation {
+    message: error.to_string(),
+    details: None,
+},
+// after
+rok_data::Error::Validation(details) => AppError::from(details),
+```
+
+A client reading a `422` sees the same `details` map. The difference is
+that a rule's `params` no longer echo the rejected `value`.
+
 ### Unchanged on purpose
 
 - `filter` stays the canonical verb (the Diesel/SeaORM convention);

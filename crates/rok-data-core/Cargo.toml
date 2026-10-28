@@ -18,12 +18,14 @@ default = []
 chrono = ["sqlx/chrono"]
 uuid = ["sqlx/uuid"]
 decimal = ["sqlx/rust_decimal"]
-json = ["sqlx/json", "dep:serde", "dep:serde_json"]
+json = ["sqlx/json", "dep:serde_json"]
 migrate = ["sqlx/migrate"]
 testing = ["tokio/rt"]
 metrics = ["dep:metrics"]
-serde = ["dep:serde"]
-axum = ["serde", "dep:serde_json", "dep:axum-core", "dep:http"]
+# Kept for compatibility: serde support is always on (the validation
+# error body serializes `ValidationErrors`).
+serde = []
+axum = ["dep:serde_json", "dep:axum-core", "dep:http"]
 ipnetwork = ["dep:ipnetwork", "sqlx/ipnetwork"]
 mac_address = ["dep:mac_address", "sqlx/mac_address"]
 # `Encrypted` columns: AES-256-GCM under a process-wide key.
@@ -42,7 +44,7 @@ metrics = { version = "0.24", optional = true, default-features = false }
 axum-core = { version = "0.5", optional = true, default-features = false }
 http = { version = "1", optional = true, default-features = false }
 thiserror = "2"
-serde = { version = "1", optional = true, features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", optional = true }
 ipnetwork = { version = "0.21", optional = true }
 mac_address = { version = "1", optional = true }

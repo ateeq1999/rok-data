@@ -77,11 +77,13 @@ const MOD_DOC: &str = "//! Validated bodies for HTTP handlers: the wire standard
 /// What every framework's extractor shares: the error body, the codes, the
 /// rejection and its status and body, and the checking of a body.
 const SHARED: &str = r#"use std::borrow::Cow;
+use std::collections::BTreeMap;
 use std::fmt;
 
+use rok_data::ValidationErrors;
 use serde::{Deserialize, Serialize};
 use serde_json::error::Category;
-use validator::{Validate, ValidationError, ValidationErrors, ValidationErrorsKind};
+use validator::{Validate, ValidationErrorsKind};
 
 /// The `code` of a body that is not JSON: bad syntax, a missing or wrong
 /// `Content-Type`, or a body that could not be read.
@@ -138,8 +140,8 @@ pub struct ErrorPayload {
     pub code: String,
     /// A message for people.
     pub message: String,
-    /// The broken validation rules by field, as validator serializes them,
-    /// when there are any.
+    /// The broken validation rules by field path, `{"path": [{"code",
+    /// "message", "params"}]}`, when there are any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub details: Option<ValidationErrors>,
 }
@@ -205,10 +207,7 @@ impl BodyRejection {
     #[must_use]
     pub fn unfit(message: impl Into<Cow<'static, str>>) -> Self {
         let mut errors = ValidationErrors::new();
-        errors.add(
-            WHOLE_BODY,
-            ValidationError::new(UNFIT).with_message(message.into()),
-        );
+        errors.add(WHOLE_BODY, UNFIT, message.into().into_owned());
         BodyRejection::ValidationFailure(errors)
     }
 
@@ -260,14 +259,8 @@ impl std::error::Error for BodyRejection {}
 /// Serde's message, when `errors` is the one error of
 /// [`BodyRejection::unfit`].
 fn unfit_message(errors: &ValidationErrors) -> Option<&str> {
-    if errors.errors().len() != 1 {
-        return None;
-    }
-    let Some(ValidationErrorsKind::Field(errors)) = errors.errors().get(WHOLE_BODY) else {
-        return None;
-    };
-    match errors.as_slice() {
-        [error] if error.code == UNFIT => error.message.as_deref(),
+    match errors.errors() {
+        [error] if error.field == WHOLE_BODY && error.code == UNFIT => Some(&error.message),
         _ => None,
     }
 }
@@ -279,8 +272,77 @@ fn unfit_message(errors: &ValidationErrors) -> Option<&str> {
 /// [`BodyRejection::ValidationFailure`] when `body` breaks a validation
 /// rule.
 pub fn validated<T: Validate>(body: T) -> Result<T, BodyRejection> {
-    body.validate().map_err(BodyRejection::ValidationFailure)?;
+    body.validate()
+        .map_err(|errors| BodyRejection::ValidationFailure(from_validator(&errors)))?;
     Ok(body)
+}
+
+/// `validator`'s errors as the runtime's, field by field (by name, nested
+/// structs and lists at paths like `filter.name` / `lines.2.sku`), each
+/// rule's arguments kept and the rejected `value` left out.
+#[must_use]
+pub fn from_validator(errors: &validator::ValidationErrors) -> ValidationErrors {
+    let mut converted = ValidationErrors::new();
+    convert_into(&mut converted, "", errors);
+    converted
+}
+
+/// Adds `errors` to `converted`, each field's path after `prefix`.
+fn convert_into(
+    converted: &mut ValidationErrors,
+    prefix: &str,
+    errors: &validator::ValidationErrors,
+) {
+    let fields: BTreeMap<_, _> = errors.errors().iter().collect();
+    for (field, kind) in fields {
+        let path = if prefix.is_empty() {
+            field.to_string()
+        } else {
+            format!("{prefix}.{field}")
+        };
+        match kind {
+            ValidationErrorsKind::Field(field_errors) => {
+                for error in field_errors {
+                    converted.add_rule(
+                        path.as_str(),
+                        rok_data::validate::intern(&error.code),
+                        error.message.as_deref().unwrap_or_default().to_owned(),
+                        None,
+                        params_of(error),
+                    );
+                }
+            }
+            ValidationErrorsKind::Struct(inner) => convert_into(converted, &path, inner),
+            ValidationErrorsKind::List(items) => {
+                for (index, inner) in items {
+                    convert_into(converted, &format!("{path}.{index}"), inner);
+                }
+            }
+        }
+    }
+}
+
+/// A rule's arguments as the runtime's values, by name, without `value`.
+fn params_of(error: &validator::ValidationError) -> Vec<(&'static str, rok_data::Value)> {
+    let mut params: Vec<_> = error
+        .params
+        .iter()
+        .filter(|(name, _)| name.as_ref() != "value")
+        .filter_map(|(name, value)| {
+            let value = match value {
+                serde_json::Value::Bool(b) => rok_data::Value::from(*b),
+                serde_json::Value::Number(n) => match n.as_i64() {
+                    Some(n) => rok_data::Value::from(n),
+                    None => rok_data::Value::from(n.as_f64()?),
+                },
+                serde_json::Value::String(s) => rok_data::Value::from(s.clone()),
+                _ => return None,
+            };
+            Some((rok_data::validate::intern(name), value))
+        })
+        .collect();
+    params.sort_by_key(|(name, _)| *name);
+    params
 }
 "#;
 

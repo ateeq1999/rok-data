@@ -81,6 +81,8 @@ fn rust_templates_use_only_the_allowed_crates() {
         "actix_web",
         "crate",
         "jsonwebtoken",
+        // `AppError::Validation` carries its errors.
+        "rok_data",
         "serde",
         "sqlx",
         "std",
@@ -92,8 +94,7 @@ fn rust_templates_use_only_the_allowed_crates() {
         "utoipa",
         "utoipa_swagger_ui",
         "uuid",
-        // The generated data layer needs it for `derive = ["validate"]`,
-        // and `AppError::Validation` carries its errors.
+        // The generated data layer needs it for `derive = ["validate"]`.
         "validator",
         // `main.rs` starts the application through its library.
         CRATE,

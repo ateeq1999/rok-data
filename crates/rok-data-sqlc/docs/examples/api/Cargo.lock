@@ -1885,6 +1885,7 @@ dependencies = [
  "async-stream",
  "futures-core",
  "futures-util",
+ "serde",
  "sqlx",
  "thiserror",
  "tokio",
