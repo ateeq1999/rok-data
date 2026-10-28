@@ -6,7 +6,9 @@ The generated `db/` folder used two styles at once. CRUD went through the runtim
 
 **Calls are model methods.**
 
-- **The shape:** a table's reads and writes are associated functions on its model, `User::find(id)`, `User::by_email(email)`, `User::search(filter)`, rather than free functions in `read.rs`/`write.rs`/`listing.rs`.
+- **The shape:** a table's reads and writes are associated functions on its model, `User::by_email(email)`, `User::search(filter)`, `User::matching(q, sort)`, rather than free functions in `read.rs`/`write.rs`/`listing.rs`.
+- **What the runtime already names isn't generated:** `Model` already gives every model `find`, `find_or_fail`, `all`, `count`, `exists` and `query`. So the engine stops emitting `get_by_id`, `exists_by_id`, `list`, `list_page` and `count`, and a call site uses the runtime's verb (`User::find(&db, id)`), one name per operation (workspace ADR 0020). The engine generates only what the schema knows and the runtime doesn't: unique-key lookups, the filter's `search`, and the list endpoint's `matching`.
+- **Tenant tables keep explicit tenant arguments.** The runtime's tenancy (`with_tenant`) is task-local and fails closed, while generated tenant tables take the tenant as a parameter. A tenant table's generated calls take it first.
 - **They return chains:** a lookup or search returns a `Select<User>` (or the runtime's write builder). The call site picks how to run it: `.first(&db)`, `.all(&db)`, `.count(&db)`, `.paginate(&db, page, per_page)`, `.cursor_paginate(..)`. One generated function covers what `search`, `search_after`, `list`, `list_page` and `count` did.
 - **Annotated queries stay free functions:** an annotated query has no natural owner model, so `db::queries::<file>::<query>` keeps its place (engine ADR 0008).
 
@@ -14,7 +16,8 @@ The generated `db/` folder used two styles at once. CRUD went through the runtim
 
 - **Model calls:** they go through the query chain.
 - **Annotated queries:** they go through `rok_data::raw(sql).bind(..)`, so their functions return `rok_data::Error` too.
-- **Filters and sort keys:** they build `rok_data` conditions and orders instead of pushing SQL text into a `QueryBuilder`.
+- **Sort keys:** a sort enum answers a typed `rok_data::Order` (`UserSort::order(direction)`). The list's `q` is `filter_any(SEARCH_COLUMNS, |c| c.icontains(q))`.
+- **Filters:** a `search` filter keeps the SQL it generated before, but builds it as one `rok_data` condition (`Expr::raw` with bound values) that the model's chain filters by. Soft deletes come from the model's scope (`include_deleted` is `with_trashed()`). The runtime's `where_has` was the alternative, but it can't express what the relationship filters already handle: a table related to itself (filters alias each nesting level), a many-to-many through its join table, and a related tenant table correlated on the tenant.
 - **The one error type:** `rok_data::Error`. The templates map it to HTTP once (`From<rok_data::Error> for AppError`): not found `404`, unique violation `409`, foreign-key or check violation `422`, serialization failure or deadlock `503` with `Retry-After`, anything else `500` (logged, not echoed).
 
 **List endpoints answer `Page<T>`.**
@@ -42,5 +45,6 @@ The generated `db/` folder used two styles at once. CRUD went through the runtim
 ## Consequences
 
 - Regenerating an existing project changes signatures: the error type, the paging types, and the calls' names and owners. The changelog and `docs/migration-guide.md` say how to move a call site.
-- `db/search.rs` (`Window`, `Limit`, `Sort`) is no longer generated.
+- `db/search.rs` keeps the filter's condition types and `Sort`/`Direction`. `Window` and `Limit` go once nothing generated pages with them.
+- The runtime gains `Column::icontains`, `Raw::scalar_optional`, `Raw::scalars`, and `&[T]` binds for enum and typed-id lists.
 - The milestone snapshots and the templates' generated files refresh through `ROK_DATA_SQLC_UPDATE_EXPECTED=1`.

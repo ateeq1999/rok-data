@@ -5,6 +5,25 @@ All notable changes to rok-data-sqlc are recorded here. The format follows
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Changes to
 the *generated* API count as breaking (see ADR 0012).
 
+## [Unreleased]
+
+### Breaking changes to the generated API
+
+Generated data calls move onto the runtime (engine ADR 0023):
+
+- **Annotated queries:** they run through `rok_data::raw` and fail with
+  `rok_data::Error` instead of `sqlx::Error`. They name the models they
+  return bare (`Result<Option<Media>, rok_data::Error>`), imported once.
+- **The list endpoint:** `list_matching` and `count_matching` become one
+  `Row::matching(…, q, sort)` that returns a `rok_data::Select`. The
+  service runs it with `.paginate(..)`, so a page and its total take one
+  round trip. `q` matches through `Column::icontains`; the
+  `push_contains_any` helper leaves `db/search.rs`.
+- **Sort keys:** a list's sort enum gains `order(direction)`, a typed
+  `rok_data::Order`.
+- **Service imports:** a service that never calls `repo::` no longer
+  imports it.
+
 ## Workspace 0.3.0 - 2026-10-28
 
 Published as `rok-data-sqlc` 0.3.0 with the workspace (root `CHANGELOG.md`);

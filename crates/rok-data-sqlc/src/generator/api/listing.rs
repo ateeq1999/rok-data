@@ -12,35 +12,14 @@ use super::layout::push_signature;
 use super::relations::Relation;
 use crate::generator::openapi::push_to_schema;
 use crate::generator::sql::{
-    column_clause, first_placeholder, ident, key_order, live_condition, live_key_predicate,
-    raw_block, scoped_key_predicate, str_literal, table_ref,
+    column_clause, first_placeholder, ident, live_key_predicate, scoped_key_predicate, str_literal,
+    table_ref,
 };
 use crate::generator::{
-    HEADER, StaticQuery, doc_name, keys, param_name, param_type, push_doc, push_fn_head,
-    push_let_call, types_import, use_paths,
+    HEADER, StaticQuery, doc_name, keys, model_chain, param_name, param_type, push_doc,
+    push_fn_head, push_wide_chain, types_import, use_paths,
 };
 use crate::schema::Column;
-
-/// The `search.rs` helper the listing matches `q` with, appended to
-/// `db/search.rs` when `api.output` is set.
-pub const CONTAINS_ANY: &str = r#"
-/// Appends ` AND (<column> ILIKE <pattern> OR ...)`: rows where any of
-/// `columns` contains `text`, ignoring case. `%`, `_` and `\` in `text`
-/// match themselves. The API's list endpoints match `q` with it.
-pub fn push_contains_any(columns: &[&str], text: &str, query: &mut QueryBuilder<Postgres>) {
-    let pattern = format!("%{}%", escape_like(text));
-    query.push(" AND (");
-    for (index, column) in columns.iter().enumerate() {
-        if index > 0 {
-            query.push(" OR ");
-        }
-        query.push(*column);
-        query.push(" ILIKE ");
-        query.push_bind(pattern.clone());
-    }
-    query.push(")");
-}
-"#;
 
 /// The `search.rs` helper a cursor-paged list matches `q` with, appended
 /// to `db/search.rs` when `api.cursor` names a table.
@@ -108,19 +87,13 @@ pub fn render(feature: &Feature<'_>) -> String {
     let cursor = lists && feature.cursor;
     if lists || searches {
         // In rustfmt's order: the types, then the functions.
-        let mut search_items = Vec::new();
-        if cursor {
-            search_items.push("Direction");
-        }
-        search_items.push("Sort");
-        if searches || !cursor {
+        // Every sort enum orders by `direction`.
+        let mut search_items = vec!["Direction", "Sort"];
+        if searches {
             search_items.push("Window");
         }
         if cursor && searched {
             search_items.push("contains_pattern");
-        }
-        if lists && searched && !cursor {
-            search_items.push("push_contains_any");
         }
         paths.push(format!(
             "super::super::search::{{{}}}",
@@ -130,8 +103,8 @@ pub fn render(feature: &Feature<'_>) -> String {
     if searches {
         paths.push(format!("super::filter::{}", feature.db_filter()));
     }
-    if cursor {
-        // The chain starts at the model: `Note::filter(…)`.
+    if lists {
+        // The chain starts at the model: `Note::query()`, `Note::filter(…)`.
         paths.push("rok_data::Model".to_owned());
     }
     let mut models = vec![feature.row().to_owned()];
@@ -331,45 +304,47 @@ fn render_owned(output: &mut String, feature: &Feature<'_>) {
     output.push_str("    rows.retain(|row| owned_by(row, owner));\n}\n");
 }
 
-/// `XSort`, `SEARCH_COLUMNS`, `list_matching` and `count_matching`.
+/// `SEARCH_COLUMNS` and `matching`: the list endpoint's rows as a query
+/// chain, which the service runs a page at a time (`paginate`).
 fn render_list(output: &mut String, feature: &Feature<'_>) {
     let table = feature.table;
+    let row = feature.row();
     let sort = feature.sort_enum();
     let searched = !feature.search.is_empty();
     if searched {
-        let names: Vec<String> = feature
+        let columns: Vec<String> = feature
             .search
             .iter()
-            .map(|column| str_literal(&ident(&column.sql_name)))
+            .map(|column| column_const(row, column))
             .collect();
         output.push_str("\n/// The columns `q` matches.\n");
-        let one_line = format!("const SEARCH_COLUMNS: &[&str] = &[{}];", names.join(", "));
+        let head = format!(
+            "const SEARCH_COLUMNS: [rok_data::Column<{row}>; {}] = ",
+            columns.len()
+        );
+        let one_line = format!("{head}[{}];", columns.join(", "));
         if one_line.len() <= crate::generator::MAX_WIDTH {
             output.push_str(&one_line);
             output.push('\n');
         } else {
-            output.push_str("const SEARCH_COLUMNS: &[&str] = &[\n");
-            for name in &names {
-                output.push_str(&format!("    {name},\n"));
+            output.push_str(&format!("{head}[\n"));
+            for column in &columns {
+                output.push_str(&format!("    {column},\n"));
             }
             output.push_str("];\n");
         }
     }
 
-    // `WHERE` and the live-row condition, so `q` appends ` AND (...)`.
-    let filter = format!(
-        "WHERE {}",
-        live_condition(table, None).unwrap_or_else(|| "TRUE".to_owned())
-    );
-    let q_param = searched.then(|| "q: Option<&str>".to_owned());
-    let mut owner_param: Vec<String> = table
+    let mut params: Vec<String> = table
         .tenant()
         .map(|tenant| format!("{}: {}", param_name(tenant), param_type(tenant)))
         .into_iter()
         .collect();
-    owner_param.extend(feature.owner.map(|_| "owner: uuid::Uuid".to_owned()));
+    params.extend(feature.owner.map(|_| "owner: uuid::Uuid".to_owned()));
+    params.extend(searched.then(|| "q: Option<&str>".to_owned()));
+    params.push(format!("sort: Option<Sort<{sort}>>"));
 
-    output.push('\n');
+    output.push_str(&format!("\nimpl {row} {{\n"));
     let matching = format!(
         "{}{}",
         if feature.owner.is_some() {
@@ -380,14 +355,20 @@ fn render_list(output: &mut String, feature: &Feature<'_>) {
         if searched { " matching `q`" } else { "" }
     );
     let keys = table.primary_key_columns();
-    let mut doc = vec![format!(
-        "Fetches one page of rows{matching}, ordered by `sort`{}.",
-        if keys.is_empty() {
-            ""
-        } else {
-            ", ties by primary key"
-        }
-    )];
+    let mut doc = vec![
+        format!(
+            "The rows of the list endpoint{matching}, ordered by `sort`{}.",
+            if keys.is_empty() {
+                ""
+            } else {
+                ", ties by primary key"
+            }
+        ),
+        "Run it a page at a time with `.paginate(executor, page, per_page)`.".to_owned(),
+    ];
+    if table.soft_delete_column.is_some() {
+        doc.push("Soft-deleted rows are left out.".to_owned());
+    }
     if searched {
         doc.push(
             "`q` matches a row when one of the [`SEARCH_COLUMNS`] contains it, ignoring".to_owned(),
@@ -395,71 +376,48 @@ fn render_list(output: &mut String, feature: &Feature<'_>) {
         doc.push("case; `%`, `_` and `\\` in it match themselves.".to_owned());
     }
     let doc: Vec<&str> = doc.iter().map(String::as_str).collect();
-    push_doc(output, 0, &doc);
-    let mut params: Vec<String> = owner_param.iter().chain(&q_param).cloned().collect();
-    params.push(format!("sort: Option<Sort<{sort}>>"));
-    params.push("page: Window".to_owned());
-    push_fn_head(
-        output,
-        "list_matching",
-        &params,
-        &format!("Result<Vec<{}>, sqlx::Error>", feature.row()),
-    );
-    let mut sql = column_clause("SELECT", table);
-    sql.push(format!("FROM {}", table_ref(table)));
-    sql.push(filter.clone());
-    output.push_str("    let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(\n");
-    output.push_str(&raw_block(&sql, 8));
-    output.push_str(",\n    );\n");
-    super::search::push_scope(output, feature);
-    push_q(output, searched);
-    if keys.is_empty() {
-        output.push_str(
-            "    if let Some(sort) = sort {\n        query.push(\" ORDER BY \");\n        query.push(sort.key.column());\n        query.push(sort.direction.sql());\n    }\n",
-        );
-    } else {
-        output.push_str(
-            "    query.push(\" ORDER BY \");\n    if let Some(sort) = sort {\n        query.push(sort.key.column());\n        query.push(sort.direction.sql());\n        query.push(\", \");\n    }\n",
-        );
-        output.push_str(&format!(
-            "    query.push({});\n",
-            str_literal(&key_order(&keys))
-        ));
-    }
-    output.push_str(
-        "    query.push(\" LIMIT \");\n    query.push_bind(page.limit());\n    query.push(\" OFFSET \");\n    query.push_bind(page.offset());\n",
-    );
-    crate::generator::push_build_and_fetch(output, table, "fetch_all");
-    output.push_str("}\n\n");
-
-    let doc = format!("Counts the rows{matching}: every page's rows together.");
-    push_doc(output, 0, &[&doc]);
-    push_fn_head(
-        output,
-        "count_matching",
-        &owner_param.into_iter().chain(q_param).collect::<Vec<_>>(),
-        "Result<i64, sqlx::Error>",
-    );
-    let count = format!("SELECT COUNT(*) FROM {} {filter}", table_ref(table));
-    push_let_call(
+    push_doc(output, 4, &doc);
+    output.push_str("    #[must_use]\n");
+    push_signature(
         output,
         4,
-        "let mut query",
-        "sqlx::QueryBuilder::<sqlx::Postgres>::new",
-        &str_literal(&count),
+        "pub fn matching",
+        &params,
+        &format!("rok_data::Select<{row}>"),
     );
-    super::search::push_scope(output, feature);
-    push_q(output, searched);
-    output.push_str("    query.build_query_scalar::<i64>().fetch_one(executor).await\n}\n");
-}
-
-/// `if let Some(q) = q { push_contains_any(...) }`, with search columns.
-fn push_q(output: &mut String, searched: bool) {
+    let mut scope = Vec::new();
+    if let Some(tenant) = table.tenant() {
+        let value = param_name(tenant);
+        scope.push(format!(
+            ".filter({}.eq({value}))",
+            column_const(row, tenant)
+        ));
+    }
+    if let Some(owner) = feature.owner {
+        scope.push(format!(".filter({}.eq(owner))", column_const(row, owner)));
+    }
+    let lead = "let mut query = ";
+    let head = model_chain(row, &mut scope, 8, lead);
+    push_wide_chain(output, 8, lead, &head, &scope, ";");
     if searched {
         output.push_str(
-            "    if let Some(q) = q {\n        push_contains_any(SEARCH_COLUMNS, q, &mut query);\n    }\n",
+            "        if let Some(q) = q {\n            query = query.filter_any(SEARCH_COLUMNS, |column| column.icontains(q));\n        }\n",
         );
     }
+    output.push_str(
+        "        if let Some(sort) = sort {\n            query = query.order_by(sort.key.order(sort.direction));\n        }\n",
+    );
+    let ties: Vec<String> = keys
+        .iter()
+        .map(|key| format!(".order_by({})", column_const(row, key)))
+        .collect();
+    push_wide_chain(output, 8, "", "query", &ties, "");
+    output.push_str("    }\n}\n");
+}
+
+/// `Row::COLUMN`: the model's constant for `column`.
+fn column_const(row: &str, column: &Column) -> String {
+    format!("{row}::{}", column.rust_name.to_uppercase())
 }
 
 /// The `XSort` enum: the columns `sort` takes, its default, and the column
@@ -513,6 +471,36 @@ fn render_sort_enum(output: &mut String, feature: &Feature<'_>) {
         ));
     }
     output.push_str("        }\n    }\n");
+    if feature.serves(Endpoint::List) && !feature.cursor {
+        let row = feature.row();
+        output.push('\n');
+        push_doc(output, 4, &["How this key orders rows, in `direction`."]);
+        output.push_str("    #[must_use]\n");
+        let params = ["self".to_owned(), "direction: Direction".to_owned()];
+        let returns = format!("rok_data::Order<{row}>");
+        push_signature(output, 4, "pub fn order", &params, &returns);
+        output.push_str("        let column = match self {\n");
+        for column in &feature.sort {
+            let arm = format!(
+                "Self::{} => {},",
+                column.sort_variant(),
+                column_const(row, column)
+            );
+            if 12 + arm.len() <= crate::generator::MAX_WIDTH {
+                output.push_str(&format!("            {arm}\n"));
+            } else {
+                // rustfmt wraps an overlong arm's body in a block.
+                output.push_str(&format!(
+                    "            Self::{} => {{\n                {}\n            }}\n",
+                    column.sort_variant(),
+                    column_const(row, column)
+                ));
+            }
+        }
+        output.push_str(
+            "        };\n        match direction {\n            Direction::Asc => column.asc(),\n            Direction::Desc => column.desc(),\n        }\n    }\n",
+        );
+    }
     if feature.serves(Endpoint::Search) {
         output.push('\n');
         push_doc(

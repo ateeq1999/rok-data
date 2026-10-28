@@ -7,6 +7,18 @@ Versioning](https://semver.org/spec/v2.0.0.html). Release notes for a
 tag are this file's `## [X.Y.Z]` section (the release workflow checks
 that it exists and won't ship a tag without it).
 
+## [Unreleased]
+
+Breaking for generated code (engine ADR 0023, in progress): the generated
+data layer stops naming `sqlx`.
+
+- **Annotated queries** fail with `rok_data::Error` and run through
+  `rok_data::raw`. The runtime gains `Raw::scalar_optional`,
+  `Raw::scalars`, and `&[T]` binds for enum and typed-id lists.
+- **List endpoints** read a `Row::matching(…)` chain and answer the
+  runtime's `Page` in one round trip. The runtime gains
+  `Column::icontains`.
+
 ## [0.3.0] — the model-shaped data layer
 
 Breaking. The data layer's surface becomes the model's: the typed verbs

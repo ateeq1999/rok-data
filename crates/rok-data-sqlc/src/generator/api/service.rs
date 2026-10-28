@@ -15,7 +15,6 @@ pub fn render_api(feature: &Feature<'_>) -> String {
     let mut uses = Uses::default();
     uses.add("sqlx::PgPool");
     uses.add(&format!("super::model::{}", feature.row()));
-    uses.add("super::repo");
     uses.add("crate::error::AppError");
     let mut body = String::new();
     for endpoint in &feature.endpoints {
@@ -39,6 +38,10 @@ pub fn render_api(feature: &Feature<'_>) -> String {
     relation_service::render_service(&mut body, &mut uses, feature);
     if feature.takes_user() {
         uses.add("crate::shared::auth::AuthUser");
+    }
+    // A list-only feature reads through the model alone.
+    if body.contains("repo::") {
+        uses.add("super::repo");
     }
 
     let mut output = format!(
@@ -198,32 +201,29 @@ fn render_list(output: &mut String, uses: &mut Uses, feature: &Feature<'_>) {
     if q {
         output.push_str("        let q = query.q.as_deref().filter(|q| !q.is_empty());\n");
     }
-    let mut args = data_args(feature, "self.pool()");
+    // The scope's arguments, without the executor: `matching` builds the
+    // query, and `paginate` runs it.
+    let mut args: Vec<String> = data_args(feature, "").into_iter().skip(1).collect();
     if feature.owner.is_some() {
         args.push("user.id".to_owned());
     }
     if q {
         args.push("q".to_owned());
     }
-    let mut list_args = args.clone();
-    list_args.extend(["sort".to_owned(), "pagination.into()".to_owned()]);
+    args.push("sort".to_owned());
+    output.push_str(
+        "        let (page, per_page) = (pagination.page.into(), pagination.per_page.into());\n",
+    );
     push_call(
         output,
         8,
         "let rows = ",
-        "repo::list_matching",
-        &list_args,
-        ".await?;",
-    );
-    push_call(
-        output,
-        8,
-        "let total = ",
-        "repo::count_matching",
+        &format!("{}::matching", feature.row()),
         &args,
-        ".await?;",
+        ";",
     );
-    output.push_str("        Ok(PaginatedResponse::new(rows, pagination, total))\n    }\n");
+    output
+        .push_str("        Ok(rows.paginate(self.pool(), page, per_page).await?.into())\n    }\n");
 }
 
 fn render_get_one(output: &mut String, uses: &mut Uses, feature: &Feature<'_>) {

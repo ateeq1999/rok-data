@@ -36,9 +36,9 @@ pub trait AuditLogEntryServiceApi {
         let default = AuditLogEntrySort::DEFAULT;
         let key = query.sort.unwrap_or(default);
         let sort = Some(Sort { key, direction });
-        let rows = repo::list_matching(self.pool(), sort, pagination.into()).await?;
-        let total = repo::count_matching(self.pool()).await?;
-        Ok(PaginatedResponse::new(rows, pagination, total))
+        let (page, per_page) = (pagination.page.into(), pagination.per_page.into());
+        let rows = AuditLogEntry::matching(sort);
+        Ok(rows.paginate(self.pool(), page, per_page).await?.into())
     }
 
     /// `GET /api/v1/audit-log/{id}`: the row with this key, or `404`.

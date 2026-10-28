@@ -363,20 +363,3 @@ where
     query.push_bind(values);
     query.push(")");
 }
-
-/// Appends ` AND (<column> ILIKE <pattern> OR ...)`: rows where any of
-/// `columns` contains `text`, ignoring case. `%`, `_` and `\` in `text`
-/// match themselves. The API's list endpoints match `q` with it.
-pub fn push_contains_any(columns: &[&str], text: &str, query: &mut QueryBuilder<Postgres>) {
-    let pattern = format!("%{}%", escape_like(text));
-    query.push(" AND (");
-    for (index, column) in columns.iter().enumerate() {
-        if index > 0 {
-            query.push(" OR ");
-        }
-        query.push(*column);
-        query.push(" ILIKE ");
-        query.push_bind(pattern.clone());
-    }
-    query.push(")");
-}

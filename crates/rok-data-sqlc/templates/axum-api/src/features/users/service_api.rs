@@ -34,9 +34,9 @@ pub trait UsersServiceApi {
         let key = query.sort.unwrap_or(default);
         let sort = Some(Sort { key, direction });
         let q = query.q.as_deref().filter(|q| !q.is_empty());
-        let rows = repo::list_matching(self.pool(), q, sort, pagination.into()).await?;
-        let total = repo::count_matching(self.pool(), q).await?;
-        Ok(PaginatedResponse::new(rows, pagination, total))
+        let (page, per_page) = (pagination.page.into(), pagination.per_page.into());
+        let rows = User::matching(q, sort);
+        Ok(rows.paginate(self.pool(), page, per_page).await?.into())
     }
 
     /// `GET /api/v1/users/{id}`: the row with this key, or `404`.

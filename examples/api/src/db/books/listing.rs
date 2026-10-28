@@ -6,8 +6,9 @@
 //! The `unique` checks of a create or update body: whether another row
 //! already has its values.
 
-use super::super::search::{Sort, Window, push_contains_any};
+use super::super::search::{Direction, Sort};
 use super::models::{Book, BookId};
+use rok_data::Model;
 
 /// The columns `GET /api/v1/books?sort=` takes, in `snake_case`.
 #[derive(
@@ -30,63 +31,39 @@ impl BookSort {
             Self::Title => "title",
         }
     }
+
+    /// How this key orders rows, in `direction`.
+    #[must_use]
+    pub fn order(self, direction: Direction) -> rok_data::Order<Book> {
+        let column = match self {
+            Self::Title => Book::TITLE,
+        };
+        match direction {
+            Direction::Asc => column.asc(),
+            Direction::Desc => column.desc(),
+        }
+    }
 }
 
 /// The columns `q` matches.
-const SEARCH_COLUMNS: &[&str] = &["title"];
+const SEARCH_COLUMNS: [rok_data::Column<Book>; 1] = [Book::TITLE];
 
-/// Fetches one page of rows matching `q`, ordered by `sort`, ties by primary key.
-/// `q` matches a row when one of the [`SEARCH_COLUMNS`] contains it, ignoring
-/// case; `%`, `_` and `\` in it match themselves.
-pub async fn list_matching<'e, E>(
-    executor: E,
-    q: Option<&str>,
-    sort: Option<Sort<BookSort>>,
-    page: Window,
-) -> Result<Vec<Book>, sqlx::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
-        r#"
-        SELECT
-            id,
-            author_id,
-            title,
-            isbn,
-            published_at
-        FROM books
-        WHERE TRUE
-        "#,
-    );
-    if let Some(q) = q {
-        push_contains_any(SEARCH_COLUMNS, q, &mut query);
+impl Book {
+    /// The rows of the list endpoint matching `q`, ordered by `sort`, ties by primary key.
+    /// Run it a page at a time with `.paginate(executor, page, per_page)`.
+    /// `q` matches a row when one of the [`SEARCH_COLUMNS`] contains it, ignoring
+    /// case; `%`, `_` and `\` in it match themselves.
+    #[must_use]
+    pub fn matching(q: Option<&str>, sort: Option<Sort<BookSort>>) -> rok_data::Select<Book> {
+        let mut query = Book::query();
+        if let Some(q) = q {
+            query = query.filter_any(SEARCH_COLUMNS, |column| column.icontains(q));
+        }
+        if let Some(sort) = sort {
+            query = query.order_by(sort.key.order(sort.direction));
+        }
+        query.order_by(Book::ID)
     }
-    query.push(" ORDER BY ");
-    if let Some(sort) = sort {
-        query.push(sort.key.column());
-        query.push(sort.direction.sql());
-        query.push(", ");
-    }
-    query.push("id");
-    query.push(" LIMIT ");
-    query.push_bind(page.limit());
-    query.push(" OFFSET ");
-    query.push_bind(page.offset());
-    query.build_query_as::<Book>().fetch_all(executor).await
-}
-
-/// Counts the rows matching `q`: every page's rows together.
-pub async fn count_matching<'e, E>(executor: E, q: Option<&str>) -> Result<i64, sqlx::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    let mut query =
-        sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT COUNT(*) FROM books WHERE TRUE");
-    if let Some(q) = q {
-        push_contains_any(SEARCH_COLUMNS, q, &mut query);
-    }
-    query.build_query_scalar::<i64>().fetch_one(executor).await
 }
 
 /// Returns whether a row other than `except` has this `isbn`:

@@ -3,8 +3,9 @@
 //! What the API's list endpoint reads: a page of rows matching `q`, sorted by
 //! one of the [`UserSort`] keys.
 
-use super::super::search::{Sort, Window, push_contains_any};
+use super::super::search::{Direction, Sort};
 use super::models::User;
+use rok_data::Model;
 
 /// The columns `GET /api/v1/users?sort=` takes, in `snake_case`.
 #[derive(
@@ -30,76 +31,39 @@ impl UserSort {
             Self::Email => "email",
         }
     }
+
+    /// How this key orders rows, in `direction`.
+    #[must_use]
+    pub fn order(self, direction: Direction) -> rok_data::Order<User> {
+        let column = match self {
+            Self::CreatedAt => User::CREATED_AT,
+            Self::Email => User::EMAIL,
+        };
+        match direction {
+            Direction::Asc => column.asc(),
+            Direction::Desc => column.desc(),
+        }
+    }
 }
 
 /// The columns `q` matches.
-const SEARCH_COLUMNS: &[&str] = &["email", "display_name"];
+const SEARCH_COLUMNS: [rok_data::Column<User>; 2] = [User::EMAIL, User::DISPLAY_NAME];
 
-/// Fetches one page of rows matching `q`, ordered by `sort`, ties by primary key.
-/// `q` matches a row when one of the [`SEARCH_COLUMNS`] contains it, ignoring
-/// case; `%`, `_` and `\` in it match themselves.
-pub async fn list_matching<'e, E>(
-    executor: E,
-    q: Option<&str>,
-    sort: Option<Sort<UserSort>>,
-    page: Window,
-) -> Result<Vec<User>, sqlx::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
-        r#"
-        SELECT
-            id,
-            email,
-            display_name,
-            password_hash,
-            has_password,
-            role,
-            is_active,
-            email_verified,
-            totp_secret,
-            totp_enabled,
-            avatar_key,
-            failed_logins,
-            locked_until,
-            created_at,
-            updated_at,
-            deleted_at,
-            token_version,
-            totp_last_step,
-            avatar_url
-        FROM users
-        WHERE deleted_at IS NULL
-        "#,
-    );
-    if let Some(q) = q {
-        push_contains_any(SEARCH_COLUMNS, q, &mut query);
+impl User {
+    /// The rows of the list endpoint matching `q`, ordered by `sort`, ties by primary key.
+    /// Run it a page at a time with `.paginate(executor, page, per_page)`.
+    /// Soft-deleted rows are left out.
+    /// `q` matches a row when one of the [`SEARCH_COLUMNS`] contains it, ignoring
+    /// case; `%`, `_` and `\` in it match themselves.
+    #[must_use]
+    pub fn matching(q: Option<&str>, sort: Option<Sort<UserSort>>) -> rok_data::Select<User> {
+        let mut query = User::query();
+        if let Some(q) = q {
+            query = query.filter_any(SEARCH_COLUMNS, |column| column.icontains(q));
+        }
+        if let Some(sort) = sort {
+            query = query.order_by(sort.key.order(sort.direction));
+        }
+        query.order_by(User::ID)
     }
-    query.push(" ORDER BY ");
-    if let Some(sort) = sort {
-        query.push(sort.key.column());
-        query.push(sort.direction.sql());
-        query.push(", ");
-    }
-    query.push("id");
-    query.push(" LIMIT ");
-    query.push_bind(page.limit());
-    query.push(" OFFSET ");
-    query.push_bind(page.offset());
-    query.build_query_as::<User>().fetch_all(executor).await
-}
-
-/// Counts the rows matching `q`: every page's rows together.
-pub async fn count_matching<'e, E>(executor: E, q: Option<&str>) -> Result<i64, sqlx::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
-        "SELECT COUNT(*) FROM users WHERE deleted_at IS NULL",
-    );
-    if let Some(q) = q {
-        push_contains_any(SEARCH_COLUMNS, q, &mut query);
-    }
-    query.build_query_scalar::<i64>().fetch_one(executor).await
 }

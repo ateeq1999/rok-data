@@ -84,10 +84,10 @@ fn an_api_section_adds_the_features_the_pool_and_the_shared_tools() -> Result<()
     assert_success(&run_binary_in(with_api.path(), &["g"]));
     assert_success(&run_binary_in(without.path(), &["g"]));
 
-    // The data layer gains `pool.rs`, declared in `mod.rs`, the list reads
-    // of each table with a feature (`audit_log` is excluded), declared in
-    // its `mod.rs`, and the `q` helper in `search.rs`. With `openapi = false`,
-    // nothing else changes.
+    // The data layer gains `pool.rs`, declared in `mod.rs`, and the list
+    // reads of each table with a feature (`audit_log` is excluded), declared
+    // in its `mod.rs`; `q` matches through the model's chain, so `search.rs`
+    // is the same. With `openapi = false`, nothing else changes.
     let mut with_pool = read_tree(&with_api.path().join("out"))?;
     assert!(with_pool.remove(Path::new("pool.rs")).is_some());
     for table in ["users", "posts"] {
@@ -95,13 +95,6 @@ fn an_api_section_adds_the_features_the_pool_and_the_shared_tools() -> Result<()
         assert!(with_pool.remove(&listing).is_some(), "{listing:?}");
     }
     assert!(!with_pool.contains_key(Path::new("audit_log/listing.rs")));
-    let search = with_pool
-        .get_mut(Path::new("search.rs"))
-        .expect("search.rs");
-    let helper = search
-        .find("\n/// Appends ` AND (<column> ILIKE <pattern> OR ...)`")
-        .expect("the q helper");
-    search.truncate(helper);
     let mut plain = read_tree(&without.path().join("out"))?;
     for files in [&mut with_pool, &mut plain] {
         for text in files.values_mut() {

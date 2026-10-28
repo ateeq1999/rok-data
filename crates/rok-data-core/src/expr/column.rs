@@ -105,6 +105,11 @@ impl<M: Model> Column<M> {
         self.like(format!("%{}%", escape_like(text)))
     }
 
+    /// `column ILIKE '%text%'`: [`contains`](Self::contains) ignoring case.
+    pub fn icontains(self, text: &str) -> Expr<M> {
+        self.ilike(format!("%{}%", escape_like(text)))
+    }
+
     /// `column LIKE 'text%'`, escaping `%`, `_` and `\` in `text`.
     pub fn starts_with(self, text: &str) -> Expr<M> {
         self.like(format!("{}%", escape_like(text)))

@@ -3,8 +3,9 @@
 //! What the API's list endpoint reads: a page of rows, sorted by
 //! one of the [`AuditLogEntrySort`] keys.
 
-use super::super::search::{Sort, Window};
+use super::super::search::{Direction, Sort};
 use super::models::AuditLogEntry;
+use rok_data::Model;
 
 /// The columns `GET /api/v1/audit-log?sort=` takes, in `snake_case`.
 #[derive(
@@ -30,53 +31,30 @@ impl AuditLogEntrySort {
             Self::CreatedAt => "created_at",
         }
     }
-}
 
-/// Fetches one page of rows, ordered by `sort`, ties by primary key.
-pub async fn list_matching<'e, E>(
-    executor: E,
-    sort: Option<Sort<AuditLogEntrySort>>,
-    page: Window,
-) -> Result<Vec<AuditLogEntry>, sqlx::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
-        r#"
-        SELECT
-            id,
-            actor_user_id,
-            target_user_id,
-            action,
-            details,
-            created_at
-        FROM audit_log
-        WHERE TRUE
-        "#,
-    );
-    query.push(" ORDER BY ");
-    if let Some(sort) = sort {
-        query.push(sort.key.column());
-        query.push(sort.direction.sql());
-        query.push(", ");
+    /// How this key orders rows, in `direction`.
+    #[must_use]
+    pub fn order(self, direction: Direction) -> rok_data::Order<AuditLogEntry> {
+        let column = match self {
+            Self::Id => AuditLogEntry::ID,
+            Self::CreatedAt => AuditLogEntry::CREATED_AT,
+        };
+        match direction {
+            Direction::Asc => column.asc(),
+            Direction::Desc => column.desc(),
+        }
     }
-    query.push("id");
-    query.push(" LIMIT ");
-    query.push_bind(page.limit());
-    query.push(" OFFSET ");
-    query.push_bind(page.offset());
-    query
-        .build_query_as::<AuditLogEntry>()
-        .fetch_all(executor)
-        .await
 }
 
-/// Counts the rows: every page's rows together.
-pub async fn count_matching<'e, E>(executor: E) -> Result<i64, sqlx::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    let mut query =
-        sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT COUNT(*) FROM audit_log WHERE TRUE");
-    query.build_query_scalar::<i64>().fetch_one(executor).await
+impl AuditLogEntry {
+    /// The rows of the list endpoint, ordered by `sort`, ties by primary key.
+    /// Run it a page at a time with `.paginate(executor, page, per_page)`.
+    #[must_use]
+    pub fn matching(sort: Option<Sort<AuditLogEntrySort>>) -> rok_data::Select<AuditLogEntry> {
+        let mut query = AuditLogEntry::query();
+        if let Some(sort) = sort {
+            query = query.order_by(sort.key.order(sort.direction));
+        }
+        query.order_by(AuditLogEntry::ID)
+    }
 }

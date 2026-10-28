@@ -12,9 +12,10 @@
 //! The many-to-many relationships' writes, through their join tables.
 
 use super::super::notes::models::NoteId;
-use super::super::search::{Sort, Window};
+use super::super::search::{Direction, Sort, Window};
 use super::filter::LabelFilter;
 use super::models::{Label, LabelId};
+use rok_data::Model;
 
 /// The columns `GET /api/v1/labels?sort=` takes, in `snake_case`.
 #[derive(
@@ -38,6 +39,18 @@ impl LabelSort {
         }
     }
 
+    /// How this key orders rows, in `direction`.
+    #[must_use]
+    pub fn order(self, direction: Direction) -> rok_data::Order<Label> {
+        let column = match self {
+            Self::Id => Label::ID,
+        };
+        match direction {
+            Direction::Asc => column.asc(),
+            Direction::Desc => column.desc(),
+        }
+    }
+
     /// The key `name` names, in `snake_case`, as a search body's `sort` does.
     #[must_use]
     pub fn from_name(name: &str) -> Option<Self> {
@@ -48,46 +61,17 @@ impl LabelSort {
     }
 }
 
-/// Fetches one page of rows, ordered by `sort`, ties by primary key.
-pub async fn list_matching<'e, E>(
-    executor: E,
-    sort: Option<Sort<LabelSort>>,
-    page: Window,
-) -> Result<Vec<Label>, sqlx::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
-        r#"
-        SELECT
-            id,
-            name
-        FROM labels
-        WHERE TRUE
-        "#,
-    );
-    query.push(" ORDER BY ");
-    if let Some(sort) = sort {
-        query.push(sort.key.column());
-        query.push(sort.direction.sql());
-        query.push(", ");
+impl Label {
+    /// The rows of the list endpoint, ordered by `sort`, ties by primary key.
+    /// Run it a page at a time with `.paginate(executor, page, per_page)`.
+    #[must_use]
+    pub fn matching(sort: Option<Sort<LabelSort>>) -> rok_data::Select<Label> {
+        let mut query = Label::query();
+        if let Some(sort) = sort {
+            query = query.order_by(sort.key.order(sort.direction));
+        }
+        query.order_by(Label::ID)
     }
-    query.push("id");
-    query.push(" LIMIT ");
-    query.push_bind(page.limit());
-    query.push(" OFFSET ");
-    query.push_bind(page.offset());
-    query.build_query_as::<Label>().fetch_all(executor).await
-}
-
-/// Counts the rows: every page's rows together.
-pub async fn count_matching<'e, E>(executor: E) -> Result<i64, sqlx::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    let mut query =
-        sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT COUNT(*) FROM labels WHERE TRUE");
-    query.build_query_scalar::<i64>().fetch_one(executor).await
 }
 
 /// Fetches one page of the rows that `filter` matches, ordered by `sort`, ties by primary key.

@@ -41,9 +41,9 @@ pub trait AccountsServiceApi {
         let default = AccountSort::DEFAULT;
         let key = query.sort.unwrap_or(default);
         let sort = Some(Sort { key, direction });
-        let rows = repo::list_matching(self.pool(), sort, pagination.into()).await?;
-        let total = repo::count_matching(self.pool()).await?;
-        Ok(PaginatedResponse::new(rows, pagination, total))
+        let (page, per_page) = (pagination.page.into(), pagination.per_page.into());
+        let rows = Account::matching(sort);
+        Ok(rows.paginate(self.pool(), page, per_page).await?.into())
     }
 
     /// `POST /api/v1/accounts/search`: one page of the rows `body.filter` matches.
