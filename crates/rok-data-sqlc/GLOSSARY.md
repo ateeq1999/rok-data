@@ -250,3 +250,13 @@ _Avoid_: eager load (for the function itself), include
 **Relationship filter**:
 A condition on a related table that decides which rows match, without adding the related rows to the result.
 _Avoid_: join filter, nested where
+
+## Storage
+
+**Presigned URL**:
+A short-lived URL, signed by the API, that lets a client upload or download one stored object directly from the object store without its bytes passing through the API.
+_Avoid_: signed URL (unqualified), upload link, temporary URL
+
+**Upload intent**:
+A file the API has agreed to accept but whose bytes have not yet been confirmed in the object store; it becomes a usable file only once completed, and expires if it never is.
+_Avoid_: pending media, draft upload, reservation
