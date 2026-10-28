@@ -78,7 +78,9 @@ mod test;
 ///   it changed since the record was loaded.
 /// - `#[rok(validate(…))]` — validation rules checked before every insert
 ///   and update: `length(min = 1, max = 50)`, `range(min = 0, max = 150)`
-///   (`exclusive_min` / `exclusive_max` leave the bound out), `email`, `non_empty`, `custom = path::to::fn` (`fn(&T) -> Result<(), String>`).
+///   (`exclusive_min` / `exclusive_max` leave the bound out), `email`,
+///   `non_empty`, `custom = path::to::fn` (`fn(&T) -> Result<(), String>`,
+///   code `custom`; `custom(function = path, code = "…")` answers its own).
 ///   Rules on `Option` fields apply only to `Some`.
 /// - `#[rok(belongs_to = User)]` on a foreign key field `user_id` — generates
 ///   `Post::USER` (a [`BelongsTo`]) and `post.user()`. Use

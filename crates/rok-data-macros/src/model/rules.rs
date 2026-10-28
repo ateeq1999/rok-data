@@ -57,6 +57,10 @@ pub(crate) fn field_checks(fields: &[&Field], krate: &TokenStream2) -> Vec<Token
                 .zip(&f.messages)
                 .filter_map(|(rule, message)| {
                     let (code, check) = rule_check(rule, ident, &field, &v)?;
+                    let code = match rule {
+                        Rule::Custom(_, Some(own)) => quote!(#own),
+                        _ => quote!(#code),
+                    };
                     let params = rule_params(rule, krate);
                     let template = template(message.as_ref());
                     Some(quote! {
@@ -118,7 +122,7 @@ fn rule_check(
         }
         Rule::Email => ("email", quote!(#v::email(&self.#ident))),
         Rule::NonEmpty => ("non_empty", quote!(#v::non_empty(&self.#ident))),
-        Rule::Custom(path) => ("custom", quote!(#path(&self.#ident))),
+        Rule::Custom(path, _) => ("custom", quote!(#path(&self.#ident))),
         Rule::RequiredIf {
             other,
             equals,

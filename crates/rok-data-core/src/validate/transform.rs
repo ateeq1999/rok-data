@@ -1,6 +1,7 @@
 //! Transforms an input's fields go through before their rules:
 //! `#[rok(transform(trim, lowercase))]`. Each takes the field's value and
-//! returns the new one, so `Option` fields keep `None`.
+//! returns the new one, so `Option` fields (a patch's `Option<Option<_>>`
+//! too) keep `None`.
 
 /// A field a built-in transform can apply to: text, or optional text.
 pub trait Transformable: Sized {
@@ -14,9 +15,9 @@ impl Transformable for String {
     }
 }
 
-impl Transformable for Option<String> {
+impl<T: Transformable> Transformable for Option<T> {
     fn map_text(self, f: impl FnOnce(String) -> String) -> Self {
-        self.map(f)
+        self.map(|value| value.map_text(f))
     }
 }
 

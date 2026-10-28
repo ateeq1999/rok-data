@@ -317,6 +317,10 @@ compiler finds the call sites.
   `Decimal` field takes `range` (feature `decimal`); an integer bound
   stays an integer in the rule's `params`. New: `validate::Bound`,
   `validate::bounded`.
+- **Custom codes and patch transforms** (input-validation ticket 08):
+  `custom(function = path, code = "immutable")` answers its own code
+  (`custom = path` stays code `custom`); transforms apply through an
+  `Option<Option<String>>` patch field.
 - **The rest of the catalogue** (input-validation ticket 07, second
   part): `min_length = n`, `max_length = n`, `fixed_length = n`
   (characters, codes `minLength` / `maxLength` / `fixedLength`), and with

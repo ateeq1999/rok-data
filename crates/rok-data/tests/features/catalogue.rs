@@ -219,3 +219,44 @@ fn a_decimal_takes_a_range() {
         "must be at least 0 and less than 99.95"
     );
 }
+
+/// A patch: `Option<Option<_>>` fields, a custom rule with its own code.
+#[derive(Debug, Clone, PartialEq, Input)]
+struct Patch {
+    #[rok(transform(trim, uppercase))]
+    shout: Option<Option<String>>,
+    #[rok(validate(custom(function = frozen, code = "immutable")))]
+    email: Option<String>,
+}
+
+fn frozen(email: &Option<String>) -> Result<(), String> {
+    match email {
+        Some(_) => Err("`email` can't be changed".into()),
+        None => Ok(()),
+    }
+}
+
+#[test]
+fn a_patch_transforms_and_a_custom_rule_names_its_code() {
+    let patch = Patch {
+        shout: Some(Some(" hey ".into())),
+        email: None,
+    };
+    assert_eq!(
+        patch.validate_fields().unwrap().shout,
+        Some(Some("HEY".into()))
+    );
+    let rok_data::Error::Validation(errors) = Patch {
+        shout: Some(None),
+        email: Some("a@b.c".into()),
+    }
+    .validate_fields()
+    .unwrap_err() else {
+        panic!("expected validation errors");
+    };
+    let error = &errors.errors()[0];
+    assert_eq!(
+        (error.field.as_str(), error.code, error.message.as_str()),
+        ("email", "immutable", "`email` can't be changed")
+    );
+}

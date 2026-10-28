@@ -47,7 +47,9 @@ enum Rule {
     Range(Option<(syn::Expr, bool)>, Option<(syn::Expr, bool)>),
     Email,
     NonEmpty,
-    Custom(Path),
+    /// `custom = path`, or `custom(function = path, code = "…")` answering
+    /// its own code.
+    Custom(Path, Option<LitStr>),
     /// A database rule (input only): `unique(…)`, `exists(…)`, `database = path`.
     Database(rules::DatabaseRule),
     /// `required_if(field = other, equals = value)` / `required_unless(…)`:
@@ -131,7 +133,27 @@ fn parse_rules(
                 Rule::NonEmpty
             });
         } else if r.path.is_ident("custom") {
-            rules.push(Rule::Custom(r.value()?.parse()?));
+            if r.input.peek(syn::token::Paren) {
+                let (mut function, mut code) = (None, None);
+                r.parse_nested_meta(|option| {
+                    if option.path.is_ident("function") {
+                        function = Some(option.value()?.parse()?);
+                    } else if option.path.is_ident("code") {
+                        code = Some(option.value()?.parse()?);
+                    } else if option.path.is_ident("message") {
+                        message = Some(option.value()?.parse()?);
+                    } else {
+                        return Err(option.error("expected `function = path`, `code = \"…\"` or `message`"));
+                    }
+                    Ok(())
+                })?;
+                let Some(function) = function else {
+                    return Err(r.error("expected `function = path`"));
+                };
+                rules.push(Rule::Custom(function, code));
+            } else {
+                rules.push(Rule::Custom(r.value()?.parse()?, None));
+            }
         } else if r.path.is_ident("required_if") || r.path.is_ident("required_unless") {
             let negated = r.path.is_ident("required_unless");
             let (mut other, mut equals) = (None, None);
