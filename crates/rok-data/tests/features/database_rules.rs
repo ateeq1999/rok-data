@@ -226,3 +226,72 @@ async fn nested_database_rules_report_their_paths() {
         [("accounts.1.email".to_owned(), "unique")]
     );
 }
+
+/// Who is asking: what the context-aware rules read.
+struct Caller {
+    org_id: i64,
+    admin: bool,
+}
+
+/// Moving an account: it must be one the caller's org can see.
+#[derive(Debug, Clone, PartialEq, Input)]
+#[rok(context = Caller, validate_with_database = admins_only)]
+struct MoveAccount {
+    #[rok(validate(exists(Account::ID, scope = in_callers_org)))]
+    account_id: i64,
+    #[rok(validate(database = not_own_org))]
+    to_org: i64,
+}
+
+fn in_callers_org(_input: &MoveAccount, caller: &Caller) -> Expr<Account> {
+    Account::ORG_ID.eq(caller.org_id)
+}
+
+async fn not_own_org(to_org: &i64, _session: Journey<'_>, caller: &Caller) -> Result<(), String> {
+    if *to_org == caller.org_id {
+        Err("to_org is already the account's org".into())
+    } else {
+        Ok(())
+    }
+}
+
+async fn admins_only(
+    _input: &MoveAccount,
+    _session: Journey<'_>,
+    caller: &Caller,
+) -> Result<(), ValidationErrors> {
+    let mut errors = ValidationErrors::new();
+    if !caller.admin {
+        errors.add("", "forbidden", "only admins move accounts");
+    }
+    errors.into_result()
+}
+
+#[tokio::test]
+async fn context_rules_read_the_caller() {
+    let Some(db) = setup().await else { return };
+    let (live, gone, ann) = seeded(&db).await;
+    let insider = Caller {
+        org_id: live.id,
+        admin: true,
+    };
+    let outsider = Caller {
+        org_id: gone.id,
+        admin: false,
+    };
+    let moving = MoveAccount {
+        account_id: ann.id,
+        to_org: gone.id,
+    };
+    assert!(moving.clone().validate_with(&db, &insider).await.is_ok());
+    // The same input, another caller: ann's account isn't one they can
+    // see, the move targets their own org, and they aren't an admin.
+    assert_eq!(
+        codes(moving.validate_with(&db, &outsider).await.unwrap_err()),
+        [
+            (String::new(), "forbidden"),
+            ("account_id".to_owned(), "exists"),
+            ("to_org".to_owned(), "database"),
+        ]
+    );
+}

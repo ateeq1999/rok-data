@@ -22,6 +22,12 @@ use super::{DatabaseRule, ValidationErrors};
 /// let sign_up = body.validate(&db).await?; // transformed, or Error::Validation
 /// ```
 pub trait Input: Sized + Send + Sync {
+    /// What the database rules may read besides the input — the caller, a
+    /// tenant — declared with `#[rok(context = Caller)]` and passed to
+    /// [`validate_with`](Self::validate_with); `()` when the input declares
+    /// none.
+    type Context: Sync;
+
     /// The fields' transforms, applied in declaration order.
     #[doc(hidden)]
     fn __transform(self) -> Self {
@@ -53,7 +59,8 @@ pub trait Input: Sized + Send + Sync {
 
     /// The built-in database rules (`unique`, `exists`) of every field.
     #[doc(hidden)]
-    fn __database_rules(&self) -> Vec<DatabaseRule> {
+    fn __database_rules(&self, context: &Self::Context) -> Vec<DatabaseRule> {
+        let _ = context;
         Vec::new()
     }
 
@@ -65,8 +72,9 @@ pub trait Input: Sized + Send + Sync {
         &self,
         journey: &mut Journey<'_>,
         failed: &ValidationErrors,
+        context: &Self::Context,
     ) -> Result<ValidationErrors> {
-        let _ = (journey, failed);
+        let _ = (journey, failed, context);
         Ok(ValidationErrors::new())
     }
 
@@ -79,17 +87,33 @@ pub trait Input: Sized + Send + Sync {
     /// The session is any a query takes. Validating inside the write's
     /// transaction narrows the window in which another write can break a
     /// database rule; the table's constraint stays the guarantee.
-    async fn validate<'c>(self, session: impl Into<Journey<'c>> + Send) -> Result<Self> {
+    async fn validate<'c>(self, session: impl Into<Journey<'c>> + Send) -> Result<Self>
+    where
+        Self: Input<Context = ()>,
+    {
+        self.validate_with(session, &()).await
+    }
+
+    /// [`validate`](Self::validate) with the input's context: the caller
+    /// (or tenant) its database rules' `scope`s and custom rules read, so
+    /// `exists` can mean "a row this caller can see".
+    async fn validate_with<'c>(
+        self,
+        session: impl Into<Journey<'c>> + Send,
+        context: &Self::Context,
+    ) -> Result<Self> {
         let input = self.__transform();
         let mut errors = input.__check();
         let mut journey = session.into();
         let rules: Vec<DatabaseRule> = input
-            .__database_rules()
+            .__database_rules(context)
             .into_iter()
             .filter(|rule| errors.field(&rule.field).next().is_none())
             .collect();
         errors.merge(super::database::run(&mut journey, rules).await?);
-        let custom = input.__custom_database(&mut journey, &errors).await?;
+        let custom = input
+            .__custom_database(&mut journey, &errors, context)
+            .await?;
         errors.merge(custom);
         if errors.is_empty() {
             Ok(input)
@@ -115,8 +139,9 @@ pub trait Input: Sized + Send + Sync {
 /// `Vec` of them — marked `#[rok(nested)]`: its transforms, field rules
 /// and built-in database rules run with the outer input's, their errors
 /// at `field.inner` (and `items.2.inner` in a list). A nested input's
-/// custom database rules run only through its own `validate`.
-pub trait Nested: Sized {
+/// custom database rules run only through its own `validate`. A nested input
+/// shares its parent's context type `C`.
+pub trait Nested<C>: Sized {
     /// The transforms, applied to every inner input.
     #[doc(hidden)]
     fn __transform_nested(self) -> Self;
@@ -127,14 +152,14 @@ pub trait Nested: Sized {
 
     /// The built-in database rules, under `path`.
     #[doc(hidden)]
-    fn __database_nested(&self, path: &str, rules: &mut Vec<DatabaseRule>);
+    fn __database_nested(&self, path: &str, rules: &mut Vec<DatabaseRule>, context: &C);
 
     /// The schema of the nested value.
     #[doc(hidden)]
     fn __nested_schema() -> super::Schema;
 }
 
-impl<T: Input> Nested for T {
+impl<T: Input> Nested<T::Context> for T {
     fn __nested_schema() -> super::Schema {
         T::__schema()
     }
@@ -147,16 +172,16 @@ impl<T: Input> Nested for T {
         errors.merge(self.__check().prefixed(path));
     }
 
-    fn __database_nested(&self, path: &str, rules: &mut Vec<DatabaseRule>) {
+    fn __database_nested(&self, path: &str, rules: &mut Vec<DatabaseRule>, context: &T::Context) {
         rules.extend(
-            self.__database_rules()
+            self.__database_rules(context)
                 .into_iter()
                 .map(|rule| rule.prefixed(path)),
         );
     }
 }
 
-impl<T: Input> Nested for Option<T> {
+impl<T: Input> Nested<T::Context> for Option<T> {
     fn __nested_schema() -> super::Schema {
         T::__schema().nullable()
     }
@@ -171,14 +196,14 @@ impl<T: Input> Nested for Option<T> {
         }
     }
 
-    fn __database_nested(&self, path: &str, rules: &mut Vec<DatabaseRule>) {
+    fn __database_nested(&self, path: &str, rules: &mut Vec<DatabaseRule>, context: &T::Context) {
         if let Some(inner) = self {
-            inner.__database_nested(path, rules);
+            inner.__database_nested(path, rules, context);
         }
     }
 }
 
-impl<T: Input> Nested for Vec<T> {
+impl<T: Input> Nested<T::Context> for Vec<T> {
     fn __nested_schema() -> super::Schema {
         super::Schema::array(T::__schema())
     }
@@ -193,9 +218,9 @@ impl<T: Input> Nested for Vec<T> {
         }
     }
 
-    fn __database_nested(&self, path: &str, rules: &mut Vec<DatabaseRule>) {
+    fn __database_nested(&self, path: &str, rules: &mut Vec<DatabaseRule>, context: &T::Context) {
         for (i, inner) in self.iter().enumerate() {
-            inner.__database_nested(&format!("{path}.{i}"), rules);
+            inner.__database_nested(&format!("{path}.{i}"), rules, context);
         }
     }
 }

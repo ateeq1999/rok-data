@@ -68,7 +68,7 @@ pub(crate) fn field_checks(fields: &[&Field], krate: &TokenStream2) -> Vec<Token
                 .collect();
             if f.nested {
                 checks.push(quote! {
-                    #v::Nested::__check_nested(&self.#ident, #field, &mut errors);
+                    #v::Nested::<<Self as #krate::Input>::Context>::__check_nested(&self.#ident, #field, &mut errors);
                 });
             }
             (!checks.is_empty()).then(|| guarded(f, quote!(#(#checks)*)))
@@ -161,7 +161,7 @@ pub(crate) fn transform_steps(fields: &[&Field], krate: &TokenStream2) -> Vec<To
         .flat_map(|f| {
             let ident = &f.ident;
             let nested = f.nested.then(
-                || quote!(self.#ident = #krate::validate::Nested::__transform_nested(self.#ident);),
+                || quote!(self.#ident = #krate::validate::Nested::<<Self as #krate::Input>::Context>::__transform_nested(self.#ident);),
             );
             f.transforms
                 .iter()
@@ -247,19 +247,23 @@ fn model_of(column: &Path) -> Path {
 
 /// The expressions that build each field's built-in database rules, each
 /// an `Option<DatabaseRule>`.
-pub(crate) fn database_rule_steps(fields: &[&Field], krate: &TokenStream2) -> Vec<TokenStream2> {
+pub(crate) fn database_rule_steps(
+    fields: &[&Field],
+    krate: &TokenStream2,
+    with_context: bool,
+) -> Vec<TokenStream2> {
     fields
         .iter()
         .filter_map(|f| {
             let ident = &f.ident;
             let field = unraw(ident);
-            let mut steps: Vec<TokenStream2> = rule_builders(f, krate)
+            let mut steps: Vec<TokenStream2> = rule_builders(f, krate, with_context)
                 .into_iter()
                 .map(|builder| quote!(rules.extend(#builder);))
                 .collect();
             if f.nested {
                 steps.push(quote! {
-                    #krate::validate::Nested::__database_nested(&self.#ident, #field, &mut rules);
+                    #krate::validate::Nested::<<Self as #krate::Input>::Context>::__database_nested(&self.#ident, #field, &mut rules, context);
                 });
             }
             (!steps.is_empty()).then(|| guarded(f, quote!(#(#steps)*)))
@@ -268,7 +272,8 @@ pub(crate) fn database_rule_steps(fields: &[&Field], krate: &TokenStream2) -> Ve
 }
 
 /// The expressions that build one field's built-in database rules.
-fn rule_builders(f: &Field, krate: &TokenStream2) -> Vec<TokenStream2> {
+fn rule_builders(f: &Field, krate: &TokenStream2, with_context: bool) -> Vec<TokenStream2> {
+    let context = with_context.then(|| quote!(, context));
     let ident = &f.ident;
     let field = unraw(ident);
     std::iter::once(f)
@@ -282,7 +287,7 @@ fn rule_builders(f: &Field, krate: &TokenStream2) -> Vec<TokenStream2> {
                 let scope = |scope: &Option<Path>, column: &Path| {
                     let model = model_of(column);
                     match scope {
-                        Some(path) => quote!(::core::option::Option::Some::<#krate::Expr<#model>>(#path(self))),
+                        Some(path) => quote!(::core::option::Option::Some::<#krate::Expr<#model>>(#path(self #context))),
                         None => quote!(::core::option::Option::None::<#krate::Expr<#model>>),
                     }
                 };
@@ -317,7 +322,9 @@ fn rule_builders(f: &Field, krate: &TokenStream2) -> Vec<TokenStream2> {
 
 /// The statements that run each field's custom database rule, skipped when
 /// `failed` already holds an error for the field.
-pub(crate) fn custom_database_steps(fields: &[&Field]) -> Vec<TokenStream2> {
+pub(crate) fn custom_database_steps(fields: &[&Field], with_context: bool) -> Vec<TokenStream2> {
+    let context = with_context.then(|| quote!(, context));
+    let context = &context;
     fields
         .iter()
         .flat_map(|f| {
@@ -328,7 +335,7 @@ pub(crate) fn custom_database_steps(fields: &[&Field]) -> Vec<TokenStream2> {
                     f,
                     quote! {
                         if failed.field(#field).next().is_none() {
-                            if let ::core::result::Result::Err(message) = #path(&self.#ident, journey.reborrow()).await {
+                            if let ::core::result::Result::Err(message) = #path(&self.#ident, journey.reborrow() #context).await {
                                 found.add(#field, "database", message);
                             }
                         }
@@ -386,7 +393,7 @@ pub(crate) fn schema_steps(fields: &[&Field], krate: &TokenStream2) -> Vec<Token
             let field = unraw(&f.ident);
             let ty = &f.ty;
             let base = if f.nested {
-                quote!(<#ty as #krate::validate::Nested>::__nested_schema())
+                quote!(<#ty as #krate::validate::Nested<<Self as #krate::Input>::Context>>::__nested_schema())
             } else {
                 quote!((&#krate::validate::Probe::<#ty>::new()).schema())
             };

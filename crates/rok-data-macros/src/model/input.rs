@@ -25,6 +25,7 @@ fn tokens(input: &DeriveInput) -> syn::Result<TokenStream2> {
     }
     let mut validate_with: Option<Path> = None;
     let mut validate_with_database: Option<Path> = None;
+    let mut context: Option<syn::Type> = None;
     let mut krate = crate_path();
     for attr in input.attrs.iter().filter(|a| a.path().is_ident("rok")) {
         attr.parse_nested_meta(|meta| {
@@ -32,12 +33,14 @@ fn tokens(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 validate_with = Some(meta.value()?.parse()?);
             } else if meta.path.is_ident("validate_with_database") {
                 validate_with_database = Some(meta.value()?.parse()?);
+            } else if meta.path.is_ident("context") {
+                context = Some(meta.value()?.parse()?);
             } else if meta.path.is_ident("crate") {
                 let path: Path = meta.value()?.parse()?;
                 krate = quote!(#path);
             } else {
                 return Err(meta.error(
-                    "unknown `rok` attribute on an input; expected `validate_with`, `validate_with_database` or `crate`",
+                    "unknown `rok` attribute on an input; expected `validate_with`, `validate_with_database`, `context` or `crate`",
                 ));
             }
             Ok(())
@@ -53,19 +56,23 @@ fn tokens(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let fields: Vec<&Field> = fields.iter().filter(|f| !f.skip).collect();
     let checks = field_checks(&fields, &krate);
     let steps = transform_steps(&fields, &krate);
-    let rule_steps = database_rule_steps(&fields, &krate);
+    let with_context = context.is_some();
+    let context_type = context.map_or_else(|| quote!(()), |ty| quote!(#ty));
+    let record_context = with_context.then(|| quote!(, context));
+    let rule_steps = database_rule_steps(&fields, &krate, with_context);
     let schema = schema_steps(&fields, &krate);
-    let custom = custom_database_steps(&fields);
+    let custom = custom_database_steps(&fields, with_context);
     let record_database = validate_with_database.map(|path| {
         quote! {
-            if let ::core::result::Result::Err(more) = #path(self, journey.reborrow()).await {
+            if let ::core::result::Result::Err(more) = #path(self, journey.reborrow() #record_context).await {
                 found.merge(more);
             }
         }
     });
     let database_rules_fn = (!rule_steps.is_empty()).then(|| {
         quote! {
-            fn __database_rules(&self) -> ::std::vec::Vec<#krate::validate::DatabaseRule> {
+            fn __database_rules(&self, context: &Self::Context) -> ::std::vec::Vec<#krate::validate::DatabaseRule> {
+                let _ = context;
                 let mut rules = ::std::vec::Vec::new();
                 #(#rule_steps)*
                 rules
@@ -78,8 +85,9 @@ fn tokens(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 &self,
                 journey: &mut #krate::Journey<'_>,
                 failed: &#krate::ValidationErrors,
+                context: &Self::Context,
             ) -> #krate::Result<#krate::ValidationErrors> {
-                let _ = failed;
+                let _ = (failed, context);
                 let mut found = #krate::ValidationErrors::new();
                 #(#custom)*
                 #record_database
@@ -99,6 +107,8 @@ fn tokens(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let mutable = (!steps.is_empty()).then(|| quote!(mut));
     Ok(quote! {
         impl #impl_generics #krate::Input for #name #ty_generics #where_clause {
+            type Context = #context_type;
+
             fn __transform(#mutable self) -> Self {
                 #(#steps)*
                 self
@@ -133,15 +143,20 @@ fn tokens(input: &DeriveInput) -> syn::Result<TokenStream2> {
 /// step delegates to the variant's input.
 fn enum_tokens(input: &DeriveInput, data: &syn::DataEnum) -> syn::Result<TokenStream2> {
     let mut krate = crate_path();
+    let mut context = quote!(());
     for attr in input.attrs.iter().filter(|a| a.path().is_ident("rok")) {
         attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("crate") {
                 let path: Path = meta.value()?.parse()?;
                 krate = quote!(#path);
                 Ok(())
+            } else if meta.path.is_ident("context") {
+                let ty: syn::Type = meta.value()?.parse()?;
+                context = quote!(#ty);
+                Ok(())
             } else {
                 Err(meta.error(
-                    "an enum input takes only `crate`; its variants' inputs carry the rules",
+                    "an enum input takes only `crate` and `context`; its variants' inputs carry the rules",
                 ))
             }
         })?;
@@ -166,6 +181,8 @@ fn enum_tokens(input: &DeriveInput, data: &syn::DataEnum) -> syn::Result<TokenSt
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
     Ok(quote! {
         impl #impl_generics #krate::Input for #name #ty_generics #where_clause {
+            type Context = #context;
+
             fn __transform(self) -> Self {
                 match self {
                     #(Self::#variants(inner) => Self::#variants(#krate::Input::__transform(inner)),)*
@@ -182,9 +199,9 @@ fn enum_tokens(input: &DeriveInput, data: &syn::DataEnum) -> syn::Result<TokenSt
                 #krate::validate::Schema::one_of(::std::vec![#(<#inner as #krate::Input>::__schema()),*])
             }
 
-            fn __database_rules(&self) -> ::std::vec::Vec<#krate::validate::DatabaseRule> {
+            fn __database_rules(&self, context: &Self::Context) -> ::std::vec::Vec<#krate::validate::DatabaseRule> {
                 match self {
-                    #(Self::#variants(inner) => #krate::Input::__database_rules(inner),)*
+                    #(Self::#variants(inner) => #krate::Input::__database_rules(inner, context),)*
                 }
             }
 
@@ -192,9 +209,10 @@ fn enum_tokens(input: &DeriveInput, data: &syn::DataEnum) -> syn::Result<TokenSt
                 &self,
                 journey: &mut #krate::Journey<'_>,
                 failed: &#krate::ValidationErrors,
+                context: &Self::Context,
             ) -> #krate::Result<#krate::ValidationErrors> {
                 match self {
-                    #(Self::#variants(inner) => #krate::Input::__custom_database(inner, journey, failed).await,)*
+                    #(Self::#variants(inner) => #krate::Input::__custom_database(inner, journey, failed, context).await,)*
                 }
             }
         }

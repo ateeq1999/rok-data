@@ -293,6 +293,13 @@ compiler finds the call sites.
   `shared/validation.rs`. The `normalize_email` transform now normalizes
   as the generated APIs' `normalizeEmail` does (provider subaddresses,
   Gmail dots) and no longer trims: add `trim` before it.
+- **Validation context** (input-validation ticket 08, first part):
+  `#[rok(context = Caller)]` on an input lets its database rules read
+  who is asking: `scope = fn(&Self, &Caller) -> Expr<…>`, custom rules
+  `async fn(&T, Journey, &Caller)`, `validate_with_database` likewise;
+  validate it with `input.validate_with(&db, &caller)` (`validate(&db)`
+  stays for inputs without a context). `Input` gains `type Context`
+  (`()` unless declared); nested inputs share their parent's.
 - **The rest of the catalogue** (input-validation ticket 07, second
   part): `min_length = n`, `max_length = n`, `fixed_length = n`
   (characters, codes `minLength` / `maxLength` / `fixedLength`), and with
