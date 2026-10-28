@@ -62,7 +62,7 @@ pub(super) fn render_join_writes(output: &mut String, table: &Table, pair: &Join
             output,
             "attach",
             &keys::scoped_params(table, &[near_param.clone(), far_param.clone()]),
-            "Result<bool, sqlx::Error>",
+            "Result<bool, rok_data::Error>",
         );
         joins.push_attach(output);
         output.push_str("}\n");
@@ -89,10 +89,10 @@ pub(super) fn render_join_writes(output: &mut String, table: &Table, pair: &Join
         output,
         "detach",
         &keys::scoped_params(table, &[near_param.clone(), far_param]),
-        "Result<bool, sqlx::Error>",
+        "Result<bool, rok_data::Error>",
     );
     joins.push_detach(output);
-    output.push_str("    Ok(result.rows_affected() > 0)\n}\n");
+    output.push_str("    Ok(rows > 0)\n}\n");
 
     if required.is_empty() {
         output.push('\n');
@@ -124,7 +124,7 @@ pub(super) fn render_join_writes(output: &mut String, table: &Table, pair: &Join
                     format!("{}: &[{}]", joins.set, pair.far.value_type()),
                 ],
             ),
-            "Result<(), sqlx::Error>",
+            "Result<(), rok_data::Error>",
         );
         joins.push_sync(output);
         output.push_str("    Ok(())\n}\n");
@@ -238,7 +238,7 @@ impl<'a> JoinSql<'a> {
         let binds = self.binds(&param_name(self.pair.far));
         let Some(live) = &self.soft_delete else {
             StaticQuery {
-                call: "sqlx::query",
+                call: "rok_data::raw",
                 sql: vec![
                     self.insert_into(),
                     format!("VALUES ({values})"),
@@ -247,8 +247,8 @@ impl<'a> JoinSql<'a> {
                 binds,
                 execute: "execute(executor)",
             }
-            .push(output, 4, "let result = ", "?;");
-            output.push_str("    Ok(result.rows_affected() > 0)\n");
+            .push(output, 4, "let rows = ", "?;");
+            output.push_str("    Ok(rows > 0)\n");
             return;
         };
         // The restore picks one soft-deleted row, and only when no live
@@ -256,7 +256,7 @@ impl<'a> JoinSql<'a> {
         let table = table_ref(self.table);
         let both = self.both();
         StaticQuery {
-            call: "sqlx::query_scalar::<_, bool>",
+            call: "rok_data::raw",
             sql: vec![
                 format!("WITH {RESTORED} AS ("),
                 format!("    UPDATE {table}"),
@@ -284,7 +284,7 @@ impl<'a> JoinSql<'a> {
                 ),
             ],
             binds,
-            execute: "fetch_one(executor)",
+            execute: "scalar(executor)",
         }
         .push(output, 4, "", "");
     }
@@ -303,12 +303,12 @@ impl<'a> JoinSql<'a> {
             ],
         };
         StaticQuery {
-            call: "sqlx::query",
+            call: "rok_data::raw",
             sql,
             binds: self.binds(&param_name(self.pair.far)),
             execute: "execute(executor)",
         }
-        .push(output, 4, "let result = ", "?;");
+        .push(output, 4, "let rows = ", "?;");
     }
 
     fn push_sync(&self, output: &mut String) {
@@ -381,7 +381,7 @@ impl<'a> JoinSql<'a> {
             }
         };
         StaticQuery {
-            call: "sqlx::query",
+            call: "rok_data::raw",
             sql,
             binds: self.binds(&self.set),
             execute: "execute(executor)",

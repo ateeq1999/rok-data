@@ -364,7 +364,7 @@ pub fn render_pair_writes(output: &mut String, relation: &Relation<'_>) {
         let doc: Vec<&str> = doc.iter().map(String::as_str).collect();
         push_doc(output, 0, &doc);
         let function = format!("{name}_{}", relation.name);
-        push_fn_head(output, &function, &params, "Result<bool, sqlx::Error>");
+        push_fn_head(output, &function, &params, "Result<bool, rok_data::Error>");
         let mut args = leading.clone();
         args.extend(pair.iter().cloned());
         push_call(output, 4, "", &call(name), &args, ".await");
@@ -384,7 +384,7 @@ pub fn render_pair_writes(output: &mut String, relation: &Relation<'_>) {
         params.push(format!("{own}: {}", param_type(writes.own)));
         params.push(format!("ids: &[{}]", writes.other.value_type()));
         let function = format!("sync_{}", relation.name);
-        push_fn_head(output, &function, &params, "Result<(), sqlx::Error>");
+        push_fn_head(output, &function, &params, "Result<(), rok_data::Error>");
         let mut args = leading;
         args.extend([own, "ids".to_owned()]);
         push_call(output, 4, "", &call("sync"), &args, ".await");

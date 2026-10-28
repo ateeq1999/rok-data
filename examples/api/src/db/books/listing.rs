@@ -79,11 +79,11 @@ pub async fn isbn_taken<'e, E>(
     executor: E,
     isbn: &str,
     except: Option<BookId>,
-) -> Result<bool, sqlx::Error>
+) -> Result<bool, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, bool>(
+    rok_data::raw(
         r#"
         SELECT EXISTS (
             SELECT 1
@@ -95,6 +95,6 @@ where
     )
     .bind(isbn)
     .bind(except)
-    .fetch_one(executor)
+    .scalar(executor)
     .await
 }

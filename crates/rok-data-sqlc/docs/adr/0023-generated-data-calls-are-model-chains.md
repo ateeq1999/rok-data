@@ -18,8 +18,10 @@ The generated `db/` folder used two styles at once. CRUD went through the runtim
 - **They return chains:** a lookup or search returns a `Select<User>` (or the runtime's write builder). The call site picks how to run it: `.first(&db)`, `.all(&db)`, `.count(&db)`, `.paginate(&db, page, per_page)`, `.cursor_paginate(..)`. One generated function covers what `search`, `search_after`, `list`, `list_page` and `count` did.
 - **Annotated queries stay free functions:** an annotated query has no natural owner model, so `db::queries::<file>::<query>` keeps its place (engine ADR 0008).
 
-**Generated code never names `sqlx`.**
+**Generated queries run through `rok_data`, not `sqlx`.**
 
+- **What stays `sqlx`:** the type mapping the runtime binds and decodes through (`sqlx::Type` and `FromRow` derives, a generated enum's `Encode`/`Decode`) and the executors (`PgPool`, `PgConnection`). These are the runtime's types, not a second query path.
+- **Not yet converted:** two generated paths still run their statements through `sqlx`: the versioned `patch` (dynamic SQL, decoding the row and an `applied` flag) and the relationship loaders (joined rows decoded by prefix). They are left for a later change.
 - **Model calls:** they go through the query chain.
 - **Annotated queries:** they go through `rok_data::raw(sql).bind(..)`, so their functions return `rok_data::Error` too.
 - **Sort keys:** a sort enum answers a typed `rok_data::Order` (`UserSort::order(direction)`). The list's `q` is `filter_any(SEARCH_COLUMNS, |c| c.icontains(q))`.

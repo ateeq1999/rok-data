@@ -47,15 +47,6 @@ pub fn column_clause(keyword: &str, table: &Table) -> Vec<String> {
     lines
 }
 
-/// `a = $1 AND b = $2` over the given key columns, numbering from `first`.
-pub fn key_predicate(keys: &[&Column], first: usize) -> String {
-    keys.iter()
-        .enumerate()
-        .map(|(index, column)| format!("{} = ${}", ident(&column.sql_name), first + index))
-        .collect::<Vec<_>>()
-        .join(" AND ")
-}
-
 /// A column reference, qualified with `alias` when there is one: `a.col`.
 fn column_ref(alias: Option<&str>, column: &str) -> String {
     match alias {
@@ -85,28 +76,6 @@ pub fn tenant_condition(table: &Table, alias: Option<&str>) -> Option<String> {
 /// `$2` on a table with a tenant column, `$1` otherwise.
 pub fn first_placeholder(table: &Table) -> usize {
     1 + usize::from(table.tenant().is_some())
-}
-
-/// The tenant condition (when the table has a tenant column) followed by
-/// `key_predicate` over `keys`, numbered after the tenant's placeholder.
-pub fn scoped_key_predicate(table: &Table, keys: &[&Column]) -> String {
-    let tenant = tenant_condition(table, None);
-    let first = first_placeholder(table);
-    tenant
-        .into_iter()
-        .chain((!keys.is_empty()).then(|| key_predicate(keys, first)))
-        .collect::<Vec<_>>()
-        .join(" AND ")
-}
-
-/// `scoped_key_predicate`, followed by `AND <soft-delete column> IS NULL`
-/// when the table has one, so only a live row matches.
-pub fn live_key_predicate(table: &Table, keys: &[&Column]) -> String {
-    let predicate = scoped_key_predicate(table, keys);
-    match live_condition(table, None) {
-        Some(live) => format!("{predicate} AND {live}"),
-        None => predicate,
-    }
 }
 
 /// `column` compared with the value bound at `$placeholder`: `col = $n`, or,

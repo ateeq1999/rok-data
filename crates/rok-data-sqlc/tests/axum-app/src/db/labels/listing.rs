@@ -103,11 +103,11 @@ pub async fn name_taken<'e, E>(
     executor: E,
     name: &str,
     except: Option<LabelId>,
-) -> Result<bool, sqlx::Error>
+) -> Result<bool, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, bool>(
+    rok_data::raw(
         r#"
         SELECT EXISTS (
             SELECT 1
@@ -119,7 +119,7 @@ where
     )
     .bind(name)
     .bind(except)
-    .fetch_one(executor)
+    .scalar(executor)
     .await
 }
 
@@ -129,7 +129,7 @@ pub async fn attach_notes<'e, E>(
     executor: E,
     label_id: LabelId,
     note_id: NoteId,
-) -> Result<bool, sqlx::Error>
+) -> Result<bool, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
@@ -141,7 +141,7 @@ pub async fn detach_notes<'e, E>(
     executor: E,
     label_id: LabelId,
     note_id: NoteId,
-) -> Result<bool, sqlx::Error>
+) -> Result<bool, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {

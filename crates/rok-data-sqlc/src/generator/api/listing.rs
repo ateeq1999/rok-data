@@ -11,13 +11,10 @@ use super::feature::{Endpoint, Feature};
 use super::layout::push_signature;
 use super::relations::Relation;
 use crate::generator::openapi::push_to_schema;
-use crate::generator::sql::{
-    column_clause, first_placeholder, ident, live_key_predicate, scoped_key_predicate, str_literal,
-    table_ref,
-};
+use crate::generator::sql::{ident, str_literal};
 use crate::generator::{
-    HEADER, StaticQuery, doc_name, keys, model_chain, param_name, param_type, push_doc,
-    push_fn_head, push_sort_into_order, push_wide_chain, types_import, use_paths,
+    HEADER, doc_name, keys, model_chain, param_name, param_type, push_doc, push_fn_head,
+    push_sort_into_order, push_wide_chain, types_import, use_paths,
 };
 use crate::schema::Column;
 
@@ -179,21 +176,33 @@ fn render_owned(output: &mut String, feature: &Feature<'_>) {
     let Some(owner) = feature.owner else {
         return;
     };
-    let keys = table.key_columns();
-    let owner_condition = format!(
-        "{} = ${}",
-        ident(&owner.sql_name),
-        first_placeholder(table) + keys.len()
-    );
-    let predicate = format!("{} AND {owner_condition}", live_key_predicate(table, &keys));
+    let row = feature.row();
     let mut params = keys::key_params(table);
     params.push("owner: uuid::Uuid".to_owned());
-    let mut binds = keys::scoped_key_binds(table);
-    binds.push("owner".to_owned());
-
-    let mut sql = column_clause("SELECT", table);
-    sql.push(format!("FROM {}", table_ref(table)));
-    sql.push(format!("WHERE {predicate}"));
+    // Each read is the row's `by_primary_key` chain, scoped to the owner.
+    let head = format!(
+        "{row}::by_primary_key({})",
+        keys::key_args(table).join(", ")
+    );
+    let owned = format!(
+        ".filter({row}::{}.eq(owner))",
+        owner.rust_name.to_uppercase()
+    );
+    let args = keys::key_args(table);
+    // The function's tail: the scoped chain, run. A head too long for its
+    // line is bound first, so neither statement breaks its arguments.
+    let push_tail = |output: &mut String, calls: &[&str]| {
+        let calls: Vec<String> = std::iter::once(owned.clone())
+            .chain(calls.iter().map(|call| (*call).to_owned()))
+            .collect();
+        if 4 + head.len() < crate::generator::MAX_WIDTH {
+            push_wide_chain(output, 4, "", &head, &calls, "");
+        } else {
+            let callee = format!("{row}::by_primary_key");
+            super::layout::push_call(output, 4, "let query = ", &callee, &args, ";");
+            push_wide_chain(output, 4, "", "query", &calls, "");
+        }
+    };
     push_doc(
         output,
         0,
@@ -209,27 +218,22 @@ fn render_owned(output: &mut String, feature: &Feature<'_>) {
         output,
         "get_owned",
         &params,
-        &format!("Result<Option<{}>, sqlx::Error>", feature.row()),
+        &format!("Result<Option<{row}>, rok_data::Error>"),
     );
-    StaticQuery {
-        call: &format!("sqlx::query_as::<_, {}>", feature.row()),
-        sql,
-        binds: binds.clone(),
-        execute: "fetch_optional(executor)",
-    }
-    .push(output, 4, "", "");
+    push_tail(output, &[".first(executor)", ".await"]);
     output.push_str("}\n\n");
 
     // Soft-deleted rows too: restoring one checks its owner first.
-    let sql = vec![
-        "SELECT 1".to_owned(),
-        format!("FROM {}", table_ref(table)),
-        format!(
-            "WHERE {} AND {owner_condition}",
-            scoped_key_predicate(table, &keys)
-        ),
-        "FOR UPDATE".to_owned(),
-    ];
+    let mut lock = Vec::new();
+    if table.soft_delete_column.is_some() {
+        lock.push(".with_trashed()");
+    }
+    lock.extend([
+        ".for_update()",
+        ".first(executor)",
+        ".await",
+        ".map(|row| row.is_some())",
+    ]);
     let mut doc = vec![
         "Returns whether `owner` owns the row with the given primary key, locking",
         "it until the transaction ends, so a write that checks first changes only",
@@ -239,23 +243,15 @@ fn render_owned(output: &mut String, feature: &Feature<'_>) {
         doc.push("A soft-deleted row counts.");
     }
     push_doc(output, 0, &doc);
-    push_fn_head(output, "lock_owned", &params, "Result<bool, sqlx::Error>");
-    StaticQuery {
-        call: "sqlx::query_scalar::<_, i32>",
-        sql,
-        binds: binds.clone(),
-        execute: "fetch_optional(executor)",
-    }
-    .push(output, 4, "let row = ", "?;");
-    output.push_str("    Ok(row.is_some())\n}\n\n");
+    push_fn_head(
+        output,
+        "lock_owned",
+        &params,
+        "Result<bool, rok_data::Error>",
+    );
+    push_tail(output, &lock);
+    output.push_str("}\n\n");
 
-    let sql = vec![
-        "SELECT EXISTS (".to_owned(),
-        "    SELECT 1".to_owned(),
-        format!("    FROM {}", table_ref(table)),
-        format!("    WHERE {predicate}"),
-        ")".to_owned(),
-    ];
     let mut doc = vec![
         "Returns whether `owner` owns the row with the given primary key: the",
         "`exists` check of a reference to it in a create or update body.",
@@ -264,17 +260,15 @@ fn render_owned(output: &mut String, feature: &Feature<'_>) {
         doc.push("Soft-deleted rows are left out.");
     }
     push_doc(output, 0, &doc);
-    push_fn_head(output, "exists_owned", &params, "Result<bool, sqlx::Error>");
-    StaticQuery {
-        call: "sqlx::query_scalar::<_, bool>",
-        sql,
-        binds,
-        execute: "fetch_one(executor)",
-    }
-    .push(output, 4, "", "");
+    push_fn_head(
+        output,
+        "exists_owned",
+        &params,
+        "Result<bool, rok_data::Error>",
+    );
+    push_tail(output, &[".exists(executor)", ".await"]);
     output.push_str("}\n");
 
-    let row = feature.row();
     let owner_value = if owner.typed_id.is_some() {
         format!("uuid::Uuid::from(row.{})", owner.rust_name)
     } else {

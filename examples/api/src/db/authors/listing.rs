@@ -83,11 +83,11 @@ pub async fn email_taken<'e, E>(
     executor: E,
     email: &str,
     except: Option<AuthorId>,
-) -> Result<bool, sqlx::Error>
+) -> Result<bool, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, bool>(
+    rok_data::raw(
         r#"
         SELECT EXISTS (
             SELECT 1
@@ -99,6 +99,6 @@ where
     )
     .bind(email)
     .bind(except)
-    .fetch_one(executor)
+    .scalar(executor)
     .await
 }

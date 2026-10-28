@@ -45,11 +45,11 @@ impl NoteLabel {
         executor: E,
         note_id: NoteId,
         label_id: LabelId,
-    ) -> Result<bool, sqlx::Error>
+    ) -> Result<bool, rok_data::Error>
     where
         E: rok_data::Executor<'e>,
     {
-        let result = sqlx::query(
+        let rows = rok_data::raw(
             r#"
             INSERT INTO note_labels (note_id, label_id)
             VALUES ($1, $2)
@@ -60,7 +60,7 @@ impl NoteLabel {
         .bind(label_id)
         .execute(executor)
         .await?;
-        Ok(result.rows_affected() > 0)
+        Ok(rows > 0)
     }
 
     /// Unpairs the `notes` row from the `labels` row, and returns whether they
@@ -69,11 +69,11 @@ impl NoteLabel {
         executor: E,
         note_id: NoteId,
         label_id: LabelId,
-    ) -> Result<bool, sqlx::Error>
+    ) -> Result<bool, rok_data::Error>
     where
         E: rok_data::Executor<'e>,
     {
-        let result = sqlx::query(
+        let rows = rok_data::raw(
             r#"
             DELETE FROM note_labels
             WHERE note_id = $1 AND label_id = $2
@@ -83,7 +83,7 @@ impl NoteLabel {
         .bind(label_id)
         .execute(executor)
         .await?;
-        Ok(result.rows_affected() > 0)
+        Ok(rows > 0)
     }
 
     /// Replaces the `labels` rows paired with the `notes` row by `label_ids`, in one
@@ -92,11 +92,11 @@ impl NoteLabel {
         executor: E,
         note_id: NoteId,
         label_ids: &[LabelId],
-    ) -> Result<(), sqlx::Error>
+    ) -> Result<(), rok_data::Error>
     where
         E: rok_data::Executor<'e>,
     {
-        sqlx::query(
+        rok_data::raw(
             r#"
             WITH rok_data_sqlc_removed AS (
                 DELETE FROM note_labels

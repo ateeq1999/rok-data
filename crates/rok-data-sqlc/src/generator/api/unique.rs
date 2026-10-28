@@ -161,9 +161,11 @@ fn render_read(output: &mut String, feature: &Feature<'_>, check: &UniqueCheck<'
         if keys.len() == 1 {
             binds.push("except".to_owned());
         } else {
+            // A bound value is owned: a `rok_data::Value` takes no
+            // `Option<&String>`.
             binds.extend(keys.iter().map(|key| {
-                let borrow = if key.is_copy() { "" } else { "&" };
-                format!("except.map(|key| {borrow}key.{})", key.rust_name)
+                let owned = if key.is_copy() { "" } else { ".clone()" };
+                format!("except.map(|key| key.{}{owned})", key.rust_name)
             }));
         }
     }
@@ -214,13 +216,13 @@ fn render_read(output: &mut String, feature: &Feature<'_>, check: &UniqueCheck<'
         output,
         &check.function(),
         &params,
-        "Result<bool, sqlx::Error>",
+        "Result<bool, rok_data::Error>",
     );
     StaticQuery {
-        call: "sqlx::query_scalar::<_, bool>",
+        call: "rok_data::raw",
         sql,
         binds,
-        execute: "fetch_one(executor)",
+        execute: "scalar(executor)",
     }
     .push(output, 4, "", "");
     output.push_str("}\n");

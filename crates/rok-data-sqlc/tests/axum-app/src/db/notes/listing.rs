@@ -128,29 +128,14 @@ pub async fn get_owned<'e, E>(
     tenant_id: uuid::Uuid,
     id: NoteId,
     owner: uuid::Uuid,
-) -> Result<Option<Note>, sqlx::Error>
+) -> Result<Option<Note>, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, Note>(
-        r#"
-        SELECT
-            id,
-            owner_id,
-            tenant_id,
-            title,
-            body,
-            revision,
-            deleted_at
-        FROM notes
-        WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL AND owner_id = $3
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(id)
-    .bind(owner)
-    .fetch_optional(executor)
-    .await
+    Note::by_primary_key(tenant_id, id)
+        .filter(Note::OWNER_ID.eq(owner))
+        .first(executor)
+        .await
 }
 
 /// Returns whether `owner` owns the row with the given primary key, locking
@@ -162,24 +147,17 @@ pub async fn lock_owned<'e, E>(
     tenant_id: uuid::Uuid,
     id: NoteId,
     owner: uuid::Uuid,
-) -> Result<bool, sqlx::Error>
+) -> Result<bool, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    let row = sqlx::query_scalar::<_, i32>(
-        r#"
-        SELECT 1
-        FROM notes
-        WHERE tenant_id = $1 AND id = $2 AND owner_id = $3
-        FOR UPDATE
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(id)
-    .bind(owner)
-    .fetch_optional(executor)
-    .await?;
-    Ok(row.is_some())
+    Note::by_primary_key(tenant_id, id)
+        .filter(Note::OWNER_ID.eq(owner))
+        .with_trashed()
+        .for_update()
+        .first(executor)
+        .await
+        .map(|row| row.is_some())
 }
 
 /// Returns whether `owner` owns the row with the given primary key: the
@@ -190,24 +168,14 @@ pub async fn exists_owned<'e, E>(
     tenant_id: uuid::Uuid,
     id: NoteId,
     owner: uuid::Uuid,
-) -> Result<bool, sqlx::Error>
+) -> Result<bool, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, bool>(
-        r#"
-        SELECT EXISTS (
-            SELECT 1
-            FROM notes
-            WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL AND owner_id = $3
-        )
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(id)
-    .bind(owner)
-    .fetch_one(executor)
-    .await
+    Note::by_primary_key(tenant_id, id)
+        .filter(Note::OWNER_ID.eq(owner))
+        .exists(executor)
+        .await
 }
 
 /// Whether `owner` owns `row` (its `owner_id`).
@@ -233,7 +201,7 @@ pub async fn attach_labels<'e, E>(
     executor: E,
     note_id: NoteId,
     label_id: LabelId,
-) -> Result<bool, sqlx::Error>
+) -> Result<bool, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
@@ -245,7 +213,7 @@ pub async fn detach_labels<'e, E>(
     executor: E,
     note_id: NoteId,
     label_id: LabelId,
-) -> Result<bool, sqlx::Error>
+) -> Result<bool, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
@@ -258,7 +226,7 @@ pub async fn sync_labels<'e, E>(
     executor: E,
     note_id: NoteId,
     ids: &[LabelId],
-) -> Result<(), sqlx::Error>
+) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {

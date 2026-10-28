@@ -26,6 +26,11 @@ Generated data calls move onto the runtime (engine ADR 0023):
   and the rest) are gone; the verbs live on the model only.
 - **API lookups:** `GET …/by-<column>/{value}` keeps its handler and service
   names (`get_by_<column>`) and reads through `Row::by_<column>`.
+- **Owned reads:** `get_owned`, `lock_owned` and `exists_owned` are the
+  row's `by_primary_key` chain scoped to the owner (`for_update()` for the
+  lock), and fail with `rok_data::Error`.
+- **Join-table writes:** `attach`, `detach` and `sync` run through
+  `rok_data::raw` and fail with `rok_data::Error`.
 - **Annotated queries:** they run through `rok_data::raw` and fail with
   `rok_data::Error` instead of `sqlx::Error`. They name the models they
   return bare (`Result<Option<Media>, rok_data::Error>`), imported once.
