@@ -8,8 +8,8 @@ pub(super) async fn belongs_to_filter_matches_each_row_once(pool: &PgPool) {
     use db::categories::filter::CategoryFilter;
     use db::categories::models::NewCategory;
     use db::products::filter::{ProductFilter, ProductSortKey};
-    use db::products::models::{NewProduct, ProductId};
-    use db::search::{Sort, Text, Window};
+    use db::products::models::{NewProduct, Product, ProductId};
+    use db::search::{Sort, Text};
 
     let mut categories = Vec::new();
     for name in ["rel-tools", "rel-toys", "rel-tools-extra"] {
@@ -46,17 +46,16 @@ pub(super) async fn belongs_to_filter_matches_each_row_once(pool: &PgPool) {
         .unwrap();
     }
     let search = async |category: CategoryFilter| {
-        let rows = db::products::read::search(
-            pool,
-            ProductFilter {
-                category: Some(Box::new(category)),
-                ..Default::default()
-            },
-            Sort::asc(ProductSortKey::Sku),
-            Window::first(100),
-        )
-        .await
-        .unwrap();
+        let filter = ProductFilter {
+            category: Some(Box::new(category)),
+            ..Default::default()
+        };
+        let rows = Product::search(filter)
+            .unwrap()
+            .order_by(Sort::asc(ProductSortKey::Sku))
+            .all(pool)
+            .await
+            .unwrap();
         skus(&rows)
     };
 
@@ -132,20 +131,18 @@ async fn post_titles(
     filter: db::posts::filter::PostFilter,
 ) -> Vec<String> {
     use db::posts::filter::PostSortKey;
-    use db::search::{Sort, Window};
+    use db::posts::models::Post;
+    use db::search::Sort;
 
-    db::posts::read::search(
-        pool,
-        tenant,
-        filter,
-        Sort::asc(PostSortKey::Id),
-        Window::first(100),
-    )
-    .await
-    .unwrap()
-    .into_iter()
-    .map(|post| post.title)
-    .collect()
+    Post::search(tenant, filter)
+        .unwrap()
+        .order_by(Sort::asc(PostSortKey::Id))
+        .all(pool)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|post| post.title)
+        .collect()
 }
 
 /// Posts with at least one comment by an author: each post once, however
@@ -208,8 +205,9 @@ pub(super) async fn has_many_filter_matches_each_parent_once(pool: &PgPool) {
 /// non-null, live related row.
 pub(super) async fn relationship_filters_skip_deleted_and_other_tenant_rows(pool: &PgPool) {
     use db::comments::filter::{CommentFilter, CommentSortKey};
+    use db::comments::models::Comment;
     use db::posts::filter::PostFilter;
-    use db::search::{Sort, Window};
+    use db::search::Sort;
 
     let tenant = create_tenant(pool, 22_201).await;
     let other = create_tenant(pool, 22_202).await;
@@ -248,18 +246,15 @@ pub(super) async fn relationship_filters_skip_deleted_and_other_tenant_rows(pool
     );
 
     let comment_ids = async |tenant, filter: CommentFilter| {
-        db::comments::read::search(
-            pool,
-            tenant,
-            filter,
-            Sort::asc(CommentSortKey::Id),
-            Window::first(100),
-        )
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|comment| comment.id)
-        .collect::<Vec<_>>()
+        Comment::search(tenant, filter)
+            .unwrap()
+            .order_by(Sort::asc(CommentSortKey::Id))
+            .all(pool)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|comment| comment.id)
+            .collect::<Vec<_>>()
     };
     let with_live_post = CommentFilter {
         post: Some(Box::default()),
@@ -293,8 +288,8 @@ pub(super) async fn relationship_filters_skip_deleted_and_other_tenant_rows(pool
 /// filters nest at most `MAX_RELATIONSHIP_DEPTH` deep.
 pub(super) async fn self_reference_filters_and_nesting_depth(pool: &PgPool) {
     use db::org_units::filter::{OrgUnitFilter, OrgUnitSortKey};
-    use db::org_units::models::NewOrgUnit;
-    use db::search::{MAX_RELATIONSHIP_DEPTH, Sort, Text, Window};
+    use db::org_units::models::{NewOrgUnit, OrgUnit};
+    use db::search::{MAX_RELATIONSHIP_DEPTH, Sort, Text};
 
     let unit = async |parent_id, name: &str| {
         db::org_units::models::OrgUnit::create(
@@ -310,15 +305,13 @@ pub(super) async fn self_reference_filters_and_nesting_depth(pool: &PgPool) {
     let top = unit(None, "rel-top").await;
     let middle = unit(Some(top.id), "rel-middle").await;
     unit(Some(middle.id), "rel-bottom").await;
-    let names = async |filter: OrgUnitFilter| {
-        db::org_units::read::search(
-            pool,
-            filter,
-            Sort::asc(OrgUnitSortKey::Id),
-            Window::first(100),
-        )
-        .await
-        .map(|units| units.into_iter().map(|unit| unit.name).collect::<Vec<_>>())
+    // Nesting too deep fails as the query is built, before it runs.
+    let names = async |filter: OrgUnitFilter| -> Result<Vec<String>, rok_data::Error> {
+        let units = OrgUnit::search(filter)?
+            .order_by(Sort::asc(OrgUnitSortKey::Id))
+            .all(pool)
+            .await?;
+        Ok(units.into_iter().map(|unit| unit.name).collect())
     };
     let named = |name: &str| OrgUnitFilter {
         name: vec![Text::Eq(name.to_owned())],
@@ -354,7 +347,7 @@ pub(super) async fn self_reference_filters_and_nesting_depth(pool: &PgPool) {
     );
     let too_deep = names(ancestors(MAX_RELATIONSHIP_DEPTH + 1)).await;
     assert!(
-        matches!(too_deep, Err(sqlx::Error::InvalidArgument(_))),
+        matches!(too_deep, Err(rok_data::Error::InvalidQuery(_))),
         "{too_deep:?}"
     );
 }
@@ -364,9 +357,10 @@ pub(super) async fn self_reference_filters_and_nesting_depth(pool: &PgPool) {
 /// opted-out `approved_by_user` has no filter field (only its column's).
 pub(super) async fn renamed_relationships_filter_under_their_new_names(pool: &PgPool) {
     use db::expense_claims::filter::{ExpenseClaimFilter, ExpenseClaimSortKey};
-    use db::expense_claims::models::NewExpenseClaim;
-    use db::search::{Ordered, Sort, Text, Window};
+    use db::expense_claims::models::{ExpenseClaim, NewExpenseClaim};
+    use db::search::{Ordered, Sort, Text};
     use db::users::filter::{UserFilter, UserSortKey};
+    use db::users::models::User;
 
     let writer = create_user(pool, "writer@claims.example").await;
     let reviewer = create_user(pool, "reviewer@claims.example").await;
@@ -381,37 +375,35 @@ pub(super) async fn renamed_relationships_filter_under_their_new_names(pool: &Pg
     .await
     .unwrap();
 
-    let claims = db::expense_claims::read::search(
-        pool,
-        ExpenseClaimFilter {
-            author: Some(Box::new(UserFilter {
-                email: vec![Text::Eq("writer@claims.example".to_owned())],
-                ..Default::default()
-            })),
-            // The opted-out relationship leaves only its column's conditions.
-            approved_by_user_id: vec![Ordered::Eq(reviewer.id)],
+    let claims = ExpenseClaimFilter {
+        author: Some(Box::new(UserFilter {
+            email: vec![Text::Eq("writer@claims.example".to_owned())],
             ..Default::default()
-        },
-        Sort::asc(ExpenseClaimSortKey::Id),
-        Window::first(10),
-    )
-    .await
-    .unwrap();
+        })),
+        // The opted-out relationship leaves only its column's conditions.
+        approved_by_user_id: vec![Ordered::Eq(reviewer.id)],
+        ..Default::default()
+    };
+    let claims = ExpenseClaim::search(claims)
+        .unwrap()
+        .order_by(Sort::asc(ExpenseClaimSortKey::Id))
+        .all(pool)
+        .await
+        .unwrap();
     assert_eq!(claims, vec![claim]);
 
-    let authors = db::users::read::search(
-        pool,
-        UserFilter {
-            authored_expense_claims: Some(Box::new(ExpenseClaimFilter {
-                amount_cents: vec![Ordered::Eq(22_500)],
-                ..Default::default()
-            })),
+    let authors = UserFilter {
+        authored_expense_claims: Some(Box::new(ExpenseClaimFilter {
+            amount_cents: vec![Ordered::Eq(22_500)],
             ..Default::default()
-        },
-        Sort::asc(UserSortKey::Id),
-        Window::first(10),
-    )
-    .await
-    .unwrap();
+        })),
+        ..Default::default()
+    };
+    let authors = User::search(authors)
+        .unwrap()
+        .order_by(Sort::asc(UserSortKey::Id))
+        .all(pool)
+        .await
+        .unwrap();
     assert_eq!(authors, vec![writer], "the reviewer only approved it");
 }

@@ -1,10 +1,9 @@
-use super::sql::{column_clause, ident, key_order, str_literal, table_ref};
 use crate::schema::{Column, Table};
 
 use super::search::SearchApi;
 use super::{
-    HEADER, filter_call, keys, model_chain, param_name, param_type, push_build_and_fetch,
-    push_chain, push_doc, push_fn_head, tenant_filter_call, types_import, use_list, use_paths,
+    HEADER, filter_call, keys, model_chain, param_name, param_type, push_chain, push_doc,
+    push_fn_head, tenant_filter_call, types_import, use_list, use_paths,
 };
 
 pub fn render(table: &Table, tables: &[Table]) -> String {
@@ -36,42 +35,17 @@ pub fn render(table: &Table, tables: &[Table]) -> String {
         render_list_page(&mut output, table);
     }
     render_count(&mut output, table);
-    if api.search {
+    if api.any() {
         render_search(&mut output, table, fallible);
-    }
-    if api.search_after {
-        render_search_after(&mut output, table, fallible);
     }
 
     output
 }
 
-/// The `use` lines for the search and enum types `read.rs` needs, sorted the
+/// The `use` lines for the filter and enum types `read.rs` needs, sorted the
 /// way rustfmt sorts them (`super::super::` before `super::filter`).
 fn search_imports(table: &Table, api: SearchApi) -> String {
-    let name = &table.struct_name;
-    let mut shared = Vec::new();
-    let mut local = Vec::new();
-    if api.search_after {
-        shared.push("Limit");
-        local.push(format!("{name}Filter"));
-    }
-    if api.search {
-        shared.extend(["Sort", "Window"]);
-        if local.is_empty() {
-            local.push(format!("{name}Filter"));
-        }
-        local.push(format!("{name}SortKey"));
-    }
-    let braced = |items: Vec<String>| match items.as_slice() {
-        [single] => single.clone(),
-        _ => format!("{{{}}}", items.join(", ")),
-    };
     let mut paths = Vec::new();
-    if !shared.is_empty() {
-        let shared = shared.into_iter().map(str::to_owned).collect();
-        paths.push(format!("super::super::search::{}", braced(shared)));
-    }
     // Key parameters and the keyset cursor use the key's type: an enum key
     // column's type, never a key struct's fields. Unique-key lookups take
     // each key column's value type.
@@ -96,8 +70,8 @@ fn search_imports(table: &Table, api: SearchApi) -> String {
         lookup_columns().chain(keys::param_columns(table)),
         true,
     ));
-    if !local.is_empty() {
-        paths.push(format!("super::filter::{}", braced(local)));
+    if api.any() {
+        paths.push(format!("super::filter::{}Filter", table.struct_name));
     }
     use_paths(&paths)
 }
@@ -161,17 +135,6 @@ fn push_read_doc(output: &mut String, table: &Table, lines: &[&str]) {
     push_doc_with_note(output, table, lines, "Soft-deleted rows are left out.");
 }
 
-/// A search's doc comment, noting on a soft-delete table how to include
-/// deleted rows.
-fn push_search_doc(output: &mut String, table: &Table, lines: &[&str]) {
-    push_doc_with_note(
-        output,
-        table,
-        lines,
-        "Soft-deleted rows are left out unless `filter.include_deleted` is set.",
-    );
-}
-
 fn push_doc_with_note(output: &mut String, table: &Table, lines: &[&str], note: &str) {
     let mut lines = lines.to_vec();
     if table.soft_delete_column.is_some() {
@@ -232,145 +195,69 @@ fn render_unique_lookup(output: &mut String, table: &Table, lookup: &Lookup<'_>)
     output.push_str("}\n");
 }
 
-/// Starts a search body: the `QueryBuilder` over the explicit column list,
-/// then the filter's `WHERE` clause and, on a tenant table, the tenant
-/// condition.
-fn push_search_preamble(output: &mut String, table: &Table, fallible: bool) {
-    let mut select = column_clause("SELECT", table);
-    select.push(format!("FROM {}", table_ref(table)));
-    output.push_str("    let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(\n");
-    output.push_str(&super::sql::raw_block(&select, 8));
-    output.push_str(",\n    );\n");
-    output.push_str(if fallible {
-        "    filter.push_where(&mut query)?;\n"
-    } else {
-        "    filter.push_where(&mut query);\n"
-    });
-    if let Some(tenant) = table.tenant() {
-        output.push_str(&format!(
-            "    query.push({});\n    query.push_bind({});\n",
-            str_literal(&format!(" AND {} = ", ident(&tenant.sql_name))),
-            param_name(tenant)
-        ));
-    }
-}
-
-fn render_search_after(output: &mut String, table: &Table, fallible: bool) {
-    let key_columns = table.key_columns();
-    let name = &table.struct_name;
-    let key_type = keys::key_param_type(table);
-    let key_pattern = keys::key_binding(table);
-    let binds = keys::key_binds(table);
-
-    output.push('\n');
-    let next_page = if key_columns.len() > 1 {
-        "row's `key()` to fetch the next page."
-    } else {
-        "row's key to fetch the next page."
-    };
-    push_search_doc(
-        output,
-        table,
-        &[
-            "Keyset pagination in primary-key order: up to `limit` rows matching `filter`",
-            "whose key comes after `after` (from the start when `None`). Pass the last",
-            next_page,
-        ],
-    );
-    push_fn_head(
-        output,
-        "search_after",
-        &keys::scoped_params(
-            table,
-            &[
-                format!("filter: {name}Filter"),
-                format!("after: Option<{key_type}>"),
-                "limit: Limit".to_owned(),
-            ],
-        ),
-        &format!("Result<Vec<{name}>, sqlx::Error>"),
-    );
-    push_search_preamble(output, table, fallible);
-    output.push_str(&format!("    if let Some({key_pattern}) = after {{\n"));
-    match key_columns.as_slice() {
-        [key] => {
-            output.push_str(&format!(
-                "        query.push({});\n        query.push_bind({});\n",
-                str_literal(&format!(" AND {} > ", ident(&key.sql_name))),
-                binds[0]
-            ));
-        }
-        _ => {
-            output.push_str(&format!(
-                "        query.push({});\n",
-                str_literal(&format!(" AND ({}) > (", key_order(&key_columns)))
-            ));
-            for (index, bind) in binds.iter().enumerate() {
-                if index > 0 {
-                    output.push_str("        query.push(\", \");\n");
-                }
-                output.push_str(&format!("        query.push_bind({bind});\n"));
-            }
-            output.push_str("        query.push(\")\");\n");
-        }
-    }
-    output.push_str("    }\n");
-    output.push_str(&format!(
-        "    query.push({});\n",
-        str_literal(&format!(" ORDER BY {} LIMIT ", key_order(&key_columns)))
-    ));
-    output.push_str("    query.push_bind(limit.get());\n");
-    push_build_and_fetch(output, table, "fetch_all");
-    output.push_str("}\n");
-}
-
+/// `impl Row { fn search }`: the rows `filter` matches as a query chain,
+/// which the caller orders and pages (`.order_by(..)`, `.paginate(..)`,
+/// `.cursor_paginate(..)`).
 fn render_search(output: &mut String, table: &Table, fallible: bool) {
-    let keys = table.primary_key_columns();
     let name = &table.struct_name;
-
-    output.push('\n');
-    let tie_break = if keys.is_empty() {
-        "The table has no primary key, so rows that tie on the sort key come back in no particular order."
+    output.push_str(&format!("\nimpl {name} {{\n"));
+    let mut doc = vec![
+        "The rows matching `filter`, as a query chain: order and page it there,",
+        "`.order_by(..)` and `.paginate(executor, page, per_page)`.",
+    ];
+    if table.soft_delete_column.is_some() {
+        doc.push("Soft-deleted rows are left out unless `filter.include_deleted` is set.");
+    }
+    if fallible {
+        doc.extend([
+            "",
+            "# Errors",
+            "",
+            "`rok_data::Error::InvalidQuery` when relationship filters nest more than",
+            "`MAX_RELATIONSHIP_DEPTH` deep.",
+        ]);
+    }
+    push_doc(output, 4, &doc);
+    let select = format!("rok_data::Select<{name}>");
+    let returns = if fallible {
+        format!("Result<{select}, rok_data::Error>")
     } else {
-        "Rows that tie on the sort key are ordered by primary key, so pages are stable."
+        output.push_str("    #[must_use]\n");
+        select
     };
-    push_search_doc(
-        output,
-        table,
-        &[
-            "Fetches one page of rows matching `filter`, ordered by `sort`.",
-            tie_break,
-        ],
-    );
-    push_fn_head(
-        output,
-        "search",
-        &keys::scoped_params(
-            table,
-            &[
-                format!("filter: {name}Filter"),
-                format!("sort: Sort<{name}SortKey>"),
-                "page: Window".to_owned(),
-            ],
-        ),
-        &format!("Result<Vec<{name}>, sqlx::Error>"),
-    );
-    push_search_preamble(output, table, fallible);
-    output.push_str("    query.push(\" ORDER BY \");\n");
-    output.push_str("    query.push(sort.key.column());\n");
-    output.push_str("    query.push(sort.direction.sql());\n");
-    if !keys.is_empty() {
+    let params = keys::scoped_params(table, &[format!("filter: {name}Filter")]);
+    super::push_signature(output, 4, "pub fn search", &params, &returns);
+    let live = table.soft_delete_column.is_some();
+    if live {
         output.push_str(&format!(
-            "    query.push({});\n",
-            str_literal(&format!(", {}", key_order(&keys)))
+            "        let trashed = filter.{};\n",
+            super::conventions::INCLUDE_DELETED
         ));
     }
-    output.push_str("    query.push(\" LIMIT \");\n");
-    output.push_str("    query.push_bind(page.limit());\n");
-    output.push_str("    query.push(\" OFFSET \");\n");
-    output.push_str("    query.push_bind(page.offset());\n");
-    push_build_and_fetch(output, table, "fetch_all");
-    output.push_str("}\n");
+    let condition = if fallible {
+        "filter.condition()?"
+    } else {
+        "filter.condition()"
+    };
+    let mut calls: Vec<String> = tenant_filter_call(table).into_iter().collect();
+    calls.push(format!(".filter({condition})"));
+    let lead = if live { "let query = " } else { "" };
+    let head = model_chain(name, &mut calls, 8, lead);
+    match (live, fallible) {
+        (true, _) => super::push_wide_chain(output, 8, lead, &head, &calls, ";"),
+        (false, true) => super::push_ok_chain(output, 8, &head, &calls),
+        (false, false) => super::push_wide_chain(output, 8, "", &head, &calls, ""),
+    }
+    match (live, fallible) {
+        (true, true) => {
+            output.push_str("        Ok(if trashed { query.with_trashed() } else { query })\n")
+        }
+        (true, false) => {
+            output.push_str("        if trashed { query.with_trashed() } else { query }\n")
+        }
+        _ => {}
+    }
+    output.push_str("    }\n}\n");
 }
 
 fn render_get_by_id(output: &mut String, table: &Table) {

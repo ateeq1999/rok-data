@@ -48,8 +48,7 @@ pub(super) async fn managed_columns_are_left_to_the_database(pool: &PgPool) {
 /// literals below name every field).
 pub(super) async fn versioned_updates_detect_concurrent_edits(pool: &PgPool) {
     use db::UpdateOutcome;
-    use db::search::{Sort, Window};
-    use db::versioned_documents::filter::{VersionedDocumentFilter, VersionedDocumentSortKey};
+    use db::versioned_documents::filter::VersionedDocumentFilter;
     use db::versioned_documents::models::VersionedDocument;
     use db::versioned_documents::models::{
         NewVersionedDocument, UpdateVersionedDocument, VersionedDocumentId,
@@ -161,18 +160,14 @@ pub(super) async fn versioned_updates_detect_concurrent_edits(pool: &PgPool) {
     // A soft-deleted row counts as missing, even at its current revision,
     // and the update leaves it unchanged.
     VersionedDocument::destroy(pool, created.id).await.unwrap();
-    let deleted = read::search(
-        pool,
-        VersionedDocumentFilter {
-            include_deleted: true,
-            ..VersionedDocumentFilter::default()
-        },
-        Sort::asc(VersionedDocumentSortKey::Id),
-        Window::first(10),
-    )
+    let deleted = VersionedDocument::search(VersionedDocumentFilter {
+        include_deleted: true,
+        ..VersionedDocumentFilter::default()
+    })
+    .first(pool)
     .await
     .unwrap()
-    .remove(0);
+    .unwrap();
     assert!(deleted.deleted_at.is_some());
     let patched_deleted = VersionedDocument::patch(
         pool,
@@ -208,7 +203,7 @@ pub(super) async fn versioned_updates_detect_concurrent_edits(pool: &PgPool) {
 /// literals below name every field), `destroy` hides a row from every read,
 /// `restore` brings it back, and `delete_permanently` removes it.
 pub(super) async fn soft_deleted_rows_are_hidden_restored_and_removed(pool: &PgPool) {
-    use db::search::{Limit, Sort, Window};
+    use db::search::Sort;
     use db::soft_notes::filter::{SoftNoteFilter, SoftNoteSortKey};
     use db::soft_notes::models::{NewSoftNote, SoftNote, UpdateSoftNote};
     use db::soft_notes::read;
@@ -228,12 +223,9 @@ pub(super) async fn soft_deleted_rows_are_hidden_restored_and_removed(pool: &PgP
 
     let ids = |rows: Vec<SoftNote>| rows.into_iter().map(|row| row.id).collect::<Vec<_>>();
     let search = |filter: SoftNoteFilter| {
-        read::search(
-            pool,
-            filter,
-            Sort::asc(SoftNoteSortKey::Id),
-            Window::first(10),
-        )
+        SoftNote::search(filter)
+            .order_by(Sort::asc(SoftNoteSortKey::Id))
+            .all(pool)
     };
     let assert_visible = async |visible: bool| {
         let expect = |ids: Vec<_>| {
@@ -259,14 +251,11 @@ pub(super) async fn soft_deleted_rows_are_hidden_restored_and_removed(pool: &PgP
             if visible { 2 } else { 1 }
         );
         expect(ids(search(SoftNoteFilter::default()).await.unwrap()));
-        expect(ids(read::search_after(
-            pool,
-            SoftNoteFilter::default(),
-            None,
-            Limit::new(10),
-        )
-        .await
-        .unwrap()));
+        let keyset = SoftNote::search(SoftNoteFilter::default())
+            .cursor_paginate(pool, None, 10)
+            .await
+            .unwrap();
+        expect(ids(keyset.items));
     };
     assert_visible(true).await;
 

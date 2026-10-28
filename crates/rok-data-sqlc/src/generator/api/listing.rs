@@ -17,7 +17,7 @@ use crate::generator::sql::{
 };
 use crate::generator::{
     HEADER, StaticQuery, doc_name, keys, model_chain, param_name, param_type, push_doc,
-    push_fn_head, push_wide_chain, types_import, use_paths,
+    push_fn_head, push_sort_into_order, push_wide_chain, types_import, use_paths,
 };
 use crate::schema::Column;
 
@@ -89,9 +89,6 @@ pub fn render(feature: &Feature<'_>) -> String {
         // In rustfmt's order: the types, then the functions.
         // Every sort enum orders by `direction`.
         let mut search_items = vec!["Direction", "Sort"];
-        if searches {
-            search_items.push("Window");
-        }
         if cursor && searched {
             search_items.push("contains_pattern");
         }
@@ -405,7 +402,7 @@ fn render_list(output: &mut String, feature: &Feature<'_>) {
         );
     }
     output.push_str(
-        "        if let Some(sort) = sort {\n            query = query.order_by(sort.key.order(sort.direction));\n        }\n",
+        "        if let Some(sort) = sort {\n            query = query.order_by(sort);\n        }\n",
     );
     let ties: Vec<String> = keys
         .iter()
@@ -471,7 +468,9 @@ fn render_sort_enum(output: &mut String, feature: &Feature<'_>) {
         ));
     }
     output.push_str("        }\n    }\n");
-    if feature.serves(Endpoint::List) && !feature.cursor {
+    // A cursor-paged list renders the same `order` itself (`render_order`).
+    let cursor_list = feature.cursor && feature.serves(Endpoint::List);
+    if !cursor_list && (feature.serves(Endpoint::List) || feature.serves(Endpoint::Search)) {
         let row = feature.row();
         output.push('\n');
         push_doc(output, 4, &["How this key orders rows, in `direction`."]);
@@ -524,4 +523,7 @@ fn render_sort_enum(output: &mut String, feature: &Feature<'_>) {
         super::cursor_list::render_order(output, feature);
     }
     output.push_str("}\n");
+    if feature.serves(Endpoint::List) || feature.serves(Endpoint::Search) {
+        push_sort_into_order(output, &sort, feature.row());
+    }
 }

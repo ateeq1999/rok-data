@@ -46,6 +46,13 @@ impl AuditLogEntrySort {
     }
 }
 
+/// A sort as the chain's order: `.order_by(sort)`.
+impl From<Sort<AuditLogEntrySort>> for rok_data::Order<AuditLogEntry> {
+    fn from(sort: Sort<AuditLogEntrySort>) -> Self {
+        sort.key.order(sort.direction)
+    }
+}
+
 impl AuditLogEntry {
     /// The rows of the list endpoint, ordered by `sort`, ties by primary key.
     /// Run it a page at a time with `.paginate(executor, page, per_page)`.
@@ -53,7 +60,7 @@ impl AuditLogEntry {
     pub fn matching(sort: Option<Sort<AuditLogEntrySort>>) -> rok_data::Select<AuditLogEntry> {
         let mut query = AuditLogEntry::query();
         if let Some(sort) = sort {
-            query = query.order_by(sort.key.order(sort.direction));
+            query = query.order_by(sort);
         }
         query.order_by(AuditLogEntry::ID)
     }

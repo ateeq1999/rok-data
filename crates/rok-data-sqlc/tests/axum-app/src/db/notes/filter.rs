@@ -4,7 +4,10 @@ use super::super::accounts::filter::AccountFilter;
 use super::super::accounts::models::AccountId;
 use super::super::labels::filter::LabelFilter;
 use super::super::note_labels::filter::NoteLabelFilter;
-use super::super::search::{Equality, Ordered, Text, correlate, open_exists, push_null_check};
+use super::super::search::{
+    Condition, Direction, Equality, Ordered, Sort, Text, correlate, open_exists, push_null_check,
+};
+use super::models::Note;
 use super::models::NoteId;
 
 /// Conditions for `search` over `notes`.
@@ -52,21 +55,18 @@ pub struct NoteFilter {
 }
 
 impl NoteFilter {
-    /// Appends the `WHERE` clause for these conditions.
+    /// These conditions as one condition on the model's chain.
+    /// Soft-deleted rows are the caller's: `include_deleted` chooses
+    /// `with_trashed()`.
     ///
     /// # Errors
     ///
-    /// `sqlx::Error::InvalidArgument` when relationship filters nest more than
+    /// `rok_data::Error::InvalidQuery` when relationship filters nest more than
     /// `MAX_RELATIONSHIP_DEPTH` deep.
-    pub(crate) fn push_where(
-        self,
-        query: &mut sqlx::QueryBuilder<sqlx::Postgres>,
-    ) -> Result<(), sqlx::Error> {
-        query.push(" WHERE TRUE");
-        if !self.include_deleted {
-            query.push(" AND deleted_at IS NULL");
-        }
-        self.push_conditions("notes", 0, query)
+    pub(crate) fn condition(self) -> Result<rok_data::Expr<Note>, rok_data::Error> {
+        let mut query = Condition::default();
+        self.push_conditions("notes", 0, &mut query)?;
+        Ok(query.into_expr())
     }
 
     /// Appends ` AND <condition>` for each condition, without the `WHERE` clause or
@@ -76,14 +76,14 @@ impl NoteFilter {
     ///
     /// # Errors
     ///
-    /// `sqlx::Error::InvalidArgument` when relationship filters nest more than
+    /// `rok_data::Error::InvalidQuery` when relationship filters nest more than
     /// `MAX_RELATIONSHIP_DEPTH` deep.
     pub(crate) fn push_conditions(
         self,
         outer: &str,
         depth: usize,
-        query: &mut sqlx::QueryBuilder<sqlx::Postgres>,
-    ) -> Result<(), sqlx::Error> {
+        query: &mut Condition,
+    ) -> Result<(), rok_data::Error> {
         for condition in self.id {
             condition.push("id", query);
         }
@@ -150,16 +150,27 @@ pub enum NoteSortKey {
 }
 
 impl NoteSortKey {
-    /// The SQL column this key sorts by.
+    /// How this key orders rows, in `direction`.
     #[must_use]
-    pub fn column(self) -> &'static str {
-        match self {
-            Self::Id => "id",
-            Self::OwnerId => "owner_id",
-            Self::Title => "title",
-            Self::Body => "body",
-            Self::Revision => "revision",
-            Self::DeletedAt => "deleted_at",
+    pub fn order(self, direction: Direction) -> rok_data::Order<Note> {
+        let column = match self {
+            Self::Id => Note::ID,
+            Self::OwnerId => Note::OWNER_ID,
+            Self::Title => Note::TITLE,
+            Self::Body => Note::BODY,
+            Self::Revision => Note::REVISION,
+            Self::DeletedAt => Note::DELETED_AT,
+        };
+        match direction {
+            Direction::Asc => column.asc(),
+            Direction::Desc => column.desc(),
         }
+    }
+}
+
+/// A sort as the chain's order: `.order_by(sort)`.
+impl From<Sort<NoteSortKey>> for rok_data::Order<Note> {
+    fn from(sort: Sort<NoteSortKey>) -> Self {
+        sort.key.order(sort.direction)
     }
 }

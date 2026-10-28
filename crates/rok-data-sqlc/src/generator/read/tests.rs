@@ -78,7 +78,13 @@ fn quotes_reserved_and_mixed_case_identifiers_and_keeps_schema() {
     // The chains name columns by Rust field name; the reserved or
     // mixed-case SQL name is quoted in the row's model derive.
     assert!(rendered.contains("filter(User::SELECT.eq(select))"));
-    assert!(rendered.contains("FROM \"Auth\".users"));
+    // No SQL text: the search chain starts at the model, whose derive names
+    // the `"Auth".users` table.
+    assert!(!rendered.contains("FROM "), "{rendered}");
+    assert!(
+        rendered.contains("User::filter(filter.condition())"),
+        "{rendered}"
+    );
 }
 
 #[test]
@@ -101,10 +107,10 @@ fn without_primary_key_only_unordered_list_and_count() {
         !list.contains(".order_by("),
         "list has no stable order to offer"
     );
+    // `search` is a chain: the caller orders it.
     assert!(
-        !rendered.contains("query.push(\", ")
-            && rendered.contains("query.push(sort.direction.sql());"),
-        "search sorts by the caller's key with no primary-key tie-break"
+        rendered.contains("pub fn search(filter: UserFilter) -> rok_data::Select<User> {"),
+        "{rendered}"
     );
     assert!(rendered.contains("No primary key detected"));
     assert!(rendered.contains("pub async fn list<'e, E>(executor: E)"));
@@ -123,10 +129,6 @@ fn text_keys_are_borrowed() {
     assert!(rendered.contains("get_by_id<'e, E>(executor: E, code: &UserId)"));
     assert!(rendered.contains("exists_by_id<'e, E>(executor: E, code: &UserId)"));
     assert!(rendered.contains("filter(User::CODE.eq(code))"));
-    assert!(
-        rendered.contains("    after: Option<&UserId>,\n"),
-        "{rendered}"
-    );
 
     let rendered = render_alone(&table(
         vec![column("order_id", "uuid::Uuid"), column("sku", "String")],
@@ -136,7 +138,6 @@ fn text_keys_are_borrowed() {
         rendered.contains("(executor: E, key: &UserKey)"),
         "{rendered}"
     );
-    assert!(rendered.contains("    after: Option<&UserKey>,\n"));
 }
 
 /// A `BYTEA` key is borrowed as a byte slice, like text as `&str`.
@@ -147,10 +148,6 @@ fn byte_keys_are_borrowed_as_slices() {
         &["digest"],
     ));
     assert!(rendered.contains("get_by_id<'e, E>(executor: E, digest: &[u8])"));
-    assert!(
-        rendered.contains("    after: Option<&[u8]>,\n"),
-        "{rendered}"
-    );
     assert!(rendered.contains("filter(User::DIGEST.eq(digest))"));
 }
 

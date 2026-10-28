@@ -8,8 +8,7 @@ use super::layout::{Uses, push_call, push_signature};
 use super::service::{data_args, own_params};
 use crate::generator::openapi::{condition_value_type, push_to_schema, push_value_type};
 use crate::generator::search::filter_columns;
-use crate::generator::sql::{column_clause, ident, key_order, raw_block, str_literal, table_ref};
-use crate::generator::{doc_name, push_doc, push_fn_head};
+use crate::generator::{doc_name, push_doc, push_ok_chain, push_wide_chain};
 use crate::schema::Column;
 
 /// The search body and its filter, with `From` into the data layer's
@@ -199,112 +198,87 @@ pub fn serde_snake_case(variant: &str) -> String {
     name
 }
 
-/// `search_matching` and `count_search`: the rows the data layer's filter
-/// matches, scoped to the tenant and the owner, a page at a time, and
-/// their count.
+/// `search_sorted`: the rows the data layer's filter matches, scoped to the
+/// owner, ordered by `sort`, as a query chain the service pages.
 pub fn render_listing(output: &mut String, feature: &Feature<'_>) {
     let table = feature.table;
+    let row = feature.row();
     let filter = feature.db_filter();
     let mut scope = Vec::new();
+    let mut args = Vec::new();
     if let Some(tenant) = table.tenant() {
-        scope.push(format!(
-            "{}: {}",
-            crate::generator::param_name(tenant),
-            crate::generator::param_type(tenant)
-        ));
+        let name = crate::generator::param_name(tenant);
+        scope.push(format!("{name}: {}", crate::generator::param_type(tenant)));
+        args.push(name);
     }
     if feature.owner.is_some() {
         scope.push("owner: uuid::Uuid".to_owned());
     }
-    let try_ = if feature.filter_fallible { "?" } else { "" };
+    let fallible = feature.filter_fallible;
     let whose = if feature.owner.is_some() {
         " `owner` owns"
     } else {
         ""
     };
     let keys = table.primary_key_columns();
-    output.push('\n');
-    push_doc(
-        output,
-        0,
-        &[&format!(
-            "Fetches one page of the rows{whose} that `filter` matches, ordered by `sort`{}.",
+    output.push_str(&format!("\nimpl {row} {{\n"));
+    let mut doc = vec![
+        format!(
+            "The rows{whose} that `filter` matches, ordered by `sort`{}.",
             if keys.is_empty() {
                 ""
             } else {
                 ", ties by primary key"
             }
-        )],
-    );
-    let mut params = scope.clone();
-    params.push(format!("filter: {filter}"));
-    params.push(format!("sort: Sort<{}>", feature.sort_enum()));
-    params.push("page: Window".to_owned());
-    push_fn_head(
-        output,
-        "search_matching",
-        &params,
-        &format!("Result<Vec<{}>, sqlx::Error>", feature.row()),
-    );
-    let mut sql = column_clause("SELECT", table);
-    sql.push(format!("FROM {}", table_ref(table)));
-    output.push_str("    let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(\n");
-    output.push_str(&raw_block(&sql, 8));
-    output.push_str(",\n    );\n");
-    output.push_str(&format!("    filter.push_where(&mut query){try_};\n"));
-    push_scope(output, feature);
-    output.push_str(
-        "    query.push(\" ORDER BY \");\n    query.push(sort.key.column());\n    query.push(sort.direction.sql());\n",
-    );
-    if !keys.is_empty() {
-        output.push_str(&format!(
-            "    query.push({});\n",
-            str_literal(&format!(", {}", key_order(&keys)))
-        ));
+        ),
+        "Run it a page at a time with `.paginate(executor, page, per_page)`.".to_owned(),
+    ];
+    if fallible {
+        doc.extend(
+            [
+                "",
+                "# Errors",
+                "",
+                "`rok_data::Error::InvalidQuery` when relationship filters nest more than",
+                "`MAX_RELATIONSHIP_DEPTH` deep.",
+            ]
+            .map(str::to_owned),
+        );
     }
-    output.push_str(
-        "    query.push(\" LIMIT \");\n    query.push_bind(page.limit());\n    query.push(\" OFFSET \");\n    query.push_bind(page.offset());\n",
-    );
-    crate::generator::push_build_and_fetch(output, table, "fetch_all");
-    output.push_str("}\n\n");
-
-    push_doc(
-        output,
-        0,
-        &[&format!(
-            "Counts the rows{whose} that `filter` matches: every page's rows together."
-        )],
-    );
+    let doc: Vec<&str> = doc.iter().map(String::as_str).collect();
+    push_doc(output, 4, &doc);
+    let select = format!("rok_data::Select<{row}>");
+    let returns = if fallible {
+        format!("Result<{select}, rok_data::Error>")
+    } else {
+        output.push_str("    #[must_use]\n");
+        select
+    };
     let mut params = scope;
     params.push(format!("filter: {filter}"));
-    push_fn_head(output, "count_search", &params, "Result<i64, sqlx::Error>");
-    crate::generator::push_let_call(
-        output,
-        4,
-        "let mut query",
-        "sqlx::QueryBuilder::<sqlx::Postgres>::new",
-        &str_literal(&format!("SELECT COUNT(*) FROM {}", table_ref(table))),
-    );
-    output.push_str(&format!("    filter.push_where(&mut query){try_};\n"));
-    push_scope(output, feature);
-    output.push_str("    query.build_query_scalar::<i64>().fetch_one(executor).await\n}\n");
-}
-
-/// ` AND <tenant> = ` and ` AND <owner> = `, each with its bind.
-pub fn push_scope(output: &mut String, feature: &Feature<'_>) {
-    if let Some(tenant) = feature.table.tenant() {
-        output.push_str(&format!(
-            "    query.push({});\n    query.push_bind({});\n",
-            str_literal(&format!(" AND {} = ", ident(&tenant.sql_name))),
-            crate::generator::param_name(tenant)
-        ));
-    }
+    params.push(format!("sort: Sort<{}>", feature.sort_enum()));
+    push_signature(output, 4, "pub fn search_sorted", &params, &returns);
+    args.push("filter".to_owned());
+    let try_ = if fallible { "?" } else { "" };
+    let mut calls = Vec::new();
     if let Some(owner) = feature.owner {
-        output.push_str(&format!(
-            "    query.push({});\n    query.push_bind(owner);\n",
-            str_literal(&format!(" AND {} = ", ident(&owner.sql_name)))
+        calls.push(format!(
+            ".filter({row}::{}.eq(owner))",
+            owner.rust_name.to_uppercase()
         ));
     }
+    calls.push(".order_by(sort)".to_owned());
+    calls.extend(
+        keys.iter()
+            .map(|key| format!(".order_by({row}::{})", key.rust_name.to_uppercase())),
+    );
+    let head = format!("{row}::search({}){try_}", args.join(", "));
+    if fallible {
+        push_ok_chain(output, 8, &head, &calls);
+    } else {
+        push_wide_chain(output, 8, "", &head, &calls, "");
+    }
+    output.push_str("    }\n}\n");
 }
 
 /// The service method of `POST /search`: the data layer filter of the
@@ -347,32 +321,19 @@ pub fn render_service(output: &mut String, uses: &mut Uses, feature: &Feature<'_
         "        let filter = {}::from(body.filter);\n",
         feature.db_filter()
     ));
-    let mut args = data_args(feature, "self.pool()");
+    // The scope's arguments, without the executor: `search_sorted` builds
+    // the query, and `paginate` runs it.
+    let mut args: Vec<String> = data_args(feature, "").into_iter().skip(1).collect();
     if feature.owner.is_some() {
         args.push("user.id".to_owned());
     }
-    let mut search_args = args.clone();
-    search_args.extend([
-        "filter.clone()".to_owned(),
-        "sort".to_owned(),
-        "pagination.into()".to_owned(),
-    ]);
-    push_call(
-        output,
-        8,
-        "let rows = ",
-        "repo::search_matching",
-        &search_args,
-        ".await?;",
+    args.extend(["filter".to_owned(), "sort".to_owned()]);
+    output.push_str(
+        "        let (page, per_page) = (pagination.page.into(), pagination.per_page.into());\n",
     );
-    args.push("filter".to_owned());
-    push_call(
-        output,
-        8,
-        "let total = ",
-        "repo::count_search",
-        &args,
-        ".await?;",
-    );
-    output.push_str("        Ok(PaginatedResponse::new(rows, pagination, total))\n    }\n");
+    let trail = if feature.filter_fallible { "?;" } else { ";" };
+    let callee = format!("{}::search_sorted", feature.row());
+    push_call(output, 8, "let rows = ", &callee, &args, trail);
+    output
+        .push_str("        Ok(rows.paginate(self.pool(), page, per_page).await?.into())\n    }\n");
 }

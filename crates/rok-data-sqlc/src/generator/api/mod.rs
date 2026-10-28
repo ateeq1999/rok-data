@@ -42,6 +42,7 @@ use std::path::PathBuf;
 use self::feature::Endpoint;
 pub use self::feature::Feature;
 use self::framework::Framework;
+pub(crate) use self::layout::push_signature;
 use crate::ApiConfig;
 use crate::schema::Table;
 

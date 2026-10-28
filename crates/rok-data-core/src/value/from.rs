@@ -10,7 +10,9 @@ impl_array!(sqlx::types::Uuid);
 #[cfg(feature = "chrono")]
 impl_array!(
     sqlx::types::chrono::DateTime<sqlx::types::chrono::Utc>,
+    sqlx::types::chrono::NaiveDateTime,
     sqlx::types::chrono::NaiveDate,
+    sqlx::types::chrono::NaiveTime,
 );
 
 impl_from! {

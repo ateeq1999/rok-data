@@ -37,7 +37,7 @@ pub(super) fn push_conditions_fn(
     doc.extend(ERRORS_DOC);
     push_doc(output, 4, &doc);
     output.push_str(&format!(
-        "    pub(crate) fn push_conditions(\n        self,\n        outer: &str,\n        depth: usize,\n        {QUERY_PARAM},\n    ) -> Result<(), sqlx::Error> {{\n"
+        "    pub(crate) fn push_conditions(\n        self,\n        outer: &str,\n        depth: usize,\n        {QUERY_PARAM},\n    ) -> Result<(), rok_data::Error> {{\n"
     ));
     push_column_conditions(output, table);
     let quoted = |name: &str| str_literal(&ident(name));

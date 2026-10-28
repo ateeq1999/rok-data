@@ -32,8 +32,8 @@ fn renamed_users(dir: &Path, args: &[&str]) -> Result<String> {
         audit.contains("pub struct AuditUserId(pub i64);"),
         "{audit}"
     );
-    let read = fs::read_to_string(out.join("audit_users/read.rs"))?;
-    assert!(read.contains("FROM audit.users\n"), "{read}");
+    // The model names its schema; every read chains on it.
+    assert!(audit.contains("#[rok(table = \"audit.users\")]"), "{audit}");
     let mod_rs = fs::read_to_string(out.join("mod.rs"))?;
     assert!(mod_rs.contains("pub mod audit_users;"), "{mod_rs}");
     Ok(fs::read_to_string(out.join("posts/models.rs"))?)

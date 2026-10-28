@@ -3,7 +3,8 @@
 use super::super::labels::filter::LabelFilter;
 use super::super::labels::models::LabelId;
 use super::super::notes::models::NoteId;
-use super::super::search::{Equality, Ordered, correlate, open_exists};
+use super::super::search::{Condition, Direction, Equality, Ordered, Sort, correlate, open_exists};
+use super::models::NoteLabel;
 
 /// Conditions for `search` over `note_labels`.
 ///
@@ -32,18 +33,16 @@ pub struct NoteLabelFilter {
 }
 
 impl NoteLabelFilter {
-    /// Appends the `WHERE` clause for these conditions.
+    /// These conditions as one condition on the model's chain.
     ///
     /// # Errors
     ///
-    /// `sqlx::Error::InvalidArgument` when relationship filters nest more than
+    /// `rok_data::Error::InvalidQuery` when relationship filters nest more than
     /// `MAX_RELATIONSHIP_DEPTH` deep.
-    pub(crate) fn push_where(
-        self,
-        query: &mut sqlx::QueryBuilder<sqlx::Postgres>,
-    ) -> Result<(), sqlx::Error> {
-        query.push(" WHERE TRUE");
-        self.push_conditions("note_labels", 0, query)
+    pub(crate) fn condition(self) -> Result<rok_data::Expr<NoteLabel>, rok_data::Error> {
+        let mut query = Condition::default();
+        self.push_conditions("note_labels", 0, &mut query)?;
+        Ok(query.into_expr())
     }
 
     /// Appends ` AND <condition>` for each condition, without the `WHERE` clause or
@@ -53,14 +52,14 @@ impl NoteLabelFilter {
     ///
     /// # Errors
     ///
-    /// `sqlx::Error::InvalidArgument` when relationship filters nest more than
+    /// `rok_data::Error::InvalidQuery` when relationship filters nest more than
     /// `MAX_RELATIONSHIP_DEPTH` deep.
     pub(crate) fn push_conditions(
         self,
         outer: &str,
         depth: usize,
-        query: &mut sqlx::QueryBuilder<sqlx::Postgres>,
-    ) -> Result<(), sqlx::Error> {
+        query: &mut Condition,
+    ) -> Result<(), rok_data::Error> {
         for condition in self.note_id {
             condition.push("note_id", query);
         }
@@ -88,12 +87,23 @@ pub enum NoteLabelSortKey {
 }
 
 impl NoteLabelSortKey {
-    /// The SQL column this key sorts by.
+    /// How this key orders rows, in `direction`.
     #[must_use]
-    pub fn column(self) -> &'static str {
-        match self {
-            Self::NoteId => "note_id",
-            Self::LabelId => "label_id",
+    pub fn order(self, direction: Direction) -> rok_data::Order<NoteLabel> {
+        let column = match self {
+            Self::NoteId => NoteLabel::NOTE_ID,
+            Self::LabelId => NoteLabel::LABEL_ID,
+        };
+        match direction {
+            Direction::Asc => column.asc(),
+            Direction::Desc => column.desc(),
         }
+    }
+}
+
+/// A sort as the chain's order: `.order_by(sort)`.
+impl From<Sort<NoteLabelSortKey>> for rok_data::Order<NoteLabel> {
+    fn from(sort: Sort<NoteLabelSortKey>) -> Self {
+        sort.key.order(sort.direction)
     }
 }

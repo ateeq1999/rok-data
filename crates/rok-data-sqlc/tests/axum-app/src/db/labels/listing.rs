@@ -12,7 +12,7 @@
 //! The many-to-many relationships' writes, through their join tables.
 
 use super::super::notes::models::NoteId;
-use super::super::search::{Direction, Sort, Window};
+use super::super::search::{Direction, Sort};
 use super::filter::LabelFilter;
 use super::models::{Label, LabelId};
 use rok_data::Model;
@@ -61,6 +61,13 @@ impl LabelSort {
     }
 }
 
+/// A sort as the chain's order: `.order_by(sort)`.
+impl From<Sort<LabelSort>> for rok_data::Order<Label> {
+    fn from(sort: Sort<LabelSort>) -> Self {
+        sort.key.order(sort.direction)
+    }
+}
+
 impl Label {
     /// The rows of the list endpoint, ordered by `sort`, ties by primary key.
     /// Run it a page at a time with `.paginate(executor, page, per_page)`.
@@ -68,50 +75,26 @@ impl Label {
     pub fn matching(sort: Option<Sort<LabelSort>>) -> rok_data::Select<Label> {
         let mut query = Label::query();
         if let Some(sort) = sort {
-            query = query.order_by(sort.key.order(sort.direction));
+            query = query.order_by(sort);
         }
         query.order_by(Label::ID)
     }
 }
 
-/// Fetches one page of the rows that `filter` matches, ordered by `sort`, ties by primary key.
-pub async fn search_matching<'e, E>(
-    executor: E,
-    filter: LabelFilter,
-    sort: Sort<LabelSort>,
-    page: Window,
-) -> Result<Vec<Label>, sqlx::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
-        r#"
-        SELECT
-            id,
-            name
-        FROM labels
-        "#,
-    );
-    filter.push_where(&mut query)?;
-    query.push(" ORDER BY ");
-    query.push(sort.key.column());
-    query.push(sort.direction.sql());
-    query.push(", id");
-    query.push(" LIMIT ");
-    query.push_bind(page.limit());
-    query.push(" OFFSET ");
-    query.push_bind(page.offset());
-    query.build_query_as::<Label>().fetch_all(executor).await
-}
-
-/// Counts the rows that `filter` matches: every page's rows together.
-pub async fn count_search<'e, E>(executor: E, filter: LabelFilter) -> Result<i64, sqlx::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT COUNT(*) FROM labels");
-    filter.push_where(&mut query)?;
-    query.build_query_scalar::<i64>().fetch_one(executor).await
+impl Label {
+    /// The rows that `filter` matches, ordered by `sort`, ties by primary key.
+    /// Run it a page at a time with `.paginate(executor, page, per_page)`.
+    ///
+    /// # Errors
+    ///
+    /// `rok_data::Error::InvalidQuery` when relationship filters nest more than
+    /// `MAX_RELATIONSHIP_DEPTH` deep.
+    pub fn search_sorted(
+        filter: LabelFilter,
+        sort: Sort<LabelSort>,
+    ) -> Result<rok_data::Select<Label>, rok_data::Error> {
+        Ok(Label::search(filter)?.order_by(sort).order_by(Label::ID))
+    }
 }
 
 /// Returns whether a row other than `except` has this `name`:

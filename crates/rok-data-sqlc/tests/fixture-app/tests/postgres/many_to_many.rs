@@ -314,11 +314,14 @@ pub(super) async fn plain_join_table_deletes_detached_pairs(pool: &PgPool) {
 /// the join table in the same tenant, with a related row matching the filter.
 pub(super) async fn many_to_many_filters_go_through_the_join_table(pool: &PgPool) {
     use db::member_groups::filter::{MemberGroupFilter, MemberGroupSortKey};
+    use db::member_groups::models::MemberGroup;
     use db::member_groups::models::NewMemberGroup;
     use db::permissions::filter::PermissionFilter;
     use db::roles::filter::{RoleFilter, RoleSortKey};
-    use db::search::{Sort, Text, Window};
+    use db::roles::models::Role;
+    use db::search::{Sort, Text};
     use db::users::filter::{UserFilter, UserSortKey};
+    use db::users::models::User;
 
     let ([tenant, other_tenant], roles, permissions) = seed_roles(pool, 23_201).await;
     let [admin, clerk] = [&roles[0], &roles[1]];
@@ -339,21 +342,19 @@ pub(super) async fn many_to_many_filters_go_through_the_join_table(pool: &PgPool
             .unwrap()
     );
 
-    let refunders = db::roles::read::search(
-        pool,
-        tenant,
-        RoleFilter {
-            permissions: Some(Box::new(PermissionFilter {
-                code: vec![Text::Eq(refund.code.to_string())],
-                ..Default::default()
-            })),
+    let refunders = RoleFilter {
+        permissions: Some(Box::new(PermissionFilter {
+            code: vec![Text::Eq(refund.code.to_string())],
             ..Default::default()
-        },
-        Sort::asc(RoleSortKey::Id),
-        Window::first(10),
-    )
-    .await
-    .unwrap();
+        })),
+        ..Default::default()
+    };
+    let refunders = Role::search(tenant, refunders)
+        .unwrap()
+        .order_by(Sort::asc(RoleSortKey::Id))
+        .all(pool)
+        .await
+        .unwrap();
     assert_eq!(refunders, vec![admin.clone()]);
 
     let group = db::member_groups::models::MemberGroup::create(
@@ -371,34 +372,32 @@ pub(super) async fn many_to_many_filters_go_through_the_join_table(pool: &PgPool
             .await
             .unwrap()
     );
-    let members = db::users::read::search(
-        pool,
-        UserFilter {
-            member_groups: Some(Box::new(MemberGroupFilter {
-                name: vec![Text::Eq("filtered group".to_owned())],
-                ..Default::default()
-            })),
+    let members = UserFilter {
+        member_groups: Some(Box::new(MemberGroupFilter {
+            name: vec![Text::Eq("filtered group".to_owned())],
             ..Default::default()
-        },
-        Sort::asc(UserSortKey::Id),
-        Window::first(10),
-    )
-    .await
-    .unwrap();
+        })),
+        ..Default::default()
+    };
+    let members = User::search(members)
+        .unwrap()
+        .order_by(Sort::asc(UserSortKey::Id))
+        .all(pool)
+        .await
+        .unwrap();
     assert_eq!(members, vec![member.clone()]);
-    let groups = db::member_groups::read::search(
-        pool,
-        MemberGroupFilter {
-            users: Some(Box::new(UserFilter {
-                email: vec![Text::Eq(outsider.email.clone())],
-                ..Default::default()
-            })),
+    let groups = MemberGroupFilter {
+        users: Some(Box::new(UserFilter {
+            email: vec![Text::Eq(outsider.email.clone())],
             ..Default::default()
-        },
-        Sort::asc(MemberGroupSortKey::Id),
-        Window::first(10),
-    )
-    .await
-    .unwrap();
+        })),
+        ..Default::default()
+    };
+    let groups = MemberGroup::search(groups)
+        .unwrap()
+        .order_by(Sort::asc(MemberGroupSortKey::Id))
+        .all(pool)
+        .await
+        .unwrap();
     assert_eq!(groups, Vec::new());
 }

@@ -19,8 +19,25 @@ Generated data calls move onto the runtime (engine ADR 0023):
   service runs it with `.paginate(..)`, so a page and its total take one
   round trip. `q` matches through `Column::icontains`; the
   `push_contains_any` helper leaves `db/search.rs`.
-- **Sort keys:** a list's sort enum gains `order(direction)`, a typed
-  `rok_data::Order`.
+- **Search:** `search(filter, sort, page)` and `search_after(filter,
+  after, limit)` become one `Row::search(filter)` that returns a
+  `rok_data::Select` (a `Result` when relationship filters can nest too
+  deep). Order and page it on the chain: `.order_by(..)`,
+  `.paginate(..)`, `.cursor_paginate(..)`.
+- **Filters:** a filter builds one `rok_data` condition
+  (`condition()`, internal) in place of `push_where` into a
+  `sqlx::QueryBuilder`. Soft-deleted rows come from the model's scope;
+  `include_deleted` is `with_trashed()`. Nesting too deep fails with
+  `rok_data::Error::InvalidQuery`.
+- **Sort keys:** a sort enum answers `order(direction)`, a typed
+  `rok_data::Order`, and a `Sort` of it converts into one, so a chain
+  takes it as is: `User::search(filter)?.order_by(sort)`. The data layer's
+  `XSortKey::column()` is gone, and the API's sort enum gains both too.
+- **`POST /search`:** `search_matching` and `count_search` become one
+  `Row::search_sorted(…, filter, sort)` that the service pages.
+- **`db/search.rs`:** `Window`, `Limit` and `MAX_PAGE_SIZE` are gone (the
+  API's `Pagination` clamps the page size), and so is `From<Pagination>
+  for Window`.
 - **Service imports:** a service that never calls `repo::` no longer
   imports it.
 

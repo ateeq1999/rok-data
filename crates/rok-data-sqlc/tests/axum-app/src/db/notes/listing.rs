@@ -11,7 +11,7 @@
 //! The many-to-many relationships' writes, through their join tables.
 
 use super::super::labels::models::LabelId;
-use super::super::search::{Direction, Sort, Window, contains_pattern};
+use super::super::search::{Direction, Sort, contains_pattern};
 use super::filter::NoteFilter;
 use super::models::{Note, NoteId};
 use rok_data::Model;
@@ -60,6 +60,13 @@ impl NoteSort {
     }
 }
 
+/// A sort as the chain's order: `.order_by(sort)`.
+impl From<Sort<NoteSort>> for rok_data::Order<Note> {
+    fn from(sort: Sort<NoteSort>) -> Self {
+        sort.key.order(sort.direction)
+    }
+}
+
 /// Fetches one page of rows `owner` owns matching `q`, ordered by `sort`, ties by primary key,
 /// starting at `cursor`, the way it points (the first page without one).
 pub async fn list_by_cursor<'e, E>(
@@ -93,64 +100,25 @@ fn matches_q(q: &str) -> rok_data::Expr<Note> {
     ])
 }
 
-/// Fetches one page of the rows `owner` owns that `filter` matches, ordered by `sort`, ties by primary key.
-pub async fn search_matching<'e, E>(
-    executor: E,
-    tenant_id: uuid::Uuid,
-    owner: uuid::Uuid,
-    filter: NoteFilter,
-    sort: Sort<NoteSort>,
-    page: Window,
-) -> Result<Vec<Note>, sqlx::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
-        r#"
-        SELECT
-            id,
-            owner_id,
-            tenant_id,
-            title,
-            body,
-            revision,
-            deleted_at
-        FROM notes
-        "#,
-    );
-    filter.push_where(&mut query)?;
-    query.push(" AND tenant_id = ");
-    query.push_bind(tenant_id);
-    query.push(" AND owner_id = ");
-    query.push_bind(owner);
-    query.push(" ORDER BY ");
-    query.push(sort.key.column());
-    query.push(sort.direction.sql());
-    query.push(", id");
-    query.push(" LIMIT ");
-    query.push_bind(page.limit());
-    query.push(" OFFSET ");
-    query.push_bind(page.offset());
-    query.build_query_as::<Note>().fetch_all(executor).await
-}
-
-/// Counts the rows `owner` owns that `filter` matches: every page's rows together.
-pub async fn count_search<'e, E>(
-    executor: E,
-    tenant_id: uuid::Uuid,
-    owner: uuid::Uuid,
-    filter: NoteFilter,
-) -> Result<i64, sqlx::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT COUNT(*) FROM notes");
-    filter.push_where(&mut query)?;
-    query.push(" AND tenant_id = ");
-    query.push_bind(tenant_id);
-    query.push(" AND owner_id = ");
-    query.push_bind(owner);
-    query.build_query_scalar::<i64>().fetch_one(executor).await
+impl Note {
+    /// The rows `owner` owns that `filter` matches, ordered by `sort`, ties by primary key.
+    /// Run it a page at a time with `.paginate(executor, page, per_page)`.
+    ///
+    /// # Errors
+    ///
+    /// `rok_data::Error::InvalidQuery` when relationship filters nest more than
+    /// `MAX_RELATIONSHIP_DEPTH` deep.
+    pub fn search_sorted(
+        tenant_id: uuid::Uuid,
+        owner: uuid::Uuid,
+        filter: NoteFilter,
+        sort: Sort<NoteSort>,
+    ) -> Result<rok_data::Select<Note>, rok_data::Error> {
+        Ok(Note::search(tenant_id, filter)?
+            .filter(Note::OWNER_ID.eq(owner))
+            .order_by(sort)
+            .order_by(Note::ID))
+    }
 }
 
 /// Fetches the row with the given primary key if `owner` owns it (its `owner_id`),

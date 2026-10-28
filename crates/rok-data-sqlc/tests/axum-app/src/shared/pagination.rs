@@ -6,7 +6,7 @@
 use rok_data::Cursor;
 use serde::{Deserialize, Serialize};
 
-use crate::db::search::{Direction, Window};
+use crate::db::search::Direction;
 use crate::error::AppError;
 
 /// The direction of a list's sort: `order=asc` or `order=desc`, the
@@ -171,12 +171,6 @@ impl Default for Pagination {
     /// The first page of [`Pagination::DEFAULT_PER_PAGE`] rows.
     fn default() -> Self {
         Pagination::new(None, None)
-    }
-}
-
-impl From<Pagination> for Window {
-    fn from(pagination: Pagination) -> Self {
-        Window::new(pagination.limit(), pagination.offset())
     }
 }
 

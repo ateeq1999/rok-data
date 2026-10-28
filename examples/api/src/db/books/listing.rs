@@ -45,6 +45,13 @@ impl BookSort {
     }
 }
 
+/// A sort as the chain's order: `.order_by(sort)`.
+impl From<Sort<BookSort>> for rok_data::Order<Book> {
+    fn from(sort: Sort<BookSort>) -> Self {
+        sort.key.order(sort.direction)
+    }
+}
+
 /// The columns `q` matches.
 const SEARCH_COLUMNS: [rok_data::Column<Book>; 1] = [Book::TITLE];
 
@@ -60,7 +67,7 @@ impl Book {
             query = query.filter_any(SEARCH_COLUMNS, |column| column.icontains(q));
         }
         if let Some(sort) = sort {
-            query = query.order_by(sort.key.order(sort.direction));
+            query = query.order_by(sort);
         }
         query.order_by(Book::ID)
     }

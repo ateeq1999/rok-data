@@ -2,7 +2,10 @@
 
 use super::super::books::filter::BookFilter;
 use super::super::books::models::BookId;
-use super::super::search::{Equality, Ordered, Text, correlate, open_exists, push_null_check};
+use super::super::search::{
+    Condition, Direction, Equality, Ordered, Sort, Text, correlate, open_exists, push_null_check,
+};
+use super::models::Loan;
 use super::models::LoanId;
 
 /// Conditions for `search` over `loans`.
@@ -40,18 +43,16 @@ pub struct LoanFilter {
 }
 
 impl LoanFilter {
-    /// Appends the `WHERE` clause for these conditions.
+    /// These conditions as one condition on the model's chain.
     ///
     /// # Errors
     ///
-    /// `sqlx::Error::InvalidArgument` when relationship filters nest more than
+    /// `rok_data::Error::InvalidQuery` when relationship filters nest more than
     /// `MAX_RELATIONSHIP_DEPTH` deep.
-    pub(crate) fn push_where(
-        self,
-        query: &mut sqlx::QueryBuilder<sqlx::Postgres>,
-    ) -> Result<(), sqlx::Error> {
-        query.push(" WHERE TRUE");
-        self.push_conditions("loans", 0, query)
+    pub(crate) fn condition(self) -> Result<rok_data::Expr<Loan>, rok_data::Error> {
+        let mut query = Condition::default();
+        self.push_conditions("loans", 0, &mut query)?;
+        Ok(query.into_expr())
     }
 
     /// Appends ` AND <condition>` for each condition, without the `WHERE` clause or
@@ -61,14 +62,14 @@ impl LoanFilter {
     ///
     /// # Errors
     ///
-    /// `sqlx::Error::InvalidArgument` when relationship filters nest more than
+    /// `rok_data::Error::InvalidQuery` when relationship filters nest more than
     /// `MAX_RELATIONSHIP_DEPTH` deep.
     pub(crate) fn push_conditions(
         self,
         outer: &str,
         depth: usize,
-        query: &mut sqlx::QueryBuilder<sqlx::Postgres>,
-    ) -> Result<(), sqlx::Error> {
+        query: &mut Condition,
+    ) -> Result<(), rok_data::Error> {
         for condition in self.id {
             condition.push("id", query);
         }
@@ -112,15 +113,26 @@ pub enum LoanSortKey {
 }
 
 impl LoanSortKey {
-    /// The SQL column this key sorts by.
+    /// How this key orders rows, in `direction`.
     #[must_use]
-    pub fn column(self) -> &'static str {
-        match self {
-            Self::Id => "id",
-            Self::BookId => "book_id",
-            Self::Borrower => "borrower",
-            Self::LentAt => "lent_at",
-            Self::ReturnedAt => "returned_at",
+    pub fn order(self, direction: Direction) -> rok_data::Order<Loan> {
+        let column = match self {
+            Self::Id => Loan::ID,
+            Self::BookId => Loan::BOOK_ID,
+            Self::Borrower => Loan::BORROWER,
+            Self::LentAt => Loan::LENT_AT,
+            Self::ReturnedAt => Loan::RETURNED_AT,
+        };
+        match direction {
+            Direction::Asc => column.asc(),
+            Direction::Desc => column.desc(),
         }
+    }
+}
+
+/// A sort as the chain's order: `.order_by(sort)`.
+impl From<Sort<LoanSortKey>> for rok_data::Order<Loan> {
+    fn from(sort: Sort<LoanSortKey>) -> Self {
+        sort.key.order(sort.direction)
     }
 }

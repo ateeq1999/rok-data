@@ -46,6 +46,13 @@ impl UserSort {
     }
 }
 
+/// A sort as the chain's order: `.order_by(sort)`.
+impl From<Sort<UserSort>> for rok_data::Order<User> {
+    fn from(sort: Sort<UserSort>) -> Self {
+        sort.key.order(sort.direction)
+    }
+}
+
 /// The columns `q` matches.
 const SEARCH_COLUMNS: [rok_data::Column<User>; 2] = [User::EMAIL, User::DISPLAY_NAME];
 
@@ -62,7 +69,7 @@ impl User {
             query = query.filter_any(SEARCH_COLUMNS, |column| column.icontains(q));
         }
         if let Some(sort) = sort {
-            query = query.order_by(sort.key.order(sort.direction));
+            query = query.order_by(sort);
         }
         query.order_by(User::ID)
     }

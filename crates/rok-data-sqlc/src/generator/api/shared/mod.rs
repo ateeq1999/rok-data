@@ -96,8 +96,8 @@ fn cursor_imports(text: &str) -> String {
     );
     replace_once(
         &text,
-        "use crate::db::search::{Direction, Window};\n",
-        "use crate::db::search::{Direction, Window};\nuse crate::error::AppError;\n",
+        "use crate::db::search::Direction;\n",
+        "use crate::db::search::Direction;\nuse crate::error::AppError;\n",
     )
 }
 
@@ -199,7 +199,7 @@ pub(super) const PAGINATION: &str = r#"//! A list endpoint's query, `?page=&per_
 
 use serde::{Deserialize, Serialize};
 
-use crate::db::search::{Direction, Window};
+use crate::db::search::Direction;
 
 /// The direction of a list's sort: `order=asc` or `order=desc`, the
 /// default.
@@ -349,12 +349,6 @@ impl Default for Pagination {
     /// The first page of [`Pagination::DEFAULT_PER_PAGE`] rows.
     fn default() -> Self {
         Pagination::new(None, None)
-    }
-}
-
-impl From<Pagination> for Window {
-    fn from(pagination: Pagination) -> Self {
-        Window::new(pagination.limit(), pagination.offset())
     }
 }
 "#;

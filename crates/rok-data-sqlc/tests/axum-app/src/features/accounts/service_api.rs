@@ -59,10 +59,9 @@ pub trait AccountsServiceApi {
         let key = key.unwrap_or(default);
         let sort = Sort { key, direction };
         let filter = AccountFilter::from(body.filter);
-        let rows =
-            repo::search_matching(self.pool(), filter.clone(), sort, pagination.into()).await?;
-        let total = repo::count_search(self.pool(), filter).await?;
-        Ok(PaginatedResponse::new(rows, pagination, total))
+        let (page, per_page) = (pagination.page.into(), pagination.per_page.into());
+        let rows = Account::search_sorted(filter, sort);
+        Ok(rows.paginate(self.pool(), page, per_page).await?.into())
     }
 
     /// What [`create`](Self::create) does, on `conn`: the caller's connection or

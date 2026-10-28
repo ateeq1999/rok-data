@@ -9,7 +9,7 @@
 //! The `unique` checks of a create or update body: whether another row
 //! already has its values.
 
-use super::super::search::{Direction, Sort, Window};
+use super::super::search::{Direction, Sort};
 use super::filter::AccountFilter;
 use super::models::{Account, AccountId};
 use rok_data::Model;
@@ -58,6 +58,13 @@ impl AccountSort {
     }
 }
 
+/// A sort as the chain's order: `.order_by(sort)`.
+impl From<Sort<AccountSort>> for rok_data::Order<Account> {
+    fn from(sort: Sort<AccountSort>) -> Self {
+        sort.key.order(sort.direction)
+    }
+}
+
 impl Account {
     /// The rows of the list endpoint, ordered by `sort`, ties by primary key.
     /// Run it a page at a time with `.paginate(executor, page, per_page)`.
@@ -65,51 +72,22 @@ impl Account {
     pub fn matching(sort: Option<Sort<AccountSort>>) -> rok_data::Select<Account> {
         let mut query = Account::query();
         if let Some(sort) = sort {
-            query = query.order_by(sort.key.order(sort.direction));
+            query = query.order_by(sort);
         }
         query.order_by(Account::ID)
     }
 }
 
-/// Fetches one page of the rows that `filter` matches, ordered by `sort`, ties by primary key.
-pub async fn search_matching<'e, E>(
-    executor: E,
-    filter: AccountFilter,
-    sort: Sort<AccountSort>,
-    page: Window,
-) -> Result<Vec<Account>, sqlx::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
-        r#"
-        SELECT
-            id,
-            email,
-            password_hash
-        FROM accounts
-        "#,
-    );
-    filter.push_where(&mut query);
-    query.push(" ORDER BY ");
-    query.push(sort.key.column());
-    query.push(sort.direction.sql());
-    query.push(", id");
-    query.push(" LIMIT ");
-    query.push_bind(page.limit());
-    query.push(" OFFSET ");
-    query.push_bind(page.offset());
-    query.build_query_as::<Account>().fetch_all(executor).await
-}
-
-/// Counts the rows that `filter` matches: every page's rows together.
-pub async fn count_search<'e, E>(executor: E, filter: AccountFilter) -> Result<i64, sqlx::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT COUNT(*) FROM accounts");
-    filter.push_where(&mut query);
-    query.build_query_scalar::<i64>().fetch_one(executor).await
+impl Account {
+    /// The rows that `filter` matches, ordered by `sort`, ties by primary key.
+    /// Run it a page at a time with `.paginate(executor, page, per_page)`.
+    #[must_use]
+    pub fn search_sorted(
+        filter: AccountFilter,
+        sort: Sort<AccountSort>,
+    ) -> rok_data::Select<Account> {
+        Account::search(filter).order_by(sort).order_by(Account::ID)
+    }
 }
 
 /// Returns whether a row other than `except` has this `email`:

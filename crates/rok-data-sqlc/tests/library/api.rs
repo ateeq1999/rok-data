@@ -39,8 +39,8 @@ fn the_api_configuration_is_checked_and_adds_the_pool_and_list_reads_to_the_data
     config.extractors = plain.extractors.clone();
     rok_data_sqlc::generate(&config)?;
     // The API adds `db/pool.rs` (declared in `db/mod.rs`, which hints
-    // `tracing`), the list reads of `users` (declared in `users/mod.rs`) and
-    // the `q` helper in `search.rs` to the data layer, and nothing else.
+    // `tracing`) and the list reads of `users` (declared in `users/mod.rs`)
+    // to the data layer, and nothing else: `q` matches through the chain.
     let mut generated = tree(&inputs.path("gen"))?;
     assert!(generated.remove(Path::new("pool.rs")).is_some());
     assert!(
@@ -48,11 +48,6 @@ fn the_api_configuration_is_checked_and_adds_the_pool_and_list_reads_to_the_data
             .remove(&Path::new("users").join("listing.rs"))
             .is_some()
     );
-    let search = generated
-        .get_mut(Path::new("search.rs"))
-        .expect("search.rs");
-    let helper = search.find("\n/// Appends ` AND (").expect("the q helper");
-    search.truncate(helper);
     let mut plain_tree = tree(&inputs.path("plain"))?;
     for files in [&mut generated, &mut plain_tree] {
         for text in files.values_mut() {

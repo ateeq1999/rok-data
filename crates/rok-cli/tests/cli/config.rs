@@ -98,7 +98,7 @@ fn search_names_the_tenant_column_does_not_get_cannot_collide() -> Result<()> {
     assert!(!notes.contains("pub org_1: "), "{notes}");
     let tags = fs::read_to_string(dir.path().join("gen/tags/filter.rs"))?;
     assert!(tags.contains("    Org1,\n"), "{tags}");
-    assert!(tags.contains("Self::Org1 => \"org1\","), "{tags}");
+    assert!(tags.contains("Self::Org1 => Tag::ORG1,"), "{tags}");
     Ok(())
 }
 

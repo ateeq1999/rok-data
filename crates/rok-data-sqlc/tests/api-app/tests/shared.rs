@@ -4,7 +4,7 @@
 use actix_web::dev::Service;
 use actix_web::http::StatusCode;
 use actix_web::{App, HttpMessage, HttpResponse, test as actix_test, web};
-use rok_data_sqlc_api_app::db::search::{Direction, Window};
+use rok_data_sqlc_api_app::db::search::Direction;
 use rok_data_sqlc_api_app::shared::pagination::{ListQuery, Pagination, SortOrder};
 use rok_data_sqlc_api_app::shared::response::PaginatedResponse;
 use rok_data_sqlc_api_app::shared::tenant::Tenant;
@@ -58,7 +58,6 @@ fn pagination_limit_and_offset() {
     assert_eq!(page.limit(), 25);
     assert_eq!(page.offset(), 50);
     assert_eq!(Pagination::default().offset(), 0);
-    assert_eq!(Window::from(page), Window::new(25, 50));
     assert_eq!(Direction::from(SortOrder::Asc), Direction::Asc);
     assert_eq!(Direction::from(SortOrder::default()), Direction::Desc);
 }

@@ -18,6 +18,11 @@ data layer stops naming `sqlx`.
 - **List endpoints** read a `Row::matching(…)` chain and answer the
   runtime's `Page` in one round trip. The runtime gains
   `Column::icontains`.
+- **Search** is one `Row::search(filter)` chain, ordered and paged by the
+  caller; `search_after` and `db/search.rs`'s `Window`/`Limit` are gone.
+  A filter builds one `rok_data` condition. `POST /search` pages a
+  `Row::search_sorted(…)` chain. The runtime gains `NaiveDateTime` and
+  `NaiveTime` list binds.
 
 ## [0.3.0] — the model-shaped data layer
 

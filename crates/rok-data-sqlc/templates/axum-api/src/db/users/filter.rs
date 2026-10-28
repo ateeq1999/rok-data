@@ -4,9 +4,12 @@ use super::super::api_keys::filter::ApiKeyFilter;
 use super::super::audit_log_entry::filter::AuditLogEntryFilter;
 use super::super::auth_tokens::filter::AuthTokenFilter;
 use super::super::media::filter::MediaFilter;
-use super::super::search::{Equality, Ordered, Text, correlate, open_exists, push_null_check};
+use super::super::search::{
+    Condition, Direction, Equality, Ordered, Sort, Text, correlate, open_exists, push_null_check,
+};
 use super::super::totp_recovery_codes::filter::TotpRecoveryCodeFilter;
 use super::super::types;
+use super::models::User;
 use super::models::UserId;
 
 /// Conditions for `search` over `users`.
@@ -100,21 +103,18 @@ pub struct UserFilter {
 }
 
 impl UserFilter {
-    /// Appends the `WHERE` clause for these conditions.
+    /// These conditions as one condition on the model's chain.
+    /// Soft-deleted rows are the caller's: `include_deleted` chooses
+    /// `with_trashed()`.
     ///
     /// # Errors
     ///
-    /// `sqlx::Error::InvalidArgument` when relationship filters nest more than
+    /// `rok_data::Error::InvalidQuery` when relationship filters nest more than
     /// `MAX_RELATIONSHIP_DEPTH` deep.
-    pub(crate) fn push_where(
-        self,
-        query: &mut sqlx::QueryBuilder<sqlx::Postgres>,
-    ) -> Result<(), sqlx::Error> {
-        query.push(" WHERE TRUE");
-        if !self.include_deleted {
-            query.push(" AND deleted_at IS NULL");
-        }
-        self.push_conditions("users", 0, query)
+    pub(crate) fn condition(self) -> Result<rok_data::Expr<User>, rok_data::Error> {
+        let mut query = Condition::default();
+        self.push_conditions("users", 0, &mut query)?;
+        Ok(query.into_expr())
     }
 
     /// Appends ` AND <condition>` for each condition, without the `WHERE` clause or
@@ -124,14 +124,14 @@ impl UserFilter {
     ///
     /// # Errors
     ///
-    /// `sqlx::Error::InvalidArgument` when relationship filters nest more than
+    /// `rok_data::Error::InvalidQuery` when relationship filters nest more than
     /// `MAX_RELATIONSHIP_DEPTH` deep.
     pub(crate) fn push_conditions(
         self,
         outer: &str,
         depth: usize,
-        query: &mut sqlx::QueryBuilder<sqlx::Postgres>,
-    ) -> Result<(), sqlx::Error> {
+        query: &mut Condition,
+    ) -> Result<(), rok_data::Error> {
         for condition in self.id {
             condition.push("id", query);
         }
@@ -282,29 +282,40 @@ pub enum UserSortKey {
 }
 
 impl UserSortKey {
-    /// The SQL column this key sorts by.
+    /// How this key orders rows, in `direction`.
     #[must_use]
-    pub fn column(self) -> &'static str {
-        match self {
-            Self::Id => "id",
-            Self::Email => "email",
-            Self::DisplayName => "display_name",
-            Self::PasswordHash => "password_hash",
-            Self::HasPassword => "has_password",
-            Self::Role => "role",
-            Self::IsActive => "is_active",
-            Self::EmailVerified => "email_verified",
-            Self::TotpSecret => "totp_secret",
-            Self::TotpEnabled => "totp_enabled",
-            Self::AvatarKey => "avatar_key",
-            Self::FailedLogins => "failed_logins",
-            Self::LockedUntil => "locked_until",
-            Self::CreatedAt => "created_at",
-            Self::UpdatedAt => "updated_at",
-            Self::DeletedAt => "deleted_at",
-            Self::TokenVersion => "token_version",
-            Self::TotpLastStep => "totp_last_step",
-            Self::AvatarUrl => "avatar_url",
+    pub fn order(self, direction: Direction) -> rok_data::Order<User> {
+        let column = match self {
+            Self::Id => User::ID,
+            Self::Email => User::EMAIL,
+            Self::DisplayName => User::DISPLAY_NAME,
+            Self::PasswordHash => User::PASSWORD_HASH,
+            Self::HasPassword => User::HAS_PASSWORD,
+            Self::Role => User::ROLE,
+            Self::IsActive => User::IS_ACTIVE,
+            Self::EmailVerified => User::EMAIL_VERIFIED,
+            Self::TotpSecret => User::TOTP_SECRET,
+            Self::TotpEnabled => User::TOTP_ENABLED,
+            Self::AvatarKey => User::AVATAR_KEY,
+            Self::FailedLogins => User::FAILED_LOGINS,
+            Self::LockedUntil => User::LOCKED_UNTIL,
+            Self::CreatedAt => User::CREATED_AT,
+            Self::UpdatedAt => User::UPDATED_AT,
+            Self::DeletedAt => User::DELETED_AT,
+            Self::TokenVersion => User::TOKEN_VERSION,
+            Self::TotpLastStep => User::TOTP_LAST_STEP,
+            Self::AvatarUrl => User::AVATAR_URL,
+        };
+        match direction {
+            Direction::Asc => column.asc(),
+            Direction::Desc => column.desc(),
         }
+    }
+}
+
+/// A sort as the chain's order: `.order_by(sort)`.
+impl From<Sort<UserSortKey>> for rok_data::Order<User> {
+    fn from(sort: Sort<UserSortKey>) -> Self {
+        sort.key.order(sort.direction)
     }
 }

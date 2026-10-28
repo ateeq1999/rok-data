@@ -3,7 +3,10 @@
 use super::super::authors::filter::AuthorFilter;
 use super::super::authors::models::AuthorId;
 use super::super::loans::filter::LoanFilter;
-use super::super::search::{Equality, Ordered, Text, correlate, open_exists, push_null_check};
+use super::super::search::{
+    Condition, Direction, Equality, Ordered, Sort, Text, correlate, open_exists, push_null_check,
+};
+use super::models::Book;
 use super::models::BookId;
 
 /// Conditions for `search` over `books`.
@@ -43,18 +46,16 @@ pub struct BookFilter {
 }
 
 impl BookFilter {
-    /// Appends the `WHERE` clause for these conditions.
+    /// These conditions as one condition on the model's chain.
     ///
     /// # Errors
     ///
-    /// `sqlx::Error::InvalidArgument` when relationship filters nest more than
+    /// `rok_data::Error::InvalidQuery` when relationship filters nest more than
     /// `MAX_RELATIONSHIP_DEPTH` deep.
-    pub(crate) fn push_where(
-        self,
-        query: &mut sqlx::QueryBuilder<sqlx::Postgres>,
-    ) -> Result<(), sqlx::Error> {
-        query.push(" WHERE TRUE");
-        self.push_conditions("books", 0, query)
+    pub(crate) fn condition(self) -> Result<rok_data::Expr<Book>, rok_data::Error> {
+        let mut query = Condition::default();
+        self.push_conditions("books", 0, &mut query)?;
+        Ok(query.into_expr())
     }
 
     /// Appends ` AND <condition>` for each condition, without the `WHERE` clause or
@@ -64,14 +65,14 @@ impl BookFilter {
     ///
     /// # Errors
     ///
-    /// `sqlx::Error::InvalidArgument` when relationship filters nest more than
+    /// `rok_data::Error::InvalidQuery` when relationship filters nest more than
     /// `MAX_RELATIONSHIP_DEPTH` deep.
     pub(crate) fn push_conditions(
         self,
         outer: &str,
         depth: usize,
-        query: &mut sqlx::QueryBuilder<sqlx::Postgres>,
-    ) -> Result<(), sqlx::Error> {
+        query: &mut Condition,
+    ) -> Result<(), rok_data::Error> {
         for condition in self.id {
             condition.push("id", query);
         }
@@ -121,15 +122,26 @@ pub enum BookSortKey {
 }
 
 impl BookSortKey {
-    /// The SQL column this key sorts by.
+    /// How this key orders rows, in `direction`.
     #[must_use]
-    pub fn column(self) -> &'static str {
-        match self {
-            Self::Id => "id",
-            Self::AuthorId => "author_id",
-            Self::Title => "title",
-            Self::Isbn => "isbn",
-            Self::PublishedAt => "published_at",
+    pub fn order(self, direction: Direction) -> rok_data::Order<Book> {
+        let column = match self {
+            Self::Id => Book::ID,
+            Self::AuthorId => Book::AUTHOR_ID,
+            Self::Title => Book::TITLE,
+            Self::Isbn => Book::ISBN,
+            Self::PublishedAt => Book::PUBLISHED_AT,
+        };
+        match direction {
+            Direction::Asc => column.asc(),
+            Direction::Desc => column.desc(),
         }
+    }
+}
+
+/// A sort as the chain's order: `.order_by(sort)`.
+impl From<Sort<BookSortKey>> for rok_data::Order<Book> {
+    fn from(sort: Sort<BookSortKey>) -> Self {
+        sort.key.order(sort.direction)
     }
 }

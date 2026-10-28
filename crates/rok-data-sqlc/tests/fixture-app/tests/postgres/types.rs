@@ -8,7 +8,7 @@ use super::*;
 /// to them bind and decode the mapped types.
 pub(super) async fn interval_bytea_and_timetz_round_trip(pool: &PgPool) {
     use chrono::{FixedOffset, NaiveTime};
-    use plain_db::search::{Equality, Sort, Window};
+    use plain_db::search::{Equality, Sort};
     use plain_db::timed_badges::filter::{TimedBadgeFilter, TimedBadgeSortKey};
     use plain_db::timed_badges::models::TimedBadge;
     use plain_db::timed_badges::models::{NewTimedBadge, UpdateTimedBadge};
@@ -88,17 +88,14 @@ pub(super) async fn interval_bytea_and_timetz_round_trip(pool: &PgPool) {
     assert_eq!(updated.breaks, created.breaks);
 
     let found = |filter| async move {
-        read::search(
-            pool,
-            filter,
-            Sort::asc(TimedBadgeSortKey::Span),
-            Window::first(10),
-        )
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|row| row.id)
-        .collect::<Vec<_>>()
+        TimedBadge::search(filter)
+            .order_by(Sort::asc(TimedBadgeSortKey::Span))
+            .all(pool)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| row.id)
+            .collect::<Vec<_>>()
     };
     assert_eq!(
         found(TimedBadgeFilter {
@@ -157,7 +154,7 @@ pub(super) async fn interval_bytea_and_timetz_round_trip(pool: &PgPool) {
 /// rows, inputs, patches, filters, sort keys, arrays, and query files.
 pub(super) async fn enums_keep_their_exact_labels(pool: &PgPool) {
     use db::queries::tickets::{tickets_in_states, tickets_with_priority};
-    use db::search::{Equality, Sort, Window};
+    use db::search::{Equality, Sort};
     use db::tickets::filter::{TicketFilter, TicketSortKey};
     use db::tickets::models::{NewTicket, Ticket, UpdateTicket};
     use db::tickets::read;
@@ -227,41 +224,32 @@ pub(super) async fn enums_keep_their_exact_labels(pool: &PgPool) {
     assert_eq!(archived.state, Some(TicketState::Archived));
     assert_eq!(archived.watch_levels, [TicketPriority::High]);
 
-    let very_high = read::search(
-        pool,
-        TicketFilter {
-            priority: vec![Equality::Eq(TicketPriority::VeryHigh)],
-            ..Default::default()
-        },
-        Sort::asc(TicketSortKey::Id),
-        Window::first(10),
-    )
+    let very_high = Ticket::search(TicketFilter {
+        priority: vec![Equality::Eq(TicketPriority::VeryHigh)],
+        ..Default::default()
+    })
+    .order_by(Sort::asc(TicketSortKey::Id))
+    .all(pool)
     .await
     .unwrap();
     assert_eq!(very_high, std::slice::from_ref(&archived));
 
-    let not_archived = read::search(
-        pool,
-        TicketFilter {
-            state: vec![Equality::NotIn(vec![TicketState::Archived])],
-            ..Default::default()
-        },
-        Sort::asc(TicketSortKey::Id),
-        Window::first(10),
-    )
+    let not_archived = Ticket::search(TicketFilter {
+        state: vec![Equality::NotIn(vec![TicketState::Archived])],
+        ..Default::default()
+    })
+    .order_by(Sort::asc(TicketSortKey::Id))
+    .all(pool)
     .await
     .unwrap();
     assert!(not_archived.is_empty(), "a NULL state matches no condition");
 
     // Enums sort in declaration order: `high` comes before `Very High`.
-    let by_priority = read::search(
-        pool,
-        TicketFilter::default(),
-        Sort::desc(TicketSortKey::Priority),
-        Window::first(10),
-    )
-    .await
-    .unwrap();
+    let by_priority = Ticket::search(TicketFilter::default())
+        .order_by(Sort::desc(TicketSortKey::Priority))
+        .all(pool)
+        .await
+        .unwrap();
     let priorities: Vec<TicketPriority> =
         by_priority.iter().map(|ticket| ticket.priority).collect();
     assert_eq!(priorities, [TicketPriority::VeryHigh, TicketPriority::High]);
@@ -348,7 +336,7 @@ pub(super) async fn renamed_enum_types_use_their_new_name(pool: &PgPool) {
 pub(super) async fn value_list_columns_round_trip(pool: &PgPool) {
     use db::queries::shipments::shipments_with_status;
     use db::refunds::models::NewRefund;
-    use db::search::{Equality, Sort, Window};
+    use db::search::{Equality, Sort};
     use db::shipments::filter::{ShipmentFilter, ShipmentSortKey};
     use db::shipments::models::{NewShipment, Shipment, UpdateShipment};
     use db::shipments::read;
@@ -413,19 +401,16 @@ pub(super) async fn value_list_columns_round_trip(pool: &PgPool) {
     assert_eq!(delivered.status, ShipmentStatus::Delivered);
     assert_eq!(ShipmentStatus::Delivered.as_str(), "DELIVERED");
 
-    let found = read::search(
-        pool,
-        ShipmentFilter {
-            status: vec![Equality::In(vec![
-                ShipmentStatus::Delivered,
-                ShipmentStatus::InTransit,
-            ])],
-            carrier: vec![Equality::Eq(ShipmentCarrier::Dhl)],
-            ..Default::default()
-        },
-        Sort::asc(ShipmentSortKey::Status),
-        Window::first(10),
-    )
+    let found = Shipment::search(ShipmentFilter {
+        status: vec![Equality::In(vec![
+            ShipmentStatus::Delivered,
+            ShipmentStatus::InTransit,
+        ])],
+        carrier: vec![Equality::Eq(ShipmentCarrier::Dhl)],
+        ..Default::default()
+    })
+    .order_by(Sort::asc(ShipmentSortKey::Status))
+    .all(pool)
     .await
     .unwrap();
     assert_eq!(found, std::slice::from_ref(&delivered));
@@ -475,7 +460,7 @@ pub(super) async fn money_range_and_network_types_round_trip(pool: &PgPool) {
     use plain_db::ledger_entries::models::{NewLedgerEntry, UpdateLedgerEntry};
     use plain_db::ledger_entries::read;
     use plain_db::queries::{EntriesInSubnetParams, entries_in_subnet};
-    use plain_db::search::{Equality, Sort, Window};
+    use plain_db::search::{Equality, Sort};
     use rok_data_sqlc_fixture_app::plain_db;
     use sqlx::postgres::types::{PgMoney, PgRange};
 
@@ -547,17 +532,14 @@ pub(super) async fn money_range_and_network_types_round_trip(pool: &PgPool) {
     assert_eq!(updated.client, created.client);
 
     let found = |filter| async move {
-        read::search(
-            pool,
-            filter,
-            Sort::asc(LedgerEntrySortKey::Id),
-            Window::first(10),
-        )
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|row| row.id)
-        .collect::<Vec<_>>()
+        LedgerEntry::search(filter)
+            .order_by(Sort::asc(LedgerEntrySortKey::Id))
+            .all(pool)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| row.id)
+            .collect::<Vec<_>>()
     };
     assert_eq!(
         found(LedgerEntryFilter {

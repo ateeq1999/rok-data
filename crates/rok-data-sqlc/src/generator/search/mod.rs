@@ -238,7 +238,7 @@ pub fn sortable(table: &Table) -> Vec<&Column> {
 }
 
 /// The `query` parameter every condition-pushing function takes.
-const QUERY_PARAM: &str = "query: &mut sqlx::QueryBuilder<sqlx::Postgres>";
+const QUERY_PARAM: &str = "query: &mut Condition";
 
 #[cfg(test)]
 mod tests {
@@ -246,14 +246,19 @@ mod tests {
     use super::super::test_support::{column, table};
     use super::*;
 
-    /// SQLx 0.9's `QueryBuilder` takes no lifetime parameter.
+    /// A filter builds one `rok_data` condition: the search code names no
+    /// `sqlx` (engine ADR 0023).
     #[test]
-    fn search_code_names_query_builder_without_a_lifetime() {
+    fn search_code_names_no_sqlx() {
         let filter = render_filter(&table(vec![column("id", "i64")], &["id"]), &[], false)
             .expect("an i64 column is filterable");
+        assert!(
+            filter.contains("pub(crate) fn condition(self) -> rok_data::Expr<User> {"),
+            "{filter}"
+        );
         for rendered in [render_shared(DeriveOptions::default()), filter] {
-            assert!(rendered.contains("QueryBuilder<"), "{rendered}");
-            assert!(!rendered.contains("QueryBuilder<'"), "{rendered}");
+            assert!(!rendered.contains("sqlx"), "{rendered}");
+            assert!(rendered.contains("Condition"), "{rendered}");
         }
     }
 
@@ -295,12 +300,11 @@ mod tests {
             rendered.contains("serde::Deserialize)]\npub struct Sort<K> {"),
             "{rendered}"
         );
-        for item in ["pub struct Window {", "pub struct Limit(i64);"] {
-            assert!(
-                rendered.contains(&format!("PartialEq, Eq)]\n{item}")),
-                "{item}:\n{rendered}"
-            );
-        }
+        // The condition a filter builds is internal: it never travels.
+        assert!(
+            rendered.contains("#[derive(Debug, Clone)]\npub struct Condition {"),
+            "{rendered}"
+        );
         assert_eq!(rendered.matches("serde::Serialize").count(), 5);
     }
 }

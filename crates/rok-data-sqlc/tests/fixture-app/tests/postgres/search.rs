@@ -46,52 +46,66 @@ async fn seed_search_products(pool: &PgPool) -> CategoryId {
     category.id
 }
 
+/// `limit` products from `offset` on that `filter` matches, ordered by `sort`
+/// and then by key: `search` is a chain the caller orders and pages.
+async fn products(
+    pool: &PgPool,
+    filter: db::products::filter::ProductFilter,
+    sort: db::search::Sort<db::products::filter::ProductSortKey>,
+    limit: u64,
+    offset: u64,
+) -> Vec<db::products::models::Product> {
+    use db::products::models::Product;
+
+    Product::search(filter)
+        .unwrap()
+        .order_by(sort)
+        .order_by(Product::ID)
+        .limit(limit)
+        .offset(offset)
+        .all(pool)
+        .await
+        .unwrap()
+}
+
 pub(super) async fn search_filters_and_pages(pool: &PgPool) {
     use db::products::filter::{ProductFilter, ProductSortKey};
-    use db::products::read::search;
-    use db::search::{Ordered, Sort, Window};
+    use db::search::{Ordered, Sort};
 
     let category = seed_search_products(pool).await;
     let in_category = || ProductFilter {
         category_id: vec![Ordered::Eq(category)],
         ..Default::default()
     };
+    let by_price = Sort::asc(ProductSortKey::PriceCents);
 
-    let ranged = search(
-        pool,
-        ProductFilter {
-            price_cents: vec![Ordered::Ge(200), Ordered::Lt(500)],
-            ..in_category()
-        },
-        Sort::asc(ProductSortKey::PriceCents),
-        Window::first(10),
-    )
-    .await
-    .unwrap();
+    let ranged = ProductFilter {
+        price_cents: vec![Ordered::Ge(200), Ordered::Lt(500)],
+        ..in_category()
+    };
+    let ranged = products(pool, ranged, by_price, 10, 0).await;
     assert_eq!(skus(&ranged), ["S-2", "S-3", "S-4"], "conditions are ANDed");
 
-    let between = search(
-        pool,
-        ProductFilter {
-            price_cents: vec![Ordered::Between(150, 350)],
-            ..in_category()
-        },
-        Sort::asc(ProductSortKey::PriceCents),
-        Window::first(10),
-    )
-    .await
-    .unwrap();
+    let between = ProductFilter {
+        price_cents: vec![Ordered::Between(150, 350)],
+        ..in_category()
+    };
+    let between = products(pool, between, by_price, 10, 0).await;
     assert_eq!(skus(&between), ["S-2", "S-3"]);
 
-    let second_page = search(
-        pool,
-        in_category(),
-        Sort::asc(ProductSortKey::PriceCents),
-        Window::first(2).next(),
-    )
-    .await
-    .unwrap();
+    let second_page = products(pool, in_category(), by_price, 2, 2).await;
     assert_eq!(skus(&second_page), ["S-3", "S-4"]);
+
+    // The same chain pages with the runtime's `paginate`: a page and the
+    // total in one round trip.
+    let page = db::products::models::Product::search(in_category())
+        .unwrap()
+        .order_by(by_price)
+        .paginate(pool, 2, 2)
+        .await
+        .unwrap();
+    assert_eq!(skus(&page.items), ["S-3", "S-4"]);
+    assert_eq!(page.total, 5);
 
     text_filters_escape_like_wildcards(pool, category).await;
     null_checks_and_equality_filters(pool, category).await;
@@ -106,8 +120,7 @@ pub(super) async fn search_filters_and_pages(pool: &PgPool) {
 async fn filters_round_trip_through_json(pool: &PgPool, category: CategoryId) {
     use db::categories::filter::CategoryFilter;
     use db::products::filter::{ProductFilter, ProductSortKey};
-    use db::products::read::search;
-    use db::search::{Equality, Ordered, Sort, Text, Window};
+    use db::search::{Equality, Ordered, Sort, Text};
 
     let filter = ProductFilter {
         category_id: vec![Ordered::Eq(category)],
@@ -122,9 +135,7 @@ async fn filters_round_trip_through_json(pool: &PgPool, category: CategoryId) {
         ..Default::default()
     };
     let sort = Sort::desc(ProductSortKey::PriceCents);
-    let expected = search(pool, filter.clone(), sort, Window::first(10))
-        .await
-        .unwrap();
+    let expected = products(pool, filter.clone(), sort, 10, 0).await;
     assert_eq!(skus(&expected), ["S-3", "S-1"]);
 
     let json = serde_json::to_string(&(&filter, &sort)).unwrap();
@@ -132,9 +143,7 @@ async fn filters_round_trip_through_json(pool: &PgPool, category: CategoryId) {
         serde_json::from_str(&json).unwrap();
     assert_eq!(decoded, filter);
     assert_eq!(decoded_sort, sort);
-    let found = search(pool, decoded, decoded_sort, Window::first(10))
-        .await
-        .unwrap();
+    let found = products(pool, decoded, decoded_sort, 10, 0).await;
     assert_eq!(found, expected);
 
     // Variants are snake_case in JSON.
@@ -156,26 +165,30 @@ async fn filters_round_trip_through_json(pool: &PgPool, category: CategoryId) {
 
 async fn keyset_pagination_follows_the_primary_key(pool: &PgPool, category: CategoryId) {
     use db::feature_line_items::filter::FeatureLineItemFilter;
-    use db::feature_line_items::models::{FeatureLineItemKey, NewFeatureLineItem};
+    use db::feature_line_items::models::{FeatureLineItem, NewFeatureLineItem};
     use db::products::filter::ProductFilter;
-    use db::products::read::search_after;
-    use db::search::{Limit, MAX_PAGE_SIZE, Ordered, Window};
+    use db::products::models::Product;
+    use db::search::Ordered;
 
+    // Keyset pages come from the runtime's `cursor_paginate` on the search
+    // chain; with no `ORDER BY`, the primary key orders the rows.
     let in_category = || ProductFilter {
         category_id: vec![Ordered::Eq(category)],
         ..Default::default()
     };
-    let mut after = None;
+    let mut cursor = None;
     let mut pages = Vec::new();
     loop {
-        let page = search_after(pool, in_category(), after, Limit::new(2))
+        let page = Product::search(in_category())
+            .unwrap()
+            .cursor_paginate(pool, cursor.as_ref(), 2)
             .await
             .unwrap();
-        let Some(last) = page.last() else {
-            break;
-        };
-        after = Some(last.id);
-        pages.push(skus(&page));
+        pages.push(skus(&page.items));
+        match page.next {
+            Some(next) => cursor = Some(next),
+            None => break,
+        }
     }
     assert_eq!(
         pages,
@@ -200,56 +213,38 @@ async fn keyset_pagination_follows_the_primary_key(pool: &PgPool, category: Cate
         .await
         .unwrap();
     }
-    let after_first = db::feature_line_items::read::search_after(
-        pool,
-        FeatureLineItemFilter::default(),
-        Some(FeatureLineItemKey {
-            order_id: id(1),
-            product_id: id(1),
-        }),
-        Limit::new(10),
-    )
-    .await
-    .unwrap();
-    let keys: Vec<(u128, u128)> = after_first
-        .iter()
-        .map(|row| (row.order_id.as_u128(), row.product_id.as_u128()))
-        .collect();
-    assert_eq!(keys, [(1, 2), (2, 1)], "composite keys compare as a row");
-
-    let clamped = Window::new(10_000, -5);
-    assert_eq!((clamped.limit(), clamped.offset()), (MAX_PAGE_SIZE, 0));
-    let last = Window::new(MAX_PAGE_SIZE, i64::MAX - 10).next();
-    assert_eq!(
-        last.offset(),
-        i64::MAX,
-        "next() saturates instead of overflowing"
-    );
-    let one = search_after(pool, in_category(), None, Limit::new(0))
+    // A composite key pages as a row: after (1, 1) come (1, 2) and (2, 1).
+    let first = FeatureLineItem::search(FeatureLineItemFilter::default())
+        .cursor_paginate(pool, None, 1)
         .await
         .unwrap();
-    assert_eq!(one.len(), 1, "a limit below 1 is clamped to 1");
-    assert_eq!(Limit::new(10_000).get(), MAX_PAGE_SIZE);
+    let after_first = FeatureLineItem::search(FeatureLineItemFilter::default())
+        .cursor_paginate(pool, first.next.as_ref(), 10)
+        .await
+        .unwrap();
+    let keys: Vec<(u128, u128)> = first
+        .items
+        .iter()
+        .chain(&after_first.items)
+        .map(|row| (row.order_id.as_u128(), row.product_id.as_u128()))
+        .collect();
+    assert_eq!(
+        keys,
+        [(1, 1), (1, 2), (2, 1)],
+        "composite keys compare as a row"
+    );
 }
 
 async fn sorting_is_allowlisted_and_stable(pool: &PgPool, category: CategoryId) {
     use db::products::filter::{ProductFilter, ProductSortKey};
-    use db::products::read::search;
-    use db::search::{Ordered, Sort, Window};
+    use db::search::{Ordered, Sort};
 
     let sorted = |sort: Sort<ProductSortKey>| async move {
-        let rows = search(
-            pool,
-            ProductFilter {
-                category_id: vec![Ordered::Eq(category)],
-                ..Default::default()
-            },
-            sort,
-            Window::first(10),
-        )
-        .await
-        .unwrap();
-        skus(&rows)
+        let filter = ProductFilter {
+            category_id: vec![Ordered::Eq(category)],
+            ..Default::default()
+        };
+        skus(&products(pool, filter, sort, 10, 0).await)
     };
 
     assert_eq!(
@@ -274,22 +269,15 @@ async fn sorting_is_allowlisted_and_stable(pool: &PgPool, category: CategoryId) 
 
 async fn null_checks_and_equality_filters(pool: &PgPool, category: CategoryId) {
     use db::products::filter::{ProductFilter, ProductSortKey};
-    use db::products::read::search;
-    use db::search::{Equality, Ordered, Sort, Window};
+    use db::search::{Equality, Ordered, Sort};
 
     let skus_where = |filter: ProductFilter| async move {
-        let rows = search(
-            pool,
-            ProductFilter {
-                category_id: vec![Ordered::Eq(category)],
-                ..filter
-            },
-            Sort::asc(ProductSortKey::PriceCents),
-            Window::first(10),
-        )
-        .await
-        .unwrap();
-        skus(&rows)
+        let filter = ProductFilter {
+            category_id: vec![Ordered::Eq(category)],
+            ..filter
+        };
+        let sort = Sort::asc(ProductSortKey::PriceCents);
+        skus(&products(pool, filter, sort, 10, 0).await)
     };
 
     // Odd-numbered products have a weight; even-numbered ones are NULL.
@@ -378,21 +366,15 @@ async fn null_checks_and_equality_filters(pool: &PgPool, category: CategoryId) {
 
 async fn text_filters_escape_like_wildcards(pool: &PgPool, category: CategoryId) {
     use db::products::filter::{ProductFilter, ProductSortKey};
-    use db::products::read::search;
-    use db::search::{Ordered, Sort, Text, Window};
+    use db::search::{Ordered, Sort, Text};
 
     let names = |filter: ProductFilter| async move {
-        let rows = search(
-            pool,
-            ProductFilter {
-                category_id: vec![Ordered::Eq(category)],
-                ..filter
-            },
-            Sort::asc(ProductSortKey::PriceCents),
-            Window::first(10),
-        )
-        .await
-        .unwrap();
+        let filter = ProductFilter {
+            category_id: vec![Ordered::Eq(category)],
+            ..filter
+        };
+        let sort = Sort::asc(ProductSortKey::PriceCents);
+        let rows = products(pool, filter, sort, 10, 0).await;
         rows.into_iter().map(|row| row.name).collect::<Vec<_>>()
     };
 

@@ -91,7 +91,11 @@ fn generates_composite_keys_arrays_and_time() -> Result<()> {
     assert!(read.contains("get_by_id<'e, E>(\n    executor: E,\n    key: LineItemKey,\n)"));
     assert!(read.contains("    LineItem::filter(LineItem::ORDER_ID.eq(key.order_id))\n"));
     assert!(read.contains("        .filter(LineItem::PRODUCT_ID.eq(key.product_id))\n"));
-    assert!(read.contains("    after: Option<LineItemKey>,\n"));
+    // Keyset pages come from the chain: `search` returns one.
+    assert!(
+        read.contains("pub fn search(filter: LineItemFilter)"),
+        "{read}"
+    );
     Ok(())
 }
 

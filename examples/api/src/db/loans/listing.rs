@@ -42,6 +42,13 @@ impl LoanSort {
     }
 }
 
+/// A sort as the chain's order: `.order_by(sort)`.
+impl From<Sort<LoanSort>> for rok_data::Order<Loan> {
+    fn from(sort: Sort<LoanSort>) -> Self {
+        sort.key.order(sort.direction)
+    }
+}
+
 impl Loan {
     /// The rows of the list endpoint, ordered by `sort`, ties by primary key.
     /// Run it a page at a time with `.paginate(executor, page, per_page)`.
@@ -49,7 +56,7 @@ impl Loan {
     pub fn matching(sort: Option<Sort<LoanSort>>) -> rok_data::Select<Loan> {
         let mut query = Loan::query();
         if let Some(sort) = sort {
-            query = query.order_by(sort.key.order(sort.direction));
+            query = query.order_by(sort);
         }
         query.order_by(Loan::ID)
     }

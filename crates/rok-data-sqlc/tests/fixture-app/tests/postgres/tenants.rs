@@ -9,7 +9,7 @@ use super::*;
 /// have no `tenant_id`.
 pub(super) async fn tenant_rows_are_invisible_to_other_tenants(pool: &PgPool) {
     use db::UpdateOutcome;
-    use db::search::{Limit, Sort, Window};
+    use db::search::Sort;
     use db::tenant_notes::filter::{TenantNoteFilter, TenantNoteSortKey};
     use db::tenant_notes::models::{NewTenantNote, TenantNote, UpdateTenantNote};
     use db::tenant_notes::read;
@@ -46,26 +46,17 @@ pub(super) async fn tenant_rows_are_invisible_to_other_tenants(pool: &PgPool) {
             read::count(pool, tenant).await.unwrap(),
             i64::try_from(expected.len()).unwrap()
         );
-        let search = read::search(
-            pool,
-            tenant,
-            TenantNoteFilter::default(),
-            Sort::asc(TenantNoteSortKey::Id),
-            Window::first(10),
-        )
-        .await
-        .unwrap();
+        let search = TenantNote::search(tenant, TenantNoteFilter::default())
+            .order_by(Sort::asc(TenantNoteSortKey::Id))
+            .all(pool)
+            .await
+            .unwrap();
         assert_eq!(ids(search), expected);
-        let after = read::search_after(
-            pool,
-            tenant,
-            TenantNoteFilter::default(),
-            None,
-            Limit::new(10),
-        )
-        .await
-        .unwrap();
-        assert_eq!(ids(after), expected);
+        let keyset = TenantNote::search(tenant, TenantNoteFilter::default())
+            .cursor_paginate(pool, None, 10)
+            .await
+            .unwrap();
+        assert_eq!(ids(keyset.items), expected);
         assert_eq!(
             read::get_by_code(pool, tenant, "N")
                 .await
@@ -144,7 +135,6 @@ pub(super) async fn tenant_rows_are_invisible_to_other_tenants(pool: &PgPool) {
 /// `tenant_members` has the tenant column in its primary key, so its key is
 /// `code` alone and the tenant is passed once, as the tenant parameter.
 pub(super) async fn a_tenant_in_the_primary_key_is_passed_once(pool: &PgPool) {
-    use db::search::Limit;
     use db::tenant_members::filter::TenantMemberFilter;
     use db::tenant_members::models::TenantMember;
     use db::tenant_members::models::{NewTenantMember, UpdateTenantMember};
@@ -189,17 +179,12 @@ pub(super) async fn a_tenant_in_the_primary_key_is_passed_once(pool: &PgPool) {
     );
     assert_eq!(name(tenant_a).await.as_deref(), Some("Ann"));
 
-    let page = read::search_after(
-        pool,
-        tenant_a,
-        TenantMemberFilter::default(),
-        Some("M0"),
-        Limit::new(10),
-    )
-    .await
-    .unwrap();
-    assert_eq!(page.len(), 1);
-    assert_eq!(page[0].tenant_id, tenant_a);
+    let page = TenantMember::search(tenant_a, TenantMemberFilter::default())
+        .cursor_paginate(pool, None, 10)
+        .await
+        .unwrap();
+    assert_eq!(page.items.len(), 1);
+    assert_eq!(page.items[0].tenant_id, tenant_a);
 
     TenantMember::destroy(pool, tenant_a, "M1").await.unwrap();
     assert_eq!(name(tenant_a).await, None);

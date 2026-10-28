@@ -5,13 +5,13 @@ use crate::schema::{Column, FilterKind, Table, mentions_generated_type};
 
 use super::conditions::push_conditions_fn;
 use super::{
-    FilterRelationship, QUERY_PARAM, SearchApi, filter_columns, filter_relationships, push_block,
-    push_call, push_call_ending, sortable,
+    FilterRelationship, SearchApi, filter_columns, filter_relationships, push_block, push_call,
+    push_call_ending, sortable,
 };
 use crate::generator::sql::{ident, live_condition, str_literal};
 use crate::generator::{
     HEADER, MAX_WIDTH, conventions, doc_name, keys, push_derives, push_doc, push_serde_snake_case,
-    serde_derives, use_paths,
+    push_sort_into_order, replace_once, serde_derives, use_list, use_paths,
 };
 
 /// Renders the resource's `filter.rs`, or `None` when the resource has no
@@ -39,6 +39,11 @@ pub fn render_filter(table: &Table, tables: &[Table], serde: bool) -> Option<Str
         .iter()
         .map(|(_, kind)| kind.type_name())
         .collect();
+    imports.push("Condition");
+    if api.search {
+        // The sort key orders by `direction`, and a `Sort` of it is an order.
+        imports.extend(["Direction", "Sort"]);
+    }
     if has_nullable {
         imports.push("push_null_check");
     }
@@ -52,6 +57,8 @@ pub fn render_filter(table: &Table, tables: &[Table], serde: bool) -> Option<Str
         [single] => vec![format!("super::super::search::{single}")],
         many => vec![format!("super::super::search::{{{}}}", many.join(", "))],
     };
+    // The condition is on the model's rows.
+    paths.push(format!("super::models::{}", table.struct_name));
     // Typed ids appear in `Ordered<_>`/`Equality<_>` conditions only.
     paths.extend(keys::id_imports(
         table,
@@ -76,7 +83,14 @@ pub fn render_filter(table: &Table, tables: &[Table], serde: bool) -> Option<Str
         }
     }
     if !paths.is_empty() {
-        output.push_str(&use_paths(&paths));
+        let mut uses = use_paths(&paths);
+        // A long list of the shared search items wraps as rustfmt wraps it.
+        if let [_, _, ..] = imports.as_slice() {
+            let names: Vec<String> = imports.iter().map(|name| (*name).to_owned()).collect();
+            let one_line = format!("use super::super::search::{{{}}};\n", imports.join(", "));
+            uses = replace_once(&uses, &one_line, &use_list("super::super::search", &names));
+        }
+        output.push_str(&uses);
         output.push('\n');
     }
     let title = format!("Conditions for `search` over `{}`.", table.display_name());
@@ -160,31 +174,37 @@ pub fn render_filter(table: &Table, tables: &[Table], serde: bool) -> Option<Str
     output.push('\n');
 
     output.push_str(&format!("impl {filter} {{\n"));
-    let mut where_doc = vec!["Appends the `WHERE` clause for these conditions."];
-    if fallible {
-        where_doc.extend(ERRORS_DOC);
-        push_doc(&mut output, 4, &where_doc);
-        output.push_str(&format!(
-            "    pub(crate) fn push_where(\n        self,\n        {QUERY_PARAM},\n    ) -> Result<(), sqlx::Error> {{\n"
-        ));
+    let row = &table.struct_name;
+    let mut condition_doc = vec!["These conditions as one condition on the model's chain."];
+    if live.is_some() {
+        condition_doc.extend([
+            "Soft-deleted rows are the caller's: `include_deleted` chooses",
+            "`with_trashed()`.",
+        ]);
+    }
+    let expr = format!("rok_data::Expr<{row}>");
+    let returns = if fallible {
+        condition_doc.extend(ERRORS_DOC);
+        format!("Result<{expr}, rok_data::Error>")
     } else {
-        push_doc(&mut output, 4, &where_doc);
-        output.push_str(&format!(
-            "    pub(crate) fn push_where(self, {QUERY_PARAM}) {{\n"
-        ));
-    }
-    output.push_str("        query.push(\" WHERE TRUE\");\n");
-    if let Some(live) = &live {
-        output.push_str(&format!(
-            "        if !self.{} {{\n            query.push({});\n        }}\n",
-            conventions::INCLUDE_DELETED,
-            str_literal(&format!(" AND {live}"))
-        ));
-    }
+        expr
+    };
+    push_doc(&mut output, 4, &condition_doc);
+    let params = ["self".to_owned()];
+    crate::generator::push_signature(&mut output, 4, "pub(crate) fn condition", &params, &returns);
     if !split {
-        push_column_conditions(&mut output, table);
-        output.push_str("    }\n}\n");
+        let conditions =
+            filter_columns(table).any(|column| column.filter_kind().is_some() || column.nullable);
+        if conditions {
+            output.push_str("        let mut condition = Condition::default();\n");
+            output.push_str("        let query = &mut condition;\n");
+            push_column_conditions(&mut output, table);
+        } else {
+            output.push_str("        let condition = Condition::default();\n");
+        }
+        output.push_str("        condition.into_expr()\n    }\n}\n");
     } else {
+        output.push_str("        let mut query = Condition::default();\n");
         if fallible {
             push_call_ending(
                 &mut output,
@@ -193,12 +213,14 @@ pub fn render_filter(table: &Table, tables: &[Table], serde: bool) -> Option<Str
                 &[
                     str_literal(&ident(&table.sql_name)),
                     "0".to_owned(),
-                    "query".to_owned(),
+                    "&mut query".to_owned(),
                 ],
-                "",
+                "?;",
             );
+            output.push_str("        Ok(query.into_expr())\n");
         } else {
-            output.push_str("        self.push_conditions(query);\n");
+            output.push_str("        self.push_conditions(&mut query);\n");
+            output.push_str("        query.into_expr()\n");
         }
         output.push_str("    }\n\n");
         push_conditions_fn(&mut output, table, tables, &relationships);
@@ -228,26 +250,44 @@ pub fn render_filter(table: &Table, tables: &[Table], serde: bool) -> Option<Str
     push_block(&mut output, &format!("pub enum {sort_key}"), &variants, 0);
     output.push('\n');
     output.push_str(&format!("impl {sort_key} {{\n"));
-    push_doc(&mut output, 4, &["The SQL column this key sorts by."]);
-    output.push_str("    #[must_use]\n    pub fn column(self) -> &'static str {\n");
+    push_doc(
+        &mut output,
+        4,
+        &["How this key orders rows, in `direction`."],
+    );
+    output.push_str("    #[must_use]\n");
+    let head = format!("    pub fn order(self, direction: Direction) -> rok_data::Order<{row}> {{");
+    if head.len() <= MAX_WIDTH {
+        output.push_str(&format!("{head}\n"));
+    } else {
+        output.push_str(&format!(
+            "    pub fn order(\n        self,\n        direction: Direction,\n    ) -> rok_data::Order<{row}> {{\n"
+        ));
+    }
     let arms: Vec<String> = sortable
         .iter()
         .map(|column| {
-            // The arms sit inside `fn column` and its `match`.
+            // The arms sit inside `fn order` and its `match`.
             const ARM_INDENT: usize = 12;
             let variant = column.sort_variant();
-            let literal = str_literal(&ident(&column.sql_name));
-            let arm = format!("Self::{variant} => {literal},");
+            let constant = format!("{row}::{}", column.rust_name.to_uppercase());
+            let arm = format!("Self::{variant} => {constant},");
             // An arm too long for its line goes in a block, as rustfmt puts it.
             if ARM_INDENT + arm.len() <= MAX_WIDTH {
                 arm
             } else {
-                format!("Self::{variant} => {{\n                {literal}\n            }}")
+                format!("Self::{variant} => {{\n                {constant}\n            }}")
             }
         })
         .collect();
-    push_block(&mut output, "match self", &arms, 8);
-    output.push_str("    }\n}\n");
+    push_block(&mut output, "let column = match self", &arms, 8);
+    // `push_block` closes the `match` without the `let`'s semicolon.
+    output.pop();
+    output.push_str(";\n");
+    output.push_str(
+        "        match direction {\n            Direction::Asc => column.asc(),\n            Direction::Desc => column.desc(),\n        }\n    }\n}\n",
+    );
+    push_sort_into_order(&mut output, &sort_key, row);
     Some(output)
 }
 
@@ -256,7 +296,7 @@ pub(super) const ERRORS_DOC: [&str; 5] = [
     "",
     "# Errors",
     "",
-    "`sqlx::Error::InvalidArgument` when relationship filters nest more than",
+    "`rok_data::Error::InvalidQuery` when relationship filters nest more than",
     "`MAX_RELATIONSHIP_DEPTH` deep.",
 ];
 

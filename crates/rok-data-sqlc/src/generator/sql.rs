@@ -121,14 +121,6 @@ pub fn equals(column: &Column, placeholder: usize, lowered: bool) -> String {
     }
 }
 
-/// `a, b` over the given key columns, for `ORDER BY`.
-pub fn key_order(keys: &[&Column]) -> String {
-    keys.iter()
-        .map(|column| ident(&column.sql_name))
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
 /// Renders `text` as a Rust string literal: a plain literal when no escaping
 /// is needed, otherwise a raw literal with enough `#`s to be unambiguous.
 pub fn str_literal(text: &str) -> String {

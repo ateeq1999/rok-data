@@ -9,8 +9,7 @@ use super::*;
 pub(super) async fn enum_keys_get_a_typed_id(pool: &PgPool) {
     use db::priority_escalations::models::NewPriorityEscalation;
     use db::priority_notes::filter::PriorityNoteFilter;
-    use db::priority_notes::models::{NewPriorityNote, PriorityNoteId};
-    use db::search::Limit;
+    use db::priority_notes::models::{NewPriorityNote, PriorityNote, PriorityNoteId};
     use db::types::TicketPriority;
 
     for (priority, note) in [
@@ -44,16 +43,28 @@ pub(super) async fn enum_keys_get_a_typed_id(pool: &PgPool) {
     assert_eq!(found.note, "now");
     assert_eq!(TicketPriority::from(found.priority), TicketPriority::High);
 
-    let after = db::priority_notes::read::search_after(
-        pool,
-        PriorityNoteFilter::default(),
-        Some(PriorityNoteId(TicketPriority::Low)),
-        Limit::new(10),
-    )
-    .await
-    .unwrap();
-    let keys: Vec<PriorityNoteId> = after.iter().map(|row| row.priority).collect();
-    assert_eq!(keys, [PriorityNoteId(TicketPriority::High)]);
+    // The enum key pages as its database order: `low` before `high`.
+    let page = PriorityNote::search(PriorityNoteFilter::default())
+        .cursor_paginate(pool, None, 1)
+        .await
+        .unwrap();
+    let after = PriorityNote::search(PriorityNoteFilter::default())
+        .cursor_paginate(pool, page.next.as_ref(), 10)
+        .await
+        .unwrap();
+    let keys: Vec<PriorityNoteId> = page
+        .items
+        .iter()
+        .chain(&after.items)
+        .map(|row| row.priority)
+        .collect();
+    assert_eq!(
+        keys,
+        [
+            PriorityNoteId(TicketPriority::Low),
+            PriorityNoteId(TicketPriority::High)
+        ]
+    );
 }
 
 pub(super) async fn typed_ids_flow_from_rows_to_foreign_keys(pool: &PgPool) {
@@ -62,7 +73,7 @@ pub(super) async fn typed_ids_flow_from_rows_to_foreign_keys(pool: &PgPool) {
     use db::categories::models::{CategoryId, NewCategory};
     use db::products::filter::ProductFilter;
     use db::products::models::{NewProduct, ProductId};
-    use db::search::{Ordered, Sort, Window};
+    use db::search::{Ordered, Sort};
 
     let category = db::categories::models::Category::create(
         pool,
@@ -95,15 +106,13 @@ pub(super) async fn typed_ids_flow_from_rows_to_foreign_keys(pool: &PgPool) {
     .unwrap();
     assert_eq!(product.category_id, category.id);
 
-    let found = db::products::read::search(
-        pool,
-        ProductFilter {
-            category_id: vec![Ordered::Eq(category.id)],
-            ..Default::default()
-        },
-        Sort::asc(db::products::filter::ProductSortKey::Sku),
-        Window::first(10),
-    )
+    let found = db::products::models::Product::search(ProductFilter {
+        category_id: vec![Ordered::Eq(category.id)],
+        ..Default::default()
+    })
+    .unwrap()
+    .order_by(Sort::asc(db::products::filter::ProductSortKey::Sku))
+    .all(pool)
     .await
     .unwrap();
     assert_eq!(
@@ -372,9 +381,9 @@ pub(super) async fn unique_key_lookups_find_one_row_or_none(pool: &PgPool) {
 /// A text key's typed id is not `Copy`, so every generated function borrows
 /// it; a key struct with a text column is borrowed the same way.
 pub(super) async fn text_keys_are_borrowed(pool: &PgPool) {
+    use db::currencies::models::Currency;
     use db::currencies::models::{CurrencyId, NewCurrency, UpdateCurrency};
     use db::currency_rates::models::{CurrencyRateKey, NewCurrencyRate};
-    use db::search::Limit;
 
     let eur = CurrencyId::from("EUR".to_owned());
     for code in ["CHF", "EUR"] {
@@ -407,19 +416,19 @@ pub(super) async fn text_keys_are_borrowed(pool: &PgPool) {
     .unwrap();
     assert_eq!(renamed.name, "Euro");
 
-    let first = db::currencies::read::search_after(pool, Default::default(), None, Limit::new(1))
+    let first = Currency::search(Default::default())
+        .unwrap()
+        .cursor_paginate(pool, None, 1)
         .await
         .unwrap();
-    assert_eq!(first[0].code, CurrencyId::from("CHF".to_owned()));
-    let next = db::currencies::read::search_after(
-        pool,
-        Default::default(),
-        Some(&first[0].code),
-        Limit::new(10),
-    )
-    .await
-    .unwrap();
-    assert_eq!(next.iter().map(|row| &row.code).collect::<Vec<_>>(), [&eur]);
+    assert_eq!(first.items[0].code, CurrencyId::from("CHF".to_owned()));
+    let next = Currency::search(Default::default())
+        .unwrap()
+        .cursor_paginate(pool, first.next.as_ref(), 10)
+        .await
+        .unwrap();
+    let codes: Vec<&CurrencyId> = next.items.iter().map(|row| &row.code).collect();
+    assert_eq!(codes, [&eur]);
 
     let day = chrono::NaiveDate::from_ymd_opt(2026, 1, 2).unwrap();
     let rate = db::currency_rates::models::CurrencyRate::create(

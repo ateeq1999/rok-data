@@ -3,7 +3,7 @@
 
 use super::sql;
 use crate::Derive;
-use crate::schema::{Table, mentions_generated_type};
+use crate::schema::mentions_generated_type;
 
 /// rustfmt's default `max_width`; generated code is laid out to be
 /// rustfmt-stable so regenerated files diff cleanly.
@@ -131,6 +131,60 @@ pub fn push_wide_chain(
         let suffix = if index + 1 == calls.len() { trail } else { "" };
         push_chain_call(output, link_pad, call, suffix);
     }
+}
+
+/// `Ok(<chain>)` as a function's tail, laid out as rustfmt lays it out: on
+/// one line when the chain fits there; else the head beside `Ok(` and one
+/// call per line below it, while the head fits the function-call width and
+/// every call its line unbroken; else the chain as a block-indented
+/// argument (`Ok(\n chain,\n)`). The head's limit is probed: rustfmt keeps a
+/// 55-column head beside `Ok(` and moves a 61-column one.
+pub fn push_ok_chain(output: &mut String, indent: usize, head: &str, calls: &[String]) {
+    let pad = " ".repeat(indent);
+    let chain = format!("{head}{}", calls.concat());
+    let wide = calls.len() <= 1;
+    if pad.len() + "Ok()".len() + chain.len() <= max_width() && (wide || chain.len() <= CHAIN_WIDTH)
+    {
+        output.push_str(&format!("{pad}Ok({chain})\n"));
+        return;
+    }
+    let mut overflow = format!("{pad}Ok({head}\n");
+    for (index, call) in calls.iter().enumerate() {
+        let suffix = if index + 1 == calls.len() { ")" } else { "" };
+        push_chain_call(&mut overflow, indent + 4, call, suffix);
+    }
+    let unbroken = overflow.lines().count() == calls.len() + 1;
+    let fits = overflow.lines().all(|line| line.len() <= max_width());
+    if head.len() <= FN_CALL_WIDTH && unbroken && fits {
+        output.push_str(&overflow);
+        return;
+    }
+    output.push_str(&format!("{pad}Ok(\n"));
+    push_wide_chain(output, indent + 4, "", head, calls, ",");
+    output.push_str(&format!("{pad})\n"));
+}
+
+/// `impl From<Sort<{key}>> for rok_data::Order<{row}>`, so a chain takes a
+/// sort as it is: `.order_by(sort)`. `key` has an `order(direction)`.
+pub fn push_sort_into_order(output: &mut String, key: &str, row: &str) {
+    output.push_str("\n/// A sort as the chain's order: `.order_by(sort)`.\n");
+    let head = format!("impl From<Sort<{key}>> for rok_data::Order<{row}> {{");
+    if head.len() <= max_width() {
+        output.push_str(&format!("{head}\n"));
+    } else {
+        output.push_str(&format!(
+            "impl From<Sort<{key}>>\n    for rok_data::Order<{row}>\n{{\n"
+        ));
+    }
+    let from = format!("    fn from(sort: Sort<{key}>) -> Self {{");
+    if from.len() <= max_width() {
+        output.push_str(&format!("{from}\n"));
+    } else {
+        output.push_str(&format!(
+            "    fn from(\n        sort: Sort<{key}>,\n    ) -> Self {{\n"
+        ));
+    }
+    output.push_str("        sort.key.order(sort.direction)\n    }\n}\n");
 }
 
 /// The arguments of `name(arg, ...)` as written, split on top-level
@@ -530,17 +584,6 @@ impl StaticQuery<'_> {
     }
 }
 
-/// The final `build_query_as().fetch_*().await` chain, kept on one line when
-/// it fits [`CHAIN_WIDTH`] and split per call otherwise.
-pub fn push_build_and_fetch(output: &mut String, table: &Table, fetch: &str) {
-    let calls = [
-        format!(".build_query_as::<{}>()", table.struct_name),
-        format!(".{fetch}(executor)"),
-        ".await".to_owned(),
-    ];
-    push_chain(output, 4, "", "query", &calls);
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -576,6 +619,57 @@ mod tests {
         let mut off = "#[derive(Debug)]\n".to_owned();
         push_derives(&mut off, serde_derives(false));
         assert_eq!(off, "#[derive(Debug)]\n");
+    }
+
+    /// The layouts rustfmt was probed for: one line, the head beside `Ok(`,
+    /// and a block-indented argument once the head passes the call width.
+    #[test]
+    fn ok_chains_lay_out_as_rustfmt_does() {
+        let calls = |calls: &[&str]| {
+            calls
+                .iter()
+                .map(|call| (*call).to_owned())
+                .collect::<Vec<_>>()
+        };
+        let mut short = String::new();
+        push_ok_chain(
+            &mut short,
+            8,
+            "Note::search(filter)?",
+            &calls(&[".order_by(Note::ID)"]),
+        );
+        assert_eq!(
+            short,
+            "        Ok(Note::search(filter)?.order_by(Note::ID))\n"
+        );
+
+        let links = calls(&[
+            ".order_by(sort.key.order(sort.direction))",
+            ".order_by(Q::ID)",
+        ]);
+        let mut beside = String::new();
+        push_ok_chain(
+            &mut beside,
+            4,
+            "QuarterlyFinancialStatement::search(tenant_id, filter)?",
+            &links,
+        );
+        assert_eq!(
+            beside,
+            "    Ok(QuarterlyFinancialStatement::search(tenant_id, filter)?\n        .order_by(sort.key.order(sort.direction))\n        .order_by(Q::ID))\n"
+        );
+
+        let mut block = String::new();
+        push_ok_chain(
+            &mut block,
+            4,
+            "QuarterlyFinancialStatementDocuments::search(tenant, filter)?",
+            &links,
+        );
+        assert_eq!(
+            block,
+            "    Ok(\n        QuarterlyFinancialStatementDocuments::search(tenant, filter)?\n            .order_by(sort.key.order(sort.direction))\n            .order_by(Q::ID),\n    )\n"
+        );
     }
 
     #[test]
