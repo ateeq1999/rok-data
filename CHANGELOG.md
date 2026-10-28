@@ -12,6 +12,10 @@ that it exists and won't ship a tag without it).
 Added: `rok sqlc query add <NAME> <SQL> --file <stem>` appends one annotated
 query and generates, keeping it only when it generates (`docs/cli-reference.md`).
 
+Added: direct uploads in the actix and axum templates. A presigned `PUT` to
+S3-compatible stores, or an API-signed URL for `file://` and `memory://`,
+checked on completion; presigned download URLs (engine ADR 0024).
+
 Breaking for generated code (engine ADR 0023, in progress): the generated
 data layer stops naming `sqlx`.
 

@@ -76,6 +76,19 @@ Generated data calls move onto the runtime (engine ADR 0023):
   ```rust
   User::search(filter)?.order_by(Sort::desc(UserSortKey::CreatedAt)).paginate(..)
   ```
+- **Direct uploads in both templates (engine ADR 0024):** `POST
+  /media/uploads` answers an upload ticket with a presigned `PUT` URL;
+  `POST /media/{id}/complete` checks the stored bytes' size and detected
+  type; `GET /media/{id}/url` answers a presigned download URL. `s3://`
+  stores sign with SigV4 (`STORAGE_PUBLIC_ENDPOINT` for the address clients
+  use); `file://` and `memory://` URLs are signed by the API, under a key
+  derived from `JWT_SECRET`, and served at `/api/v1/storage/{token}`. A
+  background sweep deletes uploads never completed. New settings:
+  `MEDIA_UPLOAD_URL_TTL_SECS`, `MEDIA_DOWNLOAD_URL_TTL_SECS`,
+  `MEDIA_UPLOAD_SWEEP_SECS`, `STORAGE_PUBLIC_ENDPOINT`. Migration `0006`
+  adds `media.completed_at` and `expires_at`; existing rows count as
+  completed. `shared/storage/` is scaffolded, so an existing project adopts
+  the change by hand.
 
 ## Workspace 0.3.0 - 2026-10-28
 

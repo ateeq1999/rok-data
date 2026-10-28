@@ -85,7 +85,7 @@
           "sql_type": "TEXT",
           "nullable": true,
           "doc": [
-            "Answered as `avatar_url` once uploads exist."
+            "The profile photo's storage key; `avatar_url` below is its URL."
           ]
         },
         {
@@ -223,7 +223,10 @@
       "name": "media",
       "module": "types",
       "doc": [
-        "Uploaded files, each owned by its uploader."
+        "Uploaded files, each owned by its uploader. A file uploaded straight to",
+        "the store (`POST /media/uploads`) starts as an upload intent: no",
+        "`completed_at` yet, and an `expires_at` past which the sweep removes it.",
+        "Every read but the completion's sees completed files only."
       ],
       "columns": [
         {
@@ -261,6 +264,17 @@
           "sql_type": "TIMESTAMPTZ",
           "nullable": false,
           "default": "now()"
+        },
+        {
+          "name": "completed_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "expires_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": true
         }
       ],
       "primary_key": [

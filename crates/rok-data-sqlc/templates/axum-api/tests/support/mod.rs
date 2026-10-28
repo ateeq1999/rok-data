@@ -446,4 +446,25 @@ impl axum_api::shared::storage::Storage for Recorded {
         }
         Ok(())
     }
+
+    async fn presign(
+        &self,
+        key: &str,
+        access: axum_api::shared::storage::Access,
+        ttl: std::time::Duration,
+    ) -> Result<axum_api::shared::storage::PresignedUrl, axum_api::error::AppError> {
+        self.inner.presign(key, access, ttl).await
+    }
+
+    async fn peek(
+        &self,
+        key: &str,
+        len: usize,
+    ) -> Result<Option<axum_api::shared::storage::Peek>, axum_api::error::AppError> {
+        self.inner.peek(key, len).await
+    }
+
+    fn api_signer(&self) -> Option<&axum_api::shared::storage::ApiSigner> {
+        self.inner.api_signer()
+    }
 }

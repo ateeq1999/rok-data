@@ -4,23 +4,36 @@
 //! `Storage` port (`shared/storage`), the rows through this feature's
 //! query module, `db::queries::media`. Every file is its owner's alone:
 //! another caller's is a `404`, as if it didn't exist.
+//!
+//! A file arrives one of two ways. `upload` takes its bytes in the request.
+//! `start_upload` hands out a presigned URL the client puts the bytes to
+//! straight, and `complete_upload` then checks them, as `upload` does,
+//! before the file appears (engine ADR 0024). An upload never completed is
+//! removed by `sweep`.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use bytes::Bytes;
 use sqlx::PgPool;
 
-use super::dto::{FILENAME_MAX, MediaContent, MediaResponse};
-use crate::db::media::models::MediaId;
+use super::dto::{
+    DownloadUrl, FILENAME_MAX, MediaContent, MediaResponse, StartUploadDto, UploadTicket,
+};
+use crate::db::media::models::{Media, MediaId};
 use crate::db::queries::media as queries;
 use crate::db::users::models::UserId;
 use crate::error::AppError;
 use crate::shared::pagination::Pagination;
 use crate::shared::response::PaginatedResponse;
-use crate::shared::storage::Storage;
+use crate::shared::storage::{Access, Storage};
 
 /// The prefix of every key this feature stores under.
 const KEY_PREFIX: &str = "media/";
+
+/// How many of an object's first bytes are read to detect its type.
+const SNIFF_BYTES: usize = 8 * 1024;
 
 /// The `media` service, built by `app.rs`.
 #[derive(Clone)]
@@ -35,6 +48,11 @@ pub struct MediaService {
     /// `MEDIA_ALLOWED_TYPES`: the types, detected from the bytes, an upload
     /// may have.
     pub allowed_types: Vec<String>,
+    /// `MEDIA_UPLOAD_URL_TTL_SECS`: how long a direct-upload URL, and its
+    /// upload intent, last.
+    pub upload_url_ttl: Duration,
+    /// `MEDIA_DOWNLOAD_URL_TTL_SECS`: how long a download URL lasts.
+    pub download_url_ttl: Duration,
 }
 
 impl MediaService {
@@ -56,31 +74,8 @@ impl MediaService {
         if bytes.len() > self.max_upload_bytes {
             return Err(self.too_large());
         }
-        let filename = filename.filter(|name| !name.trim().is_empty());
-        if filename
-            .as_deref()
-            .is_some_and(|name| name.chars().count() > FILENAME_MAX)
-        {
-            return Err(AppError::Validation {
-                message: format!("the file name must be at most {FILENAME_MAX} characters"),
-                details: None,
-            });
-        }
-        let Some(detected) = infer::get(&bytes) else {
-            return Err(AppError::UnsupportedMediaType(
-                "the file type could not be recognized".to_owned(),
-            ));
-        };
-        let content_type = detected.mime_type();
-        if !self
-            .allowed_types
-            .iter()
-            .any(|allowed| allowed == content_type)
-        {
-            return Err(AppError::UnsupportedMediaType(format!(
-                "files of type {content_type} are not accepted"
-            )));
-        }
+        let filename = checked_filename(filename)?;
+        let content_type = self.detected_type(&bytes)?;
 
         let id = MediaId::generate();
         let storage_key = format!("{KEY_PREFIX}{}", id.0.simple());
@@ -152,6 +147,170 @@ impl MediaService {
         Ok(())
     }
 
+    /// Starts a direct upload for `owner`: checks what the file will be
+    /// (its type allowed, `415`; its size within the limit, `413`; its name,
+    /// `422`), writes its upload intent, and answers the presigned URL the
+    /// client puts the bytes to. Nothing reads the file until
+    /// [`complete_upload`](Self::complete_upload).
+    pub async fn start_upload(
+        &self,
+        owner: UserId,
+        upload: StartUploadDto,
+    ) -> Result<UploadTicket, AppError> {
+        if usize::try_from(upload.size_bytes).map_or(true, |size| size > self.max_upload_bytes) {
+            return Err(self.too_large());
+        }
+        let filename = checked_filename(upload.filename)?;
+        self.allowed(&upload.content_type)?;
+
+        let id = MediaId::generate();
+        let storage_key = format!("{KEY_PREFIX}{}", id.0.simple());
+        let url = self
+            .storage
+            .presign(&storage_key, Access::Upload, self.upload_url_ttl)
+            .await?;
+        queries::insert_upload_intent(
+            &self.pool,
+            queries::InsertUploadIntentParams {
+                id,
+                owner_id: owner,
+                content_type: upload.content_type.clone(),
+                size_bytes: upload.size_bytes,
+                original_filename: filename,
+                storage_key,
+                expires_at: url.expires_at,
+            },
+        )
+        .await?;
+        Ok(UploadTicket {
+            media_id: id,
+            method: url.method.to_owned(),
+            upload_url: url.url,
+            headers: BTreeMap::from([("Content-Type".to_owned(), upload.content_type)]),
+            expires_at: url.expires_at,
+        })
+    }
+
+    /// Completes `owner`'s direct upload `id` (else `404`, also once it
+    /// expired): its bytes must be there (`409` while they aren't), as large
+    /// as declared and of the declared type, detected from the bytes as
+    /// `upload` detects it. A mismatch removes the upload and its bytes and
+    /// answers `422`.
+    pub async fn complete_upload(
+        &self,
+        owner: UserId,
+        id: MediaId,
+    ) -> Result<MediaResponse, AppError> {
+        let pending = queries::pending_media(&self.pool, id, owner)
+            .await?
+            .ok_or_else(not_found)?;
+        let Some(peek) = self.storage.peek(&pending.storage_key, SNIFF_BYTES).await? else {
+            return Err(AppError::Conflict(
+                "the file's bytes have not been uploaded yet".to_owned(),
+            ));
+        };
+        let declared = u64::try_from(pending.size_bytes).unwrap_or(0);
+        let detected = infer::get(&peek.start).map(|kind| kind.mime_type());
+        let problem = if peek.size != declared {
+            Some(format!(
+                "the upload is {} bytes, not the {declared} declared",
+                peek.size
+            ))
+        } else if detected != Some(pending.content_type.as_str()) {
+            Some(format!(
+                "the upload is not of the declared type {}",
+                pending.content_type
+            ))
+        } else {
+            None
+        };
+        if let Some(message) = problem {
+            self.discard(owner, &pending).await?;
+            return Err(AppError::Validation {
+                message,
+                details: None,
+            });
+        }
+        let media = queries::complete_media(&self.pool, id, owner)
+            .await?
+            .ok_or_else(not_found)?;
+        Ok(media.into())
+    }
+
+    /// A short-lived URL `owner`'s file `id` can be fetched from without
+    /// credentials (else `404`).
+    pub async fn download_url(&self, owner: UserId, id: MediaId) -> Result<DownloadUrl, AppError> {
+        let media = queries::owned_media(&self.pool, id, owner)
+            .await?
+            .ok_or_else(not_found)?;
+        let url = self
+            .storage
+            .presign(&media.storage_key, Access::Download, self.download_url_ttl)
+            .await?;
+        Ok(DownloadUrl {
+            url: url.url,
+            expires_at: url.expires_at,
+        })
+    }
+
+    /// Removes every upload intent past its expiry, with any bytes it got:
+    /// how many.
+    pub async fn sweep(&self) -> Result<usize, AppError> {
+        let keys = queries::delete_expired_uploads(&self.pool).await?;
+        for key in &keys {
+            self.forget(key).await;
+        }
+        Ok(keys.len())
+    }
+
+    /// Runs [`sweep`](Self::sweep) every `every`, forever: `app.rs` spawns it
+    /// beside the server. A failed sweep is logged and tried again later.
+    pub async fn sweep_every(self, every: Duration) {
+        let mut ticks = tokio::time::interval(every);
+        loop {
+            ticks.tick().await;
+            match self.sweep().await {
+                Ok(0) => {}
+                Ok(removed) => tracing::info!(removed, "removed expired uploads"),
+                Err(error) => tracing::warn!(%error, "could not remove expired uploads"),
+            }
+        }
+    }
+
+    /// The type detected from `bytes`, when it is allowed (else `415`).
+    fn detected_type(&self, bytes: &[u8]) -> Result<&'static str, AppError> {
+        let Some(detected) = infer::get(bytes) else {
+            return Err(AppError::UnsupportedMediaType(
+                "the file type could not be recognized".to_owned(),
+            ));
+        };
+        let content_type = detected.mime_type();
+        self.allowed(content_type)?;
+        Ok(content_type)
+    }
+
+    /// `415` unless `content_type` is one of [`MediaService::allowed_types`].
+    fn allowed(&self, content_type: &str) -> Result<(), AppError> {
+        if self
+            .allowed_types
+            .iter()
+            .any(|allowed| allowed == content_type)
+        {
+            Ok(())
+        } else {
+            Err(AppError::UnsupportedMediaType(format!(
+                "files of type {content_type} are not accepted"
+            )))
+        }
+    }
+
+    /// Removes the upload intent `pending` and its bytes.
+    async fn discard(&self, owner: UserId, pending: &Media) -> Result<(), AppError> {
+        queries::delete_pending_media(&self.pool, pending.id, owner).await?;
+        self.forget(&pending.storage_key).await;
+        Ok(())
+    }
+
     /// Deletes the bytes under `key`, best effort: an orphaned object is
     /// harmless, so a failure is only logged.
     async fn forget(&self, key: &str) {
@@ -164,6 +323,22 @@ impl MediaService {
     fn too_large(&self) -> AppError {
         AppError::too_large("file", self.max_upload_bytes)
     }
+}
+
+/// `filename` when it is a name worth keeping: blank is none, and one over
+/// [`FILENAME_MAX`] characters a `422`.
+fn checked_filename(filename: Option<String>) -> Result<Option<String>, AppError> {
+    let filename = filename.filter(|name| !name.trim().is_empty());
+    if filename
+        .as_deref()
+        .is_some_and(|name| name.chars().count() > FILENAME_MAX)
+    {
+        return Err(AppError::Validation {
+            message: format!("the file name must be at most {FILENAME_MAX} characters"),
+            details: None,
+        });
+    }
+    Ok(filename)
 }
 
 /// The `404` for a file the caller doesn't have.

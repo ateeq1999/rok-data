@@ -253,6 +253,17 @@
           "sql_type": "TIMESTAMPTZ",
           "nullable": false,
           "default": "now()"
+        },
+        {
+          "name": "completed_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "expires_at",
+          "sql_type": "TIMESTAMPTZ",
+          "nullable": true
         }
       ],
       "primary_key": [

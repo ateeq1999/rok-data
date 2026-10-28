@@ -441,4 +441,25 @@ impl actix_api::shared::storage::Storage for Recorded {
         }
         Ok(())
     }
+
+    async fn presign(
+        &self,
+        key: &str,
+        access: actix_api::shared::storage::Access,
+        ttl: std::time::Duration,
+    ) -> Result<actix_api::shared::storage::PresignedUrl, actix_api::error::AppError> {
+        self.inner.presign(key, access, ttl).await
+    }
+
+    async fn peek(
+        &self,
+        key: &str,
+        len: usize,
+    ) -> Result<Option<actix_api::shared::storage::Peek>, actix_api::error::AppError> {
+        self.inner.peek(key, len).await
+    }
+
+    fn api_signer(&self) -> Option<&actix_api::shared::storage::ApiSigner> {
+        self.inner.api_signer()
+    }
 }

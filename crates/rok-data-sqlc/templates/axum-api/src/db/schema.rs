@@ -75,7 +75,10 @@ CREATE TABLE audit_log (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Uploaded files, each owned by its uploader.
+-- Uploaded files, each owned by its uploader. A file uploaded straight to
+-- the store (`POST /media/uploads`) starts as an upload intent: no
+-- `completed_at` yet, and an `expires_at` past which the sweep removes it.
+-- Every read but the completion's sees completed files only.
 CREATE TABLE media (
     id UUID PRIMARY KEY,
     owner_id UUID NOT NULL REFERENCES users (id),
@@ -83,7 +86,9 @@ CREATE TABLE media (
     size_bytes BIGINT NOT NULL,
     original_filename TEXT,
     storage_key TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    completed_at TIMESTAMPTZ DEFAULT now(),
+    expires_at TIMESTAMPTZ
 );
 
 -- API keys: only a hash of the key is kept.

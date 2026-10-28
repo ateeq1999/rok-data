@@ -62,6 +62,8 @@ impl<'r> sqlx::FromRow<'r, PgRow> for MediaWithOwner {
                 original_filename: row.try_get("t_original_filename")?,
                 storage_key: row.try_get("t_storage_key")?,
                 created_at: row.try_get("t_created_at")?,
+                completed_at: row.try_get("t_completed_at")?,
+                expires_at: row.try_get("t_expires_at")?,
             },
             owner: if related {
                 Some(User {
@@ -113,6 +115,8 @@ where
             t.original_filename AS t_original_filename,
             t.storage_key AS t_storage_key,
             t.created_at AS t_created_at,
+            t.completed_at AS t_completed_at,
+            t.expires_at AS t_expires_at,
             r.id AS r_id,
             r.email AS r_email,
             r.display_name AS r_display_name,

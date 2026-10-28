@@ -62,6 +62,12 @@ pub struct AppState {
     pub media_max_upload_bytes: usize,
     /// `MEDIA_ALLOWED_TYPES`.
     pub media_allowed_types: Vec<String>,
+    /// `MEDIA_UPLOAD_URL_TTL_SECS`.
+    pub media_upload_url_ttl: std::time::Duration,
+    /// `MEDIA_DOWNLOAD_URL_TTL_SECS`.
+    pub media_download_url_ttl: std::time::Duration,
+    /// `MEDIA_UPLOAD_SWEEP_SECS`: how often [`run`] sweeps expired uploads.
+    pub media_upload_sweep: Option<std::time::Duration>,
     /// Encrypts two-factor secrets at rest (`TOTP_ENCRYPTION_KEY`).
     pub totp: Arc<TotpCipher>,
 }
@@ -81,9 +87,12 @@ impl AppState {
             rate_limit: RateLimit::per_minute(config.auth_rate_limit, config.trust_proxy),
             require_verified_email: config.require_verified_email,
             audit: Arc::new(AuditLog(AuditLogEntryService::new(pool))),
-            storage: storage::open(&config.storage_url)?,
+            storage: storage::open(&config.storage_url, signing(config))?,
             media_max_upload_bytes: config.media_max_upload_bytes,
             media_allowed_types: config.media_allowed_types.clone(),
+            media_upload_url_ttl: config.media_upload_url_ttl,
+            media_download_url_ttl: config.media_download_url_ttl,
+            media_upload_sweep: config.media_upload_sweep,
             totp: Arc::new(TotpCipher::new(&config.totp_encryption_key)),
         })
     }
@@ -110,6 +119,9 @@ pub async fn run(config: Config) -> std::io::Result<()> {
         // A dropped `stop` stops the sender too.
         let _ = stopped.await;
     }));
+    if let Some(every) = state.media_upload_sweep {
+        actix_web::rt::spawn(media_service(&state).sweep_every(every));
+    }
     tracing::info!(addr = %config.bind_addr, "listening");
     let server_state = state.clone();
     let served = HttpServer::new(move || App::new().configure(|cfg| configure(cfg, &server_state)))
@@ -157,12 +169,7 @@ pub fn configure(cfg: &mut web::ServiceConfig, state: &AppState) {
         templates: state.templates.clone().into_inner(),
         totp: state.totp.clone(),
     }));
-    cfg.app_data(web::Data::new(MediaService {
-        pool: state.pool.clone(),
-        storage: state.storage.clone(),
-        max_upload_bytes: state.media_max_upload_bytes,
-        allowed_types: state.media_allowed_types.clone(),
-    }));
+    cfg.app_data(web::Data::new(media_service(state)));
     health::routes(cfg);
     cfg.service(web::redirect("/docs", "/docs/").see_other())
         .service(SwaggerUi::new("/docs/{_:.*}").url("/api-docs/openapi.json", document()));
@@ -196,5 +203,26 @@ impl AuditTrail for AuditLog {
             )
             .await?;
         Ok(())
+    }
+}
+
+/// How the store's presigned URLs are signed: by the API under a key
+/// derived from `JWT_SECRET`, unless the store signs its own (engine ADR 0024).
+fn signing(config: &Config) -> storage::Signing {
+    storage::Signing {
+        api: storage::ApiSigner::from_secret(config.jwt_secret.as_bytes()),
+        public_endpoint: config.storage_public_endpoint.clone(),
+    }
+}
+
+/// `media`'s service, over the state's store and the `MEDIA_*` settings.
+fn media_service(state: &AppState) -> MediaService {
+    MediaService {
+        pool: state.pool.clone(),
+        storage: state.storage.clone(),
+        max_upload_bytes: state.media_max_upload_bytes,
+        allowed_types: state.media_allowed_types.clone(),
+        upload_url_ttl: state.media_upload_url_ttl,
+        download_url_ttl: state.media_download_url_ttl,
     }
 }

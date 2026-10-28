@@ -128,6 +128,35 @@ runs), `s3://<bucket>` (the credentials, region and `AWS_ENDPOINT` come
 from the `AWS_*` variables) or `memory://`, opened by `AppState::new`
 (an unopenable store fails startup). The tests configure `memory://`.
 
+### Direct uploads
+
+A client can send a file straight to the store instead of through the API
+(engine ADR 0024):
+
+1. `POST /api/v1/media/uploads` with `{"content_type", "size_bytes",
+   "filename"?}` checks the size (`413`) and type (`415`) up front and
+   answers `201` with an upload ticket: `media_id`, `method` (`PUT`),
+   `upload_url`, the `headers` to send and `expires_at`
+   (`MEDIA_UPLOAD_URL_TTL_SECS`, 15 minutes).
+2. The client `PUT`s the bytes to `upload_url`, with those headers and no
+   `Authorization`.
+3. `POST /api/v1/media/{id}/complete` checks the stored bytes: their size
+   must be the one declared and their detected type the one declared, or
+   the object is deleted and the answer is `422` (`409` while nothing is
+   stored yet). It answers the file's metadata; until then the file is in
+   no listing.
+
+`GET /api/v1/media/{id}/url` answers `{url, expires_at}`, a download URL
+that needs no credentials (`MEDIA_DOWNLOAD_URL_TTL_SECS`, 5 minutes).
+
+An `s3://` store signs these URLs itself (SigV4); set
+`STORAGE_PUBLIC_ENDPOINT` when clients reach it at another address than
+the API does (MinIO in Docker). A `file://` or `memory://` store can't
+sign, so the API signs them, under a key derived from `JWT_SECRET`, and
+serves them at `/api/v1/storage/{token}`. Uploads never completed are
+deleted every `MEDIA_UPLOAD_SWEEP_SECS` (5 minutes; `0` turns the sweep
+off).
+
 Every other route but health needs `Authorization: Bearer <token>`: an
 HS256 JWT signed with `JWT_SECRET`, with `sub` (the user's id), `role`
 (`user` or `admin`), `tv` (the account's `token_version`) and `exp`.

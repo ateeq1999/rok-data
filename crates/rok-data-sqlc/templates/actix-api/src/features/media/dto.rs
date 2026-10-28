@@ -65,6 +65,54 @@ impl From<Media> for MediaResponse {
     }
 }
 
+/// `POST /media/uploads`'s body: a file the client will put straight into
+/// the store (engine ADR 0024). Both values are checked against the bytes
+/// when the upload is completed.
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema)]
+pub struct StartUploadDto {
+    /// The file's type, such as `image/png`: one of `MEDIA_ALLOWED_TYPES`.
+    #[rok(validate(length(
+        min = 1,
+        max = 255,
+        message = "content_type must be 1 to 255 characters"
+    )))]
+    pub content_type: String,
+    /// The file's size, in bytes: at most `MEDIA_MAX_UPLOAD_BYTES`.
+    #[rok(validate(range(min = 1, message = "size_bytes must be at least 1")))]
+    pub size_bytes: i64,
+    /// The file's original name, kept for display and as the download name.
+    #[serde(default)]
+    pub filename: Option<String>,
+}
+
+/// `POST /media/uploads`'s answer: where to put the bytes, and until when.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, utoipa::ToSchema)]
+pub struct UploadTicket {
+    /// The file's id: `POST /media/{media_id}/complete` once the bytes are up.
+    #[schema(value_type = uuid::Uuid)]
+    pub media_id: MediaId,
+    /// The method to send the bytes with: `PUT`.
+    pub method: String,
+    /// Where to send them: absolute on an S3-compatible store, else relative
+    /// to the API (`/api/v1/storage/…`).
+    pub upload_url: String,
+    /// The headers to send with the bytes: their `Content-Type`.
+    pub headers: std::collections::BTreeMap<String, String>,
+    /// When the URL stops working; an upload not completed by then is
+    /// removed.
+    pub expires_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// `GET /media/{id}/url`'s answer: a short-lived URL the file's bytes can
+/// be fetched from without credentials.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, utoipa::ToSchema)]
+pub struct DownloadUrl {
+    /// The URL: absolute on an S3-compatible store, else relative to the API.
+    pub url: String,
+    /// When it stops working.
+    pub expires_at: chrono::DateTime<chrono::Utc>,
+}
+
 /// Where the file `id`'s bytes are served: `/api/v1/media/{id}/content`.
 #[must_use]
 pub fn content_url(id: MediaId) -> String {

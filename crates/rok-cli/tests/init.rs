@@ -166,11 +166,19 @@ fn a_template_copys_migrations_load_as_history() -> Result<()> {
 
     let migrations = rok_data::migration_file::load(&dir.path().join("migrations"))?;
     // `init`, the account flows' `auth` (engine ADR 0020), then two-factor,
-    // API keys and avatars (engine ADR 0022).
+    // API keys and avatars (engine ADR 0022), and direct uploads (engine ADR
+    // 0024).
     let names: Vec<&str> = migrations.iter().map(|m| m.name).collect();
     assert_eq!(
         names,
-        ["init", "auth", "two_factor", "api_keys", "avatars"],
+        [
+            "init",
+            "auth",
+            "two_factor",
+            "api_keys",
+            "avatars",
+            "media_uploads"
+        ],
         "{migrations:?}"
     );
     assert!(

@@ -113,12 +113,20 @@ impl AppState {
             templates: templates.clone(),
             totp: Arc::new(TotpCipher::new(&config.totp_encryption_key)),
         });
-        let storage = storage::open(&config.storage_url)?;
+        // The API signs the URLs of a store that can't sign its own, under a
+        // key derived from `JWT_SECRET` (engine ADR 0024).
+        let signing = storage::Signing {
+            api: storage::ApiSigner::from_secret(config.jwt_secret.as_bytes()),
+            public_endpoint: config.storage_public_endpoint.clone(),
+        };
+        let storage = storage::open(&config.storage_url, signing)?;
         let media = Arc::new(MediaService {
             pool: pool.clone(),
             storage: storage.clone(),
             max_upload_bytes: config.media_max_upload_bytes,
             allowed_types: config.media_allowed_types.clone(),
+            upload_url_ttl: config.media_upload_url_ttl,
+            download_url_ttl: config.media_download_url_ttl,
         });
         let account = Arc::new(AccountService::new(pool.clone(), storage.clone()));
         Ok(AppState {
@@ -168,6 +176,9 @@ pub async fn run(config: Config) -> std::io::Result<()> {
         .map_err(std::io::Error::other)?;
     let mailer = transport::from_config(&config).map_err(std::io::Error::other)?;
     let state = AppState::new(pool, &config).map_err(std::io::Error::other)?;
+    if let Some(every) = config.media_upload_sweep {
+        tokio::spawn(MediaService::clone(&state.media).sweep_every(every));
+    }
     let listener = TcpListener::bind(&config.bind_addr).await?;
     tracing::info!(addr = %config.bind_addr, "listening");
     serve(listener, state, mailer, shutdown_signal()).await

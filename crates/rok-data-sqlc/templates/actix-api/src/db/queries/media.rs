@@ -62,7 +62,7 @@ where
         r#"
         SELECT *
         FROM media
-        WHERE id = $1 AND owner_id = $2
+        WHERE id = $1 AND owner_id = $2 AND completed_at IS NOT NULL
         "#,
     )
     .bind(id)
@@ -85,7 +85,7 @@ where
         r#"
         SELECT *
         FROM media
-        WHERE owner_id = $1
+        WHERE owner_id = $1 AND completed_at IS NOT NULL
         ORDER BY created_at DESC, id DESC
         LIMIT $2 OFFSET $3
         "#,
@@ -107,7 +107,7 @@ where
         r#"
         SELECT count(*) AS total
         FROM media
-        WHERE owner_id = $1
+        WHERE owner_id = $1 AND completed_at IS NOT NULL
         "#,
     )
     .bind(owner_id)
@@ -127,12 +127,141 @@ where
     rok_data::raw(
         r#"
         DELETE FROM media
-        WHERE id = $1 AND owner_id = $2
+        WHERE id = $1 AND owner_id = $2 AND completed_at IS NOT NULL
         RETURNING storage_key
         "#,
     )
     .bind(id)
     .bind(owner_id)
     .scalar_optional(executor)
+    .await
+}
+
+/// Parameters of `insert_upload_intent`.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct InsertUploadIntentParams {
+    /// Bound to `$1`.
+    pub id: MediaId,
+    /// Bound to `$2`.
+    pub owner_id: UserId,
+    /// Bound to `$3`.
+    pub content_type: String,
+    /// Bound to `$4`.
+    pub size_bytes: i64,
+    /// Bound to `$5`.
+    pub original_filename: Option<String>,
+    /// Bound to `$6`.
+    pub storage_key: String,
+    /// Bound to `$7`.
+    pub expires_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Runs the `InsertUploadIntent` query (`:one`).
+/// Fails with `rok_data::Error::Database(sqlx::Error::RowNotFound)` when no row matches.
+pub async fn insert_upload_intent<'e, E>(
+    executor: E,
+    params: InsertUploadIntentParams,
+) -> Result<Media, rok_data::Error>
+where
+    E: rok_data::Executor<'e>,
+{
+    rok_data::raw(
+        r#"
+        INSERT INTO media (id, owner_id, content_type, size_bytes, original_filename, storage_key, completed_at, expires_at)
+        VALUES ($1, $2, $3, $4, $5, $6, NULL, $7)
+        RETURNING *
+        "#,
+    )
+    .bind(params.id)
+    .bind(params.owner_id)
+    .bind(params.content_type)
+    .bind(params.size_bytes)
+    .bind(params.original_filename)
+    .bind(params.storage_key)
+    .bind(params.expires_at)
+    .fetch_one(executor)
+    .await
+}
+
+/// Runs the `PendingMedia` query (`:maybe_one`).
+pub async fn pending_media<'e, E>(
+    executor: E,
+    id: MediaId,
+    owner_id: UserId,
+) -> Result<Option<Media>, rok_data::Error>
+where
+    E: rok_data::Executor<'e>,
+{
+    rok_data::raw(
+        r#"
+        SELECT *
+        FROM media
+        WHERE id = $1 AND owner_id = $2 AND completed_at IS NULL AND expires_at > now()
+        "#,
+    )
+    .bind(id)
+    .bind(owner_id)
+    .fetch_optional(executor)
+    .await
+}
+
+/// Runs the `CompleteMedia` query (`:maybe_one`).
+pub async fn complete_media<'e, E>(
+    executor: E,
+    id: MediaId,
+    owner_id: UserId,
+) -> Result<Option<Media>, rok_data::Error>
+where
+    E: rok_data::Executor<'e>,
+{
+    rok_data::raw(
+        r#"
+        UPDATE media
+        SET completed_at = now(), expires_at = NULL
+        WHERE id = $1 AND owner_id = $2 AND completed_at IS NULL
+        RETURNING *
+        "#,
+    )
+    .bind(id)
+    .bind(owner_id)
+    .fetch_optional(executor)
+    .await
+}
+
+/// Runs the `DeletePendingMedia` query (`:maybe_one`).
+pub async fn delete_pending_media<'e, E>(
+    executor: E,
+    id: MediaId,
+    owner_id: UserId,
+) -> Result<Option<String>, rok_data::Error>
+where
+    E: rok_data::Executor<'e>,
+{
+    rok_data::raw(
+        r#"
+        DELETE FROM media
+        WHERE id = $1 AND owner_id = $2 AND completed_at IS NULL
+        RETURNING storage_key
+        "#,
+    )
+    .bind(id)
+    .bind(owner_id)
+    .scalar_optional(executor)
+    .await
+}
+
+/// Runs the `DeleteExpiredUploads` query (`:many`).
+pub async fn delete_expired_uploads<'e, E>(executor: E) -> Result<Vec<String>, rok_data::Error>
+where
+    E: rok_data::Executor<'e>,
+{
+    rok_data::raw(
+        r#"
+        DELETE FROM media
+        WHERE completed_at IS NULL AND expires_at <= now()
+        RETURNING storage_key
+        "#,
+    )
+    .scalars(executor)
     .await
 }

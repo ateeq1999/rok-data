@@ -22,6 +22,10 @@
 //! | `STORAGE_URL` | `file://./storage` | where uploads are stored: `file://<dir>`, `s3://<bucket>` (`AWS_*` settings) or `memory://` |
 //! | `MEDIA_MAX_UPLOAD_BYTES` | 10485760 (10 MiB) | the largest `POST /media` body |
 //! | `MEDIA_ALLOWED_TYPES` | `image/jpeg,image/png,image/webp,image/gif,application/pdf` | the detected types an upload may have |
+//! | `MEDIA_UPLOAD_URL_TTL_SECS` | 900 | seconds a direct-upload URL (`POST /media/uploads`) works |
+//! | `MEDIA_DOWNLOAD_URL_TTL_SECS` | 300 | seconds a download URL (`GET /media/{id}/url`) works |
+//! | `MEDIA_UPLOAD_SWEEP_SECS` | 300 | how often unfinished uploads past their expiry are removed (`0`: never) |
+//! | `STORAGE_PUBLIC_ENDPOINT` | unset | the endpoint S3 URLs are signed for, when clients reach the store elsewhere than the API (`http://localhost:9000` for `MinIO` in Docker) |
 //! | `DB_MAX_CONNECTIONS` | 20 | pool size |
 //! | `DB_MIN_CONNECTIONS` | 5 | idle connections kept open |
 //! | `DB_ACQUIRE_TIMEOUT_SECS` | 3 | wait for a connection |
@@ -77,6 +81,17 @@ const DEFAULT_MEDIA_ALLOWED_TYPES: &[&str] = &[
     "image/gif",
     "application/pdf",
 ];
+
+/// Seconds a direct-upload URL works when `MEDIA_UPLOAD_URL_TTL_SECS` is not
+/// set: 15 minutes.
+const DEFAULT_MEDIA_UPLOAD_URL_TTL_SECS: u64 = 900;
+
+/// Seconds a download URL works when `MEDIA_DOWNLOAD_URL_TTL_SECS` is not set.
+const DEFAULT_MEDIA_DOWNLOAD_URL_TTL_SECS: u64 = 300;
+
+/// How often unfinished uploads are swept when `MEDIA_UPLOAD_SWEEP_SECS` is
+/// not set.
+const DEFAULT_MEDIA_UPLOAD_SWEEP_SECS: u64 = 300;
 
 /// The log filter: `RUST_LOG` (such as `debug` or `info,sqlx=warn`), else
 /// [`DEFAULT_LOG_FILTER`]. `main.rs` reads it before [`Config::from_env`].
@@ -134,6 +149,17 @@ pub struct Config {
     /// `MEDIA_ALLOWED_TYPES`: the types, detected from the bytes, an upload
     /// may have (comma-separated).
     pub media_allowed_types: Vec<String>,
+    /// `MEDIA_UPLOAD_URL_TTL_SECS`: how long a direct-upload URL works, and
+    /// so how long its upload intent waits for completion.
+    pub media_upload_url_ttl: Duration,
+    /// `MEDIA_DOWNLOAD_URL_TTL_SECS`: how long a download URL works.
+    pub media_download_url_ttl: Duration,
+    /// `MEDIA_UPLOAD_SWEEP_SECS`: how often expired upload intents and their
+    /// bytes are removed; `None` (`0`) never.
+    pub media_upload_sweep: Option<Duration>,
+    /// `STORAGE_PUBLIC_ENDPOINT`: the endpoint an S3-compatible store's URLs
+    /// are signed for, when clients reach it elsewhere than the API does.
+    pub storage_public_endpoint: Option<String>,
     /// The pool's size and timeouts, `DB_*`.
     pub pool: PoolSettings,
 }
@@ -266,6 +292,22 @@ impl Config {
                     .map(|kind| (*kind).to_owned())
                     .collect(),
             },
+            media_upload_url_ttl: Duration::from_secs(
+                vars.number("MEDIA_UPLOAD_URL_TTL_SECS")?
+                    .unwrap_or(DEFAULT_MEDIA_UPLOAD_URL_TTL_SECS),
+            ),
+            media_download_url_ttl: Duration::from_secs(
+                vars.number("MEDIA_DOWNLOAD_URL_TTL_SECS")?
+                    .unwrap_or(DEFAULT_MEDIA_DOWNLOAD_URL_TTL_SECS),
+            ),
+            media_upload_sweep: match vars
+                .number("MEDIA_UPLOAD_SWEEP_SECS")?
+                .unwrap_or(DEFAULT_MEDIA_UPLOAD_SWEEP_SECS)
+            {
+                0 => None,
+                secs => Some(Duration::from_secs(secs)),
+            },
+            storage_public_endpoint: var("STORAGE_PUBLIC_ENDPOINT").filter(|url| !url.is_empty()),
             pool,
         })
     }

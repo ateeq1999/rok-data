@@ -42,6 +42,14 @@ pub struct MediaFilter {
     pub storage_key: Vec<Text>,
     /// Conditions on the `created_at` column.
     pub created_at: Vec<Ordered<chrono::DateTime<chrono::Utc>>>,
+    /// Conditions on the `completed_at` column.
+    pub completed_at: Vec<Ordered<chrono::DateTime<chrono::Utc>>>,
+    /// Whether the `completed_at` column is `NULL`.
+    pub completed_at_is_null: Option<bool>,
+    /// Conditions on the `expires_at` column.
+    pub expires_at: Vec<Ordered<chrono::DateTime<chrono::Utc>>>,
+    /// Whether the `expires_at` column is `NULL`.
+    pub expires_at_is_null: Option<bool>,
     /// Matches rows whose `owner` (`users` row) exists and matches this filter.
     pub owner: Option<Box<UserFilter>>,
 }
@@ -96,6 +104,14 @@ impl MediaFilter {
         for condition in self.created_at {
             condition.push("created_at", query);
         }
+        for condition in self.completed_at {
+            condition.push("completed_at", query);
+        }
+        push_null_check("completed_at", self.completed_at_is_null, query);
+        for condition in self.expires_at {
+            condition.push("expires_at", query);
+        }
+        push_null_check("expires_at", self.expires_at_is_null, query);
         if let Some(filter) = self.owner {
             let alias = open_exists("users", depth, query)?;
             correlate(&alias, "id", outer, "owner_id", query);
@@ -125,6 +141,10 @@ pub enum MediaSortKey {
     StorageKey,
     /// Sorts by the `created_at` column.
     CreatedAt,
+    /// Sorts by the `completed_at` column.
+    CompletedAt,
+    /// Sorts by the `expires_at` column.
+    ExpiresAt,
 }
 
 impl MediaSortKey {
@@ -139,6 +159,8 @@ impl MediaSortKey {
             Self::OriginalFilename => Media::ORIGINAL_FILENAME,
             Self::StorageKey => Media::STORAGE_KEY,
             Self::CreatedAt => Media::CREATED_AT,
+            Self::CompletedAt => Media::COMPLETED_AT,
+            Self::ExpiresAt => Media::EXPIRES_AT,
         };
         match direction {
             Direction::Asc => column.asc(),

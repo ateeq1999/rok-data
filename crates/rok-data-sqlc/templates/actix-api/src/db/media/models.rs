@@ -70,9 +70,16 @@ pub struct Media {
     pub storage_key: String,
     /// The `created_at` column.
     pub created_at: chrono::DateTime<chrono::Utc>,
+    /// The `completed_at` column.
+    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// The `expires_at` column.
+    pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// Input for `create`: every column the caller may supply.
+///
+/// `Option` fields are columns with a database default: `None` leaves the
+/// column out of the `INSERT` so the default applies.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, rok_data::Input)]
 pub struct NewMedia {
     /// The `id` column.
@@ -88,6 +95,16 @@ pub struct NewMedia {
     pub original_filename: Option<String>,
     /// The `storage_key` column.
     pub storage_key: String,
+    /// The `completed_at` column.
+    /// `None` applies the column default; `Some(None)` inserts `NULL`.
+    #[serde(
+        default,
+        deserialize_with = "super::super::nullable::deserialize",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub completed_at: Option<Option<chrono::DateTime<chrono::Utc>>>,
+    /// The `expires_at` column.
+    pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// Partial update for `patch`: `None` leaves a column unchanged.
@@ -118,6 +135,20 @@ pub struct UpdateMedia {
     /// The new value of the `storage_key` column.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub storage_key: Option<String>,
+    /// The new value of the `completed_at` column.
+    /// `Some(None)` sets the column to `NULL`.
+    #[serde(
+        deserialize_with = "super::super::nullable::deserialize",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub completed_at: Option<Option<chrono::DateTime<chrono::Utc>>>,
+    /// The new value of the `expires_at` column.
+    /// `Some(None)` sets the column to `NULL`.
+    #[serde(
+        deserialize_with = "super::super::nullable::deserialize",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub expires_at: Option<Option<chrono::DateTime<chrono::Utc>>>,
 }
 
 impl UpdateMedia {
@@ -129,5 +160,7 @@ impl UpdateMedia {
             && self.size_bytes.is_none()
             && self.original_filename.is_none()
             && self.storage_key.is_none()
+            && self.completed_at.is_none()
+            && self.expires_at.is_none()
     }
 }

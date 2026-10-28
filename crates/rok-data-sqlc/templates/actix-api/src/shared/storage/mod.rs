@@ -13,16 +13,26 @@
 //! [`Storage::get`] answers the whole object in memory rather than a
 //! stream: every upload is capped (`MEDIA_MAX_UPLOAD_BYTES`, 10 MiB by
 //! default), and bytes keep the port free of any framework's body type.
+//!
+//! [`Storage::presign`] hands out [`PresignedUrl`]s, so a client can put or
+//! get an object straight from the store (engine ADR 0024); a store that
+//! can't sign has the API sign and serve them ([`ApiSigner`]).
 
 mod object;
+mod presign;
+mod served;
 mod url;
+
+use std::time::Duration;
 
 use async_trait::async_trait;
 use bytes::Bytes;
 
 use crate::error::AppError;
 
-pub use object::{ObjectStorage, open};
+pub use object::{ObjectStorage, Signing, open};
+pub use presign::{Access, ApiSigner, Grant, PresignedUrl, STORAGE_ROUTE};
+pub use served::{get_signed, put_signed};
 pub use url::StorageUrl;
 
 /// A stored object: its bytes and the content type it was put with.
@@ -32,6 +42,16 @@ pub struct StoredObject {
     pub bytes: Bytes,
     /// Its content type, such as `image/png`.
     pub content_type: String,
+}
+
+/// An object's size and its first bytes: enough to detect its type without
+/// reading it whole.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Peek {
+    /// The object's size, in bytes.
+    pub size: u64,
+    /// Its first bytes, at most as many as asked for.
+    pub start: Bytes,
 }
 
 /// The port features store bytes through (`AppState.storage`), by key.
@@ -48,6 +68,23 @@ pub trait Storage: Send + Sync {
 
     /// Deletes the object under `key`. A key holding nothing is no error.
     async fn delete(&self, key: &str) -> Result<(), AppError>;
+
+    /// A URL granting `access` to the object under `key` for `ttl`: signed
+    /// by the store, or by the API ([`Storage::api_signer`]).
+    async fn presign(
+        &self,
+        key: &str,
+        access: Access,
+        ttl: Duration,
+    ) -> Result<PresignedUrl, AppError>;
+
+    /// The size and first `len` bytes of the object under `key`, or `None`
+    /// when there is none.
+    async fn peek(&self, key: &str, len: usize) -> Result<Option<Peek>, AppError>;
+
+    /// The signer of the URLs the API serves for this store at
+    /// [`STORAGE_ROUTE`], or `None` when the store signs its own.
+    fn api_signer(&self) -> Option<&ApiSigner>;
 }
 
 /// Whether `key` may name an object: `/`-separated segments of

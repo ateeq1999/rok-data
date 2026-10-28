@@ -4,20 +4,25 @@ use super::models::{Media, MediaId, NewMedia, UpdateMedia};
 use rok_data::Model;
 
 impl Media {
-    /// Inserts one row and returns it as stored.
+    /// Inserts one row and returns it as stored. Defaulted columns left as `None`
+    /// are omitted from the `INSERT` so the database default applies.
     pub async fn create<'e, E>(executor: E, input: NewMedia) -> Result<Media, rok_data::Error>
     where
         E: rok_data::Executor<'e>,
     {
-        Media::insert_builder()
-            .set(Media::ID, input.id.unwrap_or_else(MediaId::generate))
-            .set(Media::OWNER_ID, input.owner_id)
-            .set(Media::CONTENT_TYPE, input.content_type)
-            .set(Media::SIZE_BYTES, input.size_bytes)
-            .set(Media::ORIGINAL_FILENAME, input.original_filename)
-            .set(Media::STORAGE_KEY, input.storage_key)
-            .exec(executor)
-            .await
+        let mut insert = Media::insert_builder();
+        insert = insert.set(Media::ID, input.id.unwrap_or_else(MediaId::generate));
+        insert = insert.set(Media::OWNER_ID, input.owner_id);
+        insert = insert.set(Media::CONTENT_TYPE, input.content_type);
+        insert = insert.set(Media::SIZE_BYTES, input.size_bytes);
+        insert = insert.set(Media::ORIGINAL_FILENAME, input.original_filename);
+        insert = insert.set(Media::STORAGE_KEY, input.storage_key);
+        if let Some(value) = input.completed_at {
+            insert = insert.set(Media::COMPLETED_AT, value);
+        }
+        insert = insert.set(Media::EXPIRES_AT, input.expires_at);
+
+        insert.exec(executor).await
     }
 
     /// Applies a partial patch and returns the patched row; [`rok_data::Error::NotFound`]
@@ -51,6 +56,12 @@ impl Media {
         }
         if let Some(value) = input.storage_key {
             update = update.set(Media::STORAGE_KEY, value);
+        }
+        if let Some(value) = input.completed_at {
+            update = update.set(Media::COMPLETED_AT, value);
+        }
+        if let Some(value) = input.expires_at {
+            update = update.set(Media::EXPIRES_AT, value);
         }
         update.returning_one_or_fail(executor).await
     }
