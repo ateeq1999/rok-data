@@ -140,9 +140,9 @@ pub enum Derive {
     /// `serde` feature of `uuid`, `chrono`, and `rust_decimal` where the
     /// generated code uses them; the generated `mod.rs` lists them.
     Serde,
-    /// `validator::Validate` for create inputs and update patches, with
-    /// rules derived from the schema (engine ADR 0015). Needs [`Derive::Serde`].
-    /// The consuming crate needs `validator` with its `derive` feature.
+    /// `rok_data::Input` for create inputs and update patches, with rules
+    /// derived from the schema (engine ADR 0015, ADR 0025). Needs
+    /// [`Derive::Serde`].
     Validate,
 }
 

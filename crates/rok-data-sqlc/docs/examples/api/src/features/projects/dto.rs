@@ -14,13 +14,13 @@ pub type ListProjectsQuery = ListQuery<ProjectSort>;
 
 /// `POST /api/v1/projects`'s body, checked by the rules of `NewProject`.
 /// A field for a defaulted column may be left out.
-#[derive(Debug, Clone, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema)]
 pub struct CreateProjectDto {
     /// The `name` column.
-    #[validate(length(max = 80, message = "name must be at most 80 characters"))]
+    #[rok(validate(length(max = 80, message = "name must be at most 80 characters")))]
     pub name: String,
     /// The `open_tasks` column.
-    #[validate(range(min = 0, message = "open_tasks must be at least 0"))]
+    #[rok(validate(range(min = 0, message = "open_tasks must be at least 0")))]
     pub open_tasks: Option<i32>,
     /// The `created_at` column.
     pub created_at: Option<chrono::DateTime<chrono::Utc>>,
@@ -44,15 +44,15 @@ impl CreateProjectDto {
 /// Every field is optional: a field left out keeps its column's value, and
 /// `null` sets a nullable column to `NULL`.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema,
+    Debug, Clone, Default, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema,
 )]
 #[serde(default)]
 pub struct UpdateProjectDto {
     /// The new value of the `name` column.
-    #[validate(length(max = 80, message = "name must be at most 80 characters"))]
+    #[rok(validate(length(max = 80, message = "name must be at most 80 characters")))]
     pub name: Option<String>,
     /// The new value of the `open_tasks` column.
-    #[validate(range(min = 0, message = "open_tasks must be at least 0"))]
+    #[rok(validate(range(min = 0, message = "open_tasks must be at least 0")))]
     pub open_tasks: Option<i32>,
     /// The new value of the `created_at` column.
     pub created_at: Option<chrono::DateTime<chrono::Utc>>,

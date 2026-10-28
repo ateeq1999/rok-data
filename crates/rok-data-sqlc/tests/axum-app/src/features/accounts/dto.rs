@@ -2,8 +2,6 @@
 
 //! The `accounts` request and response bodies.
 
-use validator::Validate;
-
 use super::model::{Account, AccountId, NewAccount, UpdateAccount};
 use crate::db::accounts::filter::AccountFilter;
 use crate::db::search::{Equality, Text};
@@ -19,16 +17,16 @@ pub type ListAccountsQuery = PageQuery<AccountSort>;
 /// condition must hold), `sort` and `order` sort them, and `page` and
 /// `per_page` page them, as the list's query does.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema,
+    Debug, Clone, Default, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema,
 )]
 #[serde(default, deny_unknown_fields)]
 pub struct SearchAccountsBody {
     /// The conditions rows must meet.
-    #[validate(nested)]
+    #[rok(nested)]
     #[schema(default = json!({}))]
     pub filter: AccountSearchFilter,
     /// A `AccountSort` key, `id` unless given.
-    #[validate(custom(function = "sort_key"))]
+    #[rok(validate(custom(function = sort_key, code = "sort_key")))]
     pub sort: Option<String>,
     /// The order, `desc` unless given.
     pub order: Option<SortOrder>,
@@ -41,7 +39,7 @@ pub struct SearchAccountsBody {
 /// The search body's conditions by column: `AccountFilter` without its
 /// relationship filters. A hidden column can't be named.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema,
+    Debug, Clone, Default, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema,
 )]
 #[serde(default, deny_unknown_fields)]
 pub struct AccountSearchFilter {
@@ -50,7 +48,7 @@ pub struct AccountSearchFilter {
     /// Conditions on the `email` column.
     pub email: Vec<Text>,
     /// `password_hash` is hidden: naming it is a `422`.
-    #[validate(custom(function = "hidden"))]
+    #[rok(validate(custom(function = hidden, code = "hidden")))]
     pub password_hash: Option<serde_json::Value>,
 }
 
@@ -65,24 +63,22 @@ impl From<AccountSearchFilter> for AccountFilter {
 }
 
 /// Rejects a filter on a hidden column: the API never reveals one.
-fn hidden(_: &serde_json::Value) -> Result<(), validator::ValidationError> {
-    Err(validator::ValidationError::new("hidden")
-        .with_message("this column can't be filtered on".into()))
+fn hidden(_: &serde_json::Value) -> Result<(), String> {
+    Err("this column can't be filtered on".to_owned())
 }
 
 /// Accepts a `sort` naming a [`AccountSort`] key.
-fn sort_key(key: &str) -> Result<(), validator::ValidationError> {
+fn sort_key(key: &str) -> Result<(), String> {
     if AccountSort::from_name(key).is_some() {
         Ok(())
     } else {
-        Err(validator::ValidationError::new("sort_key")
-            .with_message("not a sort key of this list".into()))
+        Err("not a sort key of this list".to_owned())
     }
 }
 
 /// `POST /api/v1/accounts`'s body, checked by the rules of `NewAccount`.
 /// A field for a defaulted column may be left out.
-#[derive(Debug, Clone, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema)]
 pub struct CreateAccountDto {
     /// The `email` column.
     pub email: String,
@@ -104,7 +100,7 @@ impl From<CreateAccountDto> for NewAccount {
 /// Every field is optional: a field left out keeps its column's value, and
 /// `null` sets a nullable column to `NULL`.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema,
+    Debug, Clone, Default, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema,
 )]
 #[serde(default)]
 pub struct UpdateAccountDto {

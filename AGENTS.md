@@ -119,13 +119,13 @@ is unaffected — that is what crates.io and `cargo install` do.
   reconstruct from git history); add one there for those.
 - Engine ADRs under `crates/rok-data-sqlc/docs/adr/` record the
   engine's own decisions (`rok sqlc` grammar, generated-code shape);
-  the engine's series keeps growing — 0024 is its newest. Engine ADRs
+  the engine's series keeps growing — 0025 is its newest. Engine ADRs
   0019–0022 are imported from rok-sqlc (each says "Formerly rok-sqlc ADR
   NNNN"); an imported ADR takes the next free number and nothing is
   renumbered (workspace ADR 0016).
 - The numbering collides by design and nothing is renumbered: the two
   series number independently — the workspace's reaches 0021, the
-  engine's 0024 — so wherever the number alone is ambiguous, cite
+  engine's 0025 — so wherever the number alone is ambiguous, cite
   "engine ADR NNNN" or "workspace ADR NNNN" — a file path beside the
   cite leaves it unambiguous, and in-code doc comments keep the short
   form ("engine ADR 0016"). A new engine ADR continues the engine's

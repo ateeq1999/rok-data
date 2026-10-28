@@ -42,7 +42,7 @@ impl NoteLabel {
 }
 
 /// Input for `create`: every column the caller may supply.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, validator::Validate)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, rok_data::Input)]
 pub struct NewNoteLabel {
     /// The `note_id` column.
     pub note_id: NoteId,

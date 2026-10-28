@@ -231,7 +231,7 @@ your constraints in the migrations if clients branch on them.
 
 ### 422: validation
 
-A body breaking its rules answers `details`, validator's errors by field.
+A body breaking its rules answers `details`, the broken rules by field.
 The rules come from the schema (`VARCHAR(80)` gives a length rule, a
 `CHECK (open_tasks >= 0)` a range rule):
 

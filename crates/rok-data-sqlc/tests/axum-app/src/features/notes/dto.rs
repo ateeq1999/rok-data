@@ -2,8 +2,6 @@
 
 //! The `notes` request and response bodies.
 
-use validator::Validate;
-
 use super::super::AccountResponse;
 use super::model::{NewNote, Note, NoteId, UpdateNote};
 use crate::db::accounts::models::AccountId;
@@ -22,16 +20,16 @@ pub type ListNotesQuery = CursorListQuery<NoteSort>;
 /// condition must hold), `sort` and `order` sort them, and `page` and
 /// `per_page` page them, as the list's query does.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema,
+    Debug, Clone, Default, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema,
 )]
 #[serde(default, deny_unknown_fields)]
 pub struct SearchNotesBody {
     /// The conditions rows must meet.
-    #[validate(nested)]
+    #[rok(nested)]
     #[schema(default = json!({}))]
     pub filter: NoteSearchFilter,
     /// A `NoteSort` key, `title` unless given.
-    #[validate(custom(function = "sort_key"))]
+    #[rok(validate(custom(function = sort_key, code = "sort_key")))]
     pub sort: Option<String>,
     /// The order, `desc` unless given.
     pub order: Option<SortOrder>,
@@ -44,7 +42,7 @@ pub struct SearchNotesBody {
 /// The search body's conditions by column: `NoteFilter` without its
 /// relationship filters. A hidden column can't be named.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema,
+    Debug, Clone, Default, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema,
 )]
 #[serde(default, deny_unknown_fields)]
 pub struct NoteSearchFilter {
@@ -81,18 +79,17 @@ impl From<NoteSearchFilter> for NoteFilter {
 }
 
 /// Accepts a `sort` naming a [`NoteSort`] key.
-fn sort_key(key: &str) -> Result<(), validator::ValidationError> {
+fn sort_key(key: &str) -> Result<(), String> {
     if NoteSort::from_name(key).is_some() {
         Ok(())
     } else {
-        Err(validator::ValidationError::new("sort_key")
-            .with_message("not a sort key of this list".into()))
+        Err("not a sort key of this list".to_owned())
     }
 }
 
 /// `POST /api/v1/notes`'s body, checked by the rules of `NewNote`.
 /// A field for a defaulted column may be left out.
-#[derive(Debug, Clone, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema)]
 pub struct CreateNoteDto {
     /// The `title` column.
     pub title: String,
@@ -117,7 +114,7 @@ impl CreateNoteDto {
 /// Every field is optional: a field left out keeps its column's value, and
 /// `null` sets a nullable column to `NULL`.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema,
+    Debug, Clone, Default, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema,
 )]
 #[serde(default)]
 pub struct UpdateNoteDto {

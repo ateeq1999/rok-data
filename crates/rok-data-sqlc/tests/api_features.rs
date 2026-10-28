@@ -500,7 +500,7 @@ fn an_immutable_column_is_created_but_never_updated() -> Result<()> {
     assert!(!update.contains("pub email: Option<String>,"), "{update}");
     assert!(
         update.contains(
-            "    #[schema(ignore)]\n    #[serde(deserialize_with = \"present\")]\n    #[validate(custom(function = \"immutable\", message = \"`email` can't be changed\"))]\n    pub email: Option<serde_json::Value>,"
+            "    #[schema(ignore)]\n    #[serde(deserialize_with = \"present\")]\n    #[rok(validate(custom(function = immutable, code = \"immutable\", message = \"`email` can't be changed\")))]\n    pub email: Option<serde_json::Value>,"
         ),
         "{update}"
     );

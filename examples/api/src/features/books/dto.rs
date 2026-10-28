@@ -16,7 +16,7 @@ pub type ListBooksQuery = ListQuery<BookSort>;
 
 /// `POST /api/v1/books`'s body, checked by the rules of `NewBook`.
 /// A field for a defaulted column may be left out.
-#[derive(Debug, Clone, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema)]
 pub struct CreateBookDto {
     /// The `author_id` column.
     #[schema(value_type = uuid::Uuid)]
@@ -45,7 +45,7 @@ impl From<CreateBookDto> for NewBook {
 /// Every field is optional: a field left out keeps its column's value, and
 /// `null` sets a nullable column to `NULL`.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema,
+    Debug, Clone, Default, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema,
 )]
 #[serde(default)]
 pub struct UpdateBookDto {

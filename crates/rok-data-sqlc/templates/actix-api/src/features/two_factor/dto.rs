@@ -60,16 +60,16 @@ pub struct TotpEnabledResponse {
 pub const CODE_MAX: u64 = 32;
 
 /// `POST /auth/2fa/enable`'s body: a code from the authenticator app.
-#[derive(Debug, Clone, serde::Deserialize, validator::Validate, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Deserialize, rok_data::Input, utoipa::ToSchema)]
 pub struct EnableTotpDto {
     /// The app's current 6-digit code.
-    #[validate(length(min = 1, max = CODE_MAX, message = "code must be 1 to 32 characters"))]
+    #[rok(validate(length(min = 1, max = CODE_MAX, message = "code must be 1 to 32 characters")))]
     pub code: String,
 }
 
 /// `POST /auth/2fa/disable`'s body. Requires the current password so a
 /// stolen session token alone cannot turn off two-factor.
-#[derive(Debug, Clone, serde::Deserialize, validator::Validate, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Deserialize, rok_data::Input, utoipa::ToSchema)]
 pub struct DisableTotpDto {
     /// The account's password now.
     pub current_password: String,
@@ -77,12 +77,12 @@ pub struct DisableTotpDto {
 
 /// `POST /auth/2fa/verify`'s body. `code` accepts either a live 6-digit
 /// authenticator code or an `XXXXX-XXXXX` recovery code.
-#[derive(Debug, Clone, serde::Deserialize, validator::Validate, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Deserialize, rok_data::Input, utoipa::ToSchema)]
 pub struct VerifyTotpDto {
     /// The token `POST /auth/login` answered with `requires_totp`.
-    #[validate(length(min = 1, message = "pending_token must not be empty"))]
+    #[rok(validate(length(min = 1, message = "pending_token must not be empty")))]
     pub pending_token: String,
     /// An authenticator code or a recovery code.
-    #[validate(length(min = 1, max = CODE_MAX, message = "code must be 1 to 32 characters"))]
+    #[rok(validate(length(min = 1, max = CODE_MAX, message = "code must be 1 to 32 characters")))]
     pub code: String,
 }

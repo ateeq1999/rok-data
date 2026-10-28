@@ -40,13 +40,9 @@ impl std::fmt::Display for MemberId {
 }
 
 rok_data::impl_value!(MemberId);
-impl validator::ValidateRange<i64> for MemberId {
-    fn greater_than(&self, max: i64) -> Option<bool> {
-        validator::ValidateRange::greater_than(&self.0, max)
-    }
-
-    fn less_than(&self, min: i64) -> Option<bool> {
-        validator::ValidateRange::less_than(&self.0, min)
+impl rok_data::validate::AsNumber for MemberId {
+    fn as_number(&self) -> Option<f64> {
+        rok_data::validate::AsNumber::as_number(&self.0)
     }
 }
 
@@ -72,28 +68,24 @@ pub struct Member {
 ///
 /// `Option` fields are columns with a database default: `None` leaves the
 /// column out of the `INSERT` so the default applies.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, validator::Validate)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, rok_data::Input)]
 pub struct NewMember {
     /// The `name` column.
-    #[validate(length(
+    #[rok(validate(length(
         min = 1,
         max = 80,
         message = "name must be between 1 and 80 characters"
-    ))]
+    )))]
     pub name: String,
     /// The `handle` column.
-    #[validate(length(max = 30, message = "handle must be at most 30 characters"))]
+    #[rok(validate(length(max = 30, message = "handle must be at most 30 characters")))]
     pub handle: String,
     /// The `age` column.
-    #[validate(range(min = 13, max = 130, message = "age must be between 13 and 130"))]
+    #[rok(validate(range(min = 13, max = 130, message = "age must be between 13 and 130")))]
     pub age: Option<i32>,
     /// The `balance` column.
     /// `None` applies the column default.
-    #[validate(custom(
-        function = "balance_in_range",
-        code = "range",
-        message = "balance must be at least 0"
-    ))]
+    #[rok(validate(range(min = 0, message = "balance must be at least 0")))]
     pub balance: Option<rust_decimal::Decimal>,
     /// The `bio` column.
     pub bio: Option<String>,
@@ -104,21 +96,21 @@ pub struct NewMember {
 /// From JSON, an absent field is `None` and `null` is `Some(None)`, which sets
 /// the column to `NULL`; serializing skips the `None` fields.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, validator::Validate,
+    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, rok_data::Input,
 )]
 #[serde(default)]
 pub struct UpdateMember {
     /// The new value of the `name` column.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[validate(length(
+    #[rok(validate(length(
         min = 1,
         max = 80,
         message = "name must be between 1 and 80 characters"
-    ))]
+    )))]
     pub name: Option<String>,
     /// The new value of the `handle` column.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[validate(length(max = 30, message = "handle must be at most 30 characters"))]
+    #[rok(validate(length(max = 30, message = "handle must be at most 30 characters")))]
     pub handle: Option<String>,
     /// The new value of the `age` column.
     /// `Some(None)` sets the column to `NULL`.
@@ -126,15 +118,11 @@ pub struct UpdateMember {
         deserialize_with = "super::super::nullable::deserialize",
         skip_serializing_if = "Option::is_none"
     )]
-    #[validate(range(min = 13, max = 130, message = "age must be between 13 and 130"))]
+    #[rok(validate(range(min = 13, max = 130, message = "age must be between 13 and 130")))]
     pub age: Option<Option<i32>>,
     /// The new value of the `balance` column.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[validate(custom(
-        function = "balance_in_range",
-        code = "range",
-        message = "balance must be at least 0"
-    ))]
+    #[rok(validate(range(min = 0, message = "balance must be at least 0")))]
     pub balance: Option<rust_decimal::Decimal>,
     /// The new value of the `bio` column.
     /// `Some(None)` sets the column to `NULL`.
@@ -155,15 +143,4 @@ impl UpdateMember {
             && self.balance.is_none()
             && self.bio.is_none()
     }
-}
-
-/// The range rule of the `balance` column.
-fn balance_in_range(value: &rust_decimal::Decimal) -> Result<(), validator::ValidationError> {
-    let min = rust_decimal::Decimal::from_i128_with_scale(0, 0);
-    if *value < min {
-        let mut error = validator::ValidationError::new("range");
-        error.add_param("min".into(), &min);
-        return Err(error);
-    }
-    Ok(())
 }

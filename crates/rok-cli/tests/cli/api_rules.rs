@@ -21,13 +21,10 @@ password_hash = [{ regex = \"^[a-z0-9$./]+$\" }, \"minLength(8)\", { notIn = [\"
     let run = |args: &[&str]| run_binary_in(dir.path(), args);
     assert_success(&run(&["g"]));
     let dto = fs::read_to_string(dir.path().join("src/features/users/dto.rs"))?;
-    assert!(dto.contains("fn email_transforms(value: &str)"), "{dto}");
+    assert!(dto.contains("transform(trim, lowercase)"), "{dto}");
+    assert!(dto.contains("regex = \"^[a-z0-9$./]+$\""), "{dto}");
     assert!(
-        dto.contains("const PATTERN: &str = \"^[a-z0-9$./]+$\";"),
-        "{dto}"
-    );
-    assert!(
-        dto.contains("const VALUES: &[&str] = &[\"a,b\", \"c\"];"),
+        dto.contains("not_one_of(values = [\"a,b\", \"c\"])"),
         "{dto}"
     );
 
@@ -38,9 +35,9 @@ password_hash = [{ regex = \"^[a-z0-9$./]+$\" }, \"minLength(8)\", { notIn = [\"
         r#"{"api": {"rules": {"users": {"email": ["url"]}}}}"#,
     ]));
     let dto = fs::read_to_string(dir.path().join("src/features/users/dto.rs"))?;
-    assert!(!dto.contains("fn email_transforms("), "{dto}");
-    assert!(dto.contains("code = \"url\""), "{dto}");
-    assert!(dto.contains("fn password_hash_min_length("), "{dto}");
+    assert!(!dto.contains("transform(trim, lowercase)"), "{dto}");
+    assert!(dto.contains("#[rok(validate(url))]"), "{dto}");
+    assert!(dto.contains("min_length = 8"), "{dto}");
 
     // The payload checks like the file.
     let failed = run(&[

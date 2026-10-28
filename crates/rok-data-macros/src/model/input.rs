@@ -103,7 +103,8 @@ fn tokens(input: &DeriveInput) -> syn::Result<TokenStream2> {
         }
     });
     let name = &input.ident;
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let generics = bounded(&input.generics);
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let mutable = (!steps.is_empty()).then(|| quote!(mut));
     Ok(quote! {
         impl #impl_generics #krate::Input for #name #ty_generics #where_clause {
@@ -178,7 +179,8 @@ fn enum_tokens(input: &DeriveInput, data: &syn::DataEnum) -> syn::Result<TokenSt
         }
     }
     let name = &input.ident;
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let generics = bounded(&input.generics);
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     Ok(quote! {
         impl #impl_generics #krate::Input for #name #ty_generics #where_clause {
             type Context = #context;
@@ -217,4 +219,18 @@ fn enum_tokens(input: &DeriveInput, data: &syn::DataEnum) -> syn::Result<TokenSt
             }
         }
     })
+}
+
+/// `generics` with every type parameter `Send + Sync`, as `Input` requires
+/// of the type (`IdList<T>`).
+fn bounded(generics: &syn::Generics) -> syn::Generics {
+    let mut generics = generics.clone();
+    let params: Vec<syn::Ident> = generics.type_params().map(|p| p.ident.clone()).collect();
+    let clause = generics.make_where_clause();
+    for param in params {
+        clause
+            .predicates
+            .push(syn::parse_quote!(#param: ::core::marker::Send + ::core::marker::Sync));
+    }
+    generics
 }

@@ -2,8 +2,6 @@
 
 //! The `labels` request and response bodies.
 
-use validator::Validate;
-
 use super::model::{Label, LabelId, NewLabel, UpdateLabel};
 use crate::db::labels::filter::LabelFilter;
 use crate::db::search::{Ordered, Text};
@@ -19,16 +17,16 @@ pub type ListLabelsQuery = PageQuery<LabelSort>;
 /// condition must hold), `sort` and `order` sort them, and `page` and
 /// `per_page` page them, as the list's query does.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema,
+    Debug, Clone, Default, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema,
 )]
 #[serde(default, deny_unknown_fields)]
 pub struct SearchLabelsBody {
     /// The conditions rows must meet.
-    #[validate(nested)]
+    #[rok(nested)]
     #[schema(default = json!({}))]
     pub filter: LabelSearchFilter,
     /// A `LabelSort` key, `id` unless given.
-    #[validate(custom(function = "sort_key"))]
+    #[rok(validate(custom(function = sort_key, code = "sort_key")))]
     pub sort: Option<String>,
     /// The order, `desc` unless given.
     pub order: Option<SortOrder>,
@@ -41,7 +39,7 @@ pub struct SearchLabelsBody {
 /// The search body's conditions by column: `LabelFilter` without its
 /// relationship filters. A hidden column can't be named.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema,
+    Debug, Clone, Default, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema,
 )]
 #[serde(default, deny_unknown_fields)]
 pub struct LabelSearchFilter {
@@ -62,18 +60,17 @@ impl From<LabelSearchFilter> for LabelFilter {
 }
 
 /// Accepts a `sort` naming a [`LabelSort`] key.
-fn sort_key(key: &str) -> Result<(), validator::ValidationError> {
+fn sort_key(key: &str) -> Result<(), String> {
     if LabelSort::from_name(key).is_some() {
         Ok(())
     } else {
-        Err(validator::ValidationError::new("sort_key")
-            .with_message("not a sort key of this list".into()))
+        Err("not a sort key of this list".to_owned())
     }
 }
 
 /// `POST /api/v1/labels`'s body, checked by the rules of `NewLabel`.
 /// A field for a defaulted column may be left out.
-#[derive(Debug, Clone, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema)]
 pub struct CreateLabelDto {
     /// The `name` column.
     pub name: String,
@@ -89,7 +86,7 @@ impl From<CreateLabelDto> for NewLabel {
 /// Every field is optional: a field left out keeps its column's value, and
 /// `null` sets a nullable column to `NULL`.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema,
+    Debug, Clone, Default, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema,
 )]
 #[serde(default)]
 pub struct UpdateLabelDto {

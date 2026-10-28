@@ -61,17 +61,11 @@ pub fn render(table: &Table, derives: DeriveOptions, tables: &[Table]) -> String
         render_insert_input(&mut output, table, &insert_columns, derives);
     }
 
-    let mut update_columns = table.update_columns();
+    let update_columns = table.update_columns();
     if !table.primary_key.is_empty() && !update_columns.is_empty() {
         render_update_patch(&mut output, table, &update_columns, derives);
-    } else {
-        update_columns.clear();
     }
 
-    if derives.validate {
-        let fields = insert_columns.into_iter().chain(update_columns);
-        super::validate::push_decimal_checks(&mut output, fields);
-    }
     output
 }
 

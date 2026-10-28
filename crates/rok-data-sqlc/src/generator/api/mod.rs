@@ -29,8 +29,6 @@ mod relation_routes;
 mod relation_service;
 mod relations;
 mod root;
-mod rule_functions;
-mod rule_snippets;
 mod rules;
 mod schemas;
 mod scope;

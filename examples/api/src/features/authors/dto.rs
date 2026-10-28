@@ -14,7 +14,7 @@ pub type ListAuthorsQuery = ListQuery<AuthorSort>;
 
 /// `POST /api/v1/authors`'s body, checked by the rules of `NewAuthor`.
 /// A field for a defaulted column may be left out.
-#[derive(Debug, Clone, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema)]
 pub struct CreateAuthorDto {
     /// The `name` column.
     pub name: String,
@@ -36,7 +36,7 @@ impl From<CreateAuthorDto> for NewAuthor {
 /// Every field is optional: a field left out keeps its column's value, and
 /// `null` sets a nullable column to `NULL`.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema,
+    Debug, Clone, Default, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema,
 )]
 #[serde(default)]
 pub struct UpdateAuthorDto {

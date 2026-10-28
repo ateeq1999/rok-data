@@ -75,7 +75,7 @@ pub struct AuthToken {
 }
 
 /// Input for `create`: every column the caller may supply.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, validator::Validate)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, rok_data::Input)]
 pub struct NewAuthToken {
     /// The `id` column.
     /// `None` inserts a new id from `AuthTokenId::generate`.
@@ -99,7 +99,7 @@ pub struct NewAuthToken {
 /// From JSON, an absent field is `None` and `null` is `Some(None)`, which sets
 /// the column to `NULL`; serializing skips the `None` fields.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, validator::Validate,
+    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, rok_data::Input,
 )]
 #[serde(default)]
 pub struct UpdateAuthToken {

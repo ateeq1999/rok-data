@@ -56,7 +56,7 @@ pub(crate) fn field_checks(fields: &[&Field], krate: &TokenStream2) -> Vec<Token
                 .iter()
                 .zip(&f.messages)
                 .filter_map(|(rule, message)| {
-                    let (code, check) = rule_check(rule, ident, &field, &v)?;
+                    let (code, check) = rule_check(rule, ident, &f.ty, &field, &v)?;
                     let code = match rule {
                         Rule::Custom(_, Some(own)) => quote!(#own),
                         _ => quote!(#code),
@@ -94,6 +94,7 @@ pub(crate) fn guarded(field: &Field, body: TokenStream2) -> TokenStream2 {
 fn rule_check(
     rule: &Rule,
     ident: &Ident,
+    ty: &syn::Type,
     field: &str,
     v: &TokenStream2,
 ) -> Option<(&'static str, TokenStream2)> {
@@ -122,6 +123,17 @@ fn rule_check(
         }
         Rule::Email => ("email", quote!(#v::email(&self.#ident))),
         Rule::NonEmpty => ("non_empty", quote!(#v::non_empty(&self.#ident))),
+        // On an `Option`, only `Some` is checked, as every rule does: the
+        // function takes the value inside.
+        Rule::Custom(path, _) if is_option(ty) => (
+            "custom",
+            quote! {
+                match &self.#ident {
+                    ::core::option::Option::Some(value) => #path(value),
+                    ::core::option::Option::None => ::core::result::Result::<(), ::std::string::String>::Ok(()),
+                }
+            },
+        ),
         Rule::Custom(path, _) => ("custom", quote!(#path(&self.#ident))),
         Rule::RequiredIf {
             other,
@@ -462,6 +474,18 @@ fn is_integer(e: &syn::Expr) -> bool {
         syn::Expr::Lit(lit) => matches!(lit.lit, syn::Lit::Int(_)),
         syn::Expr::Unary(unary) => matches!(unary.op, syn::UnOp::Neg(_)) && is_integer(&unary.expr),
         syn::Expr::Group(group) => is_integer(&group.expr),
+        _ => false,
+    }
+}
+
+/// `ty` is an `Option<…>`, as written.
+fn is_option(ty: &syn::Type) -> bool {
+    match ty {
+        syn::Type::Path(path) => path
+            .path
+            .segments
+            .last()
+            .is_some_and(|segment| segment.ident == "Option"),
         _ => false,
     }
 }

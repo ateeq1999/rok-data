@@ -23,8 +23,6 @@ pub fn render_dto<'a>(
     let filter = feature.search_filter();
     let sort = feature.sort_enum();
     uses.add("crate::shared::pagination::SortOrder");
-    // The derive validates the filter through the trait.
-    uses.add("validator::Validate");
     output.push('\n');
     push_doc(
         output,
@@ -50,7 +48,7 @@ pub fn render_dto<'a>(
         ""
     };
     output.push_str(&format!(
-        "pub struct {body} {{\n    /// The conditions rows must meet.\n    #[validate(nested)]\n{filter_default}    pub filter: {filter},\n    /// A `{sort}` key, `{default}` unless given.\n    #[validate(custom(function = \"sort_key\"))]\n    pub sort: Option<String>,\n    /// The order, `desc` unless given.\n    pub order: Option<SortOrder>,\n    /// The page, from 1.\n    pub page: Option<u32>,\n    /// The rows per page: 20 unless given, at most 100.\n    pub per_page: Option<u32>,\n}}\n"
+        "pub struct {body} {{\n    /// The conditions rows must meet.\n    #[rok(nested)]\n{filter_default}    pub filter: {filter},\n    /// A `{sort}` key, `{default}` unless given.\n    #[rok(validate(custom(function = sort_key, code = \"sort_key\")))]\n    pub sort: Option<String>,\n    /// The order, `desc` unless given.\n    pub order: Option<SortOrder>,\n    /// The page, from 1.\n    pub page: Option<u32>,\n    /// The rows per page: 20 unless given, at most 100.\n    pub per_page: Option<u32>,\n}}\n"
     ));
 
     let db_filter = feature.db_filter();
@@ -90,7 +88,7 @@ pub fn render_dto<'a>(
                     )],
                 );
                 output.push_str(&format!(
-                    "    #[validate(custom(function = \"hidden\"))]\n    pub {name}: Option<serde_json::Value>,\n"
+                    "    #[rok(validate(custom(function = hidden, code = \"hidden\")))]\n    pub {name}: Option<serde_json::Value>,\n"
                 ));
             }
             continue;
@@ -164,7 +162,7 @@ pub fn render_dto<'a>(
             &["Rejects a filter on a hidden column: the API never reveals one."],
         );
         output.push_str(
-            "fn hidden(_: &serde_json::Value) -> Result<(), validator::ValidationError> {\n    Err(validator::ValidationError::new(\"hidden\")\n        .with_message(\"this column can't be filtered on\".into()))\n}\n",
+            "fn hidden(_: &serde_json::Value) -> Result<(), String> {\n    Err(\"this column can't be filtered on\".to_owned())\n}\n",
         );
     }
     output.push('\n');
@@ -174,7 +172,7 @@ pub fn render_dto<'a>(
         &[&format!("Accepts a `sort` naming a [`{sort}`] key.")],
     );
     output.push_str(&format!(
-        "fn sort_key(key: &str) -> Result<(), validator::ValidationError> {{\n    if {sort}::from_name(key).is_some() {{\n        Ok(())\n    }} else {{\n        Err(validator::ValidationError::new(\"sort_key\")\n            .with_message(\"not a sort key of this list\".into()))\n    }}\n}}\n"
+        "fn sort_key(key: &str) -> Result<(), String> {{\n    if {sort}::from_name(key).is_some() {{\n        Ok(())\n    }} else {{\n        Err(\"not a sort key of this list\".to_owned())\n    }}\n}}\n"
     ));
     columns
 }
@@ -183,7 +181,7 @@ pub fn render_dto<'a>(
 /// fields; with `feature.openapi`, they derive `ToSchema`.
 fn push_search_derives(output: &mut String, feature: &Feature<'_>) {
     output.push_str(
-        "#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize, validator::Validate)]\n",
+        "#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize, rok_data::Input)]\n",
     );
     push_to_schema(output, feature.openapi);
     output.push_str("#[serde(default, deny_unknown_fields)]\n");

@@ -15,14 +15,15 @@ use axum::extract::rejection::JsonRejection;
 use axum::extract::{FromRequest, Request};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use rok_data::Input;
 use serde::de::DeserializeOwned;
-use validator::Validate;
 
 pub use super::BodyRejection;
 
-/// A JSON request body that deserialized into `T` and passed every
-/// validation rule. Any `T: DeserializeOwned + Validate` works: a generated
-/// create input or update patch, or a hand-written request type.
+/// A JSON request body that deserialized into `T`, transformed, and passed
+/// every field rule. Any `T: DeserializeOwned + rok_data::Input` without a
+/// context works: a generated create input or update patch, or a
+/// hand-written request type.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ValidatedJson<T>(pub T);
 
@@ -44,7 +45,7 @@ impl<T> Deref for ValidatedJson<T> {
 
 impl<T, S> FromRequest<S> for ValidatedJson<T>
 where
-    T: DeserializeOwned + Validate,
+    T: DeserializeOwned + Input<Context = ()>,
     S: Send + Sync,
 {
     type Rejection = BodyRejection;

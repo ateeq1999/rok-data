@@ -254,13 +254,13 @@ inner type.
 ```rust
 /// `POST /api/v1/tasks`'s body, checked by the rules of `NewTask`.
 /// A field for a defaulted column may be left out.
-#[derive(Debug, Clone, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema)]
 pub struct CreateTaskDto {
     /// The `project_id` column.
     #[schema(value_type = uuid::Uuid)]
     pub project_id: ProjectId,
     /// The `title` column.
-    #[validate(length(max = 200, message = "title must be at most 200 characters"))]
+    #[rok(validate(length(max = 200, message = "title must be at most 200 characters")))]
     pub title: String,
     /// The `done` column.
     pub done: Option<bool>,

@@ -10,12 +10,11 @@ use rok_data_sqlc_fixture_app::validated_db::http::actix_web::ValidatedJson;
 use rok_data_sqlc_fixture_app::validated_db::teams::models::NewTeam;
 use serde::Deserialize;
 use serde_json::{Value, json};
-use validator::Validate;
 
 /// A hand-written request type, as an app writes one.
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, rok_data::Input)]
 struct Signup {
-    #[validate(email(message = "email must be an email address"))]
+    #[rok(validate(email(message = "email must be an email address")))]
     email: String,
     plan: Plan,
 }

@@ -94,8 +94,6 @@ fn rust_templates_use_only_the_allowed_crates() {
         "utoipa",
         "utoipa_swagger_ui",
         "uuid",
-        // The generated data layer needs it for `derive = ["validate"]`.
-        "validator",
         // `main.rs` starts the application through its library.
         CRATE,
     ]);
@@ -142,7 +140,6 @@ fn the_config_file_hints_the_cargo_dependencies() {
         "# tracing = ",
         "# tracing-subscriber = { version = \"0.3\", features = [\"env-filter\"] }",
         "# uuid = ",
-        "# validator = ",
     ] {
         assert!(text.contains(dependency), "missing {dependency}");
     }

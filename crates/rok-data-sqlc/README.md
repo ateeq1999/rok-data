@@ -528,7 +528,7 @@ filter), or a query row or parameter struct holding one, fails the run with
 an error naming it.
 
 **Validation.** `derive = ["serde", "validate"]` (or `-d serde -d validate`)
-adds `validator::Validate` to create inputs and update patches, with rules
+adds `rok_data::Input` to create inputs and update patches, with rules
 taken from the schema, and `extractors = ["axum", "actix_web"]` (or
 `-e axum`) generates a `ValidatedJson<T>` extractor per framework
 (see [Validated bodies and HTTP extractors](#validated-bodies-and-http-extractors)).
@@ -788,7 +788,7 @@ derive = ["serde", "validate"]
 extractors = ["axum", "actix_web"]
 ```
 
-`validate` derives `validator::Validate` (validator 0.21) on every create
+`validate` derives `rok_data::Input` (engine ADR 0025) on every create
 input and update patch, with a rule for each column the schema constrains.
 From this table:
 
@@ -810,34 +810,34 @@ the create input gets:
 ```rust
 pub struct NewMember {
     /// The `name` column.
-    #[validate(length(
+    #[rok(validate(length(
         min = 1,
         max = 80,
         message = "name must be between 1 and 80 characters"
-    ))]
+    )))]
     pub name: String,
     /// The `handle` column.
-    #[validate(length(max = 30, message = "handle must be at most 30 characters"))]
+    #[rok(validate(length(max = 30, message = "handle must be at most 30 characters")))]
     pub handle: String,
     /// The `age` column.
-    #[validate(range(min = 13, max = 130, message = "age must be between 13 and 130"))]
+    #[rok(validate(range(min = 13, max = 130, message = "age must be between 13 and 130")))]
     pub age: Option<i32>,
 ```
 
 | Schema | Rule |
 |---|---|
 | `VARCHAR(n)`, `CHAR(n)` (and `CHARACTER [VARYING](n)`) | `length(max = n)`, counted in characters as PostgreSQL counts them |
-| `CHECK (char_length(col) >= n)`, with `character_length` or `length`, any comparison | `length(min = n)` (or `max`); with a declared length, the tighter bounds, and `equal` when they meet |
+| `CHECK (char_length(col) >= n)`, with `character_length` or `length`, any comparison | `length(min = n)` (or `max`); with a declared length, the tighter bounds, `min` and `max` alike when they meet |
 | `CHECK (col >= n)`, `>`, `<=`, `<`, the literal on either side, `BETWEEN a AND b`, an `AND` of these, on an integer or float column | `range(...)`. A strict bound on an integer becomes inclusive (`> 0` is `min = 1`); on a float it stays strict (`exclusive_min`) |
-| the same on a `NUMERIC` column (`Decimal`, which `range` can't compare, and which the orphan rule keeps from implementing validator's `ValidateRange`) | `custom(function = "<field>_in_range", code = "range")`, a function generated next to the input, whose error carries `range`'s `min`/`max` params |
-| a typed id over text | `impl validator::ValidateLength<u64>` on the id, so a length rule applies through it, also on foreign keys |
-| a typed id over an integer | `impl validator::ValidateRange<i64>` (the id's integer type) on the id, so a range rule applies through it, also on foreign keys |
+| the same on a `NUMERIC` column (`Decimal`) | `range(...)` too, compared as the nearest `f64` (rok-data's `decimal` feature) |
+| a typed id over text | `impl rok_data::validate::HasLength` on the id, so a length rule applies through it, also on foreign keys |
+| a typed id over a number | `impl rok_data::validate::AsNumber` on the id, so a range rule applies through it, also on foreign keys |
 
-Each rule has an English message naming the column and validator's code
-(`length` or `range`). A patch field is checked only when it is present, so
+Each rule has an English message naming the column, and the code
+`length` or `range`. A patch field is checked only when it is present, so
 an absent field or `null` passes. Every other `CHECK`, `NOT NULL`, enums and
 value lists are not rules: the database or deserialization already enforces
-them. A typed id over `NUMERIC` gets no range rule.
+them.
 
 `extractors` (which needs `validate`) generates `db/http/`: `mod.rs` holds
 the shared `BodyRejection` and the error body, and `axum.rs` and
@@ -883,7 +883,7 @@ frameworks:
 | no JSON `Content-Type`, bad JSON syntax, or unreadable | `400` | `bad_request` | none |
 | over the framework's size limit | `413` | `payload_too_large` | none |
 | JSON that doesn't fit the type (a missing field, a wrong type, an unknown label) | `422` | `validation_failed`, with serde's message | none |
-| breaks a validation rule | `422` | `validation_failed` | validator's errors by field |
+| breaks a validation rule | `422` | `validation_failed` | the broken rules by field (`rok_data::ValidationErrors`) |
 
 `{"name": "", "handle": "ada", "age": 7}` is answered `422` with:
 
@@ -926,12 +926,12 @@ path), so both frameworks give the same messages. What counts as a JSON
 `application/json` and `application/*+json`, actix-web also `text/json` and
 anything its `JsonConfig` predicate allows. `BodyRejection`
 (`Malformed { message }`, `TooLarge` or
-`ValidationFailure(validator::ValidationErrors)`) is public, with `status()`
+`ValidationFailure(rok_data::ValidationErrors)`) is public, with `status()`
 and `body()`, so an app that wants another response can match on it;
 `BodyRejection::from_serde` and `db::http::validated(body)` apply the same
 rules outside a handler. Only JSON bodies are covered: query strings, forms,
 and query-file parameters are not validated. `db/mod.rs` names the
-`validator`, `axum`, `serde_path_to_error` (axum wraps serde's error in it)
+`axum`, `serde_path_to_error` (axum wraps serde's error in it)
 and `actix-web` dependencies to add. The complete crate is in
 [`docs/examples/validated-api`](docs/examples/validated-api).
 

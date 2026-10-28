@@ -19,7 +19,6 @@ rust_decimal = { version = "1", features = ["serde"] }
 # The fixture generates with `derive = ["serde"]` (ADR 0013).
 serde = { version = "1", features = ["derive"] }
 # `src/validated_db/` generates with `derive = ["serde", "validate"]` (ADR 0015).
-validator = { version = "0.21", features = ["derive"] }
 # ...and with `extractors = ["axum", "actix_web"]`, whose `db/http/` reads
 # JSON bodies. `macros` gives `tests/actix_web.rs` its `#[actix_web::test]`.
 axum = "0.8"

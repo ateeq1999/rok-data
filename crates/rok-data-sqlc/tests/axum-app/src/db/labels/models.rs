@@ -43,13 +43,9 @@ impl std::fmt::Display for LabelId {
 }
 
 rok_data::impl_value!(LabelId);
-impl validator::ValidateRange<i64> for LabelId {
-    fn greater_than(&self, max: i64) -> Option<bool> {
-        validator::ValidateRange::greater_than(&self.0, max)
-    }
-
-    fn less_than(&self, min: i64) -> Option<bool> {
-        validator::ValidateRange::less_than(&self.0, min)
+impl rok_data::validate::AsNumber for LabelId {
+    fn as_number(&self) -> Option<f64> {
+        rok_data::validate::AsNumber::as_number(&self.0)
     }
 }
 
@@ -66,7 +62,7 @@ pub struct Label {
 }
 
 /// Input for `create`: every column the caller may supply.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, validator::Validate)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, rok_data::Input)]
 pub struct NewLabel {
     /// The `name` column.
     pub name: String,
@@ -77,7 +73,7 @@ pub struct NewLabel {
 /// From JSON, an absent field is `None` and `null` is `Some(None)`, which sets
 /// the column to `NULL`; serializing skips the `None` fields.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, validator::Validate,
+    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, rok_data::Input,
 )]
 #[serde(default)]
 pub struct UpdateLabel {

@@ -110,7 +110,7 @@ pub struct User {
 ///
 /// `Option` fields are columns with a database default: `None` leaves the
 /// column out of the `INSERT` so the default applies.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, validator::Validate)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, rok_data::Input)]
 pub struct NewUser {
     /// The `id` column.
     /// `None` inserts a new id from `UserId::generate`.
@@ -132,7 +132,7 @@ pub struct NewUser {
 /// From JSON, an absent field is `None` and `null` is `Some(None)`, which sets
 /// the column to `NULL`; serializing skips the `None` fields.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, validator::Validate,
+    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, rok_data::Input,
 )]
 #[serde(default)]
 pub struct UpdateUser {

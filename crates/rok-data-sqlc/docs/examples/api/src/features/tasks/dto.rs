@@ -16,13 +16,13 @@ pub type ListTasksQuery = ListQuery<TaskSort>;
 
 /// `POST /api/v1/tasks`'s body, checked by the rules of `NewTask`.
 /// A field for a defaulted column may be left out.
-#[derive(Debug, Clone, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema)]
 pub struct CreateTaskDto {
     /// The `project_id` column.
     #[schema(value_type = uuid::Uuid)]
     pub project_id: ProjectId,
     /// The `title` column.
-    #[validate(length(max = 200, message = "title must be at most 200 characters"))]
+    #[rok(validate(length(max = 200, message = "title must be at most 200 characters")))]
     pub title: String,
     /// The `done` column.
     pub done: Option<bool>,
@@ -49,7 +49,7 @@ impl CreateTaskDto {
 /// Every field is optional: a field left out keeps its column's value, and
 /// `null` sets a nullable column to `NULL`.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema,
+    Debug, Clone, Default, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema,
 )]
 #[serde(default)]
 pub struct UpdateTaskDto {
@@ -57,7 +57,7 @@ pub struct UpdateTaskDto {
     #[schema(value_type = Option<uuid::Uuid>)]
     pub project_id: Option<ProjectId>,
     /// The new value of the `title` column.
-    #[validate(length(max = 200, message = "title must be at most 200 characters"))]
+    #[rok(validate(length(max = 200, message = "title must be at most 200 characters")))]
     pub title: Option<String>,
     /// The new value of the `done` column.
     pub done: Option<bool>,

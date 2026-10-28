@@ -21,16 +21,16 @@ pub const AVATAR_CACHE_CONTROL: &str = "public, max-age=31536000, immutable";
 /// `PATCH /users/me`'s body. A field left out keeps its value; the display
 /// name is trimmed, and `null` or an empty one clears it.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema,
+    Debug, Clone, Default, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema,
 )]
 #[serde(default)]
 pub struct UpdateProfileDto {
     /// The new display name, at most 100 characters.
     #[serde(deserialize_with = "trimmed")]
-    #[validate(length(
+    #[rok(validate(length(
         max = DISPLAY_NAME_MAX,
         message = "display_name must be at most 100 characters"
-    ))]
+    )))]
     pub display_name: Option<Option<String>>,
 }
 

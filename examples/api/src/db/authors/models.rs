@@ -65,7 +65,7 @@ pub struct Author {
 }
 
 /// Input for `create`: every column the caller may supply.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, validator::Validate)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, rok_data::Input)]
 pub struct NewAuthor {
     /// The `id` column.
     /// `None` inserts a new id from `AuthorId::generate`.
@@ -81,7 +81,7 @@ pub struct NewAuthor {
 /// From JSON, an absent field is `None` and `null` is `Some(None)`, which sets
 /// the column to `NULL`; serializing skips the `None` fields.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, validator::Validate,
+    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, rok_data::Input,
 )]
 #[serde(default)]
 pub struct UpdateAuthor {

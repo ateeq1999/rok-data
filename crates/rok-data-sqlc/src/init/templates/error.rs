@@ -110,7 +110,7 @@ impl ResponseError for AppError {
     }
 }
 
-/// Broken validation rules, as `dto.validate()?` returns them.
+/// Broken validation rules, as `input.validate(&db)` reports them.
 impl From<ValidationErrors> for AppError {
     fn from(details: ValidationErrors) -> Self {
         AppError::Validation {

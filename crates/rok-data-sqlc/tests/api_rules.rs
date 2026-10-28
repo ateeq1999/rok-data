@@ -75,8 +75,8 @@ fn struct_block<'a>(text: &'a str, name: &str) -> &'a str {
     &text[start..end]
 }
 
-/// `email` is validator's own rule, under VineJS's name; `trim` and
-/// `toLowerCase` run while the body is read, so validation and the
+/// `email` under VineJS's name, and the transforms `trim` and
+/// `toLowerCase`, which run before the rules, so validation and the
 /// database see the transformed value.
 #[test]
 fn email_with_transforms_on_both_bodies() -> Result<()> {
@@ -84,73 +84,40 @@ fn email_with_transforms_on_both_bodies() -> Result<()> {
     let config = project.config(&[("email", &["email", "trim", "toLowerCase"])]);
     let dto = project.dto(&config)?;
 
+    let attr = "    #[rok(
+        transform(trim, lowercase),
+        validate(email(message = \"email must be an email address\"))
+    )]";
     let create = struct_block(&dto, "CreateUserDto");
     assert!(
-        create.contains(
+        create.contains(&format!(
             "    /// The `email` column.
     ///
     /// Transforms: `trim`, `toLowerCase`.
     /// Rules: `email`.
-    #[serde(deserialize_with = \"email_transformed\")]
     #[schema(format = \"email\")]
-    #[validate(email(code = \"email\", message = \"email must be an email address\"))]
+{attr}
     pub email: String,"
-        ),
+        )),
         "{create}"
     );
     let update = struct_block(&dto, "UpdateUserDto");
     assert!(
-        update.contains(
-            "    #[serde(deserialize_with = \"email_transformed\")]
-    #[schema(format = \"email\")]
-    #[validate(email(code = \"email\", message = \"email must be an email address\"))]
-    pub email: Option<String>,"
-        ),
+        update.contains(&format!(
+            "    #[schema(format = \"email\")]\n{attr}\n    pub email: Option<String>,"
+        )),
         "{update}"
     );
-    assert!(
-        dto.contains(
-            "/// The `email` column's transforms: `trim`, then `toLowerCase`.
-fn email_transforms(value: &str) -> String {
-    let value = value.trim();
-    value.to_lowercase()
-}
-"
-        ),
-        "{dto}"
-    );
-    assert!(
-        dto.contains(
-            "fn email_transformed<'de, D, T>(deserializer: D) -> Result<T, D::Error>
-where
-    D: serde::Deserializer<'de>,
-    T: Transformed<'de>,
-{
-    T::transformed(deserializer, email_transforms)
-}
-"
-        ),
-        "{dto}"
-    );
-    // The trait the transforms read through is in `shared/validation.rs`.
-    assert!(
-        dto.contains("use crate::shared::validation::Transformed;\n"),
-        "{dto}"
-    );
-    assert!(!dto.contains("trait Transformed"), "{dto}");
-    let shared = project.read("src/shared/validation.rs")?;
-    assert!(
-        shared.contains("\npub trait Transformed<'de>: Sized {"),
-        "{shared}"
-    );
+    assert!(dto.contains("serde::Deserialize, rok_data::Input"), "{dto}");
+    assert!(!dto.contains("validator"), "{dto}");
     Ok(())
 }
 
-/// A rule `validator` lacks is a `custom` rule calling a generated function
-/// whose error code is the VineJS name; the OpenAPI document gets the
-/// keywords utoipa can carry, and the rest in the field's description.
+/// Every other rule is the runtime catalogue's, next to the column's own
+/// `length` rule; the OpenAPI document gets the keywords utoipa can carry,
+/// and the rest in the field's description.
 #[test]
-fn other_rules_call_generated_functions() -> Result<()> {
+fn other_rules_are_the_runtime_catalogue() -> Result<()> {
     let project = Project::new(SCHEMA)?;
     let config = project.config(&[
         ("handle", &["alphaNumeric(allowDashes)", "minLength(3)"]),
@@ -163,69 +130,36 @@ fn other_rules_call_generated_functions() -> Result<()> {
         create.contains(
             "    /// Rules: `alphaNumeric(allowDashes)`, `minLength(3)`.
     #[schema(min_length = 3)]
-    #[validate(length(max = 40, message = \"handle must be at most 40 characters\"))]
-    #[validate(custom(
-        function = \"handle_alpha_numeric\",
-        code = \"alphaNumeric\",
-        message = \"handle must contain only letters, digits and dashes\"
-    ))]
-    #[validate(custom(
-        function = \"handle_min_length\",
-        code = \"minLength\",
-        message = \"handle must be at least 3 characters\"
+    #[rok(validate(
+        length(max = 40, message = \"handle must be at most 40 characters\"),
+        alpha_numeric(dashes),
+        min_length = 3
     ))]
     pub handle: Option<String>,"
         ),
         "{create}"
     );
     assert!(
-        dto.contains(
-            "/// The `minLength(3)` rule of the `handle` column.
-fn handle_min_length(value: &str) -> Result<(), validator::ValidationError> {
-    check(value.chars().count() >= 3, \"minLength\")
-}
-"
+        create.contains(
+            "    #[rok(validate(one_of(values = [\"SA\", \"AE\", \"EG\"])))]\n    pub nickname: Option<String>,"
         ),
-        "{dto}"
+        "{create}"
     );
-    assert!(
-        dto.contains(
-            "fn nickname_in(value: &str) -> Result<(), validator::ValidationError> {
-    const VALUES: &[&str] = &[\"SA\", \"AE\", \"EG\"];
-    check(VALUES.contains(&value), \"in\")
-}
-"
-        ),
-        "{dto}"
-    );
-    assert!(
-        dto.contains("    check(letters(value, true, false, true, false), \"alphaNumeric\")"),
-        "{dto}"
-    );
-    // Each function once, though both bodies use the rules; `check` is in
-    // `shared/validation.rs`, the rule itself in the runtime's catalogue.
-    assert_eq!(dto.matches("\nfn handle_min_length(").count(), 1, "{dto}");
-    assert!(
-        dto.contains("use rok_data::validate::catalogue::letters;\n"),
-        "{dto}"
-    );
-    assert!(
-        dto.contains("use crate::shared::validation::check;\n"),
-        "{dto}"
-    );
-    assert!(!dto.contains("fn check("), "{dto}");
+    // No generated check functions, no helpers.
+    assert!(!dto.contains("\nfn handle_"), "{dto}");
+    assert!(!dto.contains("shared::validation::check"), "{dto}");
     let shared = project.read("src/shared/validation.rs")?;
-    assert_eq!(shared.matches("\npub fn check(").count(), 1, "{shared}");
-    // No regular expression, so no `regex` hint.
+    assert!(!shared.contains("pub fn check("), "{shared}");
+    // No regular expression, so no `regex` feature.
     let db_mod = project.read("src/db/mod.rs")?;
     assert!(!db_mod.contains("regex"), "{db_mod}");
     Ok(())
 }
 
-/// A regular expression (`regex`, `mobile`, `postalCode`) is matched with
-/// the `regex` crate, compiled once; the data layer's hints name it.
+/// A regular expression (`regex`, `mobile`, `postalCode`) needs rok-data's
+/// `regex` feature; the data layer's hints name it.
 #[test]
-fn patterns_need_the_regex_crate() -> Result<()> {
+fn patterns_need_the_regex_feature() -> Result<()> {
     let project = Project::new(SCHEMA)?;
     let mut config = project.config(&[("handle", &["mobile(ar-SA, strictMode)"])]);
     config
@@ -240,25 +174,18 @@ fn patterns_need_the_regex_crate() -> Result<()> {
             vec![ApiRule::Regex("^[a-z0-9-]+$".into())],
         );
     let dto = project.dto(&config)?;
+    let create = struct_block(&dto, "CreateUserDto");
     assert!(
-        dto.contains(
-            "    const PATTERN: &str = \"^[a-z0-9-]+$\";
-    static REGEX: std::sync::LazyLock<Option<regex::Regex>> =
-        std::sync::LazyLock::new(|| regex::Regex::new(PATTERN).ok());
-    check(matches_regex(value, REGEX.as_ref()), \"regex\")"
-        ),
-        "{dto}"
+        create.contains("mobile(locales = [\"ar-SA\"], strict)"),
+        "{create}"
     );
     assert!(
-        dto.contains("    let strict = value.starts_with('+');\n"),
-        "{dto}"
-    );
-    assert!(
-        struct_block(&dto, "CreateUserDto").contains("#[schema(pattern = \"^[a-z0-9-]+$\")]"),
-        "{dto}"
+        create.contains("    #[schema(pattern = \"^[a-z0-9-]+$\")]\n    #[rok(validate(regex = \"^[a-z0-9-]+$\"))]"),
+        "{create}"
     );
     let db_mod = project.read("src/db/mod.rs")?;
-    assert!(db_mod.contains("//   regex = \"1\"\n"), "{db_mod}");
+    assert!(db_mod.contains("\"regex\"] }"), "{db_mod}");
+    assert!(!db_mod.contains("//   regex = "), "{db_mod}");
     Ok(())
 }
 
@@ -269,29 +196,22 @@ fn transforms_keep_null_and_defaults() -> Result<()> {
     let project = Project::new(SCHEMA)?;
     let config = project.config(&[("nickname", &["trim", "normalizeEmail"])]);
     let dto = project.dto(&config)?;
+    let transform = "    #[rok(transform(trim, normalize_email))]\n";
     assert!(
-        struct_block(&dto, "CreateUserDto").contains(
-            "    #[serde(default, deserialize_with = \"nickname_transformed\")]\n    pub nickname: Option<String>,"
-        ),
+        struct_block(&dto, "CreateUserDto")
+            .contains(&format!("{transform}    pub nickname: Option<String>,")),
         "{dto}"
     );
     assert!(
-        struct_block(&dto, "UpdateUserDto").contains(
-            "    #[serde(deserialize_with = \"nickname_transformed\")]\n    pub nickname: Option<Option<String>>,"
-        ),
+        struct_block(&dto, "UpdateUserDto").contains(&format!(
+            "    #[serde(deserialize_with = \"crate::db::nullable::deserialize\")]\n{transform}    pub nickname: Option<Option<String>>,"
+        )),
         "{dto}"
     );
-    assert!(
-        dto.contains("    let value = value.trim();\n    normalize_email(value)\n}"),
-        "{dto}"
-    );
-    // The transform is the runtime's, not a copy in `shared/validation.rs`.
-    assert!(
-        dto.contains("use rok_data::validate::catalogue::normalize_email;"),
-        "{dto}"
-    );
+    // The transforms are the runtime's: nothing to share.
+    assert!(!dto.contains("_transformed"), "{dto}");
     let shared = project.read("src/shared/validation.rs")?;
-    assert!(!shared.contains("fn normalize_email"), "{shared}");
+    assert!(!shared.contains("Transformed"), "{shared}");
     Ok(())
 }
 
@@ -303,10 +223,9 @@ fn rules_without_the_document() -> Result<()> {
     config.api.as_mut().expect("the API").openapi = false;
     let dto = project.dto(&config)?;
     assert!(!dto.contains("#[schema("), "{dto}");
-    assert!(dto.contains("code = \"maxLength\""), "{dto}");
+    assert!(dto.contains("max_length = 80"), "{dto}");
     Ok(())
 }
-
 /// Every rule at once, on long names, is laid out as rustfmt lays it out.
 #[test]
 fn every_rule_is_rustfmt_clean() -> Result<()> {
@@ -389,55 +308,17 @@ fn every_rule_is_rustfmt_clean() -> Result<()> {
     Ok(())
 }
 
-/// The helpers are in `shared/validation.rs` once, however many features'
-/// rules call them, and only the ones some rule calls.
+/// `url` is VineJS's (validator.js's `isURL`), which takes a value without
+/// a scheme: the runtime's rule, with no `uri` format.
 #[test]
-fn helpers_are_shared_once() -> Result<()> {
-    let project = Project::new(
-        "CREATE TABLE users (id UUID PRIMARY KEY, email TEXT NOT NULL);
-         CREATE TABLE teams (id UUID PRIMARY KEY, name TEXT NOT NULL);",
-    )?;
-    let mut config = project.config(&[("email", &["trim"])]);
-    let api = config.api.as_mut().expect("the API");
-    let trim = BTreeMap::from([("name".to_owned(), vec![ApiRule::from("trim")])]);
-    api.rules.insert("teams".into(), trim);
-    rok_data_sqlc::generate(&config)?;
-    let shared = project.read("src/shared/validation.rs")?;
-    assert_eq!(
-        shared.matches("pub trait Transformed").count(),
-        1,
-        "{shared}"
-    );
-    assert!(!shared.contains("pub fn check("), "{shared}");
-    for dto in ["src/features/users/dto.rs", "src/features/teams/dto.rs"] {
-        let dto = project.read(dto)?;
-        assert!(!dto.contains("trait Transformed"), "{dto}");
-        assert!(
-            dto.contains("use crate::shared::validation::Transformed;"),
-            "{dto}"
-        );
-    }
-    Ok(())
-}
-
-/// `url` is VineJS's (validator.js's `isURL`), not `validator`'s, which
-/// needs a scheme: a generated check, with no `uri` format.
-#[test]
-fn url_is_a_generated_check() -> Result<()> {
+fn url_is_the_runtime_rule() -> Result<()> {
     let project = Project::new(SCHEMA)?;
     let config = project.config(&[("nickname", &["url"])]);
     let dto = project.dto(&config)?;
     assert!(
-        dto.contains("fn nickname_url(value: &str) -> Result<(), validator::ValidationError> {\n    check(is_url(value), \"url\")\n}"),
+        dto.contains("    #[rok(validate(url))]\n    pub nickname: Option<String>,"),
         "{dto}"
     );
     assert!(!dto.contains("format = \"uri\""), "{dto}");
-    assert!(!dto.contains("url(code"), "{dto}");
-    assert!(
-        dto.contains("use rok_data::validate::catalogue::is_url;"),
-        "{dto}"
-    );
-    let shared = project.read("src/shared/validation.rs")?;
-    assert!(!shared.contains("fn is_url"), "{shared}");
     Ok(())
 }

@@ -17,14 +17,15 @@ use actix_web::dev::Payload;
 use actix_web::error::JsonPayloadError;
 use actix_web::http::StatusCode;
 use actix_web::{FromRequest, HttpRequest, HttpResponse, ResponseError, web};
+use rok_data::Input;
 use serde::de::DeserializeOwned;
-use validator::Validate;
 
 pub use super::BodyRejection;
 
-/// A JSON request body that deserialized into `T` and passed every
-/// validation rule. Any `T: DeserializeOwned + Validate` works: a generated
-/// create input or update patch, or a hand-written request type.
+/// A JSON request body that deserialized into `T`, transformed, and passed
+/// every field rule. Any `T: DeserializeOwned + rok_data::Input` without a
+/// context works: a generated create input or update patch, or a
+/// hand-written request type.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ValidatedJson<T>(pub T);
 
@@ -46,7 +47,7 @@ impl<T> Deref for ValidatedJson<T> {
 
 impl<T> FromRequest for ValidatedJson<T>
 where
-    T: DeserializeOwned + Validate + 'static,
+    T: DeserializeOwned + Input<Context = ()> + 'static,
 {
     type Error = BodyRejection;
     type Future = Pin<Box<dyn Future<Output = Result<Self, BodyRejection>>>>;

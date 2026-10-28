@@ -345,6 +345,41 @@ rok_data::Error::Validation(details) => AppError::from(details),
 A client reading a `422` sees the same `details` map. The difference is
 that a rule's `params` no longer echo the rejected `value`.
 
+### Generated inputs derive `rok_data::Input`
+
+Regenerating replaces `validator` in the generated code (engine ADR
+0025). In the project:
+
+- **The manifest:** remove `validator` (and `regex`, if only rules used
+  it). Add rok-data's `regex` feature when an `[api.rules]` rule is
+  `regex`, `mobile` or `postalCode`; the generated `db/mod.rs` lists it.
+- **Hand-written request types** that go through `ValidatedJson` derive
+  `rok_data::Input` instead of `validator::Validate`. Wrap each rule in
+  `rok(…)`: `length`, `range` and `email(message = …)` keep their syntax.
+
+<!-- not compiled: a line-by-line edit of a hand-written type -->
+```rust,ignore
+// before
+#[derive(serde::Deserialize, validator::Validate)]
+pub struct Signup {
+    #[validate(email(message = "email must be an email address"))]
+    pub email: String,
+}
+// after
+#[derive(serde::Deserialize, rok_data::Input)]
+pub struct Signup {
+    #[rok(validate(email(message = "email must be an email address")))]
+    pub email: String,
+}
+```
+
+- **Calling validation yourself:** `body.validate()` becomes
+  `body.validate_fields()` (field rules), or `body.validate(&db).await`
+  when the type has database rules.
+- **`custom` functions:** a `custom` rule takes `fn(&T) -> Result<(),
+  String>`. On an `Option` field it gets the value inside, and only for
+  `Some`.
+
 ### Unchanged on purpose
 
 - `filter` stays the canonical verb (the Diesel/SeaORM convention);

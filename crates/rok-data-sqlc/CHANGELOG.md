@@ -7,6 +7,25 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+### Breaking changes to the generated API
+
+- Generated validation is the runtime's `Input` (engine ADR 0025):
+  - **Derives:** `derive = ["validate"]` derives `rok_data::Input` in place
+    of `validator::Validate`. The create, update and search bodies, and
+    `IdList`, derive it too.
+  - **Rules:** a field's rules are `#[rok(transform(…), validate(…))]`, the
+    runtime catalogue's. `dto.rs` has no per-column check functions, and
+    `shared/validation.rs` no `check`, `matches_regex` or `Transformed`.
+  - **Transforms:** they run before the rules, not inside
+    `deserialize_with`.
+  - **Extractor:** `ValidatedJson<T>` takes any `T: rok_data::Input`
+    without a context and checks its field rules.
+  - **Dependencies:** the data layer's hints drop `validator` and `regex`,
+    and name rok-data's `regex` feature for `regex`, `mobile` and
+    `postalCode`.
+  - **On the wire:** an exact length's `params` are `{"min": n, "max": n}`,
+    and no failure echoes the rejected `value`.
+
 ### Breaking changes to the templates
 
 - From rok-sqlc 0.8.0 (absorbed; engine ADR 0022): both templates gain

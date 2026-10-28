@@ -311,6 +311,24 @@ compiler finds the call sites.
   empty, for compatibility). A project made from a template keeps
   compiling once its `error.rs` imports `rok_data::ValidationErrors` in
   place of `validator::ValidationErrors` (migration guide).
+- **Generated validation is the runtime's `Input`** (input-validation
+  ticket 08, third part; engine ADR 0025). Breaking for generated code and
+  the templates:
+  - **Derives:** `derive = ["validate"]` puts `rok_data::Input` on `NewX`
+    and `UpdateX` in place of `validator::Validate`. The API's bodies
+    derive it too.
+  - **Rules:** a body's rules read `#[rok(transform(trim),
+    validate(alpha_numeric(dashes), min_length = 3))]`, the runtime
+    catalogue's names with VineJS codes. `dto.rs` has no generated check
+    functions.
+  - **Extractor:** `ValidatedJson<T>` takes any `T: rok_data::Input`
+    without a context.
+  - **Dependencies:** an app drops `validator` (and `regex`), and enables
+    rok-data's `regex` feature for pattern rules.
+  - **On the wire:** an exact length answers `params` `{"min": n, "max":
+    n}`.
+  - **`custom` on an `Option`:** a `custom` rule on an `Option` field now
+    runs only on `Some`, with the value inside, as the other rules do.
 - **Exclusive ranges and decimal ranges** (input-validation ticket 08):
   `range(exclusive_min = 0, max = 5)` leaves a bound out (`"must be
   greater than 0 and at most 5"`, JSON Schema `exclusiveMinimum`); a

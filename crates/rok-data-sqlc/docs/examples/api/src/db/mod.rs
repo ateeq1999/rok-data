@@ -10,7 +10,6 @@
 //   uuid = { version = "1", features = ["v7", "serde"] }
 //   chrono = { version = "0.4", features = ["serde"] }
 //   serde_json = "1"
-//   validator = { version = "0.21", features = ["derive"] }
 //   actix-web = "4"
 //   tracing = "0.1"
 //   utoipa = { version = "5", features = ["chrono", "uuid"] }

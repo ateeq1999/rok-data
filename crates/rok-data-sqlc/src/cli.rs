@@ -78,7 +78,7 @@ enum Command {
 
         /// Also derive this for the generated types: `serde` adds
         /// `Serialize`/`Deserialize`, `validate` adds schema-derived
-        /// `validator::Validate` to inputs and patches (needs `serde`);
+        /// `rok_data::Input` to inputs and patches (needs `serde`);
         /// repeatable [default: `derive` from rok-data-sqlc.toml]
         #[arg(short, long, value_name = "NAME", value_enum)]
         derive: Vec<DeriveArg>,

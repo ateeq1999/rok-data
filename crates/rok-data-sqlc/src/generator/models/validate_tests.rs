@@ -4,8 +4,8 @@ use super::super::test_support::{column, nullable, table};
 use super::*;
 use crate::schema::{LengthRange, NumberBound, TypedId, ValueRange};
 
-/// `validate` derives `validator::Validate` for the create input and the
-/// update patch, and for nothing else (engine ADR 0015).
+/// `validate` derives `rok_data::Input` for the create input and the
+/// update patch, and for nothing else (engine ADR 0015, ADR 0025).
 #[test]
 fn validate_derives_only_inputs_and_patches() {
     let users = table(
@@ -21,18 +21,18 @@ fn validate_derives_only_inputs_and_patches() {
         },
         std::slice::from_ref(&users),
     );
-    let derive = "serde::Serialize, serde::Deserialize, validator::Validate)]\n";
+    let derive = "serde::Serialize, serde::Deserialize, rok_data::Input)]\n";
     assert!(
         rendered.contains(&format!("{derive}pub struct NewUser {{")),
         "{rendered}"
     );
     assert!(
-            rendered.contains(
-                "serde::Deserialize, validator::Validate,\n)]\n#[serde(default)]\npub struct UpdateUser {"
-            ),
-            "{rendered}"
-        );
-    assert_eq!(rendered.matches("validator::Validate").count(), 2);
+        rendered.contains(
+            "serde::Deserialize, rok_data::Input,\n)]\n#[serde(default)]\npub struct UpdateUser {"
+        ),
+        "{rendered}"
+    );
+    assert_eq!(rendered.matches("rok_data::Input").count(), 2);
     assert!(
         !super::render(
             &users,
@@ -87,23 +87,23 @@ fn validate_puts_length_rules_on_text_fields() {
     let rules = [
         (
             "name",
-            "#[validate(length(max = 80, message = \"name must be at most 80 characters\"))]",
+            "#[rok(validate(length(max = 80, message = \"name must be at most 80 characters\")))]",
         ),
         (
             "title",
-            "#[validate(length(\n        min = 1,\n        max = 80,\n        message = \"title must be between 1 and 80 characters\"\n    ))]",
+            "#[rok(validate(length(\n        min = 1,\n        max = 80,\n        message = \"title must be between 1 and 80 characters\"\n    )))]",
         ),
         (
             "code",
-            "#[validate(length(min = 3, message = \"code must be at least 3 characters\"))]",
+            "#[rok(validate(length(min = 3, message = \"code must be at least 3 characters\")))]",
         ),
         (
             "grade",
-            "#[validate(length(max = 1, message = \"grade must be at most 1 character\"))]",
+            "#[rok(validate(length(max = 1, message = \"grade must be at most 1 character\")))]",
         ),
         (
             "iso",
-            "#[validate(length(equal = 3, message = \"iso must be exactly 3 characters\"))]",
+            "#[rok(validate(length(min = 3, max = 3, message = \"iso must be exactly 3 characters\")))]",
         ),
     ];
     for (field, rule) in rules {
@@ -112,7 +112,11 @@ fn validate_puts_length_rules_on_text_fields() {
             assert!(part.contains(&expected), "{expected}\n{part}");
         }
     }
-    assert_eq!(rendered.matches("#[validate(").count(), 10, "{rendered}");
+    assert_eq!(
+        rendered.matches("#[rok(validate(").count(),
+        10,
+        "{rendered}"
+    );
     assert!(
         !super::render(
             &users,
@@ -127,9 +131,7 @@ fn validate_puts_length_rules_on_text_fields() {
     );
 }
 
-/// A numeric column's range checks become a `range` rule; a decimal one,
-/// which `validator` cannot compare, a `custom` rule with the stock
-/// `range` code, checked by a function in `models.rs`.
+/// A numeric column's range checks become a `range` rule, a decimal's too.
 #[test]
 fn validate_puts_range_rules_on_numeric_fields() {
     let bound = |value: &str, exclusive: bool| NumberBound {
@@ -176,23 +178,23 @@ fn validate_puts_range_rules_on_numeric_fields() {
     let rules = [
         (
             "qty",
-            "#[validate(range(min = 0, message = \"qty must be at least 0\"))]",
+            "#[rok(validate(range(min = 0, message = \"qty must be at least 0\")))]",
         ),
         (
             "rating",
-            "#[validate(range(min = 1, max = 5, message = \"rating must be between 1 and 5\"))]",
+            "#[rok(validate(range(min = 1, max = 5, message = \"rating must be between 1 and 5\")))]",
         ),
         (
             "score",
-            "#[validate(range(\n        exclusive_min = 0.0,\n        max = 1.0,\n        message = \"score must be greater than 0 and at most 1\"\n    ))]",
+            "#[rok(validate(range(\n        exclusive_min = 0,\n        max = 1,\n        message = \"score must be greater than 0 and at most 1\"\n    )))]",
         ),
         (
             "ratio",
-            "#[validate(range(exclusive_max = -0.5, message = \"ratio must be less than -0.5\"))]",
+            "#[rok(validate(range(exclusive_max = -0.5, message = \"ratio must be less than -0.5\")))]",
         ),
         (
             "price",
-            "#[validate(custom(\n        function = \"price_in_range\",\n        code = \"range\",\n        message = \"price must be at least 0 and less than 99.95\"\n    ))]",
+            "#[rok(validate(range(\n        min = 0,\n        exclusive_max = 99.95,\n        message = \"price must be at least 0 and less than 99.95\"\n    )))]",
         ),
     ];
     for (field, rule) in rules {
@@ -202,30 +204,15 @@ fn validate_puts_range_rules_on_numeric_fields() {
         }
     }
     // The typed id field takes its range too, through `ValidateRange`.
-    let id_rule =
-        "    #[validate(range(min = 1, message = \"id must be at least 1\"))]\n    pub id: UserId,";
+    let id_rule = "    #[rok(validate(range(min = 1, message = \"id must be at least 1\")))]\n    pub id: UserId,";
     assert!(input.contains(id_rule), "{input}");
     assert!(
-        rendered.contains("impl validator::ValidateRange<i64> for UserId {"),
+        rendered.contains("impl rok_data::validate::AsNumber for UserId {"),
         "{rendered}"
     );
-    assert_eq!(rendered.matches("#[validate(").count(), 11, "{rendered}");
-    assert!(
-        rendered.ends_with(
-            "/// The range rule of the `price` column.
-fn price_in_range(value: &rust_decimal::Decimal) -> Result<(), validator::ValidationError> {
-    let min = rust_decimal::Decimal::from_i128_with_scale(0, 0);
-    let exclusive_max = rust_decimal::Decimal::from_i128_with_scale(9995, 2);
-    if *value < min || *value >= exclusive_max {
-        let mut error = validator::ValidationError::new(\"range\");
-        error.add_param(\"min\".into(), &min);
-        error.add_param(\"exclusive_max\".into(), &exclusive_max);
-        return Err(error);
-    }
-    Ok(())
-}
-"
-        ),
+    assert_eq!(
+        rendered.matches("#[rok(validate(").count(),
+        11,
         "{rendered}"
     );
     assert!(
@@ -277,9 +264,9 @@ fn validate_makes_text_typed_ids_measurable() {
 }
 
 rok_data::impl_value!(UserId);
-impl validator::ValidateLength<u64> for UserId {
-    fn length(&self) -> Option<u64> {
-        validator::ValidateLength::length(&self.0)
+impl rok_data::validate::HasLength for UserId {
+    fn length(&self) -> Option<usize> {
+        rok_data::validate::HasLength::length(&self.0)
     }
 }
 "
@@ -287,14 +274,14 @@ impl validator::ValidateLength<u64> for UserId {
         "{rendered}"
     );
     assert_eq!(
-        rendered.matches("impl validator::").count(),
+        rendered.matches("impl rok_data::validate::").count(),
         1,
         "{rendered}"
     );
     for field in ["code: UserId", "team_code: Option<TeamId>"] {
         assert!(
             rendered.contains(&format!(
-                "message = \"{} must be at most 12 characters\"))]\n    pub {field}",
+                "message = \"{} must be at most 12 characters\")))]\n    pub {field}",
                 field.split(':').next().unwrap()
             )),
             "{field}\n{rendered}"
@@ -324,16 +311,12 @@ impl validator::ValidateLength<u64> for UserId {
         },
         std::slice::from_ref(&users),
     );
-    assert!(!rendered.contains("ValidateLength"), "{rendered}");
+    assert!(!rendered.contains("HasLength"), "{rendered}");
     assert!(
         rendered.contains(
-            "impl validator::ValidateRange<i64> for UserId {
-    fn greater_than(&self, max: i64) -> Option<bool> {
-        validator::ValidateRange::greater_than(&self.0, max)
-    }
-
-    fn less_than(&self, min: i64) -> Option<bool> {
-        validator::ValidateRange::less_than(&self.0, min)
+            "impl rok_data::validate::AsNumber for UserId {
+    fn as_number(&self) -> Option<f64> {
+        rok_data::validate::AsNumber::as_number(&self.0)
     }
 }
 "

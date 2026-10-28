@@ -70,7 +70,7 @@ pub struct Project {
 ///
 /// `Option` fields are columns with a database default: `None` leaves the
 /// column out of the `INSERT` so the default applies.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, validator::Validate)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, rok_data::Input)]
 pub struct NewProject {
     /// The `id` column.
     /// `None` inserts a new id from `ProjectId::generate`.
@@ -78,11 +78,11 @@ pub struct NewProject {
     /// The `owner_id` column.
     pub owner_id: uuid::Uuid,
     /// The `name` column.
-    #[validate(length(max = 80, message = "name must be at most 80 characters"))]
+    #[rok(validate(length(max = 80, message = "name must be at most 80 characters")))]
     pub name: String,
     /// The `open_tasks` column.
     /// `None` applies the column default.
-    #[validate(range(min = 0, message = "open_tasks must be at least 0"))]
+    #[rok(validate(range(min = 0, message = "open_tasks must be at least 0")))]
     pub open_tasks: Option<i32>,
     /// The `created_at` column.
     /// `None` applies the column default.
@@ -94,7 +94,7 @@ pub struct NewProject {
 /// From JSON, an absent field is `None` and `null` is `Some(None)`, which sets
 /// the column to `NULL`; serializing skips the `None` fields.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, validator::Validate,
+    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, rok_data::Input,
 )]
 #[serde(default)]
 pub struct UpdateProject {
@@ -103,11 +103,11 @@ pub struct UpdateProject {
     pub owner_id: Option<uuid::Uuid>,
     /// The new value of the `name` column.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[validate(length(max = 80, message = "name must be at most 80 characters"))]
+    #[rok(validate(length(max = 80, message = "name must be at most 80 characters")))]
     pub name: Option<String>,
     /// The new value of the `open_tasks` column.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[validate(range(min = 0, message = "open_tasks must be at least 0"))]
+    #[rok(validate(range(min = 0, message = "open_tasks must be at least 0")))]
     pub open_tasks: Option<i32>,
     /// The new value of the `created_at` column.
     #[serde(skip_serializing_if = "Option::is_none")]

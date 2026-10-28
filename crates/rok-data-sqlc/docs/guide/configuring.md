@@ -301,14 +301,14 @@ content-type: application/json
 
 | Rule | Checks |
 | --- | --- |
-| `email`, `ipAddress`, `ipAddress(4)`, `ipAddress(6)` | `validator`'s own `email` and `ip` rules |
+| `email`, `ipAddress`, `ipAddress(4)`, `ipAddress(6)` | an email address; an IP address (of the version named) |
 | `url` | validator.js's `isURL` with its defaults, as VineJS checks: the scheme may be left out (`example.com` passes), but is `http`, `https` or `ftp` when given; the host is an IP address or a domain with a top-level domain (`localhost` fails), without `_`; a port is 1 to 65535 |
 | `uuid`, `uuid(4, 7)` | a UUID of any version 1 to 8 (or nil or max), or of the versions named |
 | `ulid` | 26 Crockford base32 characters, the first at most `7` |
 | `mobile`, `mobile(ar-SA, ...)`, `mobile(..., strictMode)` | validator.js's pattern of each locale named, or of any locale below with none; `strictMode` needs a leading `+` |
 | `alpha`, `alphaNumeric` | ASCII letters (and digits), with `allowSpaces`, `allowDashes`, `allowUnderscores` |
 | `ascii` | one or more ASCII characters |
-| `{ regex = "..." }` | matches the pattern, in the `regex` crate's syntax |
+| `{ regex = "..." }` | matches the pattern, in the `regex` crate's syntax (rok-data's `regex` feature) |
 | `in(...)`, `notIn(...)` | is (or isn't) one of the values, case-sensitively |
 | `startsWith(...)`, `endsWith(...)` | starts (ends) with the text |
 | `minLength(n)`, `maxLength(n)`, `fixedLength(n)` | at least, at most or exactly `n` characters |
@@ -327,15 +327,14 @@ tries every locale validator.js knows: a number valid only elsewhere
 fails. `postalCode` takes `CA`, `DE`, `ES`, `FR`,
 `GB`, `SA` and `US`. `creditCard` takes `amex`, `dinersclub`,
 `discover`, `jcb`, `mastercard`, `unionpay` and `visa`. Lengths count
-characters, as the schema's own length checks do. Each check but `email`
-and `ipAddress` is a function generated into `dto.rs`, calling helpers
-that `shared/validation.rs` holds once for every feature (`is_url`,
-`is_iban`, the `Transformed` trait the transforms read through, ...);
-`regex`, `mobile` and `postalCode` match with the `regex` crate (which
-`validator` already depends on), so the data layer's `mod.rs` names
-`regex = "1"`.
+characters, as the schema's own length checks do. Each rule is the
+runtime catalogue's, on the body's field as
+`#[rok(transform(…), validate(…))]` (engine ADR 0025): `in(SA, AE)` is
+`one_of(values = ["SA", "AE"])`, `minLength(3)` is `min_length = 3`, and
+so on, each answering its VineJS code. `regex`, `mobile` and `postalCode`
+need rok-data's `regex` feature, which the data layer's `mod.rs` names.
 
-The transforms run while the body is read, in the order listed, so the
+The transforms run before the rules, in the order listed, so the
 checks and the database see the transformed value; `null` still clears a
 nullable column:
 

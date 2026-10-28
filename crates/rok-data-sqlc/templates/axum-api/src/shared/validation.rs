@@ -186,9 +186,7 @@ fn if_match<T: FromStr>(parts: &Parts) -> Result<T, AppError> {
 
 /// The body of a many-to-many sync, `{"ids": [...]}`: the keys of the
 /// related rows to pair with, and no others.
-#[derive(
-    Debug, Clone, PartialEq, Eq, serde::Deserialize, validator::Validate, utoipa::ToSchema,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, rok_data::Input, utoipa::ToSchema)]
 pub struct IdList<T> {
     /// The related rows' keys.
     pub ids: Vec<T>,
@@ -248,43 +246,5 @@ impl FieldFailures {
         } else {
             Err(AppError::from(self.0))
         }
-    }
-}
-
-/// A body field a column's transforms apply to: text, optional text, or
-/// nullable text, where `null` is `Some(None)`.
-pub trait Transformed<'de>: Sized {
-    /// Deserializes the field, transformed by `transform`.
-    fn transformed<D>(deserializer: D, transform: fn(&str) -> String) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>;
-}
-
-impl<'de> Transformed<'de> for String {
-    fn transformed<D>(deserializer: D, transform: fn(&str) -> String) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        serde::Deserialize::deserialize(deserializer).map(|value: String| transform(&value))
-    }
-}
-
-impl<'de> Transformed<'de> for Option<String> {
-    fn transformed<D>(deserializer: D, transform: fn(&str) -> String) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        serde::Deserialize::deserialize(deserializer)
-            .map(|value: Option<String>| value.map(|value| transform(&value)))
-    }
-}
-
-impl<'de> Transformed<'de> for Option<Option<String>> {
-    fn transformed<D>(deserializer: D, transform: fn(&str) -> String) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        serde::Deserialize::deserialize(deserializer)
-            .map(|value: Option<String>| Some(value.map(|value| transform(&value))))
     }
 }

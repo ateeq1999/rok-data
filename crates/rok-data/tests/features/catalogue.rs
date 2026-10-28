@@ -229,11 +229,10 @@ struct Patch {
     email: Option<String>,
 }
 
-fn frozen(email: &Option<String>) -> Result<(), String> {
-    match email {
-        Some(_) => Err("`email` can't be changed".into()),
-        None => Ok(()),
-    }
+/// Any email is a change: only `None` (left out) passes, and the rule
+/// never sees it.
+fn frozen(_email: &str) -> Result<(), String> {
+    Err("`email` can't be changed".into())
 }
 
 #[test]

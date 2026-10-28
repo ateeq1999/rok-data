@@ -31,7 +31,6 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 tracing = "0.1"
 utoipa = { version = "5", features = ["chrono", "uuid"] }
 uuid = { version = "1", features = ["v7", "serde"] }
-validator = { version = "0.21", features = ["derive"] }
 
 [dev-dependencies]
 # The test client: a request through the router, and its body.

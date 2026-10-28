@@ -16,13 +16,13 @@ pub struct DbMod<'a> {
     /// `tracing`.
     pub has_pool: bool,
     pub queries: QueriesModule<'a>,
-    /// What `derive` asks for: `serde` adds `nullable.rs`, and `validate`
-    /// needs `validator`.
+    /// What `derive` asks for: `serde` adds `nullable.rs`.
     pub derives: DeriveOptions,
     /// The frameworks `http/` has an extractor for; none leaves `http/` out.
     pub extractors: &'a [Extractor],
     /// Whether an API feature's string rules match regular expressions
-    /// (`regex`, `mobile`, `postalCode`), which needs `regex`.
+    /// (`regex`, `mobile`, `postalCode`), which needs rok-data's `regex`
+    /// feature.
     pub uses_regex: bool,
     /// The API's framework (`api.framework`), whose Swagger UI integration
     /// the hints name.
@@ -62,7 +62,9 @@ pub fn render_db_mod(tables: &[Table], db_mod: &DbMod<'_>) -> String {
         .flat_map(|table| &table.columns)
         .filter_map(|column| Some((column.id_generation?, column.base_type())))
         .collect();
-    output.push_str(&dependency_hints(&types, &ids, derives, extractors));
+    output.push_str(&dependency_hints(
+        &types, &ids, derives, extractors, uses_regex,
+    ));
     if has_pool {
         output.push_str(
             "//   tracing = \"0.1\"
@@ -75,12 +77,6 @@ pub fn render_db_mod(tables: &[Table], db_mod: &DbMod<'_>) -> String {
             super::openapi::dependency_hint(tables)
         ));
         output.push_str(&super::openapi::swagger_ui_hint(framework));
-    }
-    if uses_regex {
-        output.push_str(
-            "//   regex = \"1\"
-",
-        );
     }
     output.push('\n');
     // Sorted the way rustfmt sorts `mod` declarations.
@@ -179,14 +175,15 @@ pub enum UpdateOutcome<T> {
 
 /// The `Cargo.toml` lines the generated code needs. With `serde`, the crates
 /// whose types appear in serialized items need their `serde` feature.
-/// With `validate`, `validator`; with `extractors`, `serde_json` (to read
-/// serde's errors) and each framework, and for axum `serde_path_to_error`,
-/// whose error wraps serde's inside axum's rejection.
+/// With `uses_regex`, rok-data's `regex` feature; with `extractors`,
+/// `serde_json` (to read serde's errors) and each framework, and for axum
+/// `serde_path_to_error`, whose error wraps serde's inside axum's rejection.
 fn dependency_hints(
     types: &[String],
     ids: &[(IdGeneration, BaseType)],
     derives: DeriveOptions,
     extractors: &[Extractor],
+    uses_regex: bool,
 ) -> String {
     let serde = derives.serde;
     let json_bodies = !extractors.is_empty();
@@ -241,6 +238,7 @@ fn dependency_hints(
         (uses_serde_json, "json"),
         (uses_ipnetwork, "ipnetwork"),
         (uses_mac_address, "mac_address"),
+        (uses_regex, "regex"),
     ]
     .into_iter()
     .filter(|(uses, _)| *uses)
@@ -294,9 +292,6 @@ fn dependency_hints(
     // CUID2s are plain `String`s.
     if uses_ids(IdGeneration::Cuid2) {
         hints.push_str(&crate_hint_with("cuid", "2", false, &[]));
-    }
-    if derives.validate {
-        hints.push_str("//   validator = { version = \"0.21\", features = [\"derive\"] }\n");
     }
     if extractors.contains(&Extractor::Axum) {
         hints.push_str("//   axum = \"0.8\"\n//   serde_path_to_error = \"0.1\"\n");
@@ -396,10 +391,9 @@ mod tests {
     }
 
     #[test]
-    fn db_mod_hints_validator_with_validate() {
+    fn db_mod_validates_through_rok_data() {
         let tables = vec![table(vec![column("id", "i64")], &["id"])];
-        let hint = "//   serde = { version = \"1\", features = [\"derive\"] }\n//   validator = { version = \"0.21\", features = [\"derive\"] }\n";
-        let render = |validate| {
+        let render = |uses_regex| {
             render_db_mod(
                 &tables,
                 &DbMod {
@@ -409,17 +403,26 @@ mod tests {
                     queries: QueriesModule::None,
                     derives: DeriveOptions {
                         serde: true,
-                        validate,
+                        validate: true,
                         openapi: false,
                     },
                     extractors: &[],
-                    uses_regex: false,
+                    uses_regex,
                     framework: crate::ApiFramework::ActixWeb,
                 },
             )
         };
-        assert!(render(true).contains(hint), "{}", render(true));
-        assert!(!render(false).contains("validator"));
+        // `validate` needs no crate of its own: the inputs derive
+        // `rok_data::Input`. Pattern rules need rok-data's `regex` feature.
+        assert!(!render(false).contains("validator"), "{}", render(false));
+        assert!(!render(false).contains("regex"), "{}", render(false));
+        let hint = "rok-data = { version = \"";
+        let with_regex = render(true);
+        let line = with_regex.lines().find(|line| line.contains(hint));
+        assert!(
+            line.is_some_and(|line| line.ends_with("features = [\"regex\"] }")),
+            "{with_regex}"
+        );
     }
 
     #[test]

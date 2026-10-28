@@ -17,25 +17,6 @@ pub fn push_signature(
     output.push('\n');
 }
 
-/// [`push_signature`] with `where` clauses: the signature, then `where`
-/// and one bound per line, then the opening brace on a line of its own.
-pub fn push_signature_where(
-    output: &mut String,
-    indent: usize,
-    head: &str,
-    params: &[String],
-    returns: &str,
-    bounds: &[&str],
-) {
-    let pad = " ".repeat(indent);
-    push_head(output, indent, head, params, returns, "");
-    output.push_str(&format!("\n{pad}where\n"));
-    for bound in bounds {
-        output.push_str(&format!("{pad}    {bound},\n"));
-    }
-    output.push_str(&format!("{pad}{{\n"));
-}
-
 /// `{head}(params) -> {returns}{end}` at `indent`, without a final newline:
 /// on one line when it fits, otherwise one parameter per line.
 fn push_head(

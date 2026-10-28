@@ -253,7 +253,7 @@ pub fn serde_derives(serde: bool) -> &'static [&'static str] {
 }
 
 /// What a run's `derive` asks of the generated items: serde's derives
-/// (engine ADR 0013), and `validator::Validate` with its rules on create inputs and
+/// (engine ADR 0013), and `rok_data::Input` with its rules on create inputs and
 /// update patches (engine ADR 0015), and with `[api] openapi`, utoipa's
 /// `ToSchema` on the types an API feature exposes.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -286,11 +286,11 @@ impl DeriveOptions {
     }
 
     /// The derives a create input or update patch adds: serde's, then
-    /// `validator::Validate` with `validate`.
+    /// `rok_data::Input` with `validate`.
     pub fn input_derives(self) -> Vec<&'static str> {
         let mut derives = serde_derives(self.serde).to_vec();
         if self.validate {
-            derives.push("validator::Validate");
+            derives.push("rok_data::Input");
         }
         derives
     }

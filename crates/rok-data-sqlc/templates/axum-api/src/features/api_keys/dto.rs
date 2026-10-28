@@ -9,22 +9,22 @@ use crate::db::types::ApiKeyScope;
 pub const NAME_MAX: u64 = 100;
 
 /// `POST /api-keys`'s body.
-#[derive(Debug, Clone, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema)]
 pub struct CreateApiKeyDto {
     /// What the key is for, 1 to 100 characters after trimming.
     #[serde(deserialize_with = "trimmed")]
-    #[validate(length(
+    #[rok(validate(length(
         min = 1,
         max = NAME_MAX,
         message = "name must be 1 to 100 characters"
-    ))]
+    )))]
     pub name: String,
     /// `read` (default): safe HTTP methods only. `write`: everything an API key may do.
     #[serde(default)]
     pub scope: Option<ApiKeyScope>,
     /// Omit for a key that never expires.
     #[serde(default)]
-    #[validate(range(min = 1, max = 365, message = "expires_in_days must be 1 to 365"))]
+    #[rok(validate(range(min = 1, max = 365, message = "expires_in_days must be 1 to 365")))]
     pub expires_in_days: Option<u32>,
 }
 

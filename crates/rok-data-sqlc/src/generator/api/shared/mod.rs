@@ -13,7 +13,6 @@
 
 use std::path::{Path, PathBuf};
 
-use super::Feature;
 use crate::ApiConfig;
 use crate::ApiFramework;
 use crate::generator::{HEADER, replace_once};
@@ -37,8 +36,8 @@ pub fn shared_dir(api: &ApiConfig) -> PathBuf {
 
 /// `db/pool.rs` under the data layer's `output`, then each shared tool,
 /// described for the OpenAPI document with `api.openapi`. `validation.rs`
-/// also holds `FieldFailures` and the helpers `features`' string rules call.
-pub fn render(output: &Path, api: &ApiConfig, features: &[Feature<'_>]) -> Vec<(PathBuf, String)> {
+/// also holds `FieldFailures`.
+pub fn render(output: &Path, api: &ApiConfig) -> Vec<(PathBuf, String)> {
     let db_path = format!("{}::", api.db_path);
     let file =
         |template: &str| format!("{HEADER}\n{}", template.replace(TEMPLATE_DB_PATH, &db_path));
@@ -81,7 +80,6 @@ pub fn render(output: &Path, api: &ApiConfig, features: &[Feature<'_>]) -> Vec<(
         };
         if name == "validation.rs" {
             text.push_str(failures::FIELD_FAILURES);
-            text.push_str(&super::rule_functions::shared_helpers(features));
         }
         files.push((shared.join(name), text));
     }

@@ -11,6 +11,7 @@ pub mod openapi;
 pub mod queries;
 pub mod read;
 pub mod relationships;
+mod rok_attr;
 pub mod scopes;
 pub mod search;
 pub mod session;
@@ -273,7 +274,7 @@ pub fn plan_files_with_queries(
     }
     files.extend(http::render(output, &config.extractors, derives));
     if let Some(api) = &config.api {
-        files.extend(api::shared::render(output, api, &features));
+        files.extend(api::shared::render(output, api));
         files.extend(api::render(&features, api));
     }
     if !enums.is_empty() {

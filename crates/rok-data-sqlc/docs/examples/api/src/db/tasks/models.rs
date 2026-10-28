@@ -73,7 +73,7 @@ pub struct Task {
 ///
 /// `Option` fields are columns with a database default: `None` leaves the
 /// column out of the `INSERT` so the default applies.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, validator::Validate)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, rok_data::Input)]
 pub struct NewTask {
     /// The `id` column.
     /// `None` inserts a new id from `TaskId::generate`.
@@ -83,7 +83,7 @@ pub struct NewTask {
     /// The `project_id` column.
     pub project_id: ProjectId,
     /// The `title` column.
-    #[validate(length(max = 200, message = "title must be at most 200 characters"))]
+    #[rok(validate(length(max = 200, message = "title must be at most 200 characters")))]
     pub title: String,
     /// The `done` column.
     /// `None` applies the column default.
@@ -98,7 +98,7 @@ pub struct NewTask {
 /// From JSON, an absent field is `None` and `null` is `Some(None)`, which sets
 /// the column to `NULL`; serializing skips the `None` fields.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, validator::Validate,
+    Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, rok_data::Input,
 )]
 #[serde(default)]
 pub struct UpdateTask {
@@ -110,7 +110,7 @@ pub struct UpdateTask {
     pub project_id: Option<ProjectId>,
     /// The new value of the `title` column.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[validate(length(max = 200, message = "title must be at most 200 characters"))]
+    #[rok(validate(length(max = 200, message = "title must be at most 200 characters")))]
     pub title: Option<String>,
     /// The new value of the `done` column.
     #[serde(skip_serializing_if = "Option::is_none")]

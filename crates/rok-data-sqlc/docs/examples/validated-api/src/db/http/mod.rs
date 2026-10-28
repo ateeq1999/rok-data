@@ -9,13 +9,11 @@ pub mod actix_web;
 pub mod axum;
 
 use std::borrow::Cow;
-use std::collections::BTreeMap;
 use std::fmt;
 
-use rok_data::ValidationErrors;
+use rok_data::{Input, ValidationErrors};
 use serde::{Deserialize, Serialize};
 use serde_json::error::Category;
-use validator::{Validate, ValidationErrorsKind};
 
 /// The `code` of a body that is not JSON: bad syntax, a missing or wrong
 /// `Content-Type`, or a body that could not be read.
@@ -34,8 +32,8 @@ const FAILED_RULES: &str = "the request body failed validation";
 /// The message of a body over the framework's size limit.
 const OVER_LIMIT: &str = "the request body is over the size limit";
 
-/// Where [`BodyRejection::unfit`] records serde's message: validator's key
-/// for errors about the whole struct.
+/// Where [`BodyRejection::unfit`] records serde's message: the key of an
+/// error about the whole body.
 const WHOLE_BODY: &str = "__all__";
 
 /// The code of the error [`BodyRejection::unfit`] records.
@@ -197,82 +195,15 @@ fn unfit_message(errors: &ValidationErrors) -> Option<&str> {
     }
 }
 
-/// Checks a deserialized body against its validation rules.
+/// Transforms a deserialized body and checks its field rules (a body's
+/// database rules need a session, and run in its service).
 ///
 /// # Errors
 ///
-/// [`BodyRejection::ValidationFailure`] when `body` breaks a validation
-/// rule.
-pub fn validated<T: Validate>(body: T) -> Result<T, BodyRejection> {
-    body.validate()
-        .map_err(|errors| BodyRejection::ValidationFailure(from_validator(&errors)))?;
-    Ok(body)
-}
-
-/// `validator`'s errors as the runtime's, field by field (by name, nested
-/// structs and lists at paths like `filter.name` / `lines.2.sku`), each
-/// rule's arguments kept and the rejected `value` left out.
-#[must_use]
-pub fn from_validator(errors: &validator::ValidationErrors) -> ValidationErrors {
-    let mut converted = ValidationErrors::new();
-    convert_into(&mut converted, "", errors);
-    converted
-}
-
-/// Adds `errors` to `converted`, each field's path after `prefix`.
-fn convert_into(
-    converted: &mut ValidationErrors,
-    prefix: &str,
-    errors: &validator::ValidationErrors,
-) {
-    let fields: BTreeMap<_, _> = errors.errors().iter().collect();
-    for (field, kind) in fields {
-        let path = if prefix.is_empty() {
-            field.to_string()
-        } else {
-            format!("{prefix}.{field}")
-        };
-        match kind {
-            ValidationErrorsKind::Field(field_errors) => {
-                for error in field_errors {
-                    converted.add_rule(
-                        path.as_str(),
-                        rok_data::validate::intern(&error.code),
-                        error.message.as_deref().unwrap_or_default().to_owned(),
-                        None,
-                        params_of(error),
-                    );
-                }
-            }
-            ValidationErrorsKind::Struct(inner) => convert_into(converted, &path, inner),
-            ValidationErrorsKind::List(items) => {
-                for (index, inner) in items {
-                    convert_into(converted, &format!("{path}.{index}"), inner);
-                }
-            }
-        }
-    }
-}
-
-/// A rule's arguments as the runtime's values, by name, without `value`.
-fn params_of(error: &validator::ValidationError) -> Vec<(&'static str, rok_data::Value)> {
-    let mut params: Vec<_> = error
-        .params
-        .iter()
-        .filter(|(name, _)| name.as_ref() != "value")
-        .filter_map(|(name, value)| {
-            let value = match value {
-                serde_json::Value::Bool(b) => rok_data::Value::from(*b),
-                serde_json::Value::Number(n) => match n.as_i64() {
-                    Some(n) => rok_data::Value::from(n),
-                    None => rok_data::Value::from(n.as_f64()?),
-                },
-                serde_json::Value::String(s) => rok_data::Value::from(s.clone()),
-                _ => return None,
-            };
-            Some((rok_data::validate::intern(name), value))
-        })
-        .collect();
-    params.sort_by_key(|(name, _)| *name);
-    params
+/// [`BodyRejection::ValidationFailure`] when `body` breaks a field rule.
+pub fn validated<T: Input<Context = ()>>(body: T) -> Result<T, BodyRejection> {
+    body.validate_fields().map_err(|error| match error {
+        rok_data::Error::Validation(errors) => BodyRejection::ValidationFailure(errors),
+        other => BodyRejection::unfit(other.to_string()),
+    })
 }

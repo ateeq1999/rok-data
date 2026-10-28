@@ -332,8 +332,8 @@ pub fn render_key_type(output: &mut String, table: &Table, derives: DeriveOption
                 if validate {
                     match key.base_type() {
                         BaseType::Text => super::validate::push_measured_id(output, &id.name),
-                        BaseType::Integer => {
-                            super::validate::push_ranged_id(output, &id.name, &key.sqlx_type);
+                        BaseType::Integer | BaseType::Float | BaseType::Decimal => {
+                            super::validate::push_ranged_id(output, &id.name);
                         }
                         _ => {}
                     }

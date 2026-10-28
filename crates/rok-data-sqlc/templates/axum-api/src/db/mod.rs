@@ -10,7 +10,6 @@
 //   uuid = { version = "1", features = ["v7", "serde"] }
 //   chrono = { version = "0.4", features = ["serde"] }
 //   serde_json = "1"
-//   validator = { version = "0.21", features = ["derive"] }
 //   axum = "0.8"
 //   serde_path_to_error = "0.1"
 //   tracing = "0.1"

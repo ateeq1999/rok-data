@@ -5,7 +5,6 @@
 use super::model::{UpdateUser, User, UserId};
 use crate::db::types;
 use crate::shared::pagination::ListQuery;
-use crate::shared::validation::Transformed;
 
 pub use crate::db::users::listing::UserSort;
 
@@ -18,14 +17,15 @@ pub type ListUsersQuery = ListQuery<UserSort>;
 /// Every field is optional: a field left out keeps its column's value, and
 /// `null` sets a nullable column to `NULL`.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema,
+    Debug, Clone, Default, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema,
 )]
 #[serde(default)]
 pub struct UpdateUserDto {
     /// The new value of the `display_name` column.
     ///
     /// Transforms: `trim`.
-    #[serde(deserialize_with = "display_name_transformed")]
+    #[serde(deserialize_with = "crate::db::nullable::deserialize")]
+    #[rok(transform(trim))]
     pub display_name: Option<Option<String>>,
     /// The new value of the `role` column.
     pub role: Option<types::Role>,
@@ -34,7 +34,7 @@ pub struct UpdateUserDto {
     /// The `email` column is immutable: naming it, even as `null`, is a `422`.
     #[schema(ignore)]
     #[serde(deserialize_with = "present")]
-    #[validate(custom(function = "immutable", message = "`email` can't be changed"))]
+    #[rok(validate(custom(function = immutable, code = "immutable", message = "`email` can't be changed")))]
     pub email: Option<serde_json::Value>,
 }
 
@@ -58,8 +58,8 @@ where
 }
 
 /// Rejects a field naming an immutable column: no update changes one.
-fn immutable(_: &serde_json::Value) -> Result<(), validator::ValidationError> {
-    Err(validator::ValidationError::new("immutable"))
+fn immutable(_: &serde_json::Value) -> Result<(), String> {
+    Err("the column can't be changed".to_owned())
 }
 
 /// `DELETE /api/v1/users/{id}`'s query string: `?permanent=true` deletes the row for good.
@@ -112,18 +112,4 @@ impl From<User> for UserResponse {
             avatar_url: row.avatar_url,
         }
     }
-}
-
-/// The `display_name` column's transforms: `trim`.
-fn display_name_transforms(value: &str) -> String {
-    value.trim().to_owned()
-}
-
-/// Deserializes the `display_name` column, transformed.
-fn display_name_transformed<'de, D, T>(deserializer: D) -> Result<T, D::Error>
-where
-    D: serde::Deserializer<'de>,
-    T: Transformed<'de>,
-{
-    T::transformed(deserializer, display_name_transforms)
 }

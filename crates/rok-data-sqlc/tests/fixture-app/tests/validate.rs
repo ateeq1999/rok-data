@@ -2,11 +2,11 @@
 //! `derive = ["serde", "validate"]` (`src/validated_db/`, from
 //! `validated_schema.sql`). No database needed.
 
+use rok_data::{Input, ValidationErrors, Value};
 use rok_data_sqlc_fixture_app::validated_db::players::models::{NewPlayer, UpdatePlayer};
 use rok_data_sqlc_fixture_app::validated_db::seasons::models::{NewSeason, SeasonId, UpdateSeason};
 use rok_data_sqlc_fixture_app::validated_db::teams::models::{NewTeam, TeamId, UpdateTeam};
 use rust_decimal::Decimal;
-use validator::{Validate, ValidationErrors};
 
 fn player() -> NewPlayer {
     NewPlayer {
@@ -21,23 +21,36 @@ fn player() -> NewPlayer {
     }
 }
 
+/// The input's field rules: `Ok` when it passes them, otherwise its errors.
+fn checked<T: Input<Context = ()>>(input: T) -> Result<(), ValidationErrors> {
+    match input.validate_fields() {
+        Ok(_) => Ok(()),
+        Err(rok_data::Error::Validation(errors)) => Err(errors),
+        Err(other) => panic!("not a validation error: {other}"),
+    }
+}
+
 /// Each failing field with its error's code and message.
 fn failures(errors: &ValidationErrors) -> Vec<(String, String, String)> {
     let mut failures: Vec<(String, String, String)> = errors
-        .field_errors()
+        .errors()
         .iter()
-        .flat_map(|(field, errors)| {
-            errors.iter().map(move |error| {
-                (
-                    field.to_string(),
-                    error.code.to_string(),
-                    error.message.as_deref().unwrap_or_default().to_owned(),
-                )
-            })
+        .map(|error| {
+            (
+                error.field.clone(),
+                error.code.to_owned(),
+                error.message.clone(),
+            )
         })
         .collect();
     failures.sort();
     failures
+}
+
+/// The `params` of `field`'s first error.
+fn params(errors: &ValidationErrors, field: &str) -> Vec<(&'static str, Value)> {
+    let error = errors.errors().iter().find(|error| error.field == field);
+    error.expect("an error on the field").params.clone()
 }
 
 fn failure(field: &str, code: &str, message: &str) -> (String, String, String) {
@@ -46,14 +59,14 @@ fn failure(field: &str, code: &str, message: &str) -> (String, String, String) {
 
 #[test]
 fn a_valid_input_passes() {
-    assert_eq!(player().validate(), Ok(()));
+    assert_eq!(checked(player()), Ok(()));
     // Lengths count characters, not bytes, as PostgreSQL counts them.
     let wide = NewPlayer {
         handle: "é".repeat(20),
         nickname: Some(Some("ü".repeat(12))),
         ..player()
     };
-    assert_eq!(wide.validate(), Ok(()));
+    assert_eq!(checked(wide), Ok(()));
 }
 
 #[test]
@@ -69,7 +82,7 @@ fn an_input_breaking_rules_fails_field_by_field() {
         // Only the database checks this one.
         joined_year: Some(1800),
     };
-    let errors = input.validate().expect_err("every rule is broken");
+    let errors = checked(input).expect_err("every rule is broken");
     assert_eq!(
         failures(&errors),
         [
@@ -96,42 +109,26 @@ fn an_input_breaking_rules_fails_field_by_field() {
     );
 }
 
-/// A `NUMERIC` range rule is a `custom` one, but its error carries the
-/// bounds and the value as `params`, as validator's `range` does.
+/// A `NUMERIC` column takes `range` like any number, its error carrying
+/// the bounds as `params` (an integer bound as an integer).
 #[test]
 fn a_decimal_range_error_carries_its_bounds() {
     let input = NewPlayer {
         salary: Some(Decimal::new(-1, 2)),
         ..player()
     };
-    let errors = input.validate().expect_err("salary is negative");
-    let salary = &errors.field_errors()["salary"][0];
-    let mut params: Vec<(String, serde_json::Value)> = salary
-        .params
-        .iter()
-        .map(|(name, value)| (name.to_string(), value.clone()))
-        .collect();
-    params.sort_by(|a, b| a.0.cmp(&b.0));
-    assert_eq!(
-        params,
-        [
-            ("min".to_owned(), serde_json::json!("0")),
-            ("value".to_owned(), serde_json::json!("-0.01")),
-        ]
-    );
+    let errors = checked(input).expect_err("salary is negative");
+    assert_eq!(params(&errors, "salary"), [("min", Value::from(0_i64))]);
     // The same names as an integer column's `range`.
     let input = NewPlayer {
         jersey: 100,
         ..player()
     };
-    let errors = input.validate().expect_err("jersey is out of range");
-    let mut names: Vec<String> = errors.field_errors()["jersey"][0]
-        .params
-        .keys()
-        .map(ToString::to_string)
-        .collect();
-    names.sort();
-    assert_eq!(names, ["max", "min", "value"]);
+    let errors = checked(input).expect_err("jersey is out of range");
+    assert_eq!(
+        params(&errors, "jersey"),
+        [("min", Value::from(0_i64)), ("max", Value::from(99_i64))]
+    );
 }
 
 #[test]
@@ -143,7 +140,7 @@ fn absent_and_null_input_fields_pass() {
         nickname: Some(None),
         ..player()
     };
-    assert_eq!(input.validate(), Ok(()));
+    assert_eq!(checked(input), Ok(()));
 }
 
 #[test]
@@ -152,7 +149,7 @@ fn a_typed_text_key_keeps_its_length_rule() {
         code: TeamId("NORTHWEST".to_owned()),
         name: "N".to_owned(),
     };
-    let errors = team.validate().expect_err("both rules are broken");
+    let errors = checked(team).expect_err("both rules are broken");
     assert_eq!(
         failures(&errors),
         [
@@ -164,8 +161,8 @@ fn a_typed_text_key_keeps_its_length_rule() {
 
 #[test]
 fn a_patch_checks_only_the_values_it_sets() {
-    assert_eq!(UpdatePlayer::default().validate(), Ok(()));
-    assert_eq!(UpdateTeam::default().validate(), Ok(()));
+    assert_eq!(checked(UpdatePlayer::default()), Ok(()));
+    assert_eq!(checked(UpdateTeam::default()), Ok(()));
     // `Some(None)` sets NULL, which no rule constrains.
     let nulls = UpdatePlayer {
         bio: Some(None),
@@ -174,7 +171,7 @@ fn a_patch_checks_only_the_values_it_sets() {
         team_code: Some(None),
         ..UpdatePlayer::default()
     };
-    assert_eq!(nulls.validate(), Ok(()));
+    assert_eq!(checked(nulls), Ok(()));
 
     let patch = UpdatePlayer {
         handle: Some("ok".to_owned()),
@@ -183,7 +180,7 @@ fn a_patch_checks_only_the_values_it_sets() {
         salary: Some(Decimal::new(1, 2)),
         ..UpdatePlayer::default()
     };
-    let errors = patch.validate().expect_err("two rules are broken");
+    let errors = checked(patch).expect_err("two rules are broken");
     assert_eq!(
         failures(&errors),
         [
@@ -195,7 +192,7 @@ fn a_patch_checks_only_the_values_it_sets() {
     let team = UpdateTeam {
         name: Some("Northern".to_owned()),
     };
-    assert_eq!(team.validate(), Ok(()));
+    assert_eq!(checked(team), Ok(()));
 }
 
 #[test]
@@ -205,14 +202,14 @@ fn a_typed_integer_key_keeps_its_range_rule() {
         previous_year: Some(SeasonId(2023)),
         title: "Spring".to_owned(),
     };
-    assert_eq!(season.validate(), Ok(()));
+    assert_eq!(checked(season), Ok(()));
 
     let season = NewSeason {
         year: SeasonId(1850),
         previous_year: Some(SeasonId(1849)),
         title: "Spring".to_owned(),
     };
-    let errors = season.validate().expect_err("both ranges are broken");
+    let errors = checked(season).expect_err("both ranges are broken");
     assert_eq!(
         failures(&errors),
         [
@@ -224,20 +221,23 @@ fn a_typed_integer_key_keeps_its_range_rule() {
             failure("year", "range", "year must be between 1900 and 2100"),
         ]
     );
-    // The error carries the number inside the id as its `value`.
+    // The bounds, without the rejected value.
     assert_eq!(
-        errors.field_errors()["year"][0].params["value"],
-        serde_json::json!(1850)
+        params(&errors, "year"),
+        [
+            ("min", Value::from(1900_i64)),
+            ("max", Value::from(2100_i64))
+        ]
     );
 
     // A patch checks the id only when it sets one.
-    assert_eq!(UpdateSeason::default().validate(), Ok(()));
+    assert_eq!(checked(UpdateSeason::default()), Ok(()));
     let patch = UpdateSeason {
         previous_year: Some(Some(SeasonId(1899))),
         ..UpdateSeason::default()
     };
     assert_eq!(
-        failures(&patch.validate().expect_err("the range is broken")),
+        failures(&checked(patch).expect_err("the range is broken")),
         [failure(
             "previous_year",
             "range",

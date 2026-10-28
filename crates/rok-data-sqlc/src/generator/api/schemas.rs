@@ -216,7 +216,7 @@ mod tests {
         assert!(text.contains(page), "{text}");
         for validation in [actix::VALIDATION, axum::VALIDATION] {
             let text = describe("validation.rs", validation);
-            let id_list = "validator::Validate, utoipa::ToSchema,\n)]\npub struct IdList<T> {";
+            let id_list = "rok_data::Input, utoipa::ToSchema)]\npub struct IdList<T> {";
             assert!(text.contains(id_list), "{id_list}\n{text}");
         }
     }

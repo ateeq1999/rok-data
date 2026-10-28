@@ -15,7 +15,7 @@ pub type ListLoansQuery = PageQuery<LoanSort>;
 
 /// `POST /api/v1/loans`'s body, checked by the rules of `NewLoan`.
 /// A field for a defaulted column may be left out.
-#[derive(Debug, Clone, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema)]
 pub struct CreateLoanDto {
     /// The `book_id` column.
     #[schema(value_type = uuid::Uuid)]
@@ -41,7 +41,7 @@ impl From<CreateLoanDto> for NewLoan {
 /// Every field is optional: a field left out keeps its column's value, and
 /// `null` sets a nullable column to `NULL`.
 #[derive(
-    Debug, Clone, Default, PartialEq, serde::Deserialize, validator::Validate, utoipa::ToSchema,
+    Debug, Clone, Default, PartialEq, serde::Deserialize, rok_data::Input, utoipa::ToSchema,
 )]
 #[serde(default)]
 pub struct UpdateLoanDto {

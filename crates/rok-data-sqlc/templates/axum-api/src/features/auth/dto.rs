@@ -9,27 +9,27 @@ use crate::shared::security::password::{MAX_LENGTH, MIN_LENGTH};
 
 /// `POST /auth/register`'s and `POST /auth/login`'s body. The email is
 /// trimmed and lowercased before it is checked.
-#[derive(Debug, Clone, serde::Deserialize, validator::Validate, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Deserialize, rok_data::Input, utoipa::ToSchema)]
 pub struct CredentialsDto {
     /// The account's email address.
     #[serde(deserialize_with = "normalized_email")]
-    #[validate(email(message = "email must be an email address"))]
+    #[rok(validate(email(message = "email must be an email address")))]
     pub email: String,
     /// The password: 8 to 128 characters, anything allowed.
-    #[validate(length(
+    #[rok(validate(length(
         min = MIN_LENGTH,
         max = MAX_LENGTH,
         message = "password must be 8 to 128 characters"
-    ))]
+    )))]
     pub password: String,
 }
 
 /// Body for redeeming a link token: email verification and email-change
 /// confirmation.
-#[derive(Debug, Clone, serde::Deserialize, validator::Validate, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Deserialize, rok_data::Input, utoipa::ToSchema)]
 pub struct VerifyEmailDto {
     /// The token the mailed link carries (`?token=`).
-    #[validate(length(min = 1, message = "token must not be empty"))]
+    #[rok(validate(length(min = 1, message = "token must not be empty")))]
     pub token: String,
 }
 
@@ -137,53 +137,53 @@ where
 
 /// `POST /auth/password/forgot`'s body. The email is trimmed and
 /// lowercased before it is checked.
-#[derive(Debug, Clone, serde::Deserialize, validator::Validate, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Deserialize, rok_data::Input, utoipa::ToSchema)]
 pub struct ForgotPasswordDto {
     /// The account's email address.
     #[serde(deserialize_with = "normalized_email")]
-    #[validate(email(message = "email must be an email address"))]
+    #[rok(validate(email(message = "email must be an email address")))]
     pub email: String,
 }
 
 /// `POST /auth/password/reset`'s body: a reset (or invitation) link's
 /// token and the new password.
-#[derive(Debug, Clone, serde::Deserialize, validator::Validate, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Deserialize, rok_data::Input, utoipa::ToSchema)]
 pub struct ResetPasswordDto {
     /// The token the mailed link carries (`?token=`).
-    #[validate(length(min = 1, message = "token must not be empty"))]
+    #[rok(validate(length(min = 1, message = "token must not be empty")))]
     pub token: String,
     /// The new password: 8 to 128 characters, anything allowed.
-    #[validate(length(
+    #[rok(validate(length(
         min = MIN_LENGTH,
         max = MAX_LENGTH,
         message = "new_password must be 8 to 128 characters"
-    ))]
+    )))]
     pub new_password: String,
 }
 
 /// `POST /auth/password/change`'s body: the password now and the new one.
-#[derive(Debug, Clone, serde::Deserialize, validator::Validate, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Deserialize, rok_data::Input, utoipa::ToSchema)]
 pub struct ChangePasswordDto {
     /// The account's password now.
     pub current_password: String,
     /// The new password: 8 to 128 characters, anything allowed.
-    #[validate(length(
+    #[rok(validate(length(
         min = MIN_LENGTH,
         max = MAX_LENGTH,
         message = "new_password must be 8 to 128 characters"
-    ))]
+    )))]
     pub new_password: String,
 }
 
 /// `POST /auth/email/change`'s body. The new email is trimmed and
 /// lowercased before it is checked.
-#[derive(Debug, Clone, serde::Deserialize, validator::Validate, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Deserialize, rok_data::Input, utoipa::ToSchema)]
 pub struct ChangeEmailDto {
     /// The account's current password.
     pub current_password: String,
     /// The address to move the account to.
     #[serde(deserialize_with = "normalized_email")]
-    #[validate(email(message = "new_email must be an email address"))]
+    #[rok(validate(email(message = "new_email must be an email address")))]
     pub new_email: String,
 }
 
@@ -194,18 +194,18 @@ pub const DISPLAY_NAME_MAX: u64 = 100;
 /// is created and a "set your password" link mailed. The email is trimmed
 /// and lowercased, the display name trimmed (an empty one is none), and
 /// the role is `user` unless given.
-#[derive(Debug, Clone, serde::Deserialize, validator::Validate, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Deserialize, rok_data::Input, utoipa::ToSchema)]
 pub struct InviteUserDto {
     /// The invitee's email address.
     #[serde(deserialize_with = "normalized_email")]
-    #[validate(email(message = "email must be an email address"))]
+    #[rok(validate(email(message = "email must be an email address")))]
     pub email: String,
     /// The invitee's display name, at most 100 characters.
     #[serde(default, deserialize_with = "trimmed_name")]
-    #[validate(length(
+    #[rok(validate(length(
         max = DISPLAY_NAME_MAX,
         message = "display_name must be at most 100 characters"
-    ))]
+    )))]
     pub display_name: Option<String>,
     /// The invitee's role; `user` when left out.
     #[serde(default)]

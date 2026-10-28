@@ -1,16 +1,13 @@
 //! String rules (`[api.rules]`) on the create and update bodies: a field's
-//! doc lines, its transforms (applied while the body is read, through
-//! `deserialize_with`), the OpenAPI keywords utoipa can carry, and its
-//! checks, as `validator`'s own rules where they mean what VineJS's do
-//! (`email`, `ip`), otherwise as `custom` rules calling a generated
-//! function. The error code of every check is its VineJS name.
-
-use heck::ToSnakeCase;
+//! doc lines, the OpenAPI keywords utoipa can carry, and its
+//! `#[rok(transform(…), validate(…))]` for `rok_data::Input`: the
+//! runtime's catalogue rules, each answering its VineJS code.
 
 use super::layout::push_field_attr;
 use crate::api_rules::{Extras, Rule};
+use crate::generator::rok_attr::Item;
 use crate::generator::sql::str_literal;
-use crate::generator::validate::push_rule;
+use crate::generator::validate::field_rule;
 use crate::generator::{MAX_WIDTH, push_doc};
 use crate::schema::Column;
 
@@ -51,38 +48,6 @@ pub fn push_doc_lines(output: &mut String, rules: &[Rule]) {
         }
         push_doc(output, 4, &[&line]);
     }
-}
-
-/// The `#[serde(...)]` of a field whose column has transforms: deserialized
-/// through `<column>_transformed`, defaulted when optional on create (the
-/// update body is defaulted as a whole). Returns whether it was pushed.
-pub fn push_transformed(
-    output: &mut String,
-    column: &Column,
-    rules: &[Rule],
-    create: bool,
-    field_type: &str,
-) -> bool {
-    if !rules.iter().any(Rule::is_transform) {
-        return false;
-    }
-    let mut args = Vec::new();
-    if create && field_type.starts_with("Option<") {
-        args.push("default".to_owned());
-    }
-    args.push(format!(
-        "deserialize_with = \"{}_transformed\"",
-        column.rust_name
-    ));
-    // rustfmt keeps a lone argument on the attribute's line while it fits.
-    let one_line = format!("    #[serde({})]", args.join(", "));
-    if args.len() == 1 && one_line.len() <= MAX_WIDTH {
-        output.push_str(&one_line);
-        output.push('\n');
-    } else {
-        push_field_attr(output, "serde", &args);
-    }
-    true
 }
 
 /// `#[schema(...)]` with the OpenAPI keywords utoipa can carry: a format
@@ -144,91 +109,131 @@ pub fn push_schema(output: &mut String, openapi: bool, rules: &[Rule]) {
     }
 }
 
-/// The `#[validate(...)]` of each check of `column`.
-pub fn push_checks(output: &mut String, column: &Column, rules: &[Rule]) {
-    let name = &column.sql_name;
-    for rule in rules.iter().filter(|rule| !rule.is_transform()) {
-        let mut args = Vec::new();
-        let kind = match rule {
-            Rule::Email => "email",
-            Rule::IpAddress(version) => {
-                if let Some(version) = version {
-                    args.push(format!("v{version}"));
-                }
-                "ip"
-            }
-            _ => {
-                args.push(format!("function = \"{}\"", function_name(column, rule)));
-                "custom"
-            }
-        };
-        args.push(format!("code = \"{}\"", rule.name()));
-        args.push(format!("message = {}", str_literal(&message(name, rule))));
-        push_rule(output, kind, &args);
+/// The field's `#[rok(...)]` items: its transforms, then its rules — the
+/// column's own `length` or `range` rule first, then each string rule as
+/// the runtime's catalogue names it, answering its VineJS code.
+pub fn rok_items(column: &Column, rules: &[Rule]) -> Vec<Item> {
+    let transforms: Vec<Item> = rules
+        .iter()
+        .filter_map(|rule| match rule {
+            Rule::Trim => Some("trim"),
+            Rule::ToLowerCase => Some("lowercase"),
+            Rule::ToUpperCase => Some("uppercase"),
+            Rule::NormalizeEmail => Some("normalize_email"),
+            _ => None,
+        })
+        .map(Item::word)
+        .collect();
+    let checks: Vec<Item> = field_rule(column)
+        .into_iter()
+        .chain(
+            rules
+                .iter()
+                .filter(|rule| !rule.is_transform())
+                .map(|rule| check(&column.sql_name, rule)),
+        )
+        .collect();
+    let mut items = Vec::new();
+    if !transforms.is_empty() {
+        items.push(Item::list("transform", transforms));
     }
+    if !checks.is_empty() {
+        items.push(Item::list("validate", checks));
+    }
+    items
 }
 
-/// The function checking `rule` on `column`: `handle_min_length`.
-pub(super) fn function_name(column: &Column, rule: &Rule) -> String {
-    format!("{}_{}", column.rust_name, rule.name().to_snake_case())
-}
-
-/// The English message of a failed check, naming the column.
-fn message(name: &str, rule: &Rule) -> String {
-    let characters = |count: u32| {
-        if count == 1 {
-            "1 character".to_owned()
+/// `rule` as a runtime rule. Every one but `email` answers the message the
+/// API documents; `email` names it, since the runtime's own doesn't name
+/// the field.
+fn check(name: &str, rule: &Rule) -> Item {
+    let quoted = |values: &[String]| -> String {
+        let values: Vec<String> = values.iter().map(|value| str_literal(value)).collect();
+        format!("[{}]", values.join(", "))
+    };
+    let flags = |extras: &Extras| -> Vec<Item> {
+        [
+            (extras.spaces, "spaces"),
+            (extras.dashes, "dashes"),
+            (extras.underscores, "underscores"),
+        ]
+        .into_iter()
+        .filter(|(on, _)| *on)
+        .map(|(_, flag)| Item::word(flag))
+        .collect()
+    };
+    let bare_or = |name: &str, items: Vec<Item>| {
+        if items.is_empty() {
+            Item::word(name)
         } else {
-            format!("{count} characters")
+            Item::list(name, items)
         }
     };
-    let what = match rule {
-        Rule::Email => "be an email address".to_owned(),
-        Rule::Url => "be a URL".to_owned(),
-        Rule::Uuid(_) => "be a UUID".to_owned(),
-        Rule::Ulid => "be a ULID".to_owned(),
-        Rule::IpAddress(None) => "be an IP address".to_owned(),
-        Rule::IpAddress(Some(version)) => format!("be an IPv{version} address"),
-        Rule::Mobile { .. } => "be a mobile phone number".to_owned(),
-        Rule::Alpha(extras) => format!("contain only {}", allowed("letters", extras)),
-        Rule::AlphaNumeric(extras) => {
-            format!("contain only {}", allowed("letters, digits", extras))
+    match rule {
+        Rule::Email => Item::list(
+            "email",
+            vec![Item::word(format!(
+                "message = {}",
+                str_literal(&format!("{name} must be an email address"))
+            ))],
+        ),
+        Rule::Url => Item::word("url"),
+        Rule::Uuid(versions) if versions.is_empty() => Item::word("uuid"),
+        Rule::Uuid(versions) => {
+            let versions: Vec<String> = versions.iter().map(u8::to_string).collect();
+            Item::list(
+                "uuid",
+                vec![Item::word(format!("versions = [{}]", versions.join(", ")))],
+            )
         }
-        Rule::Ascii => "contain only ASCII characters".to_owned(),
-        Rule::Regex(_) => "match the expected format".to_owned(),
-        Rule::In(values) => format!("be one of {}", values.join(", ")),
-        Rule::NotIn(values) => format!("not be one of {}", values.join(", ")),
-        Rule::StartsWith(text) => format!("start with {text}"),
-        Rule::EndsWith(text) => format!("end with {text}"),
-        Rule::MinLength(count) => format!("be at least {}", characters(*count)),
-        Rule::MaxLength(count) => format!("be at most {}", characters(*count)),
-        Rule::FixedLength(count) => format!("be exactly {}", characters(*count)),
-        Rule::HexCode => "be a hex color code".to_owned(),
-        Rule::Iban => "be an IBAN".to_owned(),
-        Rule::Jwt => "be a JWT".to_owned(),
-        Rule::PostalCode(_) => "be a postal code".to_owned(),
-        Rule::CreditCard(_) => "be a credit card number".to_owned(),
-        Rule::Coordinates => "be latitude and longitude coordinates".to_owned(),
-        Rule::Trim | Rule::ToLowerCase | Rule::ToUpperCase | Rule::NormalizeEmail => String::new(),
-    };
-    format!("{name} must {what}")
-}
-
-/// `"letters, digits, spaces and dashes"`.
-fn allowed(base: &str, extras: &Extras) -> String {
-    let mut kinds: Vec<&str> = base.split(", ").collect();
-    for (on, kind) in [
-        (extras.spaces, "spaces"),
-        (extras.dashes, "dashes"),
-        (extras.underscores, "underscores"),
-    ] {
-        if on {
-            kinds.push(kind);
+        Rule::Ulid => Item::word("ulid"),
+        Rule::IpAddress(None) => Item::word("ip"),
+        Rule::IpAddress(Some(version)) => {
+            Item::list("ip", vec![Item::word(format!("version = {version}"))])
         }
-    }
-    match kinds.split_last() {
-        Some((last, rest)) if !rest.is_empty() => format!("{} and {last}", rest.join(", ")),
-        _ => kinds.concat(),
+        Rule::Mobile { locales, strict } => {
+            let mut items = Vec::new();
+            if !locales.is_empty() {
+                items.push(Item::word(format!("locales = {}", quoted(locales))));
+            }
+            if *strict {
+                items.push(Item::word("strict"));
+            }
+            bare_or("mobile", items)
+        }
+        Rule::Alpha(extras) => bare_or("alpha", flags(extras)),
+        Rule::AlphaNumeric(extras) => bare_or("alpha_numeric", flags(extras)),
+        Rule::Ascii => Item::word("ascii"),
+        Rule::Regex(regex) => Item::word(format!("regex = {}", str_literal(regex))),
+        Rule::In(values) => Item::list(
+            "one_of",
+            vec![Item::word(format!("values = {}", quoted(values)))],
+        ),
+        Rule::NotIn(values) => Item::list(
+            "not_one_of",
+            vec![Item::word(format!("values = {}", quoted(values)))],
+        ),
+        Rule::StartsWith(text) => Item::word(format!("starts_with = {}", str_literal(text))),
+        Rule::EndsWith(text) => Item::word(format!("ends_with = {}", str_literal(text))),
+        Rule::MinLength(count) => Item::word(format!("min_length = {count}")),
+        Rule::MaxLength(count) => Item::word(format!("max_length = {count}")),
+        Rule::FixedLength(count) => Item::word(format!("fixed_length = {count}")),
+        Rule::HexCode => Item::word("hex_code"),
+        Rule::Iban => Item::word("iban"),
+        Rule::Jwt => Item::word("jwt"),
+        Rule::PostalCode(countries) => Item::list(
+            "postal_code",
+            vec![Item::word(format!("countries = {}", quoted(countries)))],
+        ),
+        Rule::CreditCard(providers) if providers.is_empty() => Item::word("credit_card"),
+        Rule::CreditCard(providers) => Item::list(
+            "credit_card",
+            vec![Item::word(format!("providers = {}", quoted(providers)))],
+        ),
+        Rule::Coordinates => Item::word("coordinates"),
+        Rule::Trim | Rule::ToLowerCase | Rule::ToUpperCase | Rule::NormalizeEmail => {
+            unreachable!("a transform is not a check")
+        }
     }
 }
 
@@ -237,21 +242,24 @@ mod tests {
     use super::*;
 
     #[test]
-    fn messages_name_the_column() {
+    fn rules_read_as_the_runtime_catalogue() {
+        let item = |rule: Rule| check("handle", &rule).one_line();
         assert_eq!(
-            message(
-                "handle",
-                &Rule::AlphaNumeric(Extras {
-                    spaces: false,
-                    dashes: true,
-                    underscores: true
-                })
-            ),
-            "handle must contain only letters, digits, dashes and underscores"
+            item(Rule::AlphaNumeric(Extras {
+                spaces: false,
+                dashes: true,
+                underscores: true
+            })),
+            "alpha_numeric(dashes, underscores)"
+        );
+        assert_eq!(item(Rule::FixedLength(1)), "fixed_length = 1");
+        assert_eq!(
+            item(Rule::In(vec!["SA".into(), "AE".into()])),
+            "one_of(values = [\"SA\", \"AE\"])"
         );
         assert_eq!(
-            message("code", &Rule::FixedLength(1)),
-            "code must be exactly 1 character"
+            item(Rule::Email),
+            "email(message = \"handle must be an email address\")"
         );
     }
 }
