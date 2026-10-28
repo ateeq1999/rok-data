@@ -1,9 +1,10 @@
 //! `db/queries.rs` (one query file) or `db/queries/<stem>.rs` (one module per
 //! query file): one typed function per annotated query.
 //!
-//! The SQL is embedded exactly as written in the query file and every
-//! placeholder is bound positionally, so `$n` always receives the n-th
-//! parameter.
+//! The SQL is embedded exactly as written in the query file and run through
+//! `rok_data::raw`; every placeholder is bound positionally, so `$n` always
+//! receives the n-th parameter, and every function fails with
+//! `rok_data::Error`.
 
 use crate::queries::{AnalyzedQuery, Param, ResultShape, ReturnMode};
 use crate::schema::{BaseType, Shape, Table, mentions_generated_type};
@@ -102,7 +103,16 @@ fn render_at(queries: &[AnalyzedQuery], ids: &TypedIds<'_>, db_path: &str, serde
         .iter()
         .flat_map(|rust_type| ids.named_in(rust_type))
         .map(|(name, module)| format!("{db_path}::{module}::models::{name}"))
+        .chain(queries.iter().filter_map(|query| match &query.result {
+            ResultShape::Model {
+                module,
+                struct_name,
+            } => Some(format!("{db_path}::{module}::models::{struct_name}")),
+            _ => None,
+        }))
         .collect();
+    imports.sort_unstable();
+    imports.dedup();
     if mentioned
         .iter()
         .any(|rust_type| mentions_generated_type(rust_type))
@@ -113,18 +123,12 @@ fn render_at(queries: &[AnalyzedQuery], ids: &TypedIds<'_>, db_path: &str, serde
         output.push_str(&format!("\n{}", use_paths(&imports)));
     }
     for query in queries {
-        render_query(&mut output, query, ids, db_path, serde);
+        render_query(&mut output, query, ids, serde);
     }
     output
 }
 
-fn render_query(
-    output: &mut String,
-    query: &AnalyzedQuery,
-    ids: &TypedIds<'_>,
-    db_path: &str,
-    serde: bool,
-) {
+fn render_query(output: &mut String, query: &AnalyzedQuery, ids: &TypedIds<'_>, serde: bool) {
     if let ResultShape::Row(columns) = &query.result {
         output.push('\n');
         push_doc(
@@ -188,15 +192,21 @@ fn render_query(
             query
                 .params
                 .iter()
-                .map(|param| param.name.clone())
+                .map(|param| bind_expr(param, ids))
                 .collect(),
         )
     };
 
-    let row_type = row_type(query, db_path);
+    let row_type = row_type(query);
+    let scalar = matches!(query.result, ResultShape::Scalar(_));
     let (returns, execute) = match query.mode {
+        ReturnMode::One if scalar => (row_type.clone(), "scalar(executor)"),
         ReturnMode::One => (row_type.clone(), "fetch_one(executor)"),
+        ReturnMode::MaybeOne if scalar => {
+            (format!("Option<{row_type}>"), "scalar_optional(executor)")
+        }
         ReturnMode::MaybeOne => (format!("Option<{row_type}>"), "fetch_optional(executor)"),
+        ReturnMode::Many if scalar => (format!("Vec<{row_type}>"), "scalars(executor)"),
         ReturnMode::Many => (format!("Vec<{row_type}>"), "fetch_all(executor)"),
         ReturnMode::Exec => ("()".to_owned(), "execute(executor)"),
         ReturnMode::ExecRows => ("u64".to_owned(), "execute(executor)"),
@@ -209,9 +219,10 @@ fn render_query(
         query.mode.keyword()
     )];
     match query.mode {
-        ReturnMode::One => {
-            doc.push("Fails with `sqlx::Error::RowNotFound` when no row matches.".to_owned())
-        }
+        ReturnMode::One => doc.push(
+            "Fails with `rok_data::Error::Database(sqlx::Error::RowNotFound)` when no row matches."
+                .to_owned(),
+        ),
         ReturnMode::ExecRows => doc.push("Returns the number of affected rows.".to_owned()),
         _ => {}
     }
@@ -221,18 +232,11 @@ fn render_query(
         output,
         &query.fn_name,
         &fn_params,
-        &format!("Result<{returns}, sqlx::Error>"),
+        &format!("Result<{returns}, rok_data::Error>"),
     );
 
-    let call = match &query.result {
-        ResultShape::None => "sqlx::query".to_owned(),
-        ResultShape::Scalar(rust_type) => format!("sqlx::query_scalar::<_, {rust_type}>"),
-        ResultShape::Model { .. } | ResultShape::Row(_) => {
-            format!("sqlx::query_as::<_, {row_type}>")
-        }
-    };
     let statement = StaticQuery {
-        call: &call,
+        call: "rok_data::raw",
         sql: query.sql.lines().map(str::to_owned).collect(),
         binds,
         execute,
@@ -242,13 +246,23 @@ fn render_query(
             statement.push(output, 4, "", "?;");
             output.push_str("    Ok(())\n");
         }
-        ReturnMode::ExecRows => {
-            statement.push(output, 4, "let result = ", "?;");
-            output.push_str("    Ok(result.rows_affected())\n");
-        }
         _ => statement.push(output, 4, "", ""),
     }
     output.push_str("}\n");
+}
+
+/// What `.bind(..)` takes for a positional parameter: the parameter itself,
+/// except where its borrowed form has no conversion into a `rok_data::Value`
+/// (an optional list, an optional borrowed typed id), which is made owned.
+fn bind_expr(param: &Param, ids: &TypedIds<'_>) -> String {
+    match Shape::of(&param.rust_type) {
+        Shape::Optional(inner) => match Shape::of(inner) {
+            Shape::List(_) => format!("{}.map(<[_]>::to_vec)", param.name),
+            Shape::Value(value) if ids.is_borrowed(value) => format!("{}.cloned()", param.name),
+            _ => param.name.clone(),
+        },
+        _ => param.name.clone(),
+    }
 }
 
 fn signature_param(param: &Param, ids: &TypedIds<'_>) -> String {
@@ -268,13 +282,12 @@ fn borrowed(rust_type: &str, ids: &TypedIds<'_>) -> String {
     }
 }
 
-fn row_type(query: &AnalyzedQuery, db_path: &str) -> String {
+/// The type one result row decodes into, by the bare name the file imports
+/// (a model) or defines (a `{Name}Row`).
+fn row_type(query: &AnalyzedQuery) -> String {
     match &query.result {
         ResultShape::None => "()".to_owned(),
-        ResultShape::Model {
-            module,
-            struct_name,
-        } => format!("{db_path}::{module}::models::{struct_name}"),
+        ResultShape::Model { struct_name, .. } => struct_name.clone(),
         ResultShape::Scalar(rust_type) => rust_type.clone(),
         ResultShape::Row(_) => format!("{}Row", query.name),
     }
@@ -346,10 +359,10 @@ mod tests {
             "#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]\npub struct ListThingsRow {\n    /// The `id` column.\n    pub id: i64,\n    /// The `type` column.\n    #[sqlx(rename = \"type\")]\n    pub type_: Option<String>,\n}\n"
         ));
         assert!(rendered.contains(
-            "pub async fn list_things<'e, E>(executor: E, id: i64) -> Result<Vec<ListThingsRow>, sqlx::Error>"
+            "pub async fn list_things<'e, E>(executor: E, id: i64) -> Result<Vec<ListThingsRow>, rok_data::Error>"
         ));
         assert!(rendered.contains(
-            "    sqlx::query_as::<_, ListThingsRow>(\n        r#\"\n        SELECT id, label\n        FROM things\n        WHERE id = $1\n        \"#,\n    )\n    .bind(id)\n    .fetch_all(executor)\n    .await\n}\n"
+            "    rok_data::raw(\n        r#\"\n        SELECT id, label\n        FROM things\n        WHERE id = $1\n        \"#,\n    )\n    .bind(id)\n    .fetch_all(executor)\n    .await\n}\n"
         ));
     }
 
@@ -408,12 +421,33 @@ mod tests {
             )
         );
         assert!(
-            rendered
-                .contains("(executor: E, params: ListThingsParams) -> Result<u64, sqlx::Error>")
+            rendered.contains("    params: ListThingsParams,\n) -> Result<u64, rok_data::Error>"),
+            "{rendered}"
         );
         assert!(rendered.contains("    .bind(params.p1)\n    .bind(params.p2)\n"));
-        assert!(rendered.contains("    let result = sqlx::query(\n"));
-        assert!(rendered.contains("    .await?;\n    Ok(result.rows_affected())\n"));
+        assert!(
+            rendered.contains("    .execute(executor)\n    .await\n}\n"),
+            "{rendered}"
+        );
+    }
+
+    /// Optional lists and optional borrowed typed ids are made owned to
+    /// bind; everything else binds as the parameter.
+    #[test]
+    fn optional_borrowed_params_bind_owned() {
+        let rendered = render(&[query(
+            ReturnMode::Exec,
+            vec![
+                param(1, "ids", "Option<Vec<i64>>"),
+                param(2, "note", "Option<String>"),
+            ],
+            ResultShape::None,
+        )]);
+        assert!(
+            rendered.contains("    ids: Option<&[i64]>,\n"),
+            "{rendered}"
+        );
+        assert!(rendered.contains("    .bind(ids.map(<[_]>::to_vec))\n    .bind(note)\n"));
     }
 
     #[test]
@@ -423,22 +457,27 @@ mod tests {
             struct_name: "Thing".to_owned(),
         };
         let one = render(&[query(ReturnMode::One, vec![], model.clone())]);
-        assert!(one.contains("-> Result<super::things::models::Thing, sqlx::Error>"));
-        assert!(one.contains("sqlx::query_as::<_, super::things::models::Thing>("));
+        assert!(
+            one.contains("\nuse super::things::models::Thing;\n"),
+            "{one}"
+        );
+        assert!(one.contains("-> Result<Thing, rok_data::Error>"));
+        assert!(one.contains("    rok_data::raw(\n"));
         assert!(one.contains(".fetch_one(executor)"));
-        assert!(one.contains("`sqlx::Error::RowNotFound`"));
+        assert!(one.contains("`rok_data::Error::Database(sqlx::Error::RowNotFound)`"));
 
-        let maybe = render(&[query(
-            ReturnMode::MaybeOne,
-            vec![],
-            ResultShape::Scalar("i64".to_owned()),
-        )]);
-        assert!(maybe.contains("-> Result<Option<i64>, sqlx::Error>"));
-        assert!(maybe.contains("sqlx::query_scalar::<_, i64>("));
-        assert!(maybe.contains(".fetch_optional(executor)"));
+        let scalar = ResultShape::Scalar("i64".to_owned());
+        let maybe = render(&[query(ReturnMode::MaybeOne, vec![], scalar.clone())]);
+        assert!(maybe.contains("-> Result<Option<i64>, rok_data::Error>"));
+        assert!(maybe.contains(".scalar_optional(executor)"));
+        let many = render(&[query(ReturnMode::Many, vec![], scalar.clone())]);
+        assert!(many.contains("-> Result<Vec<i64>, rok_data::Error>"));
+        assert!(many.contains(".scalars(executor)"));
+        let one = render(&[query(ReturnMode::One, vec![], scalar)]);
+        assert!(one.contains(".scalar(executor)"));
 
         let exec = render(&[query(ReturnMode::Exec, vec![], ResultShape::None)]);
-        assert!(exec.contains("-> Result<(), sqlx::Error>"));
+        assert!(exec.contains("-> Result<(), rok_data::Error>"));
         assert!(exec.contains("    .execute(executor)\n    .await?;\n    Ok(())\n}"));
     }
 }

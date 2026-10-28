@@ -107,6 +107,27 @@ impl Raw {
         exec::fetch_scalar(executor, &self.to_sql(), self.replica).await
     }
 
+    /// Fetch the first column of the first row, or `None` when there is no
+    /// row, e.g. `DELETE … RETURNING key`.
+    pub async fn scalar_optional<'e, T, E>(self, executor: E) -> Result<Option<T>>
+    where
+        T: Type<Postgres> + for<'r> Decode<'r, Postgres> + Send + Unpin,
+        E: Executor<'e>,
+    {
+        let row: Option<(T,)> = self.fetch_optional(executor).await?;
+        Ok(row.map(|(value,)| value))
+    }
+
+    /// Fetch the first column of every row, e.g. `SELECT id FROM …`.
+    pub async fn scalars<'e, T, E>(self, executor: E) -> Result<Vec<T>>
+    where
+        T: Type<Postgres> + for<'r> Decode<'r, Postgres> + Send + Unpin,
+        E: Executor<'e>,
+    {
+        let rows: Vec<(T,)> = self.fetch_all(executor).await?;
+        Ok(rows.into_iter().map(|(value,)| value).collect())
+    }
+
     /// Stream rows one at a time.
     pub fn stream<'e, T, E>(self, executor: E) -> BoxStream<'e, Result<T>>
     where

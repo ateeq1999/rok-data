@@ -2,6 +2,7 @@
 
 //! Functions for the annotated queries in the query file.
 
+use super::super::media::models::Media;
 use super::super::media::models::MediaId;
 use super::super::users::models::UserId;
 
@@ -23,15 +24,15 @@ pub struct InsertMediaParams {
 }
 
 /// Runs the `InsertMedia` query (`:one`).
-/// Fails with `sqlx::Error::RowNotFound` when no row matches.
+/// Fails with `rok_data::Error::Database(sqlx::Error::RowNotFound)` when no row matches.
 pub async fn insert_media<'e, E>(
     executor: E,
     params: InsertMediaParams,
-) -> Result<super::super::media::models::Media, sqlx::Error>
+) -> Result<Media, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, super::super::media::models::Media>(
+    rok_data::raw(
         r#"
         INSERT INTO media (id, owner_id, content_type, size_bytes, original_filename, storage_key)
         VALUES ($1, $2, $3, $4, $5, $6)
@@ -53,11 +54,11 @@ pub async fn owned_media<'e, E>(
     executor: E,
     id: MediaId,
     owner_id: UserId,
-) -> Result<Option<super::super::media::models::Media>, sqlx::Error>
+) -> Result<Option<Media>, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, super::super::media::models::Media>(
+    rok_data::raw(
         r#"
         SELECT *
         FROM media
@@ -76,11 +77,11 @@ pub async fn list_owned_media<'e, E>(
     owner_id: UserId,
     limit: i64,
     offset: i64,
-) -> Result<Vec<super::super::media::models::Media>, sqlx::Error>
+) -> Result<Vec<Media>, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, super::super::media::models::Media>(
+    rok_data::raw(
         r#"
         SELECT *
         FROM media
@@ -97,12 +98,12 @@ where
 }
 
 /// Runs the `CountOwnedMedia` query (`:one`).
-/// Fails with `sqlx::Error::RowNotFound` when no row matches.
-pub async fn count_owned_media<'e, E>(executor: E, owner_id: UserId) -> Result<i64, sqlx::Error>
+/// Fails with `rok_data::Error::Database(sqlx::Error::RowNotFound)` when no row matches.
+pub async fn count_owned_media<'e, E>(executor: E, owner_id: UserId) -> Result<i64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, i64>(
+    rok_data::raw(
         r#"
         SELECT count(*) AS total
         FROM media
@@ -110,7 +111,7 @@ where
         "#,
     )
     .bind(owner_id)
-    .fetch_one(executor)
+    .scalar(executor)
     .await
 }
 
@@ -119,11 +120,11 @@ pub async fn delete_owned_media<'e, E>(
     executor: E,
     id: MediaId,
     owner_id: UserId,
-) -> Result<Option<String>, sqlx::Error>
+) -> Result<Option<String>, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, String>(
+    rok_data::raw(
         r#"
         DELETE FROM media
         WHERE id = $1 AND owner_id = $2
@@ -132,6 +133,6 @@ where
     )
     .bind(id)
     .bind(owner_id)
-    .fetch_optional(executor)
+    .scalar_optional(executor)
     .await
 }

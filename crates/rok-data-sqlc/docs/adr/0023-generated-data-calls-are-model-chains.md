@@ -30,7 +30,7 @@ The generated `db/` folder used two styles at once. CRUD went through the runtim
   - `filter.rs`: the filter and sort-key types;
   - `relationships.rs`.
 - **One import:** `crate::db::prelude` re-exports the models, their columns and the paging types, so a handler needs one `use`.
-- **Paths:** generated modules name siblings by `crate::db::…`, never `super::super::`.
+- **Names, not paths:** a generated file imports each model and typed id it uses once, and its signatures and bodies name them bare (`Result<Option<Media>, rok_data::Error>`). The imports stay relative (`super::…`). Without `[api]`, the engine doesn't know the data layer's Rust path, since only `api.db_path` names it.
 
 ## Considered Options
 

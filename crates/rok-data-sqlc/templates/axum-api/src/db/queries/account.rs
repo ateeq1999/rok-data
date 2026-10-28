@@ -2,6 +2,7 @@
 
 //! Functions for the annotated queries in the query file.
 
+use super::super::users::models::User;
 use super::super::users::models::UserId;
 
 /// Runs the `UpdateDisplayName` query (`:maybe_one`).
@@ -9,11 +10,11 @@ pub async fn update_display_name<'e, E>(
     executor: E,
     id: UserId,
     display_name: Option<&str>,
-) -> Result<Option<super::super::users::models::User>, sqlx::Error>
+) -> Result<Option<User>, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, super::super::users::models::User>(
+    rok_data::raw(
         r#"
         UPDATE users
         SET display_name = $2
@@ -31,11 +32,11 @@ where
 pub async fn lock_avatar_key<'e, E>(
     executor: E,
     id: UserId,
-) -> Result<Option<Option<String>>, sqlx::Error>
+) -> Result<Option<Option<String>>, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, Option<String>>(
+    rok_data::raw(
         r#"
         SELECT avatar_key
         FROM users
@@ -44,7 +45,7 @@ where
         "#,
     )
     .bind(id)
-    .fetch_optional(executor)
+    .scalar_optional(executor)
     .await
 }
 
@@ -53,11 +54,11 @@ pub async fn set_avatar_key<'e, E>(
     executor: E,
     id: UserId,
     avatar_key: Option<&str>,
-) -> Result<Option<super::super::users::models::User>, sqlx::Error>
+) -> Result<Option<User>, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, super::super::users::models::User>(
+    rok_data::raw(
         r#"
         UPDATE users
         SET avatar_key = $2

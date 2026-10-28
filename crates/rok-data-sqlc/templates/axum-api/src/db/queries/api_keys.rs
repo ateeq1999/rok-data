@@ -2,6 +2,7 @@
 
 //! Functions for the annotated queries in the query file.
 
+use super::super::api_keys::models::ApiKey;
 use super::super::api_keys::models::ApiKeyId;
 use super::super::types;
 use super::super::users::models::UserId;
@@ -10,11 +11,11 @@ use super::super::users::models::UserId;
 pub async fn active_api_keys<'e, E>(
     executor: E,
     user_id: UserId,
-) -> Result<Vec<super::super::api_keys::models::ApiKey>, sqlx::Error>
+) -> Result<Vec<ApiKey>, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, super::super::api_keys::models::ApiKey>(
+    rok_data::raw(
         r#"
         SELECT *
         FROM api_keys
@@ -28,11 +29,14 @@ where
 }
 
 /// Runs the `LockKeyOwner` query (`:maybe_one`).
-pub async fn lock_key_owner<'e, E>(executor: E, id: UserId) -> Result<Option<UserId>, sqlx::Error>
+pub async fn lock_key_owner<'e, E>(
+    executor: E,
+    id: UserId,
+) -> Result<Option<UserId>, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, UserId>(
+    rok_data::raw(
         r#"
         SELECT id
         FROM users
@@ -41,17 +45,20 @@ where
         "#,
     )
     .bind(id)
-    .fetch_optional(executor)
+    .scalar_optional(executor)
     .await
 }
 
 /// Runs the `CountActiveApiKeys` query (`:one`).
-/// Fails with `sqlx::Error::RowNotFound` when no row matches.
-pub async fn count_active_api_keys<'e, E>(executor: E, user_id: UserId) -> Result<i64, sqlx::Error>
+/// Fails with `rok_data::Error::Database(sqlx::Error::RowNotFound)` when no row matches.
+pub async fn count_active_api_keys<'e, E>(
+    executor: E,
+    user_id: UserId,
+) -> Result<i64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, i64>(
+    rok_data::raw(
         r#"
         SELECT COUNT(*)
         FROM api_keys
@@ -59,7 +66,7 @@ where
         "#,
     )
     .bind(user_id)
-    .fetch_one(executor)
+    .scalar(executor)
     .await
 }
 
@@ -83,15 +90,15 @@ pub struct InsertApiKeyParams {
 }
 
 /// Runs the `InsertApiKey` query (`:one`).
-/// Fails with `sqlx::Error::RowNotFound` when no row matches.
+/// Fails with `rok_data::Error::Database(sqlx::Error::RowNotFound)` when no row matches.
 pub async fn insert_api_key<'e, E>(
     executor: E,
     params: InsertApiKeyParams,
-) -> Result<super::super::api_keys::models::ApiKey, sqlx::Error>
+) -> Result<ApiKey, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, super::super::api_keys::models::ApiKey>(
+    rok_data::raw(
         r#"
         INSERT INTO api_keys (id, user_id, name, key_prefix, key_hash, scope, expires_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -115,11 +122,11 @@ pub async fn revoke_api_key<'e, E>(
     executor: E,
     id: ApiKeyId,
     user_id: UserId,
-) -> Result<u64, sqlx::Error>
+) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    let result = sqlx::query(
+    rok_data::raw(
         r#"
         UPDATE api_keys
         SET revoked_at = now()
@@ -129,6 +136,5 @@ where
     .bind(id)
     .bind(user_id)
     .execute(executor)
-    .await?;
-    Ok(result.rows_affected())
+    .await
 }

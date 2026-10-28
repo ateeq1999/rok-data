@@ -4,6 +4,7 @@
 
 use super::super::auth_tokens::models::AuthTokenId;
 use super::super::types;
+use super::super::users::models::User;
 use super::super::users::models::UserId;
 
 /// A row returned by `find_login`.
@@ -33,11 +34,11 @@ pub struct FindLoginRow {
 pub async fn find_login<'e, E>(
     executor: E,
     email: &str,
-) -> Result<Option<FindLoginRow>, sqlx::Error>
+) -> Result<Option<FindLoginRow>, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, FindLoginRow>(
+    rok_data::raw(
         r#"
         SELECT id, password_hash, role, is_active, email_verified, token_version, failed_logins, locked_until,
             totp_enabled
@@ -51,17 +52,17 @@ where
 }
 
 /// Runs the `CreateUser` query (`:one`).
-/// Fails with `sqlx::Error::RowNotFound` when no row matches.
+/// Fails with `rok_data::Error::Database(sqlx::Error::RowNotFound)` when no row matches.
 pub async fn create_user<'e, E>(
     executor: E,
     id: UserId,
     email: &str,
     password_hash: Option<&str>,
-) -> Result<super::super::users::models::User, sqlx::Error>
+) -> Result<User, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, super::super::users::models::User>(
+    rok_data::raw(
         r#"
         INSERT INTO users (id, email, password_hash)
         VALUES ($1, $2, $3)
@@ -81,11 +82,11 @@ pub async fn record_failed_login<'e, E>(
     id: UserId,
     max_failures: i32,
     lock_minutes: i32,
-) -> Result<(), sqlx::Error>
+) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query(
+    rok_data::raw(
         r#"
         UPDATE users
         SET failed_logins = CASE WHEN failed_logins + 1 >= $2 THEN 0 ELSE failed_logins + 1 END,
@@ -105,11 +106,11 @@ where
 }
 
 /// Runs the `ClearFailedLogins` query (`:exec`).
-pub async fn clear_failed_logins<'e, E>(executor: E, id: UserId) -> Result<(), sqlx::Error>
+pub async fn clear_failed_logins<'e, E>(executor: E, id: UserId) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query(
+    rok_data::raw(
         r#"
         UPDATE users
         SET failed_logins = 0, locked_until = NULL
@@ -124,11 +125,11 @@ where
 
 /// Runs the `MarkEmailVerified` query (`:execrows`).
 /// Returns the number of affected rows.
-pub async fn mark_email_verified<'e, E>(executor: E, id: UserId) -> Result<u64, sqlx::Error>
+pub async fn mark_email_verified<'e, E>(executor: E, id: UserId) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    let result = sqlx::query(
+    rok_data::raw(
         r#"
         UPDATE users
         SET email_verified = true
@@ -137,8 +138,7 @@ where
     )
     .bind(id)
     .execute(executor)
-    .await?;
-    Ok(result.rows_affected())
+    .await
 }
 
 /// Runs the `RevokeTokens` query (`:exec`).
@@ -146,11 +146,11 @@ pub async fn revoke_tokens<'e, E>(
     executor: E,
     user_id: UserId,
     purpose: types::AuthTokenPurpose,
-) -> Result<(), sqlx::Error>
+) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query(
+    rok_data::raw(
         r#"
         UPDATE auth_tokens
         SET used_at = now()
@@ -182,11 +182,14 @@ pub struct InsertTokenParams {
 }
 
 /// Runs the `InsertToken` query (`:exec`).
-pub async fn insert_token<'e, E>(executor: E, params: InsertTokenParams) -> Result<(), sqlx::Error>
+pub async fn insert_token<'e, E>(
+    executor: E,
+    params: InsertTokenParams,
+) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query(
+    rok_data::raw(
         r#"
         INSERT INTO auth_tokens (id, user_id, purpose, token_hash, new_email, expires_at)
         VALUES ($1, $2, $3, $4, $5, $6)
@@ -217,11 +220,11 @@ pub async fn consume_token<'e, E>(
     executor: E,
     token_hash: &str,
     purpose: types::AuthTokenPurpose,
-) -> Result<Option<ConsumeTokenRow>, sqlx::Error>
+) -> Result<Option<ConsumeTokenRow>, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, ConsumeTokenRow>(
+    rok_data::raw(
         r#"
         UPDATE auth_tokens
         SET used_at = now()
@@ -239,11 +242,11 @@ where
 pub async fn live_token_purpose<'e, E>(
     executor: E,
     token_hash: &str,
-) -> Result<Option<types::AuthTokenPurpose>, sqlx::Error>
+) -> Result<Option<types::AuthTokenPurpose>, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, types::AuthTokenPurpose>(
+    rok_data::raw(
         r#"
         SELECT purpose
         FROM auth_tokens
@@ -251,7 +254,7 @@ where
         "#,
     )
     .bind(token_hash)
-    .fetch_optional(executor)
+    .scalar_optional(executor)
     .await
 }
 
@@ -262,11 +265,11 @@ pub async fn reset_password<'e, E>(
     id: UserId,
     password_hash: Option<&str>,
     verify_email: bool,
-) -> Result<u64, sqlx::Error>
+) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    let result = sqlx::query(
+    rok_data::raw(
         r#"
         UPDATE users
         SET password_hash = $2,
@@ -281,16 +284,15 @@ where
     .bind(password_hash)
     .bind(verify_email)
     .execute(executor)
-    .await?;
-    Ok(result.rows_affected())
+    .await
 }
 
 /// Runs the `RevokeAllApiKeys` query (`:exec`).
-pub async fn revoke_all_api_keys<'e, E>(executor: E, user_id: UserId) -> Result<(), sqlx::Error>
+pub async fn revoke_all_api_keys<'e, E>(executor: E, user_id: UserId) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query(
+    rok_data::raw(
         r#"
         UPDATE api_keys
         SET revoked_at = now()
@@ -309,11 +311,11 @@ pub async fn change_password<'e, E>(
     executor: E,
     id: UserId,
     password_hash: Option<&str>,
-) -> Result<u64, sqlx::Error>
+) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    let result = sqlx::query(
+    rok_data::raw(
         r#"
         UPDATE users
         SET password_hash = $2,
@@ -324,17 +326,20 @@ where
     .bind(id)
     .bind(password_hash)
     .execute(executor)
-    .await?;
-    Ok(result.rows_affected())
+    .await
 }
 
 /// Runs the `ChangeEmail` query (`:execrows`).
 /// Returns the number of affected rows.
-pub async fn change_email<'e, E>(executor: E, id: UserId, email: &str) -> Result<u64, sqlx::Error>
+pub async fn change_email<'e, E>(
+    executor: E,
+    id: UserId,
+    email: &str,
+) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    let result = sqlx::query(
+    rok_data::raw(
         r#"
         UPDATE users
         SET email = $2, email_verified = true
@@ -344,8 +349,7 @@ where
     .bind(id)
     .bind(email)
     .execute(executor)
-    .await?;
-    Ok(result.rows_affected())
+    .await
 }
 
 /// Parameters of `invite_user`.
@@ -362,15 +366,15 @@ pub struct InviteUserParams {
 }
 
 /// Runs the `InviteUser` query (`:one`).
-/// Fails with `sqlx::Error::RowNotFound` when no row matches.
+/// Fails with `rok_data::Error::Database(sqlx::Error::RowNotFound)` when no row matches.
 pub async fn invite_user<'e, E>(
     executor: E,
     params: InviteUserParams,
-) -> Result<super::super::users::models::User, sqlx::Error>
+) -> Result<User, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, super::super::users::models::User>(
+    rok_data::raw(
         r#"
         INSERT INTO users (id, email, display_name, role)
         VALUES ($1, $2, $3, $4)

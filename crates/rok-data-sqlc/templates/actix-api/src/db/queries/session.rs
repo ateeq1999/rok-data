@@ -21,11 +21,11 @@ pub struct SessionStateRow {
 pub async fn session_state<'e, E>(
     executor: E,
     id: UserId,
-) -> Result<Option<SessionStateRow>, sqlx::Error>
+) -> Result<Option<SessionStateRow>, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, SessionStateRow>(
+    rok_data::raw(
         r#"
         SELECT token_version, is_active, role
         FROM users
@@ -62,11 +62,11 @@ pub struct ApiKeySessionRow {
 pub async fn api_key_session<'e, E>(
     executor: E,
     key_hash: &str,
-) -> Result<Option<ApiKeySessionRow>, sqlx::Error>
+) -> Result<Option<ApiKeySessionRow>, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, ApiKeySessionRow>(
+    rok_data::raw(
         r#"
         SELECT k.id, k.user_id, k.scope, k.expires_at, k.last_used_at, k.revoked_at, u.is_active, u.role
         FROM api_keys k
@@ -80,11 +80,11 @@ where
 }
 
 /// Runs the `TouchApiKey` query (`:exec`).
-pub async fn touch_api_key<'e, E>(executor: E, id: ApiKeyId) -> Result<(), sqlx::Error>
+pub async fn touch_api_key<'e, E>(executor: E, id: ApiKeyId) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query(
+    rok_data::raw(
         r#"
         UPDATE api_keys
         SET last_used_at = now()

@@ -9,11 +9,11 @@ use super::super::users::models::UserId;
 pub async fn pending_sign_in<'e, E>(
     executor: E,
     token_hash: &str,
-) -> Result<Option<UserId>, sqlx::Error>
+) -> Result<Option<UserId>, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, UserId>(
+    rok_data::raw(
         r#"
         SELECT user_id
         FROM auth_tokens
@@ -22,7 +22,7 @@ where
         "#,
     )
     .bind(token_hash)
-    .fetch_optional(executor)
+    .scalar_optional(executor)
     .await
 }
 
@@ -32,11 +32,11 @@ pub async fn store_totp_secret<'e, E>(
     executor: E,
     id: UserId,
     totp_secret: Option<&str>,
-) -> Result<u64, sqlx::Error>
+) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    let result = sqlx::query(
+    rok_data::raw(
         r#"
         UPDATE users
         SET totp_secret = $2, totp_last_step = NULL
@@ -46,8 +46,7 @@ where
     .bind(id)
     .bind(totp_secret)
     .execute(executor)
-    .await?;
-    Ok(result.rows_affected())
+    .await
 }
 
 /// Runs the `EnableTotp` query (`:execrows`).
@@ -57,11 +56,11 @@ pub async fn enable_totp<'e, E>(
     id: UserId,
     step: i64,
     totp_secret: &str,
-) -> Result<u64, sqlx::Error>
+) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    let result = sqlx::query(
+    rok_data::raw(
         r#"
         UPDATE users
         SET totp_enabled = true, totp_last_step = $2
@@ -72,17 +71,20 @@ where
     .bind(step)
     .bind(totp_secret)
     .execute(executor)
-    .await?;
-    Ok(result.rows_affected())
+    .await
 }
 
 /// Runs the `AcceptTotpStep` query (`:execrows`).
 /// Returns the number of affected rows.
-pub async fn accept_totp_step<'e, E>(executor: E, id: UserId, step: i64) -> Result<u64, sqlx::Error>
+pub async fn accept_totp_step<'e, E>(
+    executor: E,
+    id: UserId,
+    step: i64,
+) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    let result = sqlx::query(
+    rok_data::raw(
         r#"
         UPDATE users
         SET totp_last_step = $2
@@ -92,16 +94,15 @@ where
     .bind(id)
     .bind(step)
     .execute(executor)
-    .await?;
-    Ok(result.rows_affected())
+    .await
 }
 
 /// Runs the `DisableTotp` query (`:exec`).
-pub async fn disable_totp<'e, E>(executor: E, id: UserId) -> Result<(), sqlx::Error>
+pub async fn disable_totp<'e, E>(executor: E, id: UserId) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query(
+    rok_data::raw(
         r#"
         UPDATE users
         SET totp_enabled = false, totp_secret = NULL, totp_last_step = NULL,
@@ -116,11 +117,14 @@ where
 }
 
 /// Runs the `DeleteRecoveryCodes` query (`:exec`).
-pub async fn delete_recovery_codes<'e, E>(executor: E, user_id: UserId) -> Result<(), sqlx::Error>
+pub async fn delete_recovery_codes<'e, E>(
+    executor: E,
+    user_id: UserId,
+) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query(
+    rok_data::raw(
         r#"
         DELETE FROM totp_recovery_codes
         WHERE user_id = $1
@@ -138,11 +142,11 @@ pub async fn insert_recovery_code<'e, E>(
     id: TotpRecoveryCodeId,
     user_id: UserId,
     code_hash: &str,
-) -> Result<(), sqlx::Error>
+) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query(
+    rok_data::raw(
         r#"
         INSERT INTO totp_recovery_codes (id, user_id, code_hash)
         VALUES ($1, $2, $3)
@@ -162,11 +166,11 @@ pub async fn use_recovery_code<'e, E>(
     executor: E,
     user_id: UserId,
     code_hash: &str,
-) -> Result<u64, sqlx::Error>
+) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    let result = sqlx::query(
+    rok_data::raw(
         r#"
         UPDATE totp_recovery_codes
         SET used_at = now()
@@ -176,8 +180,7 @@ where
     .bind(user_id)
     .bind(code_hash)
     .execute(executor)
-    .await?;
-    Ok(result.rows_affected())
+    .await
 }
 
 /// Runs the `RecordFailedCode` query (`:exec`).
@@ -186,11 +189,11 @@ pub async fn record_failed_code<'e, E>(
     id: UserId,
     max_failures: i32,
     lock_minutes: i32,
-) -> Result<(), sqlx::Error>
+) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query(
+    rok_data::raw(
         r#"
         UPDATE users
         SET failed_logins = CASE WHEN failed_logins + 1 >= $2 THEN 0 ELSE failed_logins + 1 END,
@@ -210,11 +213,11 @@ where
 }
 
 /// Runs the `ClearFailedCodes` query (`:exec`).
-pub async fn clear_failed_codes<'e, E>(executor: E, id: UserId) -> Result<(), sqlx::Error>
+pub async fn clear_failed_codes<'e, E>(executor: E, id: UserId) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query(
+    rok_data::raw(
         r#"
         UPDATE users
         SET failed_logins = 0, locked_until = NULL

@@ -10,11 +10,11 @@ pub async fn enqueue_mail<'e, E>(
     executor: E,
     id: OutboundMailId,
     payload: serde_json::Value,
-) -> Result<(), sqlx::Error>
+) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query(
+    rok_data::raw(
         r#"
         INSERT INTO outbound_mail (id, payload)
         VALUES ($1, $2)
@@ -42,11 +42,11 @@ pub struct ClaimDueMailRow {
 pub async fn claim_due_mail<'e, E>(
     executor: E,
     batch: i64,
-) -> Result<Vec<ClaimDueMailRow>, sqlx::Error>
+) -> Result<Vec<ClaimDueMailRow>, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, ClaimDueMailRow>(
+    rok_data::raw(
         r#"
         SELECT id, payload, attempts
         FROM outbound_mail
@@ -62,11 +62,11 @@ where
 }
 
 /// Runs the `DeleteSentMail` query (`:exec`).
-pub async fn delete_sent_mail<'e, E>(executor: E, id: OutboundMailId) -> Result<(), sqlx::Error>
+pub async fn delete_sent_mail<'e, E>(executor: E, id: OutboundMailId) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query(
+    rok_data::raw(
         r#"
         DELETE FROM outbound_mail
         WHERE id = $1
@@ -97,11 +97,11 @@ pub struct RecordFailedMailParams {
 pub async fn record_failed_mail<'e, E>(
     executor: E,
     params: RecordFailedMailParams,
-) -> Result<(), sqlx::Error>
+) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query(
+    rok_data::raw(
         r#"
         UPDATE outbound_mail
         SET attempts = $2, last_error = $3, status = $4,
@@ -120,11 +120,11 @@ where
 }
 
 /// Runs the `RedactMail` query (`:exec`).
-pub async fn redact_mail<'e, E>(executor: E, id: OutboundMailId) -> Result<(), sqlx::Error>
+pub async fn redact_mail<'e, E>(executor: E, id: OutboundMailId) -> Result<(), rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query(
+    rok_data::raw(
         r#"
         UPDATE outbound_mail
         SET payload = payload || '{"text": "(removed: never sent)", "html": "(removed: never sent)"}'::jsonb

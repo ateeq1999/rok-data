@@ -299,6 +299,14 @@ where
         Value::custom(Some(v.clone()))
     }
 }
+impl<T> From<&[T]> for Value
+where
+    T: CustomType + sqlx::postgres::types::PgHasArrayType,
+{
+    fn from(v: &[T]) -> Self {
+        Value::custom(Some(v.to_vec()))
+    }
+}
 
 macro_rules! impl_from {
     ($($variant:ident => $ty:ty),* $(,)?) => {$(
