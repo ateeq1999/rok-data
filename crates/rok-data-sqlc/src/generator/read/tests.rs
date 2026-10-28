@@ -6,34 +6,39 @@ fn render_alone(table: &Table) -> String {
     render(table, &[])
 }
 
+/// `by_primary_key` is a chain on the model: the caller runs it.
 #[test]
-fn renders_get_by_id_with_explicit_columns() {
+fn renders_by_primary_key_as_a_chain() {
     let rendered = render_alone(&table(
         vec![column("id", "i64"), column("email", "String")],
         &["id"],
     ));
-    assert!(rendered.contains(
-            "pub async fn get_by_id<'e, E>(executor: E, id: i64) -> Result<Option<User>, rok_data::Error>\nwhere\n    E: rok_data::Executor<'e>,\n{\n    User::filter(User::ID.eq(id)).first(executor).await\n}\n"
-        ));
+    assert!(
+        rendered.contains(
+            "impl User {\n    /// The row with the given primary key, as a query chain: `.first(executor)`\n    /// fetches it, `.exists(executor)` checks it.\n    #[must_use]\n    pub fn by_primary_key(id: i64) -> rok_data::Select<User> {\n        User::filter(User::ID.eq(id))\n    }\n"
+        ),
+        "{rendered}"
+    );
 }
 
+/// Fetching by key, every row and a count are the runtime's verbs, so the
+/// engine generates none of them (engine ADR 0023).
 #[test]
-fn renders_exists_list_page_and_count() {
+fn renders_no_runtime_verbs() {
     let rendered = render_alone(&table(
         vec![column("id", "i64"), column("email", "String")],
         &["id"],
     ));
-    assert!(rendered.contains(
-        "pub async fn exists_by_id<'e, E>(executor: E, id: i64) -> Result<bool, rok_data::Error>"
-    ));
-    assert!(rendered.contains(
-        "    User::filter(User::ID.eq(id))\n        .count(executor)\n        .await\n        .map(|count| count > 0)\n"
-    ));
-    assert!(rendered.contains("    User::query().order_by(User::ID).all(executor).await\n"));
-    assert!(rendered.contains(
-        "    User::query()\n        .order_by(User::ID)\n        .limit(limit as u64)\n        .offset(offset as u64)\n        .all(executor)\n        .await\n"
-    ));
-    assert!(rendered.contains("    User::query().count(executor).await\n"));
+    for gone in [
+        "get_by_id",
+        "exists_by_id",
+        "fn list",
+        "list_page",
+        "fn count",
+        "async fn",
+    ] {
+        assert!(!rendered.contains(gone), "`{gone}`:\n{rendered}");
+    }
 }
 
 #[test]
@@ -46,9 +51,10 @@ fn composite_key_parameters_follow_key_order() {
         ],
         &["order_id", "product_id"],
     ));
-    assert!(rendered.contains(
-            "pub async fn get_by_id<'e, E>(executor: E, key: UserKey) -> Result<Option<User>, rok_data::Error>"
-        ));
+    assert!(
+        rendered.contains("pub fn by_primary_key(key: UserKey) -> rok_data::Select<User> {"),
+        "{rendered}"
+    );
     let filters: Vec<usize> = ["ORDER_ID", "PRODUCT_ID"]
         .iter()
         .map(|name| {
@@ -61,10 +67,6 @@ fn composite_key_parameters_follow_key_order() {
         filters.windows(2).all(|pair| pair[0] < pair[1]),
         "filters follow key order: {rendered}"
     );
-    assert!(rendered.contains("filter(User::ORDER_ID.eq(key.order_id))"));
-    assert!(rendered.contains("filter(User::PRODUCT_ID.eq(key.product_id))"));
-    assert!(rendered.contains(".order_by(User::ORDER_ID)"));
-    assert!(rendered.contains(".order_by(User::PRODUCT_ID)"));
 }
 
 #[test]
@@ -76,10 +78,9 @@ fn quotes_reserved_and_mixed_case_identifiers_and_keeps_schema() {
     users.schema = Some("Auth".to_owned());
     let rendered = render_alone(&users);
     // The chains name columns by Rust field name; the reserved or
-    // mixed-case SQL name is quoted in the row's model derive.
+    // mixed-case SQL name is quoted in the row's model derive, which also
+    // names the `"Auth".users` table.
     assert!(rendered.contains("filter(User::SELECT.eq(select))"));
-    // No SQL text: the search chain starts at the model, whose derive names
-    // the `"Auth".users` table.
     assert!(!rendered.contains("FROM "), "{rendered}");
     assert!(
         rendered.contains("User::filter(filter.condition())"),
@@ -90,31 +91,23 @@ fn quotes_reserved_and_mixed_case_identifiers_and_keeps_schema() {
 #[test]
 fn key_params_avoid_local_name_collisions() {
     let rendered = render_alone(&table(vec![column("limit", "i64")], &["limit"]));
-    assert!(rendered.contains("get_by_id<'e, E>(executor: E, limit_key: i64)"));
+    assert!(
+        rendered.contains("pub fn by_primary_key(limit_key: i64)"),
+        "{rendered}"
+    );
     assert!(rendered.contains("filter(User::LIMIT.eq(limit_key))"));
 }
 
 #[test]
-fn without_primary_key_only_unordered_list_and_count() {
+fn without_primary_key_only_search() {
     let rendered = render_alone(&table(vec![column("email", "String")], &[]));
-    assert!(!rendered.contains("pub async fn get_by_id"));
-    assert!(!rendered.contains("pub async fn exists_by_id"));
-    assert!(!rendered.contains("pub async fn list_page"));
-    assert!(!rendered.contains("pub async fn search_after"));
-    let list = rendered.split("pub async fn list<").nth(1).unwrap();
-    let list = list.split("pub async fn").next().unwrap();
-    assert!(
-        !list.contains(".order_by("),
-        "list has no stable order to offer"
-    );
+    assert!(!rendered.contains("fn by_primary_key"), "{rendered}");
     // `search` is a chain: the caller orders it.
     assert!(
         rendered.contains("pub fn search(filter: UserFilter) -> rok_data::Select<User> {"),
         "{rendered}"
     );
     assert!(rendered.contains("No primary key detected"));
-    assert!(rendered.contains("pub async fn list<'e, E>(executor: E)"));
-    assert!(rendered.contains("pub async fn count<'e, E>(executor: E)"));
 }
 
 /// A text key is borrowed; `Copy` keys stay by value.
@@ -126,8 +119,10 @@ fn text_keys_are_borrowed() {
         name: "UserId".to_owned(),
     });
     let rendered = render_alone(&table(vec![code, column("email", "String")], &["code"]));
-    assert!(rendered.contains("get_by_id<'e, E>(executor: E, code: &UserId)"));
-    assert!(rendered.contains("exists_by_id<'e, E>(executor: E, code: &UserId)"));
+    assert!(
+        rendered.contains("pub fn by_primary_key(code: &UserId)"),
+        "{rendered}"
+    );
     assert!(rendered.contains("filter(User::CODE.eq(code))"));
 
     let rendered = render_alone(&table(
@@ -135,7 +130,7 @@ fn text_keys_are_borrowed() {
         &["order_id", "sku"],
     ));
     assert!(
-        rendered.contains("(executor: E, key: &UserKey)"),
+        rendered.contains("pub fn by_primary_key(key: &UserKey)"),
         "{rendered}"
     );
 }
@@ -147,7 +142,10 @@ fn byte_keys_are_borrowed_as_slices() {
         vec![column("digest", "Vec<u8>"), column("email", "String")],
         &["digest"],
     ));
-    assert!(rendered.contains("get_by_id<'e, E>(executor: E, digest: &[u8])"));
+    assert!(
+        rendered.contains("pub fn by_primary_key(digest: &[u8])"),
+        "{rendered}"
+    );
     assert!(rendered.contains("filter(User::DIGEST.eq(digest))"));
 }
 
@@ -157,7 +155,7 @@ fn output_is_deterministic() {
     assert_eq!(build(), build());
 }
 
-/// A unique index on `lower(email)` makes `get_by_email`, which compares
+/// A unique index on `lower(email)` makes `by_email`, which compares
 /// ignoring case and, on a soft-delete table, sees only live rows.
 #[test]
 fn case_insensitive_unique_keys_look_up_ignoring_case() {
@@ -177,7 +175,7 @@ fn case_insensitive_unique_keys_look_up_ignoring_case() {
     });
     let rendered = render_alone(&users);
     assert!(
-        rendered.contains("pub async fn get_by_email<'e, E>(executor: E, email: &str)"),
+        rendered.contains("pub fn by_email(email: &str) -> rok_data::Select<User> {"),
         "{rendered}"
     );
     assert!(
@@ -186,7 +184,7 @@ fn case_insensitive_unique_keys_look_up_ignoring_case() {
     );
 }
 
-/// A unique index on `(org, lower(name))` makes `get_by_org_and_name`,
+/// A unique index on `(org, lower(name))` makes `by_org_and_name`,
 /// comparing `org` as it is and `name` ignoring case.
 #[test]
 fn composite_keys_with_a_lowered_column_look_it_up_ignoring_case() {
@@ -204,6 +202,7 @@ fn composite_keys_with_a_lowered_column_look_it_up_ignoring_case() {
         lowered: Some("name".to_owned()),
     });
     let rendered = render_alone(&tags);
+    assert!(rendered.contains("pub fn by_org_and_name("), "{rendered}");
     assert!(rendered.contains("ORG.eq(org)"), "{rendered}");
     assert!(
         rendered.contains(r#"rok_data::Expr::raw("lower(name) = lower(?)", [name])"#),

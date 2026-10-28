@@ -7,7 +7,6 @@ use sqlx::PgPool;
 
 use super::dto::{AuditLogEntrySort, ListAuditLogEntryQuery};
 use super::model::{AuditLogEntry, AuditLogEntryId};
-use super::repo;
 use crate::db::search::{Direction, Sort};
 use crate::error::AppError;
 use crate::shared::response::PaginatedResponse;
@@ -43,7 +42,7 @@ pub trait AuditLogEntryServiceApi {
 
     /// `GET /api/v1/audit-log/{id}`: the row with this key, or `404`.
     async fn get_one(&self, id: AuditLogEntryId) -> Result<AuditLogEntry, AppError> {
-        let row = repo::get_by_id(self.pool(), id).await?;
+        let row = AuditLogEntry::by_primary_key(id).first(self.pool()).await?;
         match row {
             Some(row) => Ok(row),
             None => Err(not_found()),

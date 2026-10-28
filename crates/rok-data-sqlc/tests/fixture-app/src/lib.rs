@@ -44,14 +44,18 @@ mod typed_id_mixup;
 
 // Compile-only smoke check for the generated executor-generic API. The
 // fixture_compile test runs `cargo clippy`, so this proves callers can pass
-// either a pool or a caller-owned transaction to the generated functions.
+// either a pool or a caller-owned transaction to the generated reads (a
+// chain, run on either) and writes.
 #[allow(dead_code)]
 async fn executor_smoke(pool: &sqlx::PgPool) -> Result<(), rok_data::Error> {
-    let _ = db::suppliers::read::list(pool).await?;
+    use db::suppliers::models::Supplier;
+
+    let id = uuid::Uuid::nil().into();
+    let _ = Supplier::by_primary_key(id).first(pool).await?;
 
     let mut tx = pool.begin().await?;
-    let _ = db::suppliers::read::list(&mut *tx).await?;
-    db::suppliers::models::Supplier::destroy(&mut *tx, uuid::Uuid::nil().into()).await?;
+    let _ = Supplier::by_primary_key(id).exists(&mut *tx).await?;
+    Supplier::destroy(&mut *tx, id).await?;
     tx.commit().await?;
 
     Ok(())

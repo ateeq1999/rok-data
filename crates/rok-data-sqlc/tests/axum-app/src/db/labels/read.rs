@@ -4,68 +4,21 @@ use super::filter::LabelFilter;
 use super::models::{Label, LabelId};
 use rok_data::Model;
 
-/// Fetches the row with the given primary key, or `None` if there is none.
-pub async fn get_by_id<'e, E>(executor: E, id: LabelId) -> Result<Option<Label>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Label::filter(Label::ID.eq(id)).first(executor).await
-}
-
-/// Returns whether a row with the given primary key exists.
-pub async fn exists_by_id<'e, E>(executor: E, id: LabelId) -> Result<bool, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Label::filter(Label::ID.eq(id))
-        .count(executor)
-        .await
-        .map(|count| count > 0)
-}
-
-/// Fetches the row with the given `name`, or `None` if there is none.
-pub async fn get_by_name<'e, E>(executor: E, name: &str) -> Result<Option<Label>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Label::filter(Label::NAME.eq(name)).first(executor).await
-}
-
-/// Fetches every row, ordered by primary key.
-pub async fn list<'e, E>(executor: E) -> Result<Vec<Label>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Label::query().order_by(Label::ID).all(executor).await
-}
-
-/// Fetches at most `limit` rows after skipping `offset`, ordered by primary key so
-/// consecutive pages neither repeat nor skip rows. Both values must be non-negative.
-pub async fn list_page<'e, E>(
-    executor: E,
-    limit: i64,
-    offset: i64,
-) -> Result<Vec<Label>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Label::query()
-        .order_by(Label::ID)
-        .limit(limit as u64)
-        .offset(offset as u64)
-        .all(executor)
-        .await
-}
-
-/// Counts every row.
-pub async fn count<'e, E>(executor: E) -> Result<i64, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Label::query().count(executor).await
-}
-
 impl Label {
+    /// The row with the given primary key, as a query chain: `.first(executor)`
+    /// fetches it, `.exists(executor)` checks it.
+    #[must_use]
+    pub fn by_primary_key(id: LabelId) -> rok_data::Select<Label> {
+        Label::filter(Label::ID.eq(id))
+    }
+
+    /// The row with the given `name`, as a query chain:
+    /// `.first(executor)` fetches it.
+    #[must_use]
+    pub fn by_name(name: &str) -> rok_data::Select<Label> {
+        Label::filter(Label::NAME.eq(name))
+    }
+
     /// The rows matching `filter`, as a query chain: order and page it there,
     /// `.order_by(..)` and `.paginate(executor, page, per_page)`.
     ///

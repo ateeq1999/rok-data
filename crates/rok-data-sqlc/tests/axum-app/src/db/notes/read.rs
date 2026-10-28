@@ -4,83 +4,15 @@ use super::filter::NoteFilter;
 use super::models::{Note, NoteId};
 use rok_data::Model;
 
-/// Fetches the row with the given primary key, or `None` if there is none.
-/// Soft-deleted rows are left out.
-pub async fn get_by_id<'e, E>(
-    executor: E,
-    tenant_id: uuid::Uuid,
-    id: NoteId,
-) -> Result<Option<Note>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Note::filter(Note::TENANT_ID.eq(tenant_id))
-        .filter(Note::ID.eq(id))
-        .first(executor)
-        .await
-}
-
-/// Returns whether a row with the given primary key exists.
-/// Soft-deleted rows are left out.
-pub async fn exists_by_id<'e, E>(
-    executor: E,
-    tenant_id: uuid::Uuid,
-    id: NoteId,
-) -> Result<bool, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Note::filter(Note::TENANT_ID.eq(tenant_id))
-        .filter(Note::ID.eq(id))
-        .count(executor)
-        .await
-        .map(|count| count > 0)
-}
-
-/// Fetches every row, ordered by primary key.
-/// Soft-deleted rows are left out.
-pub async fn list<'e, E>(executor: E, tenant_id: uuid::Uuid) -> Result<Vec<Note>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Note::filter(Note::TENANT_ID.eq(tenant_id))
-        .order_by(Note::ID)
-        .all(executor)
-        .await
-}
-
-/// Fetches at most `limit` rows after skipping `offset`, ordered by primary key so
-/// consecutive pages neither repeat nor skip rows. Both values must be non-negative.
-/// Soft-deleted rows are left out.
-pub async fn list_page<'e, E>(
-    executor: E,
-    tenant_id: uuid::Uuid,
-    limit: i64,
-    offset: i64,
-) -> Result<Vec<Note>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Note::filter(Note::TENANT_ID.eq(tenant_id))
-        .order_by(Note::ID)
-        .limit(limit as u64)
-        .offset(offset as u64)
-        .all(executor)
-        .await
-}
-
-/// Counts every row.
-/// Soft-deleted rows are left out.
-pub async fn count<'e, E>(executor: E, tenant_id: uuid::Uuid) -> Result<i64, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Note::filter(Note::TENANT_ID.eq(tenant_id))
-        .count(executor)
-        .await
-}
-
 impl Note {
+    /// The row with the given primary key, as a query chain: `.first(executor)`
+    /// fetches it, `.exists(executor)` checks it.
+    /// Soft-deleted rows are left out.
+    #[must_use]
+    pub fn by_primary_key(tenant_id: uuid::Uuid, id: NoteId) -> rok_data::Select<Note> {
+        Note::filter(Note::TENANT_ID.eq(tenant_id)).filter(Note::ID.eq(id))
+    }
+
     /// The rows matching `filter`, as a query chain: order and page it there,
     /// `.order_by(..)` and `.paginate(executor, page, per_page)`.
     /// Soft-deleted rows are left out unless `filter.include_deleted` is set.

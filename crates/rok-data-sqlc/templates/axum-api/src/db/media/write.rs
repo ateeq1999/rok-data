@@ -32,8 +32,8 @@ impl Media {
         E: rok_data::Executor<'e>,
     {
         if input.is_empty() {
-            let current = super::read::get_by_id(executor, id).await?;
-            return current.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
+            let row = Self::by_primary_key(id).first(executor).await?;
+            return row.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
         }
 
         let mut update = Media::update_all().filter(Media::ID.eq(id));
@@ -67,35 +67,4 @@ impl Media {
         }
         Ok(())
     }
-}
-
-/// Calls [`Media::create`], which this module function forwards to.
-#[deprecated(note = "call `Media::create` instead")]
-pub async fn create<'e, E>(executor: E, input: NewMedia) -> Result<Media, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Media::create(executor, input).await
-}
-
-/// Calls [`Media::patch`], which this module function forwards to.
-#[deprecated(note = "call `Media::patch` instead")]
-pub async fn patch<'e, E>(
-    executor: E,
-    id: MediaId,
-    input: UpdateMedia,
-) -> Result<Media, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Media::patch(executor, id, input).await
-}
-
-/// Calls [`Media::destroy`], which this module function forwards to.
-#[deprecated(note = "call `Media::destroy` instead")]
-pub async fn destroy<'e, E>(executor: E, id: MediaId) -> Result<(), rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Media::destroy(executor, id).await
 }

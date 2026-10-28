@@ -4,72 +4,15 @@ use super::filter::NoteLabelFilter;
 use super::models::{NoteLabel, NoteLabelKey};
 use rok_data::Model;
 
-/// Fetches the row with the given primary key, or `None` if there is none.
-pub async fn get_by_id<'e, E>(
-    executor: E,
-    key: NoteLabelKey,
-) -> Result<Option<NoteLabel>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    NoteLabel::filter(NoteLabel::NOTE_ID.eq(key.note_id))
-        .filter(NoteLabel::LABEL_ID.eq(key.label_id))
-        .first(executor)
-        .await
-}
-
-/// Returns whether a row with the given primary key exists.
-pub async fn exists_by_id<'e, E>(executor: E, key: NoteLabelKey) -> Result<bool, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    NoteLabel::filter(NoteLabel::NOTE_ID.eq(key.note_id))
-        .filter(NoteLabel::LABEL_ID.eq(key.label_id))
-        .count(executor)
-        .await
-        .map(|count| count > 0)
-}
-
-/// Fetches every row, ordered by primary key.
-pub async fn list<'e, E>(executor: E) -> Result<Vec<NoteLabel>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    NoteLabel::query()
-        .order_by(NoteLabel::NOTE_ID)
-        .order_by(NoteLabel::LABEL_ID)
-        .all(executor)
-        .await
-}
-
-/// Fetches at most `limit` rows after skipping `offset`, ordered by primary key so
-/// consecutive pages neither repeat nor skip rows. Both values must be non-negative.
-pub async fn list_page<'e, E>(
-    executor: E,
-    limit: i64,
-    offset: i64,
-) -> Result<Vec<NoteLabel>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    NoteLabel::query()
-        .order_by(NoteLabel::NOTE_ID)
-        .order_by(NoteLabel::LABEL_ID)
-        .limit(limit as u64)
-        .offset(offset as u64)
-        .all(executor)
-        .await
-}
-
-/// Counts every row.
-pub async fn count<'e, E>(executor: E) -> Result<i64, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    NoteLabel::query().count(executor).await
-}
-
 impl NoteLabel {
+    /// The row with the given primary key, as a query chain: `.first(executor)`
+    /// fetches it, `.exists(executor)` checks it.
+    #[must_use]
+    pub fn by_primary_key(key: NoteLabelKey) -> rok_data::Select<NoteLabel> {
+        NoteLabel::filter(NoteLabel::NOTE_ID.eq(key.note_id))
+            .filter(NoteLabel::LABEL_ID.eq(key.label_id))
+    }
+
     /// The rows matching `filter`, as a query chain: order and page it there,
     /// `.order_by(..)` and `.paginate(executor, page, per_page)`.
     ///

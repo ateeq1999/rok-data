@@ -11,6 +11,21 @@ the *generated* API count as breaking (see ADR 0012).
 
 Generated data calls move onto the runtime (engine ADR 0023):
 
+- **Reads:** `read.rs` holds `impl Row` with chain-returning reads only:
+  `by_primary_key(…)`, one `by_<columns>(…)` per unique key (was
+  `get_by_<columns>`), and `search`. `get_by_id`, `exists_by_id`, `list`,
+  `list_page` and `count` are gone. Use the runtime's verbs instead:
+  - `get_by_id(&db, id)` becomes `Row::find(&db, id)`, or
+    `Row::by_primary_key(tenant, id).first(&db)` on a tenant table;
+  - `exists_by_id` becomes `Row::by_primary_key(id).exists(&db)`;
+  - `list`, `list_page` and `count` become `Row::all`, `Row::query()…paginate(..)`
+    and `Row::count`.
+
+  A composite key struct implements `rok_data::IntoKey`, so `find` takes it.
+- **Writes:** the deprecated 0.2 module wrappers (`<table>::write::create`
+  and the rest) are gone; the verbs live on the model only.
+- **API lookups:** `GET …/by-<column>/{value}` keeps its handler and service
+  names (`get_by_<column>`) and reads through `Row::by_<column>`.
 - **Annotated queries:** they run through `rok_data::raw` and fail with
   `rok_data::Error` instead of `sqlx::Error`. They name the models they
   return bare (`Result<Option<Media>, rok_data::Error>`), imported once.

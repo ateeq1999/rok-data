@@ -38,8 +38,8 @@ impl ApiKey {
         E: rok_data::Executor<'e>,
     {
         if input.is_empty() {
-            let current = super::read::get_by_id(executor, id).await?;
-            return current.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
+            let row = Self::by_primary_key(id).first(executor).await?;
+            return row.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
         }
 
         let mut update = ApiKey::update_all().filter(ApiKey::ID.eq(id));
@@ -82,35 +82,4 @@ impl ApiKey {
         }
         Ok(())
     }
-}
-
-/// Calls [`ApiKey::create`], which this module function forwards to.
-#[deprecated(note = "call `ApiKey::create` instead")]
-pub async fn create<'e, E>(executor: E, input: NewApiKey) -> Result<ApiKey, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    ApiKey::create(executor, input).await
-}
-
-/// Calls [`ApiKey::patch`], which this module function forwards to.
-#[deprecated(note = "call `ApiKey::patch` instead")]
-pub async fn patch<'e, E>(
-    executor: E,
-    id: ApiKeyId,
-    input: UpdateApiKey,
-) -> Result<ApiKey, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    ApiKey::patch(executor, id, input).await
-}
-
-/// Calls [`ApiKey::destroy`], which this module function forwards to.
-#[deprecated(note = "call `ApiKey::destroy` instead")]
-pub async fn destroy<'e, E>(executor: E, id: ApiKeyId) -> Result<(), rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    ApiKey::destroy(executor, id).await
 }

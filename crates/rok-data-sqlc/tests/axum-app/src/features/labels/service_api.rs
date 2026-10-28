@@ -87,7 +87,7 @@ pub trait LabelsServiceApi {
 
     /// `GET /api/v1/labels/{id}`: the row with this key, or `404`.
     async fn get_one(&self, id: LabelId) -> Result<Label, AppError> {
-        let row = repo::get_by_id(self.pool(), id).await?;
+        let row = Label::by_primary_key(id).first(self.pool()).await?;
         match row {
             Some(row) => Ok(row),
             None => Err(not_found()),
@@ -141,7 +141,7 @@ pub trait LabelsServiceApi {
 
     /// `GET /api/v1/labels/by-name/{value}`: the row whose `name` is `value`, or `404`.
     async fn get_by_name(&self, value: String) -> Result<Label, AppError> {
-        let row = repo::get_by_name(self.pool(), &value).await?;
+        let row = Label::by_name(&value).first(self.pool()).await?;
         match row {
             Some(row) => Ok(row),
             None => Err(not_found()),
@@ -155,7 +155,7 @@ pub trait LabelsServiceApi {
         user: AuthUser,
         id: LabelId,
     ) -> Result<Vec<Note>, AppError> {
-        let row = repo::get_by_id(self.pool(), id).await?;
+        let row = Label::by_primary_key(id).first(self.pool()).await?;
         let row = row.ok_or_else(not_found)?;
         let rows = std::slice::from_ref(&row);
         let mut loaded = repo::load_notes(self.pool(), tenant, rows).await?;
@@ -175,7 +175,7 @@ pub trait LabelsServiceApi {
         id: LabelId,
         other: NoteId,
     ) -> Result<(), AppError> {
-        let found = repo::exists_by_id(&mut *conn, id).await?;
+        let found = Label::by_primary_key(id).exists(&mut *conn).await?;
         if !found {
             return Err(not_found());
         }
@@ -213,7 +213,7 @@ pub trait LabelsServiceApi {
         id: LabelId,
         other: NoteId,
     ) -> Result<(), AppError> {
-        let found = repo::exists_by_id(&mut *conn, id).await?;
+        let found = Label::by_primary_key(id).exists(&mut *conn).await?;
         if !found {
             return Err(not_found());
         }

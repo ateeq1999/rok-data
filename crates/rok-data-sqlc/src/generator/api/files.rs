@@ -47,20 +47,26 @@ pub fn render_model(feature: &Feature<'_>) -> String {
     )
 }
 
-/// Renders `repo.rs`.
+/// Renders `repo.rs`: the data layer's free functions the feature calls,
+/// the list's and the relationships'. Reads and writes live on the model
+/// (`Row::by_primary_key`, `Row::patch`), so `read.rs` and `write.rs` add
+/// none (engine ADR 0023).
 pub fn render_repo(feature: &Feature<'_>) -> String {
     let module = feature.db_module();
     let mut output = format!(
-        "{HEADER}\n//! The data layer's functions for `{}`: reads, writes, and the list's.\n\n",
+        "{HEADER}\n//! The data layer's free functions for `{}`: the list's and the\n//! relationships'. Its reads and writes are the model's.\n",
         feature.table.display_name()
     );
+    let mut uses = Vec::new();
     if super::has_listing(feature) {
-        output.push_str(&format!("pub use {module}::listing::*;\n"));
+        uses.push(format!("pub use {module}::listing::*;\n"));
     }
-    output.push_str(&format!("pub use {module}::read::*;\n"));
     if !feature.relations.is_empty() {
-        output.push_str(&format!("pub use {module}::relationships::*;\n"));
+        uses.push(format!("pub use {module}::relationships::*;\n"));
     }
-    output.push_str(&format!("pub use {module}::write::*;\n"));
+    if !uses.is_empty() {
+        output.push('\n');
+        output.push_str(&uses.concat());
+    }
     output
 }

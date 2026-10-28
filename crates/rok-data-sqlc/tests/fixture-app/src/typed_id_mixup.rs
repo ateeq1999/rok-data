@@ -5,8 +5,10 @@
 use crate::db;
 
 #[allow(dead_code)]
-async fn category_id_is_not_a_product_id(pool: &sqlx::PgPool) -> Result<(), sqlx::Error> {
+async fn category_id_is_not_a_product_id(pool: &sqlx::PgPool) -> Result<(), rok_data::Error> {
     let category_id = db::categories::models::CategoryId::from(1);
-    let _ = db::products::read::get_by_id(pool, category_id).await?;
+    let _ = db::products::models::Product::by_primary_key(category_id)
+        .first(pool)
+        .await?;
     Ok(())
 }

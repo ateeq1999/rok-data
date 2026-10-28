@@ -52,7 +52,7 @@ pub(super) async fn insert_applies_defaults_and_explicit_nulls(pool: &PgPool) {
 /// or bind-order mistake surfaces as a value landing in the wrong column or
 /// as a type error from PostgreSQL.
 pub(super) async fn every_partial_update_combination_binds_correctly(pool: &PgPool) {
-    use db::patch_targets::read;
+    use db::patch_targets::models::PatchTarget;
 
     let labels = [None, Some("L".to_owned())];
     let notes = [None, Some(Some("N".to_owned())), Some(None)];
@@ -93,7 +93,10 @@ pub(super) async fn every_partial_update_combination_binds_correctly(pool: &PgPo
                         .await
                         .unwrap_or_else(|error| panic!("{patch:?} failed: {error}"));
                     assert_eq!(updated, expected, "RETURNING row for {patch:?}");
-                    let stored = read::get_by_id(pool, before.id).await.unwrap();
+                    let stored = PatchTarget::by_primary_key(before.id)
+                        .first(pool)
+                        .await
+                        .unwrap();
                     assert_eq!(stored, Some(expected), "stored row for {patch:?}");
                     combinations += 1;
                 }
@@ -134,12 +137,17 @@ pub(super) async fn empty_and_missing_updates(pool: &PgPool) {
 }
 
 pub(super) async fn destroy_reports_existing_and_missing_rows(pool: &PgPool) {
-    use db::patch_targets::read;
+    use db::patch_targets::models::PatchTarget;
 
     let row = PatchTarget::create(pool, base_patch_target())
         .await
         .unwrap();
-    assert!(read::exists_by_id(pool, row.id).await.unwrap());
+    assert!(
+        PatchTarget::by_primary_key(row.id)
+            .exists(pool)
+            .await
+            .unwrap()
+    );
     PatchTarget::destroy(pool, row.id)
         .await
         .expect("existing row is deleted");
@@ -150,20 +158,41 @@ pub(super) async fn destroy_reports_existing_and_missing_rows(pool: &PgPool) {
             .is_not_found(),
         "second destroy finds nothing"
     );
-    assert!(!read::exists_by_id(pool, row.id).await.unwrap());
-    assert_eq!(read::get_by_id(pool, row.id).await.unwrap(), None);
+    assert!(
+        !PatchTarget::by_primary_key(row.id)
+            .exists(pool)
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        PatchTarget::by_primary_key(row.id)
+            .first(pool)
+            .await
+            .unwrap(),
+        None
+    );
 }
 
 pub(super) async fn transactions_stay_with_the_caller(pool: &PgPool) {
-    use db::patch_targets::read;
+    use db::patch_targets::models::PatchTarget;
 
     let mut tx = pool.begin().await.unwrap();
     let rolled_back = PatchTarget::create(&mut *tx, base_patch_target())
         .await
         .unwrap();
-    assert!(read::exists_by_id(&mut *tx, rolled_back.id).await.unwrap());
+    assert!(
+        PatchTarget::by_primary_key(rolled_back.id)
+            .exists(&mut *tx)
+            .await
+            .unwrap()
+    );
     tx.rollback().await.unwrap();
-    assert!(!read::exists_by_id(pool, rolled_back.id).await.unwrap());
+    assert!(
+        !PatchTarget::by_primary_key(rolled_back.id)
+            .exists(pool)
+            .await
+            .unwrap()
+    );
 
     let mut tx = pool.begin().await.unwrap();
     let committed = PatchTarget::create(&mut *tx, base_patch_target())
@@ -177,7 +206,11 @@ pub(super) async fn transactions_stay_with_the_caller(pool: &PgPool) {
         .await
         .unwrap();
     tx.commit().await.unwrap();
-    let stored = read::get_by_id(pool, committed.id).await.unwrap().unwrap();
+    let stored = PatchTarget::by_primary_key(committed.id)
+        .first(pool)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(stored.label, "in tx");
 }
 
@@ -203,7 +236,6 @@ pub(super) async fn all_defaulted_insert_uses_default_values(pool: &PgPool) {
 pub(super) async fn reserved_and_quoted_identifiers_round_trip(pool: &PgPool) {
     use db::reserved_words::models::ReservedWord;
     use db::reserved_words::models::{NewReservedWord, UpdateReservedWord};
-    use db::reserved_words::read;
 
     let row = ReservedWord::create(
         pool,
@@ -236,15 +268,22 @@ pub(super) async fn reserved_and_quoted_identifiers_round_trip(pool: &PgPool) {
     assert_eq!(updated.mixed_case, 9);
     assert_eq!(updated.from, "origin");
 
-    assert_eq!(read::count(pool).await.unwrap(), 1);
-    assert_eq!(read::list_page(pool, 10, 0).await.unwrap(), vec![updated]);
+    assert_eq!(ReservedWord::count(pool).await.unwrap(), 1);
+    assert_eq!(
+        ReservedWord::query()
+            .order_by(ReservedWord::SELECT)
+            .limit(10)
+            .all(pool)
+            .await
+            .unwrap(),
+        vec![updated]
+    );
     ReservedWord::destroy(pool, row.select).await.unwrap();
 }
 
 pub(super) async fn table_without_primary_key(pool: &PgPool) {
     use db::audit_log::models::AuditLog;
     use db::audit_log::models::NewAuditLog;
-    use db::audit_log::read;
 
     for event in ["first", "second"] {
         AuditLog::create(
@@ -257,8 +296,8 @@ pub(super) async fn table_without_primary_key(pool: &PgPool) {
         .await
         .unwrap();
     }
-    assert_eq!(read::count(pool).await.unwrap(), 2);
-    let mut events: Vec<String> = read::list(pool)
+    assert_eq!(AuditLog::count(pool).await.unwrap(), 2);
+    let mut events: Vec<String> = AuditLog::all(pool)
         .await
         .unwrap()
         .into_iter()
@@ -275,7 +314,7 @@ pub(super) async fn rows_round_trip_through_json(pool: &PgPool) {
     use db::products::models::Product;
     use db::tickets::models::Ticket;
 
-    let products = db::products::read::list(pool).await.unwrap();
+    let products = Product::all(pool).await.unwrap();
     assert!(!products.is_empty(), "earlier scenarios left products");
     for product in &products {
         let json = serde_json::to_string(product).unwrap();
@@ -284,7 +323,7 @@ pub(super) async fn rows_round_trip_through_json(pool: &PgPool) {
     let value = serde_json::to_value(&products[0]).unwrap();
     assert_eq!(value["id"], serde_json::json!(products[0].id.0));
 
-    let tickets = db::tickets::read::list(pool).await.unwrap();
+    let tickets = Ticket::all(pool).await.unwrap();
     let very_high = tickets
         .iter()
         .find(|ticket| ticket.priority == db::types::TicketPriority::VeryHigh)

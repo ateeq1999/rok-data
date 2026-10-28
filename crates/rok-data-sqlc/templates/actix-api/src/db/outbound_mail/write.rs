@@ -45,8 +45,8 @@ impl OutboundMail {
         E: rok_data::Executor<'e>,
     {
         if input.is_empty() {
-            let current = super::read::get_by_id(executor, id).await?;
-            return current.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
+            let row = Self::by_primary_key(id).first(executor).await?;
+            return row.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
         }
 
         let mut update = OutboundMail::update_all().filter(OutboundMail::ID.eq(id));
@@ -82,38 +82,4 @@ impl OutboundMail {
         }
         Ok(())
     }
-}
-
-/// Calls [`OutboundMail::create`], which this module function forwards to.
-#[deprecated(note = "call `OutboundMail::create` instead")]
-pub async fn create<'e, E>(
-    executor: E,
-    input: NewOutboundMail,
-) -> Result<OutboundMail, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    OutboundMail::create(executor, input).await
-}
-
-/// Calls [`OutboundMail::patch`], which this module function forwards to.
-#[deprecated(note = "call `OutboundMail::patch` instead")]
-pub async fn patch<'e, E>(
-    executor: E,
-    id: OutboundMailId,
-    input: UpdateOutboundMail,
-) -> Result<OutboundMail, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    OutboundMail::patch(executor, id, input).await
-}
-
-/// Calls [`OutboundMail::destroy`], which this module function forwards to.
-#[deprecated(note = "call `OutboundMail::destroy` instead")]
-pub async fn destroy<'e, E>(executor: E, id: OutboundMailId) -> Result<(), rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    OutboundMail::destroy(executor, id).await
 }

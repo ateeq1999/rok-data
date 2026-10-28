@@ -51,7 +51,9 @@ pub trait BooksServiceApi {
         input: CreateBookDto,
     ) -> Result<Book, AppError> {
         let mut failures = FieldFailures::default();
-        let exists = authors::read::exists_by_id(&mut *conn, input.author_id).await?;
+        let exists = authors::models::Author::by_primary_key(input.author_id)
+            .exists(&mut *conn)
+            .await?;
         if !exists {
             failures.missing("author_id", "author");
         }
@@ -75,7 +77,7 @@ pub trait BooksServiceApi {
 
     /// `GET /api/v1/books/{id}`: the row with this key, or `404`.
     async fn get_one(&self, id: BookId) -> Result<Book, AppError> {
-        let row = repo::get_by_id(self.pool(), id).await?;
+        let row = Book::by_primary_key(id).first(self.pool()).await?;
         match row {
             Some(row) => Ok(row),
             None => Err(not_found()),
@@ -92,7 +94,9 @@ pub trait BooksServiceApi {
     ) -> Result<Book, AppError> {
         let mut failures = FieldFailures::default();
         if let Some(value) = input.author_id {
-            let exists = authors::read::exists_by_id(&mut *conn, value).await?;
+            let exists = authors::models::Author::by_primary_key(value)
+                .exists(&mut *conn)
+                .await?;
             if !exists {
                 failures.missing("author_id", "author");
             }
@@ -135,7 +139,7 @@ pub trait BooksServiceApi {
 
     /// `GET /api/v1/books/by-isbn/{value}`: the row whose `isbn` is `value`, or `404`.
     async fn get_by_isbn(&self, value: String) -> Result<Book, AppError> {
-        let row = repo::get_by_isbn(self.pool(), &value).await?;
+        let row = Book::by_isbn(&value).first(self.pool()).await?;
         match row {
             Some(row) => Ok(row),
             None => Err(not_found()),
@@ -153,7 +157,7 @@ pub trait BooksServiceApi {
 
     /// `GET /api/v1/books/{id}/loans`: the row's `loans`, or `404`.
     async fn list_loans(&self, id: BookId) -> Result<Vec<Loan>, AppError> {
-        let row = repo::get_by_id(self.pool(), id).await?;
+        let row = Book::by_primary_key(id).first(self.pool()).await?;
         let row = row.ok_or_else(not_found)?;
         let rows = std::slice::from_ref(&row);
         let mut loaded = repo::load_loans(self.pool(), rows).await?;

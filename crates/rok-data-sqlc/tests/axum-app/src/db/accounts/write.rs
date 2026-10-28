@@ -29,8 +29,8 @@ impl Account {
         E: rok_data::Executor<'e>,
     {
         if input.is_empty() {
-            let current = super::read::get_by_id(executor, id).await?;
-            return current.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
+            let row = Self::by_primary_key(id).first(executor).await?;
+            return row.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
         }
 
         let mut update = Account::update_all().filter(Account::ID.eq(id));
@@ -55,35 +55,4 @@ impl Account {
         }
         Ok(())
     }
-}
-
-/// Calls [`Account::create`], which this module function forwards to.
-#[deprecated(note = "call `Account::create` instead")]
-pub async fn create<'e, E>(executor: E, input: NewAccount) -> Result<Account, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Account::create(executor, input).await
-}
-
-/// Calls [`Account::patch`], which this module function forwards to.
-#[deprecated(note = "call `Account::patch` instead")]
-pub async fn patch<'e, E>(
-    executor: E,
-    id: AccountId,
-    input: UpdateAccount,
-) -> Result<Account, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Account::patch(executor, id, input).await
-}
-
-/// Calls [`Account::destroy`], which this module function forwards to.
-#[deprecated(note = "call `Account::destroy` instead")]
-pub async fn destroy<'e, E>(executor: E, id: AccountId) -> Result<(), rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Account::destroy(executor, id).await
 }

@@ -9,7 +9,6 @@ use super::*;
 pub(super) async fn managed_columns_are_left_to_the_database(pool: &PgPool) {
     use db::touched_notes::models::TouchedNote;
     use db::touched_notes::models::{NewTouchedNote, UpdateTouchedNote};
-    use db::touched_notes::read;
 
     let created = TouchedNote::create(
         pool,
@@ -37,7 +36,10 @@ pub(super) async fn managed_columns_are_left_to_the_database(pool: &PgPool) {
         "the trigger touched updated_at"
     );
 
-    let stored = read::get_by_id(pool, created.id).await.unwrap();
+    let stored = TouchedNote::by_primary_key(created.id)
+        .first(pool)
+        .await
+        .unwrap();
     assert_eq!(stored, Some(updated));
 }
 
@@ -53,7 +55,6 @@ pub(super) async fn versioned_updates_detect_concurrent_edits(pool: &PgPool) {
     use db::versioned_documents::models::{
         NewVersionedDocument, UpdateVersionedDocument, VersionedDocumentId,
     };
-    use db::versioned_documents::read;
 
     let created = VersionedDocument::create(
         pool,
@@ -96,7 +97,10 @@ pub(super) async fn versioned_updates_detect_concurrent_edits(pool: &PgPool) {
     .await
     .unwrap();
     assert_eq!(second, UpdateOutcome::VersionConflict);
-    let stored = read::get_by_id(pool, created.id).await.unwrap();
+    let stored = VersionedDocument::by_primary_key(created.id)
+        .first(pool)
+        .await
+        .unwrap();
     assert_eq!(
         stored,
         Some(saved.clone()),
@@ -134,7 +138,10 @@ pub(super) async fn versioned_updates_detect_concurrent_edits(pool: &PgPool) {
             .await
             .unwrap();
     assert_eq!(stale_empty, UpdateOutcome::VersionConflict);
-    let stored = read::get_by_id(pool, created.id).await.unwrap();
+    let stored = VersionedDocument::by_primary_key(created.id)
+        .first(pool)
+        .await
+        .unwrap();
     assert_eq!(stored.map(|row| row.revision), Some(3));
 
     // A key no row has is not found, with or without a patch.
@@ -191,7 +198,11 @@ pub(super) async fn versioned_updates_detect_concurrent_edits(pool: &PgPool) {
     .unwrap();
     assert_eq!(empty_deleted, UpdateOutcome::NotFound);
     VersionedDocument::restore(pool, created.id).await.unwrap();
-    let restored = read::get_by_id(pool, created.id).await.unwrap().unwrap();
+    let restored = VersionedDocument::by_primary_key(created.id)
+        .first(pool)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(
         restored.title, "second editor",
         "the update changed nothing"
@@ -206,7 +217,6 @@ pub(super) async fn soft_deleted_rows_are_hidden_restored_and_removed(pool: &PgP
     use db::search::Sort;
     use db::soft_notes::filter::{SoftNoteFilter, SoftNoteSortKey};
     use db::soft_notes::models::{NewSoftNote, SoftNote, UpdateSoftNote};
-    use db::soft_notes::read;
 
     let create = |code: &str| {
         SoftNote::create(
@@ -236,18 +246,37 @@ pub(super) async fn soft_deleted_rows_are_hidden_restored_and_removed(pool: &PgP
             }
         };
         assert_eq!(
-            read::get_by_id(pool, note.id).await.unwrap().is_some(),
+            SoftNote::by_primary_key(note.id)
+                .first(pool)
+                .await
+                .unwrap()
+                .is_some(),
             visible
         );
         assert_eq!(
-            read::get_by_code(pool, "A").await.unwrap().is_some(),
+            SoftNote::by_code("A").first(pool).await.unwrap().is_some(),
             visible
         );
-        assert_eq!(read::exists_by_id(pool, note.id).await.unwrap(), visible);
-        expect(ids(read::list(pool).await.unwrap()));
-        expect(ids(read::list_page(pool, 10, 0).await.unwrap()));
         assert_eq!(
-            read::count(pool).await.unwrap(),
+            SoftNote::by_primary_key(note.id)
+                .exists(pool)
+                .await
+                .unwrap(),
+            visible
+        );
+        expect(ids(SoftNote::query()
+            .order_by(SoftNote::ID)
+            .all(pool)
+            .await
+            .unwrap()));
+        expect(ids(SoftNote::query()
+            .order_by(SoftNote::ID)
+            .limit(10)
+            .all(pool)
+            .await
+            .unwrap()));
+        assert_eq!(
+            SoftNote::count(pool).await.unwrap(),
             if visible { 2 } else { 1 }
         );
         expect(ids(search(SoftNoteFilter::default()).await.unwrap()));
@@ -313,7 +342,8 @@ pub(super) async fn soft_deleted_rows_are_hidden_restored_and_removed(pool: &PgP
     SoftNote::destroy(pool, note.id).await.unwrap();
     let replacement = create("A").await.unwrap();
     assert_eq!(
-        read::get_by_code(pool, "A")
+        SoftNote::by_code("A")
+            .first(pool)
             .await
             .unwrap()
             .map(|row| row.id),

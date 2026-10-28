@@ -27,8 +27,8 @@ impl Label {
         E: rok_data::Executor<'e>,
     {
         if input.is_empty() {
-            let current = super::read::get_by_id(executor, id).await?;
-            return current.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
+            let row = Self::by_primary_key(id).first(executor).await?;
+            return row.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
         }
 
         let mut update = Label::update_all().filter(Label::ID.eq(id));
@@ -50,35 +50,4 @@ impl Label {
         }
         Ok(())
     }
-}
-
-/// Calls [`Label::create`], which this module function forwards to.
-#[deprecated(note = "call `Label::create` instead")]
-pub async fn create<'e, E>(executor: E, input: NewLabel) -> Result<Label, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Label::create(executor, input).await
-}
-
-/// Calls [`Label::patch`], which this module function forwards to.
-#[deprecated(note = "call `Label::patch` instead")]
-pub async fn patch<'e, E>(
-    executor: E,
-    id: LabelId,
-    input: UpdateLabel,
-) -> Result<Label, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Label::patch(executor, id, input).await
-}
-
-/// Calls [`Label::destroy`], which this module function forwards to.
-#[deprecated(note = "call `Label::destroy` instead")]
-pub async fn destroy<'e, E>(executor: E, id: LabelId) -> Result<(), rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Label::destroy(executor, id).await
 }

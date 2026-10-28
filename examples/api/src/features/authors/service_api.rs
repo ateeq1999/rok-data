@@ -69,7 +69,7 @@ pub trait AuthorsServiceApi {
 
     /// `GET /api/v1/authors/{id}`: the row with this key, or `404`.
     async fn get_one(&self, id: AuthorId) -> Result<Author, AppError> {
-        let row = repo::get_by_id(self.pool(), id).await?;
+        let row = Author::by_primary_key(id).first(self.pool()).await?;
         match row {
             Some(row) => Ok(row),
             None => Err(not_found()),
@@ -123,7 +123,7 @@ pub trait AuthorsServiceApi {
 
     /// `GET /api/v1/authors/by-email/{value}`: the row whose `email` is `value`, or `404`.
     async fn get_by_email(&self, value: String) -> Result<Author, AppError> {
-        let row = repo::get_by_email(self.pool(), &value).await?;
+        let row = Author::by_email(&value).first(self.pool()).await?;
         match row {
             Some(row) => Ok(row),
             None => Err(not_found()),
@@ -132,7 +132,7 @@ pub trait AuthorsServiceApi {
 
     /// `GET /api/v1/authors/{id}/books`: the row's `books`, or `404`.
     async fn list_books(&self, id: AuthorId) -> Result<Vec<Book>, AppError> {
-        let row = repo::get_by_id(self.pool(), id).await?;
+        let row = Author::by_primary_key(id).first(self.pool()).await?;
         let row = row.ok_or_else(not_found)?;
         let rows = std::slice::from_ref(&row);
         let mut loaded = repo::load_books(self.pool(), rows).await?;

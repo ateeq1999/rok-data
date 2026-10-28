@@ -15,6 +15,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use chrono::Utc;
+use rok_data::Model;
 use sqlx::{PgConnection, PgPool};
 
 use super::dto::{
@@ -24,7 +25,6 @@ use super::dto::{
 use crate::db::queries::auth::{self as queries, InviteUserParams};
 use crate::db::types::{AuthTokenPurpose, Role};
 use crate::db::users::models::{User, UserId};
-use crate::db::users::read as users;
 use crate::error::AppError;
 use crate::shared::mail::{Outbox, Templates};
 use crate::shared::security::auth_token::{self, invalid_token};
@@ -166,7 +166,7 @@ impl AuthService {
     /// Mails the account `id` a new verification link, spending the older
     /// ones; nothing when its email is already verified.
     pub async fn resend_verification(&self, id: UserId) -> Result<(), AppError> {
-        let user = users::get_by_id(&self.pool, id)
+        let user = User::find(&self.pool, id)
             .await?
             .ok_or_else(|| AppError::NotFound("no such account".to_owned()))?;
         if user.email_verified {
@@ -235,7 +235,7 @@ impl AuthService {
     /// its older ones. An unknown email gets nothing, and the caller can't
     /// tell the difference.
     pub async fn forgot_password(&self, input: ForgotPasswordDto) -> Result<(), AppError> {
-        let Some(user) = users::get_by_email(&self.pool, &input.email).await? else {
+        let Some(user) = User::by_email(&input.email).first(&self.pool).await? else {
             return Ok(());
         };
         let mut tx = self.pool.begin().await?;
@@ -296,7 +296,7 @@ impl AuthService {
         id: UserId,
         input: ChangePasswordDto,
     ) -> Result<(), AppError> {
-        let user = users::get_by_id(&self.pool, id)
+        let user = User::find(&self.pool, id)
             .await?
             .ok_or_else(|| AppError::Unauthorized("the account no longer exists".to_owned()))?;
         if !password::verify(input.current_password, user.password_hash).await? {
@@ -334,7 +334,7 @@ impl AuthService {
         id: UserId,
         input: ChangeEmailDto,
     ) -> Result<(), AppError> {
-        let user = users::get_by_id(&self.pool, id)
+        let user = User::find(&self.pool, id)
             .await?
             .ok_or_else(|| AppError::NotFound("no such account".to_owned()))?;
         if !password::verify(input.current_password, user.password_hash).await? {

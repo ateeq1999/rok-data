@@ -8,12 +8,12 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
+use rok_data::Model;
 use sqlx::PgPool;
 
 use super::dto::{AVATAR_MAX_BYTES, AVATAR_SIDE, UpdateProfileDto};
 use crate::db::queries::account as queries;
 use crate::db::users::models::{User, UserId};
-use crate::db::users::read as users;
 use crate::error::AppError;
 use crate::shared::storage::Storage;
 use crate::shared::thumbnail;
@@ -41,7 +41,7 @@ impl AccountService {
     /// The account `id`. `AuthUser` already checked it is live, so a
     /// `404` means it was deleted since.
     pub async fn me(&self, id: UserId) -> Result<User, AppError> {
-        users::get_by_id(&self.pool, id).await?.ok_or_else(gone)
+        User::find(&self.pool, id).await?.ok_or_else(gone)
     }
 
     /// Changes the account `id`'s profile: the fields `input` holds.

@@ -5,7 +5,7 @@ mod support;
 
 use axum::http::{Method, StatusCode};
 use rok_api_example::db::authors::models::{Author, NewAuthor};
-use rok_api_example::db::authors::read;
+use rok_data::Model;
 use serde_json::json;
 use sqlx::PgPool;
 use support::{Database, TestResult, call, user};
@@ -128,7 +128,7 @@ async fn a_caller_creates_an_author() -> TestResult {
         Some(id) => id,
         None => return Err(format!("the answer carries no id: {}", answer.body).into()),
     };
-    let stored = read::get_by_id(&db.pool, id.into()).await?;
+    let stored = Author::find(&db.pool, id).await?;
     assert_eq!(stored.map(|author| author.name), Some("Erin".to_owned()));
     db.drop().await
 }
@@ -178,7 +178,7 @@ async fn a_caller_updates_an_author() -> TestResult {
     assert_eq!(answer.body["name"], "Gilbert");
     assert_eq!(answer.body["email"], "gil@example.com");
 
-    let stored = read::get_by_id(&db.pool, row.id).await?;
+    let stored = Author::find(&db.pool, row.id).await?;
     assert_eq!(stored.map(|author| author.name), Some("Gilbert".to_owned()));
     db.drop().await
 }

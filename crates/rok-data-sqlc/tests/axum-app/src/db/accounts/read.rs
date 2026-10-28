@@ -4,76 +4,21 @@ use super::filter::AccountFilter;
 use super::models::{Account, AccountId};
 use rok_data::Model;
 
-/// Fetches the row with the given primary key, or `None` if there is none.
-pub async fn get_by_id<'e, E>(
-    executor: E,
-    id: AccountId,
-) -> Result<Option<Account>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Account::filter(Account::ID.eq(id)).first(executor).await
-}
-
-/// Returns whether a row with the given primary key exists.
-pub async fn exists_by_id<'e, E>(executor: E, id: AccountId) -> Result<bool, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Account::filter(Account::ID.eq(id))
-        .count(executor)
-        .await
-        .map(|count| count > 0)
-}
-
-/// Fetches the row with the given `email`, or `None` if there is none.
-pub async fn get_by_email<'e, E>(
-    executor: E,
-    email: &str,
-) -> Result<Option<Account>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Account::filter(Account::EMAIL.eq(email))
-        .first(executor)
-        .await
-}
-
-/// Fetches every row, ordered by primary key.
-pub async fn list<'e, E>(executor: E) -> Result<Vec<Account>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Account::query().order_by(Account::ID).all(executor).await
-}
-
-/// Fetches at most `limit` rows after skipping `offset`, ordered by primary key so
-/// consecutive pages neither repeat nor skip rows. Both values must be non-negative.
-pub async fn list_page<'e, E>(
-    executor: E,
-    limit: i64,
-    offset: i64,
-) -> Result<Vec<Account>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Account::query()
-        .order_by(Account::ID)
-        .limit(limit as u64)
-        .offset(offset as u64)
-        .all(executor)
-        .await
-}
-
-/// Counts every row.
-pub async fn count<'e, E>(executor: E) -> Result<i64, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Account::query().count(executor).await
-}
-
 impl Account {
+    /// The row with the given primary key, as a query chain: `.first(executor)`
+    /// fetches it, `.exists(executor)` checks it.
+    #[must_use]
+    pub fn by_primary_key(id: AccountId) -> rok_data::Select<Account> {
+        Account::filter(Account::ID.eq(id))
+    }
+
+    /// The row with the given `email`, as a query chain:
+    /// `.first(executor)` fetches it.
+    #[must_use]
+    pub fn by_email(email: &str) -> rok_data::Select<Account> {
+        Account::filter(Account::EMAIL.eq(email))
+    }
+
     /// The rows matching `filter`, as a query chain: order and page it there,
     /// `.order_by(..)` and `.paginate(executor, page, per_page)`.
     #[must_use]

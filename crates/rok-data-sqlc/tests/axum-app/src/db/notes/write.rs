@@ -42,7 +42,8 @@ impl Note {
         E: rok_data::Executor<'e>,
     {
         if input.is_empty() {
-            let Some(row) = super::read::get_by_id(executor, tenant_id, id).await? else {
+            let row = Self::by_primary_key(tenant_id, id).first(executor).await?;
+            let Some(row) = row else {
                 return Ok(UpdateOutcome::NotFound);
             };
             if row.revision != expected_version {
@@ -162,71 +163,4 @@ impl Note {
         }
         Ok(())
     }
-}
-
-/// Calls [`Note::create`], which this module function forwards to.
-#[deprecated(note = "call `Note::create` instead")]
-pub async fn create<'e, E>(
-    executor: E,
-    tenant_id: uuid::Uuid,
-    input: NewNote,
-) -> Result<Note, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Note::create(executor, tenant_id, input).await
-}
-
-/// Calls [`Note::patch`], which this module function forwards to.
-#[deprecated(note = "call `Note::patch` instead")]
-pub async fn patch<'e, E>(
-    executor: E,
-    tenant_id: uuid::Uuid,
-    id: NoteId,
-    expected_version: i64,
-    input: UpdateNote,
-) -> Result<UpdateOutcome<Note>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Note::patch(executor, tenant_id, id, expected_version, input).await
-}
-
-/// Calls [`Note::destroy`], which this module function forwards to.
-#[deprecated(note = "call `Note::destroy` instead")]
-pub async fn destroy<'e, E>(
-    executor: E,
-    tenant_id: uuid::Uuid,
-    id: NoteId,
-) -> Result<(), rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Note::destroy(executor, tenant_id, id).await
-}
-
-/// Calls [`Note::restore`], which this module function forwards to.
-#[deprecated(note = "call `Note::restore` instead")]
-pub async fn restore<'e, E>(
-    executor: E,
-    tenant_id: uuid::Uuid,
-    id: NoteId,
-) -> Result<(), rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Note::restore(executor, tenant_id, id).await
-}
-
-/// Calls [`Note::delete_permanently`], which this module function forwards to.
-#[deprecated(note = "call `Note::delete_permanently` instead")]
-pub async fn delete_permanently<'e, E>(
-    executor: E,
-    tenant_id: uuid::Uuid,
-    id: NoteId,
-) -> Result<(), rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Note::delete_permanently(executor, tenant_id, id).await
 }

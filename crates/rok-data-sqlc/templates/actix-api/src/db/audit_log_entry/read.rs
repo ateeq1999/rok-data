@@ -4,68 +4,14 @@ use super::filter::AuditLogEntryFilter;
 use super::models::{AuditLogEntry, AuditLogEntryId};
 use rok_data::Model;
 
-/// Fetches the row with the given primary key, or `None` if there is none.
-pub async fn get_by_id<'e, E>(
-    executor: E,
-    id: AuditLogEntryId,
-) -> Result<Option<AuditLogEntry>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    AuditLogEntry::filter(AuditLogEntry::ID.eq(id))
-        .first(executor)
-        .await
-}
-
-/// Returns whether a row with the given primary key exists.
-pub async fn exists_by_id<'e, E>(executor: E, id: AuditLogEntryId) -> Result<bool, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    AuditLogEntry::filter(AuditLogEntry::ID.eq(id))
-        .count(executor)
-        .await
-        .map(|count| count > 0)
-}
-
-/// Fetches every row, ordered by primary key.
-pub async fn list<'e, E>(executor: E) -> Result<Vec<AuditLogEntry>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    AuditLogEntry::query()
-        .order_by(AuditLogEntry::ID)
-        .all(executor)
-        .await
-}
-
-/// Fetches at most `limit` rows after skipping `offset`, ordered by primary key so
-/// consecutive pages neither repeat nor skip rows. Both values must be non-negative.
-pub async fn list_page<'e, E>(
-    executor: E,
-    limit: i64,
-    offset: i64,
-) -> Result<Vec<AuditLogEntry>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    AuditLogEntry::query()
-        .order_by(AuditLogEntry::ID)
-        .limit(limit as u64)
-        .offset(offset as u64)
-        .all(executor)
-        .await
-}
-
-/// Counts every row.
-pub async fn count<'e, E>(executor: E) -> Result<i64, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    AuditLogEntry::query().count(executor).await
-}
-
 impl AuditLogEntry {
+    /// The row with the given primary key, as a query chain: `.first(executor)`
+    /// fetches it, `.exists(executor)` checks it.
+    #[must_use]
+    pub fn by_primary_key(id: AuditLogEntryId) -> rok_data::Select<AuditLogEntry> {
+        AuditLogEntry::filter(AuditLogEntry::ID.eq(id))
+    }
+
     /// The rows matching `filter`, as a query chain: order and page it there,
     /// `.order_by(..)` and `.paginate(executor, page, per_page)`.
     ///

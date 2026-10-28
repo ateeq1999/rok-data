@@ -285,39 +285,33 @@ fn unique_keys_get_lookups_but_other_expression_and_partial_indexes_do_not() -> 
     ])?;
 
     let read = fs::read_to_string(out.join("products/read.rs"))?;
+    // Each unique key reads as a chain on the model: `.first(executor)`.
     assert!(
         read.contains(
-            "pub async fn get_by_sku<'e, E>(executor: E, sku: &str) -> Result<Option<Product>, rok_data::Error>"
-        ),
-        "{read}"
-    );
-    assert!(
-        read.contains("    Product::filter(Product::SKU.eq(sku)).first(executor).await\n"),
-        "{read}"
-    );
-    assert!(
-        read.contains(
-            "pub async fn get_by_organization_id_and_code<'e, E>(\n    executor: E,\n    organization_id: uuid::Uuid,\n    code: &str,\n) -> Result<Option<Product>, rok_data::Error>"
+            "    pub fn by_sku(sku: &str) -> rok_data::Select<Product> {\n        Product::filter(Product::SKU.eq(sku))\n    }\n"
         ),
         "{read}"
     );
     assert!(
         read.contains(
-            "    Product::filter(Product::ORGANIZATION_ID.eq(organization_id))\n        .filter(Product::CODE.eq(code))\n        .first(executor)\n        .await\n"
+            "    pub fn by_organization_id_and_code(\n        organization_id: uuid::Uuid,\n        code: &str,\n    ) -> rok_data::Select<Product> {\n"
+        ),
+        "{read}"
+    );
+    assert!(
+        read.contains(
+            "Product::filter(Product::ORGANIZATION_ID.eq(organization_id)).filter(Product::CODE.eq(code))"
         ),
         "{read}"
     );
     // A unique index on `lower(name)` is a case-insensitive key.
-    assert!(
-        read.contains("pub async fn get_by_name<'e, E>(executor: E, name: &str)"),
-        "{read}"
-    );
+    assert!(read.contains("pub fn by_name(name: &str)"), "{read}");
     assert!(
         read.contains(r#"rok_data::Expr::raw("lower(name) = lower(?)", [name])"#),
         "{read}"
     );
     assert!(
-        !read.contains("get_by_barcode"),
+        !read.contains("by_barcode"),
         "partial and `upper` indexes: {read}"
     );
     Ok(())

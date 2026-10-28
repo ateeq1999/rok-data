@@ -6,7 +6,7 @@ mod support;
 use axum::http::{Method, StatusCode};
 use axum_api::db::types::Role;
 use axum_api::db::users::models::{NewUser, User};
-use axum_api::db::users::read;
+use rok_data::Model;
 use serde_json::json;
 use sqlx::PgPool;
 use support::{Database, TestResult, admin, call, user};
@@ -180,7 +180,7 @@ async fn an_admin_updates_a_users_role_and_name() -> TestResult {
     assert_eq!(answer.body["is_active"], false);
     assert_eq!(answer.body["email"], "erin@example.com");
 
-    let stored = read::get_by_id(&db.pool, row.id).await?;
+    let stored = User::find(&db.pool, row.id).await?;
     assert_eq!(stored.map(|user| user.role), Some(Role::Admin));
     db.drop().await
 }
@@ -248,6 +248,6 @@ async fn removing_a_user_needs_a_token() -> TestResult {
     let answer = call(&db.pool, None, Method::DELETE, &uri, None).await?;
     assert_eq!(answer.status, StatusCode::UNAUTHORIZED);
     assert_eq!(answer.code(), "unauthorized");
-    assert!(read::get_by_id(&db.pool, row.id).await?.is_some());
+    assert!(User::find(&db.pool, row.id).await?.is_some());
     db.drop().await
 }

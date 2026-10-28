@@ -10,6 +10,7 @@
 use std::sync::Arc;
 
 use chrono::Utc;
+use rok_data::Model;
 use sqlx::{PgConnection, PgPool};
 
 use super::dto::{
@@ -20,7 +21,6 @@ use crate::db::queries::two_factor as queries;
 use crate::db::totp_recovery_codes::models::TotpRecoveryCodeId;
 use crate::db::types::{AuthTokenPurpose, Role};
 use crate::db::users::models::{User, UserId};
-use crate::db::users::read as users;
 use crate::error::AppError;
 use crate::shared::mail::{Outbox, Templates};
 use crate::shared::security::auth_token::{consume_token, invalid_token};
@@ -144,7 +144,7 @@ impl TwoFactorService {
         let id = queries::pending_sign_in(&self.pool, &pending)
             .await?
             .ok_or_else(invalid_token)?;
-        let user = users::get_by_id(&self.pool, id)
+        let user = User::find(&self.pool, id)
             .await?
             .ok_or_else(invalid_token)?;
         let wrong_code = || {
@@ -198,7 +198,7 @@ impl TwoFactorService {
     /// The live account `id`, or a `401`: a session for an account that
     /// no longer exists.
     async fn live_user(&self, id: UserId) -> Result<User, AppError> {
-        users::get_by_id(&self.pool, id)
+        User::find(&self.pool, id)
             .await?
             .ok_or_else(|| AppError::Unauthorized("the account no longer exists".to_owned()))
     }

@@ -96,8 +96,10 @@ pub fn push_wide_chain(
     let line_fits = pad.len() + lead.len() + chain.len() + trail.len() <= max_width();
     // The chain's width budget covers the whole expression, `.await` and a
     // trailing `?` included; the statement's lead and `;` do not count.
+    // A trailing `?` costs two columns (probed: a 60-column chain stays on
+    // its line, the same chain at 59 columns plus `?` breaks).
     let wide = calls.len() <= 1;
-    let try_width = usize::from(trail.starts_with('?'));
+    let try_width = 2 * usize::from(trail.starts_with('?'));
     let one_line = line_fits && (wide || chain.len() + try_width <= CHAIN_WIDTH);
     if one_line {
         output.push_str(&format!("{pad}{lead}{chain}{trail}\n"));

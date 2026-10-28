@@ -36,7 +36,8 @@ pub(super) async fn enum_keys_get_a_typed_id(pool: &PgPool) {
     .unwrap();
     let note: PriorityNoteId = escalation.priority;
 
-    let found = db::priority_notes::read::get_by_id(pool, note)
+    let found = db::priority_notes::models::PriorityNote::by_primary_key(note)
+        .first(pool)
         .await
         .unwrap()
         .expect("the escalated note exists");
@@ -121,11 +122,13 @@ pub(super) async fn typed_ids_flow_from_rows_to_foreign_keys(pool: &PgPool) {
         "a category's id filters its products"
     );
 
-    let fetched = db::products::read::get_by_id(pool, product_id)
+    let fetched = db::products::models::Product::by_primary_key(product_id)
+        .first(pool)
         .await
         .unwrap();
     assert_eq!(fetched, Some(product));
-    let parent = db::categories::read::get_by_id(pool, category.id)
+    let parent = db::categories::models::Category::by_primary_key(category.id)
+        .first(pool)
         .await
         .unwrap();
     assert_eq!(parent.map(|row| row.name), Some("typed".to_owned()));
@@ -178,7 +181,6 @@ pub(super) async fn uuid_keys_listing_and_pagination(pool: &PgPool) {
     use db::categories::models::NewCategory;
     use db::products::models::NewProduct;
     use db::products::models::Product;
-    use db::products::read;
 
     let category = db::categories::models::Category::create(
         pool,
@@ -217,7 +219,9 @@ pub(super) async fn uuid_keys_listing_and_pagination(pool: &PgPool) {
         );
     }
 
-    let all: Vec<u128> = read::list(pool)
+    let all: Vec<u128> = Product::query()
+        .order_by(Product::ID)
+        .all(pool)
         .await
         .unwrap()
         .iter()
@@ -227,13 +231,20 @@ pub(super) async fn uuid_keys_listing_and_pagination(pool: &PgPool) {
 
     let mut paged = Vec::new();
     for page in 0..3 {
-        let rows = read::list_page(pool, 2, page * 2).await.unwrap();
+        let rows = Product::query()
+            .order_by(Product::ID)
+            .limit(2)
+            .offset(page * 2)
+            .all(pool)
+            .await
+            .unwrap();
         paged.extend(rows.iter().map(|row| uuid::Uuid::from(row.id).as_u128()));
     }
     assert_eq!(paged, all, "pages neither repeat nor skip rows");
-    assert_eq!(read::count(pool).await.unwrap(), 5);
+    assert_eq!(Product::count(pool).await.unwrap(), 5);
 
-    let first = read::get_by_id(pool, uuid::Uuid::from_u128(3).into())
+    let first = Product::by_primary_key(uuid::Uuid::from_u128(3).into())
+        .first(pool)
         .await
         .unwrap()
         .unwrap();
@@ -246,7 +257,6 @@ pub(super) async fn composite_keys_arrays_and_numeric(pool: &PgPool) {
     use db::feature_line_items::models::{
         FeatureLineItemKey, NewFeatureLineItem, UpdateFeatureLineItem,
     };
-    use db::feature_line_items::read;
 
     let order_id = uuid::Uuid::from_u128(10);
     let product_id = uuid::Uuid::from_u128(20);
@@ -280,19 +290,38 @@ pub(super) async fn composite_keys_arrays_and_numeric(pool: &PgPool) {
     assert_eq!(updated.weekdays, None);
     assert_eq!(updated.unit_price, Decimal::new(2500, 2));
     assert_eq!(updated.labels, ["a", "b"]);
-    assert_eq!(read::get_by_id(pool, key).await.unwrap(), Some(updated));
+    assert_eq!(
+        FeatureLineItem::by_primary_key(key)
+            .first(pool)
+            .await
+            .unwrap(),
+        Some(updated)
+    );
 
     let swapped = FeatureLineItemKey {
         order_id: product_id,
         product_id: order_id,
     };
-    assert!(read::exists_by_id(pool, key).await.unwrap());
     assert!(
-        !read::exists_by_id(pool, swapped).await.unwrap(),
+        FeatureLineItem::by_primary_key(key)
+            .exists(pool)
+            .await
+            .unwrap()
+    );
+    assert!(
+        !FeatureLineItem::by_primary_key(swapped)
+            .exists(pool)
+            .await
+            .unwrap(),
         "key parts are not interchangeable"
     );
     FeatureLineItem::destroy(pool, key).await.unwrap();
-    assert!(!read::exists_by_id(pool, key).await.unwrap());
+    assert!(
+        !FeatureLineItem::by_primary_key(key)
+            .exists(pool)
+            .await
+            .unwrap()
+    );
 }
 
 /// Every unique key other than the primary key gets a `get_by_<cols>`
@@ -333,13 +362,19 @@ pub(super) async fn unique_key_lookups_find_one_row_or_none(pool: &PgPool) {
         .await
         .unwrap();
     }
-    let by_sku = db::products::read::get_by_sku(pool, "U-2").await.unwrap();
+    let by_sku = db::products::models::Product::by_sku("U-2")
+        .first(pool)
+        .await
+        .unwrap();
     assert_eq!(
         by_sku.map(|row| row.id),
         Some(ProductId::from(uuid::Uuid::from_u128(8_002)))
     );
     assert_eq!(
-        db::products::read::get_by_sku(pool, "U-3").await.unwrap(),
+        db::products::models::Product::by_sku("U-3")
+            .first(pool)
+            .await
+            .unwrap(),
         None
     );
 
@@ -361,18 +396,21 @@ pub(super) async fn unique_key_lookups_find_one_row_or_none(pool: &PgPool) {
         .await
         .unwrap();
     }
-    let globex_hq = db::branches::read::get_by_organization_id_and_code(pool, globex, "HQ")
+    let globex_hq = db::branches::models::Branch::by_organization_id_and_code(globex, "HQ")
+        .first(pool)
         .await
         .unwrap();
     assert_eq!(
         globex_hq.map(|row| row.name),
         Some("Globex head office".to_owned())
     );
-    let acme_west = db::branches::read::get_by_organization_id_and_code(pool, acme, "WEST")
+    let acme_west = db::branches::models::Branch::by_organization_id_and_code(acme, "WEST")
+        .first(pool)
         .await
         .unwrap();
     assert_eq!(acme_west.map(|row| row.name), Some("Acme west".to_owned()));
-    let globex_west = db::branches::read::get_by_organization_id_and_code(pool, globex, "WEST")
+    let globex_west = db::branches::models::Branch::by_organization_id_and_code(globex, "WEST")
+        .first(pool)
         .await
         .unwrap();
     assert_eq!(globex_west, None);
@@ -398,10 +436,14 @@ pub(super) async fn text_keys_are_borrowed(pool: &PgPool) {
         .unwrap();
     }
 
-    let found = db::currencies::read::get_by_id(pool, &eur).await.unwrap();
+    let found = db::currencies::models::Currency::by_primary_key(&eur)
+        .first(pool)
+        .await
+        .unwrap();
     assert_eq!(found.map(|row| row.name), Some("eur".to_owned()));
     assert!(
-        db::currencies::read::exists_by_id(pool, &eur)
+        db::currencies::models::Currency::by_primary_key(&eur)
+            .exists(pool)
             .await
             .unwrap()
     );
@@ -453,7 +495,8 @@ pub(super) async fn text_keys_are_borrowed(pool: &PgPool) {
     assert_eq!(rates[0].currency_code, eur);
 
     let key: CurrencyRateKey = rate.key();
-    let fetched = db::currency_rates::read::get_by_id(pool, &key)
+    let fetched = db::currency_rates::models::CurrencyRate::by_primary_key(&key)
+        .first(pool)
         .await
         .unwrap();
     assert_eq!(fetched, Some(rate));
@@ -540,7 +583,8 @@ pub(super) async fn generated_cuid2_keys(pool: &PgPool) {
     .unwrap();
     assert!(cuid::is_cuid2(&made.id.0), "{}", made.id);
     assert_eq!(made.id.0.len(), 24);
-    let fetched = cuid_db::badges::read::get_by_id(pool, &made.id)
+    let fetched = cuid_db::badges::models::Badge::by_primary_key(&made.id)
+        .first(pool)
         .await
         .unwrap();
     assert_eq!(fetched, Some(made.clone()));

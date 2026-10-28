@@ -39,8 +39,8 @@ impl AuthToken {
         E: rok_data::Executor<'e>,
     {
         if input.is_empty() {
-            let current = super::read::get_by_id(executor, id).await?;
-            return current.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
+            let row = Self::by_primary_key(id).first(executor).await?;
+            return row.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
         }
 
         let mut update = AuthToken::update_all().filter(AuthToken::ID.eq(id));
@@ -79,35 +79,4 @@ impl AuthToken {
         }
         Ok(())
     }
-}
-
-/// Calls [`AuthToken::create`], which this module function forwards to.
-#[deprecated(note = "call `AuthToken::create` instead")]
-pub async fn create<'e, E>(executor: E, input: NewAuthToken) -> Result<AuthToken, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    AuthToken::create(executor, input).await
-}
-
-/// Calls [`AuthToken::patch`], which this module function forwards to.
-#[deprecated(note = "call `AuthToken::patch` instead")]
-pub async fn patch<'e, E>(
-    executor: E,
-    id: AuthTokenId,
-    input: UpdateAuthToken,
-) -> Result<AuthToken, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    AuthToken::patch(executor, id, input).await
-}
-
-/// Calls [`AuthToken::destroy`], which this module function forwards to.
-#[deprecated(note = "call `AuthToken::destroy` instead")]
-pub async fn destroy<'e, E>(executor: E, id: AuthTokenId) -> Result<(), rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    AuthToken::destroy(executor, id).await
 }

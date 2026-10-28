@@ -4,68 +4,14 @@ use super::filter::OutboundMailFilter;
 use super::models::{OutboundMail, OutboundMailId};
 use rok_data::Model;
 
-/// Fetches the row with the given primary key, or `None` if there is none.
-pub async fn get_by_id<'e, E>(
-    executor: E,
-    id: OutboundMailId,
-) -> Result<Option<OutboundMail>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    OutboundMail::filter(OutboundMail::ID.eq(id))
-        .first(executor)
-        .await
-}
-
-/// Returns whether a row with the given primary key exists.
-pub async fn exists_by_id<'e, E>(executor: E, id: OutboundMailId) -> Result<bool, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    OutboundMail::filter(OutboundMail::ID.eq(id))
-        .count(executor)
-        .await
-        .map(|count| count > 0)
-}
-
-/// Fetches every row, ordered by primary key.
-pub async fn list<'e, E>(executor: E) -> Result<Vec<OutboundMail>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    OutboundMail::query()
-        .order_by(OutboundMail::ID)
-        .all(executor)
-        .await
-}
-
-/// Fetches at most `limit` rows after skipping `offset`, ordered by primary key so
-/// consecutive pages neither repeat nor skip rows. Both values must be non-negative.
-pub async fn list_page<'e, E>(
-    executor: E,
-    limit: i64,
-    offset: i64,
-) -> Result<Vec<OutboundMail>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    OutboundMail::query()
-        .order_by(OutboundMail::ID)
-        .limit(limit as u64)
-        .offset(offset as u64)
-        .all(executor)
-        .await
-}
-
-/// Counts every row.
-pub async fn count<'e, E>(executor: E) -> Result<i64, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    OutboundMail::query().count(executor).await
-}
-
 impl OutboundMail {
+    /// The row with the given primary key, as a query chain: `.first(executor)`
+    /// fetches it, `.exists(executor)` checks it.
+    #[must_use]
+    pub fn by_primary_key(id: OutboundMailId) -> rok_data::Select<OutboundMail> {
+        OutboundMail::filter(OutboundMail::ID.eq(id))
+    }
+
     /// The rows matching `filter`, as a query chain: order and page it there,
     /// `.order_by(..)` and `.paginate(executor, page, per_page)`.
     #[must_use]

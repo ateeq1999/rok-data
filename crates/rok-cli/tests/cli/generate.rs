@@ -31,13 +31,23 @@ fn generates_resource_modules() -> Result<()> {
     assert!(models.contains("pub email: String,"));
 
     let read = fs::read_to_string(out.join("users/read.rs"))?;
-    assert!(read.contains("    User::filter(User::ID.eq(id)).first(executor).await\n"));
+    assert!(
+        read.contains(
+            "    pub fn by_primary_key(id: UserId) -> rok_data::Select<User> {\n        User::filter(User::ID.eq(id))\n    }\n"
+        ),
+        "{read}"
+    );
 
     let write = fs::read_to_string(out.join("users/write.rs"))?;
     assert!(write.contains("pub async fn create<'e, E>(executor: E, input: NewUser)"));
-    assert!(write.contains(
-        "pub async fn patch<'e, E>(\n    executor: E,\n    id: UserId,\n    input: UpdateUser,\n)"
-    ));
+    // The verbs live on the model only: no deprecated module wrappers.
+    assert!(
+        write.contains(
+            "    pub async fn patch<'e, E>(\n        executor: E,\n        id: UserId,\n        input: UpdateUser,\n    )"
+        ),
+        "{write}"
+    );
+    assert!(!write.contains("#[deprecated"), "{write}");
     assert!(write.contains("pub async fn destroy<'e, E>(executor: E, id: UserId)"));
 
     for generated in [&read, &write] {
@@ -87,10 +97,18 @@ fn generates_composite_keys_arrays_and_time() -> Result<()> {
         "pub struct LineItemKey {\n    /// The `order_id` column.\n    pub order_id: uuid::Uuid,\n    /// The `product_id` column.\n    pub product_id: uuid::Uuid,\n}"
     ));
 
+    // A whole composite key finds its row: `LineItem::find(executor, key)`.
+    assert!(
+        models.contains("impl rok_data::IntoKey for LineItemKey {"),
+        "{models}"
+    );
     let read = fs::read_to_string(out.join("line_items/read.rs"))?;
-    assert!(read.contains("get_by_id<'e, E>(\n    executor: E,\n    key: LineItemKey,\n)"));
-    assert!(read.contains("    LineItem::filter(LineItem::ORDER_ID.eq(key.order_id))\n"));
-    assert!(read.contains("        .filter(LineItem::PRODUCT_ID.eq(key.product_id))\n"));
+    assert!(
+        read.contains("pub fn by_primary_key(key: LineItemKey) -> rok_data::Select<LineItem> {"),
+        "{read}"
+    );
+    assert!(read.contains("LineItem::filter(LineItem::ORDER_ID.eq(key.order_id))"));
+    assert!(read.contains(".filter(LineItem::PRODUCT_ID.eq(key.product_id))"));
     // Keyset pages come from the chain: `search` returns one.
     assert!(
         read.contains("pub fn search(filter: LineItemFilter)"),
@@ -297,10 +315,12 @@ pub struct Product {
     assert!(models.contains("pub struct UpdateProduct {"));
 
     let read = fs::read_to_string(out.join("products/read.rs"))?;
-    assert!(read.contains(
-        "pub async fn get_by_id<'e, E>(\n    executor: E,\n    id: ProductId,\n) -> Result<Option<Product>, rok_data::Error>"
-    ));
-    assert!(read.contains("    Product::filter(Product::ID.eq(id)).first(executor).await\n"));
+    assert!(
+        read.contains(
+            "    pub fn by_primary_key(id: ProductId) -> rok_data::Select<Product> {\n        Product::filter(Product::ID.eq(id))\n    }\n"
+        ),
+        "{read}"
+    );
 
     let write = fs::read_to_string(out.join("products/write.rs"))?;
     // The verbs sit in the model's `impl`, one level in.
@@ -446,9 +466,7 @@ fn generates_interval_bytea_and_time_with_time_zone_columns() -> Result<()> {
     assert!(models.contains("pub digest: Option<Vec<u8>>,"));
     let read = &spans[Path::new("spans/read.rs")];
     assert!(
-        read.contains(
-            "pub async fn get_by_digest<'e, E>(\n    executor: E,\n    digest: &[u8],\n)"
-        ),
+        read.contains("pub fn by_digest(digest: &[u8]) -> rok_data::Select<Span> {"),
         "{read}"
     );
     let filter = &spans[Path::new("spans/filter.rs")];

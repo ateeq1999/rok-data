@@ -4,81 +4,21 @@ use super::filter::AuthTokenFilter;
 use super::models::{AuthToken, AuthTokenId};
 use rok_data::Model;
 
-/// Fetches the row with the given primary key, or `None` if there is none.
-pub async fn get_by_id<'e, E>(
-    executor: E,
-    id: AuthTokenId,
-) -> Result<Option<AuthToken>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    AuthToken::filter(AuthToken::ID.eq(id))
-        .first(executor)
-        .await
-}
-
-/// Returns whether a row with the given primary key exists.
-pub async fn exists_by_id<'e, E>(executor: E, id: AuthTokenId) -> Result<bool, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    AuthToken::filter(AuthToken::ID.eq(id))
-        .count(executor)
-        .await
-        .map(|count| count > 0)
-}
-
-/// Fetches the row with the given `token_hash`, or `None` if there is none.
-pub async fn get_by_token_hash<'e, E>(
-    executor: E,
-    token_hash: &str,
-) -> Result<Option<AuthToken>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    AuthToken::filter(AuthToken::TOKEN_HASH.eq(token_hash))
-        .first(executor)
-        .await
-}
-
-/// Fetches every row, ordered by primary key.
-pub async fn list<'e, E>(executor: E) -> Result<Vec<AuthToken>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    AuthToken::query()
-        .order_by(AuthToken::ID)
-        .all(executor)
-        .await
-}
-
-/// Fetches at most `limit` rows after skipping `offset`, ordered by primary key so
-/// consecutive pages neither repeat nor skip rows. Both values must be non-negative.
-pub async fn list_page<'e, E>(
-    executor: E,
-    limit: i64,
-    offset: i64,
-) -> Result<Vec<AuthToken>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    AuthToken::query()
-        .order_by(AuthToken::ID)
-        .limit(limit as u64)
-        .offset(offset as u64)
-        .all(executor)
-        .await
-}
-
-/// Counts every row.
-pub async fn count<'e, E>(executor: E) -> Result<i64, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    AuthToken::query().count(executor).await
-}
-
 impl AuthToken {
+    /// The row with the given primary key, as a query chain: `.first(executor)`
+    /// fetches it, `.exists(executor)` checks it.
+    #[must_use]
+    pub fn by_primary_key(id: AuthTokenId) -> rok_data::Select<AuthToken> {
+        AuthToken::filter(AuthToken::ID.eq(id))
+    }
+
+    /// The row with the given `token_hash`, as a query chain:
+    /// `.first(executor)` fetches it.
+    #[must_use]
+    pub fn by_token_hash(token_hash: &str) -> rok_data::Select<AuthToken> {
+        AuthToken::filter(AuthToken::TOKEN_HASH.eq(token_hash))
+    }
+
     /// The rows matching `filter`, as a query chain: order and page it there,
     /// `.order_by(..)` and `.paginate(executor, page, per_page)`.
     ///

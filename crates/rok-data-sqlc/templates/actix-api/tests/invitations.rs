@@ -7,11 +7,12 @@ mod support;
 use std::sync::Arc;
 
 use actix_api::app::AuditLog;
-use actix_api::db::audit_log_entry::read as audit_log;
+use actix_api::db::audit_log_entry::models::AuditLogEntry;
 use actix_api::error::AppError;
 use actix_api::features::audit_log_entry::AuditLogEntryService;
 use actix_api::features::auth::service::{AuditEntry, AuditTrail};
 use actix_web::http::{Method, StatusCode};
+use rok_data::Model;
 use serde_json::json;
 use sqlx::PgConnection;
 use support::{
@@ -39,7 +40,7 @@ async fn an_invitee_sets_a_password_with_the_link_and_signs_in_verified() -> Tes
     assert_eq!(answer.body["email_verified"], false);
     let guest: Uuid = serde_json::from_value(answer.body["id"].clone())?;
 
-    let entries = audit_log::list(&db.pool).await?;
+    let entries = AuditLogEntry::all(&db.pool).await?;
     assert_eq!(entries.len(), 1, "{entries:?}");
     assert_eq!(entries[0].action, "user.invited");
     assert_eq!(Uuid::from(entries[0].actor_user_id), admin_id);
@@ -115,7 +116,7 @@ async fn only_an_admin_invites_and_a_taken_email_is_a_conflict() -> TestResult {
         "{}",
         answer.body
     );
-    assert_eq!(audit_log::list(&db.pool).await?.len(), 1);
+    assert_eq!(AuditLogEntry::all(&db.pool).await?.len(), 1);
     assert_eq!(mailed(&db.pool).await?.len(), 1);
     db.drop().await
 }
@@ -156,7 +157,7 @@ async fn a_failed_audit_write_rolls_the_invitation_back() -> TestResult {
         answer.body
     );
     assert!(mailed(&db.pool).await?.is_empty());
-    assert!(audit_log::list(&db.pool).await?.is_empty());
+    assert!(AuditLogEntry::all(&db.pool).await?.is_empty());
 
     // No account was left behind: the address is still free.
     let answer = call(&db.pool, Some(&admin), Method::POST, INVITE, Some(body)).await?;

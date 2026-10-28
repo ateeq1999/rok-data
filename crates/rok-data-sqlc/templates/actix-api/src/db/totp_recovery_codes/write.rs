@@ -38,8 +38,8 @@ impl TotpRecoveryCode {
         E: rok_data::Executor<'e>,
     {
         if input.is_empty() {
-            let current = super::read::get_by_id(executor, id).await?;
-            return current.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
+            let row = Self::by_primary_key(id).first(executor).await?;
+            return row.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
         }
 
         let mut update = TotpRecoveryCode::update_all().filter(TotpRecoveryCode::ID.eq(id));
@@ -69,38 +69,4 @@ impl TotpRecoveryCode {
         }
         Ok(())
     }
-}
-
-/// Calls [`TotpRecoveryCode::create`], which this module function forwards to.
-#[deprecated(note = "call `TotpRecoveryCode::create` instead")]
-pub async fn create<'e, E>(
-    executor: E,
-    input: NewTotpRecoveryCode,
-) -> Result<TotpRecoveryCode, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    TotpRecoveryCode::create(executor, input).await
-}
-
-/// Calls [`TotpRecoveryCode::patch`], which this module function forwards to.
-#[deprecated(note = "call `TotpRecoveryCode::patch` instead")]
-pub async fn patch<'e, E>(
-    executor: E,
-    id: TotpRecoveryCodeId,
-    input: UpdateTotpRecoveryCode,
-) -> Result<TotpRecoveryCode, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    TotpRecoveryCode::patch(executor, id, input).await
-}
-
-/// Calls [`TotpRecoveryCode::destroy`], which this module function forwards to.
-#[deprecated(note = "call `TotpRecoveryCode::destroy` instead")]
-pub async fn destroy<'e, E>(executor: E, id: TotpRecoveryCodeId) -> Result<(), rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    TotpRecoveryCode::destroy(executor, id).await
 }

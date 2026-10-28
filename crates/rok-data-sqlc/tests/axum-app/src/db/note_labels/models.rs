@@ -17,6 +17,13 @@ pub struct NoteLabelKey {
     pub label_id: LabelId,
 }
 
+/// The key's values in primary-key order, as `Row::find` takes them.
+impl rok_data::IntoKey for NoteLabelKey {
+    fn into_key(self) -> Vec<rok_data::Value> {
+        vec![self.note_id.into(), self.label_id.into()]
+    }
+}
+
 /// A row of the `note_labels` table.
 #[derive(Debug, Clone, PartialEq, Model, serde::Serialize, serde::Deserialize)]
 pub struct NoteLabel {

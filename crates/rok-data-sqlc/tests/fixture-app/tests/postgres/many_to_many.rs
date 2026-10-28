@@ -93,9 +93,12 @@ pub(super) async fn many_to_many_attach_detach_and_sync(pool: &PgPool) {
             .unwrap()
     );
     assert_eq!(
-        db::role_permissions::read::count(pool, tenant)
-            .await
-            .unwrap(),
+        db::role_permissions::models::RolePermission::filter(
+            db::role_permissions::models::RolePermission::TENANT_ID.eq(tenant),
+        )
+        .count(pool)
+        .await
+        .unwrap(),
         3,
         "attaching twice keeps one row"
     );
@@ -176,9 +179,12 @@ pub(super) async fn soft_delete_join_rows_are_restored_not_duplicated(pool: &PgP
     let role = &roles[0];
     let [read, refund, write] = [&permissions[0], &permissions[1], &permissions[2]];
     let pairing = async |code: &PermissionId| {
-        let rows = db::role_permissions::read::list(pool, tenant)
-            .await
-            .unwrap();
+        let rows = db::role_permissions::models::RolePermission::filter(
+            db::role_permissions::models::RolePermission::TENANT_ID.eq(tenant),
+        )
+        .all(pool)
+        .await
+        .unwrap();
         rows.into_iter()
             .filter(|row| row.role_id == role.id && row.permission_code == *code)
             .collect::<Vec<_>>()

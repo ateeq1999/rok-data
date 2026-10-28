@@ -12,7 +12,6 @@ pub(super) async fn interval_bytea_and_timetz_round_trip(pool: &PgPool) {
     use plain_db::timed_badges::filter::{TimedBadgeFilter, TimedBadgeSortKey};
     use plain_db::timed_badges::models::TimedBadge;
     use plain_db::timed_badges::models::{NewTimedBadge, UpdateTimedBadge};
-    use plain_db::timed_badges::read;
     use rok_data_sqlc_fixture_app::plain_db;
     use sqlx::postgres::types::{PgInterval, PgTimeTz};
 
@@ -61,11 +60,15 @@ pub(super) async fn interval_bytea_and_timetz_round_trip(pool: &PgPool) {
     .unwrap();
 
     assert_eq!(
-        read::get_by_id(pool, created.id).await.unwrap().as_ref(),
+        TimedBadge::by_primary_key(created.id)
+            .first(pool)
+            .await
+            .unwrap()
+            .as_ref(),
         Some(&created)
     );
     // A `BYTEA` lookup borrows its key as a byte slice.
-    let by_badge = read::get_by_badge(pool, &[7]).await.unwrap();
+    let by_badge = TimedBadge::by_badge(&[7]).first(pool).await.unwrap();
     assert_eq!(by_badge.map(|row| row.id), Some(other.id));
 
     let updated = TimedBadge::patch(
@@ -157,7 +160,6 @@ pub(super) async fn enums_keep_their_exact_labels(pool: &PgPool) {
     use db::search::{Equality, Sort};
     use db::tickets::filter::{TicketFilter, TicketSortKey};
     use db::tickets::models::{NewTicket, Ticket, UpdateTicket};
-    use db::tickets::read;
     use db::types::{TicketPriority, TicketState};
 
     let urgent = Ticket::create(
@@ -182,7 +184,11 @@ pub(super) async fn enums_keep_their_exact_labels(pool: &PgPool) {
     .unwrap();
     assert_eq!(routine.watch_levels, [], "the array default applies");
 
-    let stored = read::get_by_id(pool, urgent.id).await.unwrap().unwrap();
+    let stored = Ticket::by_primary_key(urgent.id)
+        .first(pool)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(
         stored,
         Ticket {
@@ -282,7 +288,6 @@ pub(super) async fn enums_keep_their_exact_labels(pool: &PgPool) {
 pub(super) async fn renamed_enum_types_use_their_new_name(pool: &PgPool) {
     use db::queries::tickets::contacts_on_channel;
     use db::ticket_contacts::models::{NewTicketContact, TicketContact};
-    use db::ticket_contacts::read;
     use db::types::ContactChannel;
 
     let phone = TicketContact::create(
@@ -304,7 +309,10 @@ pub(super) async fn renamed_enum_types_use_their_new_name(pool: &PgPool) {
     .await
     .unwrap();
     assert_eq!(
-        read::get_by_id(pool, phone.id).await.unwrap(),
+        TicketContact::by_primary_key(phone.id)
+            .first(pool)
+            .await
+            .unwrap(),
         Some(TicketContact {
             id: phone.id,
             channel: ContactChannel::Phone,
@@ -339,7 +347,6 @@ pub(super) async fn value_list_columns_round_trip(pool: &PgPool) {
     use db::search::{Equality, Sort};
     use db::shipments::filter::{ShipmentFilter, ShipmentSortKey};
     use db::shipments::models::{NewShipment, Shipment, UpdateShipment};
-    use db::shipments::read;
     use db::types::{RefundReason, RefundStatus, ShipmentCarrier, ShipmentStatus};
 
     let defaulted = Shipment::create(
@@ -367,7 +374,11 @@ pub(super) async fn value_list_columns_round_trip(pool: &PgPool) {
     )
     .await
     .unwrap();
-    let stored = read::get_by_id(pool, moving.id).await.unwrap().unwrap();
+    let stored = Shipment::by_primary_key(moving.id)
+        .first(pool)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(
         stored,
         Shipment {
@@ -458,7 +469,6 @@ pub(super) async fn money_range_and_network_types_round_trip(pool: &PgPool) {
     use plain_db::ledger_entries::filter::{LedgerEntryFilter, LedgerEntrySortKey};
     use plain_db::ledger_entries::models::LedgerEntry;
     use plain_db::ledger_entries::models::{NewLedgerEntry, UpdateLedgerEntry};
-    use plain_db::ledger_entries::read;
     use plain_db::queries::{EntriesInSubnetParams, entries_in_subnet};
     use plain_db::search::{Equality, Sort};
     use rok_data_sqlc_fixture_app::plain_db;
@@ -512,7 +522,11 @@ pub(super) async fn money_range_and_network_types_round_trip(pool: &PgPool) {
     .await
     .unwrap();
     assert_eq!(
-        read::get_by_id(pool, created.id).await.unwrap().as_ref(),
+        LedgerEntry::by_primary_key(created.id)
+            .first(pool)
+            .await
+            .unwrap()
+            .as_ref(),
         Some(&created)
     );
 

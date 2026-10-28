@@ -49,7 +49,9 @@ pub trait LoansServiceApi {
         input: CreateLoanDto,
     ) -> Result<Loan, AppError> {
         let mut failures = FieldFailures::default();
-        let exists = books::read::exists_by_id(&mut *conn, input.book_id).await?;
+        let exists = books::models::Book::by_primary_key(input.book_id)
+            .exists(&mut *conn)
+            .await?;
         if !exists {
             failures.missing("book_id", "book");
         }
@@ -69,7 +71,7 @@ pub trait LoansServiceApi {
 
     /// `GET /api/v1/loans/{id}`: the row with this key, or `404`.
     async fn get_one(&self, id: LoanId) -> Result<Loan, AppError> {
-        let row = repo::get_by_id(self.pool(), id).await?;
+        let row = Loan::by_primary_key(id).first(self.pool()).await?;
         match row {
             Some(row) => Ok(row),
             None => Err(not_found()),
@@ -86,7 +88,9 @@ pub trait LoansServiceApi {
     ) -> Result<Loan, AppError> {
         let mut failures = FieldFailures::default();
         if let Some(value) = input.book_id {
-            let exists = books::read::exists_by_id(&mut *conn, value).await?;
+            let exists = books::models::Book::by_primary_key(value)
+                .exists(&mut *conn)
+                .await?;
             if !exists {
                 failures.missing("book_id", "book");
             }

@@ -17,6 +17,8 @@ mod tenants;
 mod types;
 mod writes;
 
+// The runtime's verbs on every model: `find`, `query`, `filter`, `count`.
+use rok_data::Model;
 use rok_data_sqlc_fixture_app::db;
 use rust_decimal::Decimal;
 use sqlx::PgPool;

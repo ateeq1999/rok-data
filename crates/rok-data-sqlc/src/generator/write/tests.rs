@@ -92,9 +92,12 @@ fn patch_uses_query_builder_binds_and_guards_empty_patch() {
         "pub async fn patch<'e, E>(\n    executor: E,\n    key: UserKey,\n    input: UpdateUser,\n) -> Result<User, rok_data::Error>"
     ));
     // An empty patch returns the current row, or `NotFound` like any verb.
-    assert!(rendered.contains(
-        "    if input.is_empty() {\n        let current = super::read::get_by_id(executor, key).await?;\n        return current.ok_or_else(|| rok_data::Error::not_found::<Self>(None));\n    }\n"
-    ));
+    assert!(
+        rendered.contains(
+            "    if input.is_empty() {\n        let row = Self::by_primary_key(key).first(executor).await?;\n        return row.ok_or_else(|| rok_data::Error::not_found::<Self>(None));\n    }\n"
+        ),
+        "{rendered}"
+    );
     assert!(rendered.contains(
         "    let mut update = User::update_all()\n        .filter(User::ORDER_ID.eq(key.order_id))\n        .filter(User::PRODUCT_ID.eq(key.product_id));\n"
     ));

@@ -227,14 +227,21 @@ fn push_reference(output: &mut String, endpoint: Endpoint, reference: &Reference
         args.push("value".to_owned());
         12
     };
-    let callee = if reference.owned {
+    if reference.owned {
         args.push("user.id".to_owned());
-        format!("{module}::listing::exists_owned")
+        let callee = format!("{module}::listing::exists_owned");
+        push_call(output, indent, "let exists = ", &callee, &args, ".await?;");
     } else {
-        format!("{module}::read::exists_by_id")
-    };
+        // The target's `by_primary_key` chain, checked: `Row::by_primary_key(..).exists(conn)`.
+        let row = &reference.target.struct_name;
+        let head = format!(
+            "{module}::models::{row}::by_primary_key({})",
+            args[1..].join(", ")
+        );
+        let calls = [format!(".exists({})", args[0]), ".await".to_owned()];
+        crate::generator::push_wide_chain(output, indent, "let exists = ", &head, &calls, "?;");
+    }
     let pad = " ".repeat(indent);
-    push_call(output, indent, "let exists = ", &callee, &args, ".await?;");
     output.push_str(&format!("{pad}if !exists {{\n"));
     let missing = [
         format!("\"{}\"", column.sql_name),

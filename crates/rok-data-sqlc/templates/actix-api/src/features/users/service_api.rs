@@ -7,7 +7,6 @@ use sqlx::{PgConnection, PgPool};
 
 use super::dto::{ListUsersQuery, UpdateUserDto, UserSort};
 use super::model::{User, UserId};
-use super::repo;
 use crate::db::search::{Direction, Sort};
 use crate::error::AppError;
 use crate::shared::response::PaginatedResponse;
@@ -41,7 +40,7 @@ pub trait UsersServiceApi {
 
     /// `GET /api/v1/users/{id}`: the row with this key, or `404`.
     async fn get_one(&self, id: UserId) -> Result<User, AppError> {
-        let row = repo::get_by_id(self.pool(), id).await?;
+        let row = User::by_primary_key(id).first(self.pool()).await?;
         match row {
             Some(row) => Ok(row),
             None => Err(not_found()),

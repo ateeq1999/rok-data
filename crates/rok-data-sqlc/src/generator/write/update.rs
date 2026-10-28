@@ -30,10 +30,9 @@ pub(super) fn render_patch(output: &mut String, table: &Table, columns: &[&Colum
     );
 
     output.push_str("    if input.is_empty() {\n");
-    push_get_by_id(output, table, "let current = ", "?;", None);
-    output.push_str(
-        "        return current.ok_or_else(|| rok_data::Error::not_found::<Self>(None));\n",
-    );
+    push_read_row(output, table);
+    output
+        .push_str("        return row.ok_or_else(|| rok_data::Error::not_found::<Self>(None));\n");
     output.push_str("    }\n\n");
 
     push_update_builder(output, table);
@@ -115,7 +114,8 @@ pub(super) fn render_versioned_patch(
     );
 
     output.push_str("    if input.is_empty() {\n");
-    push_get_by_id(output, table, "let Some(row) = ", "?", Some(" else {"));
+    push_read_row(output, table);
+    output.push_str("        let Some(row) = row else {\n");
     output.push_str("            return Ok(UpdateOutcome::NotFound);\n");
     output.push_str("        };\n");
     output.push_str(&format!(
@@ -309,52 +309,11 @@ fn push_update_builder(output: &mut String, table: &Table) {
     );
 }
 
-/// `{lead}super::read::get_by_id(executor, <key args>).await{trail}` at an
-/// indent of 8, with `else_open` (` else {`) after it for a `let`-`else`,
-/// laid out as rustfmt lays it out: on one line when it fits; for a `let`,
-/// with `else {` on its own line, then with the call moved below the `=`;
-/// otherwise with one argument per line.
-fn push_get_by_id(
-    output: &mut String,
-    table: &Table,
-    lead: &str,
-    trail: &str,
-    else_open: Option<&str>,
-) {
-    let mut args = vec!["executor".to_owned()];
-    args.extend(keys::key_args(table));
-    let call = format!("super::read::get_by_id({}).await{trail}", args.join(", "));
-    let else_open = else_open.unwrap_or("");
-    let fits = |line: &str| line.len() <= max_width();
-
-    let one_line = format!("        {lead}{call}{else_open}");
-    if fits(&one_line) {
-        output.push_str(&format!("{one_line}\n"));
-        return;
-    }
-    let else_line = if else_open.is_empty() {
-        String::new()
-    } else {
-        format!("        {}\n", else_open.trim_start())
-    };
-    if !else_open.is_empty() {
-        let head = format!("        {lead}{call}");
-        if fits(&head) {
-            output.push_str(&format!("{head}\n{else_line}"));
-            return;
-        }
-        let below = format!("            {call}");
-        if fits(&below) {
-            output.push_str(&format!(
-                "        {}\n{below}\n{else_line}",
-                lead.trim_end()
-            ));
-            return;
-        }
-    }
-    output.push_str(&format!("        {lead}super::read::get_by_id(\n"));
-    for arg in &args {
-        output.push_str(&format!("            {arg},\n"));
-    }
-    output.push_str(&format!("        )\n        .await{trail}\n{else_line}"));
+/// `let row = Self::by_primary_key(<key args>).first(executor).await?;` at an
+/// indent of 8: the row `patch` would change, read through the model's
+/// `by_primary_key` chain.
+fn push_read_row(output: &mut String, table: &Table) {
+    let head = format!("Self::by_primary_key({})", keys::key_args(table).join(", "));
+    let calls = [".first(executor)".to_owned(), ".await".to_owned()];
+    push_wide_chain(output, 8, "let row = ", &head, &calls, "?;");
 }

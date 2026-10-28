@@ -25,9 +25,10 @@ use crate::{ApiAccess, ApiConfig, ApiEndpoint};
 #[derive(Debug, Clone)]
 pub struct Lookup<'a> {
     pub column: &'a Column,
-    /// The data layer's function, which is also the handler's and the
-    /// service method's name: `get_by_slug`.
+    /// The handler's and the service method's name: `get_by_slug`.
     pub function: String,
+    /// The data layer's chain-returning read on the row: `by_slug`.
+    pub read: String,
 }
 
 impl Lookup<'_> {
@@ -490,7 +491,8 @@ fn lookups<'a>(table: &'a Table, hidden: &[&Column]) -> Vec<Lookup<'a>> {
         .filter_map(|lookup| match lookup.columns.as_slice() {
             [column] if !hidden.iter().any(|h| h.sql_name == column.sql_name) => Some(Lookup {
                 column,
-                function: lookup.fn_name,
+                function: format!("get_{}", lookup.fn_name),
+                read: lookup.fn_name,
             }),
             _ => None,
         })

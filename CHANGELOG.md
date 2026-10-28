@@ -23,6 +23,12 @@ data layer stops naming `sqlx`.
   A filter builds one `rok_data` condition. `POST /search` pages a
   `Row::search_sorted(…)` chain. The runtime gains `NaiveDateTime` and
   `NaiveTime` list binds.
+- **Reads** are the runtime's verbs (`Row::find`, `Row::all`, `Row::count`)
+  plus the chains the schema knows: `Row::by_primary_key(…)` and
+  `Row::by_<columns>(…)` (was `get_by_<columns>`). The generated
+  `get_by_id`, `exists_by_id`, `list`, `list_page` and `count` are gone, and
+  so are the deprecated `write::` module wrappers. A composite key struct is
+  a `rok_data::IntoKey`.
 
 ## [0.3.0] — the model-shaped data layer
 

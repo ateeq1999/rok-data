@@ -7,7 +7,7 @@ use super::feature::Feature;
 use super::layout::{Uses, push_call, push_signature};
 use super::relations::{Kind, Relation};
 use super::scope;
-use super::service::{key_arg, key_param, push_not_owned, push_transaction};
+use super::service::{key_arg, key_param, push_chain_read, push_not_owned, push_transaction};
 use crate::generator::{keys, param_name, param_type, push_doc, push_fn_head};
 
 /// The relation methods of the service trait.
@@ -146,13 +146,28 @@ fn push_read_row(output: &mut String, feature: &Feature<'_>) {
     let mut args = vec!["self.pool()".to_owned()];
     args.extend(tenant.strip_suffix(", ").map(str::to_owned));
     args.push(key_arg(feature));
-    let callee = if feature.owner.is_some() {
+    if feature.owner.is_some() {
         args.push("user.id".to_owned());
-        "repo::get_owned"
+        push_call(
+            output,
+            8,
+            "let row = ",
+            "repo::get_owned",
+            &args,
+            ".await?;",
+        );
     } else {
-        "repo::get_by_id"
-    };
-    push_call(output, 8, "let row = ", callee, &args, ".await?;");
+        let (row, read_args) = (feature.row(), &args[1..]);
+        push_chain_read(
+            output,
+            "let row = ",
+            row,
+            "by_primary_key",
+            read_args,
+            "first",
+            "self.pool()",
+        );
+    }
     output.push_str("        let row = row.ok_or_else(not_found)?;\n");
 }
 
@@ -241,13 +256,15 @@ fn render_writes(
                 ".await?;",
             );
         } else {
-            push_call(
+            let (row, read_args) = (feature.row(), &args[1..]);
+            push_chain_read(
                 output,
-                8,
                 "let found = ",
-                "repo::exists_by_id",
-                &args,
-                ".await?;",
+                row,
+                "by_primary_key",
+                read_args,
+                "exists",
+                "&mut *conn",
             );
         }
         push_not_owned(output, "found");

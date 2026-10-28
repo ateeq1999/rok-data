@@ -159,6 +159,31 @@ pub fn data_args(feature: &Feature<'_>, executor: &str) -> Vec<String> {
     args
 }
 
+/// `{lead}Row::{read}(<args>).{run}(<executor>).await?;` at an indent of 8:
+/// one of the data layer's chain-returning reads (`by_primary_key`, `by_<column>`),
+/// run. `args` are the read's own (the tenant, then its values). A read
+/// whose call leaves no room after `lead` is bound first (`let query =
+/// Row::{read}(..);`), so each statement lays out as a plain call does.
+pub fn push_chain_read(
+    output: &mut String,
+    lead: &str,
+    row: &str,
+    read: &str,
+    args: &[String],
+    run: &str,
+    executor: &str,
+) {
+    let head = format!("{row}::{read}({})", args.join(", "));
+    let calls = [format!(".{run}({executor})"), ".await".to_owned()];
+    if 8 + lead.len() + head.len() < crate::generator::MAX_WIDTH {
+        crate::generator::push_wide_chain(output, 8, lead, &head, &calls, "?;");
+        return;
+    }
+    let callee = format!("{row}::{read}");
+    push_call(output, 8, "let query = ", &callee, args, ";");
+    crate::generator::push_wide_chain(output, 8, lead, "query", &calls, "?;");
+}
+
 /// `if !<binding> { return Err(not_found()); }`.
 pub fn push_not_owned(output: &mut String, binding: &str) {
     output.push_str(&format!(
@@ -251,13 +276,28 @@ fn render_get_one(output: &mut String, uses: &mut Uses, feature: &Feature<'_>) {
     );
     let mut args = data_args(feature, "self.pool()");
     args.push(key_arg(feature));
-    let callee = if feature.owner.is_some() {
+    if feature.owner.is_some() {
         args.push("user.id".to_owned());
-        "repo::get_owned"
+        push_call(
+            output,
+            8,
+            "let row = ",
+            "repo::get_owned",
+            &args,
+            ".await?;",
+        );
     } else {
-        "repo::get_by_id"
-    };
-    push_call(output, 8, "let row = ", callee, &args, ".await?;");
+        let read_args = &args[1..];
+        push_chain_read(
+            output,
+            "let row = ",
+            feature.row(),
+            "by_primary_key",
+            read_args,
+            "first",
+            "self.pool()",
+        );
+    }
     output.push_str("        match row {\n");
     output.push_str("            Some(row) => Ok(row),\n");
     output.push_str("            None => Err(not_found()),\n");
@@ -289,8 +329,15 @@ fn render_lookup(
     let mut args = data_args(feature, "self.pool()");
     let borrowed = crate::generator::param_type(lookup.column).starts_with('&');
     args.push(if borrowed { "&value" } else { "value" }.to_owned());
-    let callee = format!("repo::{}", lookup.function);
-    push_call(output, 8, "let row = ", &callee, &args, ".await?;");
+    push_chain_read(
+        output,
+        "let row = ",
+        feature.row(),
+        &lookup.read,
+        &args[1..],
+        "first",
+        "self.pool()",
+    );
     if feature.owner.is_some() {
         output.push_str("        let row = row.filter(|row| repo::owned_by(row, user.id));\n");
     }
@@ -469,13 +516,15 @@ fn render_write_pair(
             let restore = format!("{}::restore", feature.row());
             push_call(output, 8, "let restored = ", &restore, &key_args, ".await;");
             output.push_str("        restored.map_err(or_not_found)?;\n");
-            push_call(
+            let read_args = &key_args[1..];
+            push_chain_read(
                 output,
-                8,
                 "let row = ",
-                "repo::get_by_id",
-                &key_args,
-                ".await?;",
+                feature.row(),
+                "by_primary_key",
+                read_args,
+                "first",
+                "&mut *conn",
             );
             output.push_str("        row.ok_or_else(not_found)\n");
         }

@@ -515,11 +515,12 @@ mod tests {
             vec![column("id", "i64"), column("email", "String")],
             &["id"],
         );
-        for rendered in [
-            read::render(&table, std::slice::from_ref(&table)),
-            write::render(&table),
-        ] {
-            assert!(rendered.contains("E: rok_data::Executor<'e>,"));
+        // The reads are chains the caller runs, on any executor.
+        let read = read::render(&table, std::slice::from_ref(&table));
+        assert!(read.contains("-> rok_data::Select<User>"), "{read}");
+        let write = write::render(&table);
+        assert!(write.contains("E: rok_data::Executor<'e>,"));
+        for rendered in [read, write] {
             assert!(!rendered.contains("PgPool"));
             assert!(!rendered.contains("sqlx::PgConnection"));
         }

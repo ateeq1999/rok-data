@@ -235,7 +235,7 @@ pub trait NotesServiceApi {
         }
         let restored = Note::restore(&mut *conn, tenant, id).await;
         restored.map_err(or_not_found)?;
-        let row = repo::get_by_id(&mut *conn, tenant, id).await?;
+        let row = Note::by_primary_key(tenant, id).first(&mut *conn).await?;
         row.ok_or_else(not_found)
     }
 

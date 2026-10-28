@@ -6,7 +6,6 @@ use super::*;
 /// alter_schema.sql; the generated model carries only the final columns.
 pub(super) async fn altered_table_has_its_final_columns(pool: &PgPool) {
     use db::revised_notes::models::{NewRevisedNote, RevisedNote};
-    use db::revised_notes::read;
 
     let created = RevisedNote::create(
         pool,
@@ -28,7 +27,11 @@ pub(super) async fn altered_table_has_its_final_columns(pool: &PgPool) {
     .unwrap();
     assert_eq!(defaulted.body, "");
 
-    let stored = read::get_by_id(pool, created.id).await.unwrap().unwrap();
+    let stored = RevisedNote::by_primary_key(created.id)
+        .first(pool)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(
         stored,
         RevisedNote {
@@ -45,7 +48,6 @@ pub(super) async fn altered_table_has_its_final_columns(pool: &PgPool) {
 /// with no default, a nullable `note`, and a defaulted `views`.
 pub(super) async fn altered_columns_round_trip_in_their_final_shape(pool: &PgPool) {
     use db::meter_readings::models::{MeterReading, MeterReadingId, NewMeterReading};
-    use db::meter_readings::read;
 
     // Both exceed `i32`, which the columns were created as.
     let id = MeterReadingId::from(5_000_000_001_i64);
@@ -73,11 +75,11 @@ pub(super) async fn altered_columns_round_trip_in_their_final_shape(pool: &PgPoo
     };
     assert_eq!(created, expected);
     assert_eq!(
-        read::get_by_id(pool, id).await.unwrap(),
+        MeterReading::by_primary_key(id).first(pool).await.unwrap(),
         Some(expected.clone())
     );
     assert_eq!(
-        read::get_by_code(pool, "M-1").await.unwrap(),
+        MeterReading::by_code("M-1").first(pool).await.unwrap(),
         Some(expected)
     );
 

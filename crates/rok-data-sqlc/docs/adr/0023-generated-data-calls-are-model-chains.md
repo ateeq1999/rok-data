@@ -7,7 +7,13 @@ The generated `db/` folder used two styles at once. CRUD went through the runtim
 **Calls are model methods.**
 
 - **The shape:** a table's reads and writes are associated functions on its model, `User::by_email(email)`, `User::search(filter)`, `User::matching(q, sort)`, rather than free functions in `read.rs`/`write.rs`/`listing.rs`.
-- **What the runtime already names isn't generated:** `Model` already gives every model `find`, `find_or_fail`, `all`, `count`, `exists` and `query`. So the engine stops emitting `get_by_id`, `exists_by_id`, `list`, `list_page` and `count`, and a call site uses the runtime's verb (`User::find(&db, id)`), one name per operation (workspace ADR 0020). The engine generates only what the schema knows and the runtime doesn't: unique-key lookups, the filter's `search`, and the list endpoint's `matching`.
+- **What the runtime already names isn't generated:** `Model` already gives every model `find`, `find_or_fail`, `all`, `count`, `exists` and `query`. So the engine stops emitting `get_by_id`, `exists_by_id`, `list`, `list_page` and `count`, and a call site uses the runtime's verb (`User::find(&db, id)`), one name per operation (workspace ADR 0020). A composite key struct implements `rok_data::IntoKey`, so `find` takes it too. The engine generates only what the schema knows and the runtime doesn't:
+  - `by_primary_key`: the key's chain;
+  - `by_<columns>`: one per unique key, `User::by_email(email)`;
+  - the filter's `search`;
+  - the list endpoint's `matching`.
+- **Why `by_primary_key` sits beside `find`:** `find(&db, id)` fetches, and `by_primary_key(id)` is the query that fetch runs, as `by_email` is for a unique column. The generated services, prechecks and `patch` need one key lookup that also checks existence (`.exists(..)`), takes a tenant first on a tenant table, and borrows a text key. `by_key` was the first name, but it collided with a unique `key` column (`roles.key`, `settings.key`), a common one. A unique lookup that would still collide (a column named `primary_key`) is skipped.
+- **No module wrappers:** the 0.2 free functions in `write.rs` (`books::write::create`), deprecated in 0.3, are gone. The verbs exist only on the model.
 - **Tenant tables keep explicit tenant arguments.** The runtime's tenancy (`with_tenant`) is task-local and fails closed, while generated tenant tables take the tenant as a parameter. A tenant table's generated calls take it first.
 - **They return chains:** a lookup or search returns a `Select<User>` (or the runtime's write builder). The call site picks how to run it: `.first(&db)`, `.all(&db)`, `.count(&db)`, `.paginate(&db, page, per_page)`, `.cursor_paginate(..)`. One generated function covers what `search`, `search_after`, `list`, `list_page` and `count` did.
 - **Annotated queries stay free functions:** an annotated query has no natural owner model, so `db::queries::<file>::<query>` keeps its place (engine ADR 0008).

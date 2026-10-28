@@ -92,7 +92,7 @@ pub trait AccountsServiceApi {
 
     /// `GET /api/v1/accounts/{id}`: the row with this key, or `404`.
     async fn get_one(&self, id: AccountId) -> Result<Account, AppError> {
-        let row = repo::get_by_id(self.pool(), id).await?;
+        let row = Account::by_primary_key(id).first(self.pool()).await?;
         match row {
             Some(row) => Ok(row),
             None => Err(not_found()),
@@ -146,7 +146,7 @@ pub trait AccountsServiceApi {
 
     /// `GET /api/v1/accounts/by-email/{value}`: the row whose `email` is `value`, or `404`.
     async fn get_by_email(&self, value: String) -> Result<Account, AppError> {
-        let row = repo::get_by_email(self.pool(), &value).await?;
+        let row = Account::by_email(&value).first(self.pool()).await?;
         match row {
             Some(row) => Ok(row),
             None => Err(not_found()),
@@ -160,7 +160,7 @@ pub trait AccountsServiceApi {
         user: AuthUser,
         id: AccountId,
     ) -> Result<Vec<Note>, AppError> {
-        let row = repo::get_by_id(self.pool(), id).await?;
+        let row = Account::by_primary_key(id).first(self.pool()).await?;
         let row = row.ok_or_else(not_found)?;
         let rows = std::slice::from_ref(&row);
         let mut loaded = repo::load_notes(self.pool(), tenant, rows).await?;

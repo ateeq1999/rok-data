@@ -12,7 +12,6 @@ pub(super) async fn tenant_rows_are_invisible_to_other_tenants(pool: &PgPool) {
     use db::search::Sort;
     use db::tenant_notes::filter::{TenantNoteFilter, TenantNoteSortKey};
     use db::tenant_notes::models::{NewTenantNote, TenantNote, UpdateTenantNote};
-    use db::tenant_notes::read;
 
     let tenant_a = uuid::Uuid::from_u128(18_001);
     let tenant_b = uuid::Uuid::from_u128(18_002);
@@ -37,13 +36,28 @@ pub(super) async fn tenant_rows_are_invisible_to_other_tenants(pool: &PgPool) {
 
     let ids = |rows: Vec<TenantNote>| rows.into_iter().map(|row| row.id).collect::<Vec<_>>();
     let sees = async |tenant, expected: Vec<_>| {
-        assert_eq!(ids(read::list(pool, tenant).await.unwrap()), expected);
         assert_eq!(
-            ids(read::list_page(pool, tenant, 10, 0).await.unwrap()),
+            ids(TenantNote::filter(TenantNote::TENANT_ID.eq(tenant))
+                .order_by(TenantNote::ID)
+                .all(pool)
+                .await
+                .unwrap()),
             expected
         );
         assert_eq!(
-            read::count(pool, tenant).await.unwrap(),
+            ids(TenantNote::filter(TenantNote::TENANT_ID.eq(tenant))
+                .order_by(TenantNote::ID)
+                .limit(10)
+                .all(pool)
+                .await
+                .unwrap()),
+            expected
+        );
+        assert_eq!(
+            TenantNote::filter(TenantNote::TENANT_ID.eq(tenant))
+                .count(pool)
+                .await
+                .unwrap(),
             i64::try_from(expected.len()).unwrap()
         );
         let search = TenantNote::search(tenant, TenantNoteFilter::default())
@@ -58,7 +72,8 @@ pub(super) async fn tenant_rows_are_invisible_to_other_tenants(pool: &PgPool) {
             .unwrap();
         assert_eq!(ids(keyset.items), expected);
         assert_eq!(
-            read::get_by_code(pool, tenant, "N")
+            TenantNote::by_code(tenant, "N")
+                .first(pool)
                 .await
                 .unwrap()
                 .map(|row| row.id),
@@ -70,10 +85,18 @@ pub(super) async fn tenant_rows_are_invisible_to_other_tenants(pool: &PgPool) {
 
     // Tenant B cannot reach tenant A's row by its key.
     assert_eq!(
-        read::get_by_id(pool, tenant_b, note.id).await.unwrap(),
+        TenantNote::by_primary_key(tenant_b, note.id)
+            .first(pool)
+            .await
+            .unwrap(),
         None
     );
-    assert!(!read::exists_by_id(pool, tenant_b, note.id).await.unwrap());
+    assert!(
+        !TenantNote::by_primary_key(tenant_b, note.id)
+            .exists(pool)
+            .await
+            .unwrap()
+    );
     let patch = || UpdateTenantNote {
         code: None,
         body: Some("hijacked".to_owned()),
@@ -107,7 +130,10 @@ pub(super) async fn tenant_rows_are_invisible_to_other_tenants(pool: &PgPool) {
             .is_not_found()
     );
     assert_eq!(
-        read::get_by_id(pool, tenant_a, note.id).await.unwrap(),
+        TenantNote::by_primary_key(tenant_a, note.id)
+            .first(pool)
+            .await
+            .unwrap(),
         Some(note.clone()),
         "tenant B changed nothing"
     );
@@ -138,7 +164,6 @@ pub(super) async fn a_tenant_in_the_primary_key_is_passed_once(pool: &PgPool) {
     use db::tenant_members::filter::TenantMemberFilter;
     use db::tenant_members::models::TenantMember;
     use db::tenant_members::models::{NewTenantMember, UpdateTenantMember};
-    use db::tenant_members::read;
 
     let tenant_a = uuid::Uuid::from_u128(18_011);
     let tenant_b = uuid::Uuid::from_u128(18_012);
@@ -155,7 +180,8 @@ pub(super) async fn a_tenant_in_the_primary_key_is_passed_once(pool: &PgPool) {
         .unwrap();
     }
     let name = async |tenant| {
-        read::get_by_id(pool, tenant, "M1")
+        TenantMember::by_primary_key(tenant, "M1")
+            .first(pool)
             .await
             .unwrap()
             .map(|row| row.name)
@@ -198,7 +224,6 @@ pub(super) async fn a_tenant_in_the_primary_key_is_passed_once(pool: &PgPool) {
 pub(super) async fn row_level_security_sees_the_session_tenant(pool: &PgPool) {
     use db::rls_notes::models::NewRlsNote;
     use db::rls_notes::models::RlsNote;
-    use db::rls_notes::read;
     use db::session;
 
     // Superusers bypass row-level security, so the reads run as a role the
@@ -234,17 +259,31 @@ pub(super) async fn row_level_security_sees_the_session_tenant(pool: &PgPool) {
         .await
         .unwrap();
     assert_eq!(
-        read::list(&mut *tx, tenant_a).await.unwrap(),
+        RlsNote::filter(RlsNote::TENANT_ID.eq(tenant_a))
+            .order_by(RlsNote::ID)
+            .all(&mut *tx)
+            .await
+            .unwrap(),
         Vec::new(),
         "no tenant setting, so the policy matches nothing"
     );
     session::set_tenant(&mut tx, tenant_a).await.unwrap();
     session::set_user(&mut tx, "user-18").await.unwrap();
     assert_eq!(
-        read::list(&mut *tx, tenant_a).await.unwrap(),
+        RlsNote::filter(RlsNote::TENANT_ID.eq(tenant_a))
+            .order_by(RlsNote::ID)
+            .all(&mut *tx)
+            .await
+            .unwrap(),
         vec![created[0].clone()]
     );
-    assert_eq!(read::count(&mut *tx, tenant_b).await.unwrap(), 0);
+    assert_eq!(
+        RlsNote::filter(RlsNote::TENANT_ID.eq(tenant_b))
+            .count(&mut *tx)
+            .await
+            .unwrap(),
+        0
+    );
     let user: String = sqlx::query_scalar("SELECT current_setting('app.user_id')")
         .fetch_one(&mut *tx)
         .await

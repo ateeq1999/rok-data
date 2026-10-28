@@ -2,43 +2,53 @@ use crate::schema::{Column, Table};
 
 use super::search::SearchApi;
 use super::{
-    HEADER, filter_call, keys, model_chain, param_name, param_type, push_chain, push_doc,
-    push_fn_head, tenant_filter_call, types_import, use_list, use_paths,
+    HEADER, filter_call, keys, model_chain, param_name, param_type, push_doc, tenant_filter_call,
+    types_import, use_list, use_paths,
 };
 
+/// Renders `read.rs`: `impl Row` with the reads the schema knows and the
+/// runtime doesn't, each a query chain the caller runs (`.first(..)`,
+/// `.exists(..)`, `.paginate(..)`): `by_primary_key`, one `by_<columns>` per unique
+/// key, and `search`. Fetching by key, every row, or a count is the
+/// runtime's (`Row::find`, `Row::all`, `Row::count`).
 pub fn render(table: &Table, tables: &[Table]) -> String {
     let api = SearchApi::for_table(table);
     let fallible = !super::search::filter_relationships(table, tables).is_empty();
-    let mut output = format!("{HEADER}\n{}", search_imports(table, api));
+    let mut items = Vec::new();
+    if !table.primary_key.is_empty() {
+        items.push(render_by_primary_key(table));
+    }
+    for lookup in unique_lookups(table) {
+        items.push(render_unique_lookup(table, &lookup));
+    }
+    if api.any() {
+        items.push(render_search(table, fallible));
+    }
+    let mut output = format!("{HEADER}\n");
+    if table.primary_key.is_empty() {
+        output.push_str(
+            "// No primary key detected: `by_primary_key` is not generated for this table, and its\n// rows come back in no particular order.\n",
+        );
+    }
+    if items.is_empty() {
+        return output;
+    }
+    if table.primary_key.is_empty() {
+        output.push('\n');
+    }
+    output.push_str(&search_imports(table, api));
     let mut models = vec![table.struct_name.clone()];
     models.extend(keys::key_items(table));
     models.sort();
     output.push_str(&use_list("super::models", &models));
-    // rok chains need the Model trait statics in scope (the executor bound
-    // stays fully qualified). After the `use_list`, so rustfmt's order —
-    // super-paths first — stays stable across regeneration.
+    // rok chains need the Model trait statics in scope. After the
+    // `use_list`, so rustfmt's order — super-paths first — stays stable.
     output.push_str("use rok_data::Model;\n");
-
-    if table.primary_key.is_empty() {
-        output.push_str(
-            "\n// No primary key detected; get_by_id, exists_by_id, and list_page are not generated\n// for this table, and list returns rows in no particular order.\n",
-        );
-    } else {
-        render_get_by_id(&mut output, table);
-        render_exists_by_id(&mut output, table);
-    }
-    for lookup in unique_lookups(table) {
-        render_unique_lookup(&mut output, table, &lookup);
-    }
-    render_list(&mut output, table);
-    if !table.primary_key.is_empty() {
-        render_list_page(&mut output, table);
-    }
-    render_count(&mut output, table);
-    if api.any() {
-        render_search(&mut output, table, fallible);
-    }
-
+    output.push_str(&format!(
+        "\nimpl {} {{\n{}}}\n",
+        table.struct_name,
+        items.join("\n")
+    ));
     output
 }
 
@@ -76,7 +86,7 @@ fn search_imports(table: &Table, api: SearchApi) -> String {
     use_paths(&paths)
 }
 
-/// A `get_by_<cols>` lookup over one unique key other than the primary key.
+/// A `by_<cols>` lookup over one unique key other than the primary key.
 pub(crate) struct Lookup<'a> {
     pub(crate) fn_name: String,
     pub(crate) columns: Vec<&'a Column>,
@@ -114,9 +124,9 @@ pub(crate) fn unique_lookups(table: &Table) -> Vec<Lookup<'_>> {
                 .iter()
                 .map(|column| column.rust_name.trim_end_matches('_'))
                 .collect();
-            let fn_name = format!("get_by_{}", column_names.join("_and_"));
-            // `get_by_id` already names the primary-key lookup.
-            if (skip_primary_key == 1 && fn_name == "get_by_id") || names.contains(&fn_name) {
+            let fn_name = format!("by_{}", column_names.join("_and_"));
+            // A column named `primary_key` would name the primary-key lookup.
+            if (skip_primary_key == 1 && fn_name == "by_primary_key") || names.contains(&fn_name) {
                 return None;
             }
             names.push(fn_name.clone());
@@ -129,50 +139,92 @@ pub(crate) fn unique_lookups(table: &Table) -> Vec<Lookup<'_>> {
         .collect()
 }
 
-/// A read's doc comment, noting on a soft-delete table that deleted rows
-/// are left out.
+/// A read's doc comment at the `impl`'s indent, noting on a soft-delete
+/// table that deleted rows are left out.
 fn push_read_doc(output: &mut String, table: &Table, lines: &[&str]) {
-    push_doc_with_note(output, table, lines, "Soft-deleted rows are left out.");
-}
-
-fn push_doc_with_note(output: &mut String, table: &Table, lines: &[&str], note: &str) {
     let mut lines = lines.to_vec();
     if table.soft_delete_column.is_some() {
-        lines.push(note);
+        lines.push("Soft-deleted rows are left out.");
     }
-    push_doc(output, 0, &lines);
+    push_doc(output, 4, &lines);
 }
 
-fn render_unique_lookup(output: &mut String, table: &Table, lookup: &Lookup<'_>) {
+/// A chain-returning read: `#[must_use] pub fn {name}({params}) ->
+/// Select<Row>`, its body the model chain of `calls`.
+fn push_chain_read(
+    output: &mut String,
+    table: &Table,
+    name: &str,
+    params: &[String],
+    calls: Vec<String>,
+) {
+    let row = &table.struct_name;
+    output.push_str("    #[must_use]\n");
+    let head = format!("pub fn {name}");
+    super::push_signature(
+        output,
+        4,
+        &head,
+        params,
+        &format!("rok_data::Select<{row}>"),
+    );
+    let mut calls = calls;
+    let chain_head = model_chain(row, &mut calls, 8, "");
+    super::push_wide_chain(output, 8, "", &chain_head, &calls, "");
+    output.push_str("    }\n");
+}
+
+/// `by_primary_key`: the row with the given primary key (in the tenant), as a
+/// chain: `.first(executor)` fetches it, `.exists(executor)` checks it.
+fn render_by_primary_key(table: &Table) -> String {
+    let mut output = String::new();
+    push_read_doc(
+        &mut output,
+        table,
+        &[
+            "The row with the given primary key, as a query chain: `.first(executor)`",
+            "fetches it, `.exists(executor)` checks it.",
+        ],
+    );
+    let mut calls: Vec<String> = tenant_filter_call(table).into_iter().collect();
+    let binds = keys::key_binds(table);
+    for (column, bind) in table.key_columns().into_iter().zip(&binds) {
+        calls.push(filter_call(table, column, bind));
+    }
+    push_chain_read(
+        &mut output,
+        table,
+        "by_primary_key",
+        &keys::key_params(table),
+        calls,
+    );
+    output
+}
+
+fn render_unique_lookup(table: &Table, lookup: &Lookup<'_>) -> String {
     let described: Vec<String> = lookup
         .columns
         .iter()
         .map(|column| super::doc_name(&column.sql_name))
         .collect();
-    output.push('\n');
+    let mut output = String::new();
     push_read_doc(
-        output,
+        &mut output,
         table,
-        &[&format!(
-            "Fetches the row with the given {}, or `None` if there is none.",
-            described.join(" and ")
-        )],
+        &[
+            &format!(
+                "The row with the given {}, as a query chain:",
+                described.join(" and ")
+            ),
+            "`.first(executor)` fetches it.",
+        ],
     );
     let params: Vec<String> = lookup
         .columns
         .iter()
         .map(|column| format!("{}: {}", param_name(column), param_type(column)))
         .collect();
-    push_fn_head(
-        output,
-        &lookup.fn_name,
-        &keys::scoped_params(table, &params),
-        &format!("Result<Option<{}>, rok_data::Error>", table.struct_name),
-    );
-    let mut calls = Vec::new();
-    if let Some(call) = tenant_filter_call(table) {
-        calls.push(call);
-    }
+    let mut calls: Vec<String> = tenant_filter_call(table).into_iter().collect();
     for column in &lookup.columns {
         let value = param_name(column);
         calls.push(
@@ -183,24 +235,18 @@ fn render_unique_lookup(output: &mut String, table: &Table, lookup: &Lookup<'_>)
             },
         );
     }
-    calls.push(".first(executor)".to_owned());
-    calls.push(".await".to_owned());
-    push_chain(
-        output,
-        4,
-        "",
-        &model_chain(&table.struct_name, &mut calls, 4, ""),
-        &calls,
-    );
-    output.push_str("}\n");
+    let params = keys::scoped_params(table, &params);
+    push_chain_read(&mut output, table, &lookup.fn_name, &params, calls);
+    output
 }
 
-/// `impl Row { fn search }`: the rows `filter` matches as a query chain,
-/// which the caller orders and pages (`.order_by(..)`, `.paginate(..)`,
+/// `search`: the rows `filter` matches as a query chain, which the caller
+/// orders and pages (`.order_by(..)`, `.paginate(..)`,
 /// `.cursor_paginate(..)`).
-fn render_search(output: &mut String, table: &Table, fallible: bool) {
+fn render_search(table: &Table, fallible: bool) -> String {
     let name = &table.struct_name;
-    output.push_str(&format!("\nimpl {name} {{\n"));
+    let mut output = String::new();
+    let output = &mut output;
     let mut doc = vec![
         "The rows matching `filter`, as a query chain: order and page it there,",
         "`.order_by(..)` and `.paginate(executor, page, per_page)`.",
@@ -257,178 +303,8 @@ fn render_search(output: &mut String, table: &Table, fallible: bool) {
         }
         _ => {}
     }
-    output.push_str("    }\n}\n");
-}
-
-fn render_get_by_id(output: &mut String, table: &Table) {
-    output.push('\n');
-    push_read_doc(
-        output,
-        table,
-        &["Fetches the row with the given primary key, or `None` if there is none."],
-    );
-    push_fn_head(
-        output,
-        "get_by_id",
-        &keys::key_params(table),
-        &format!("Result<Option<{}>, rok_data::Error>", table.struct_name),
-    );
-    let mut calls = Vec::new();
-    if let Some(call) = tenant_filter_call(table) {
-        calls.push(call);
-    }
-    let binds = keys::key_binds(table);
-    for (column, bind) in table.key_columns().into_iter().zip(&binds) {
-        calls.push(filter_call(table, column, bind));
-    }
-    calls.push(".first(executor)".to_owned());
-    calls.push(".await".to_owned());
-    push_chain(
-        output,
-        4,
-        "",
-        &model_chain(&table.struct_name, &mut calls, 4, ""),
-        &calls,
-    );
-    output.push_str("}\n");
-}
-
-fn render_exists_by_id(output: &mut String, table: &Table) {
-    output.push('\n');
-    push_read_doc(
-        output,
-        table,
-        &["Returns whether a row with the given primary key exists."],
-    );
-    push_fn_head(
-        output,
-        "exists_by_id",
-        &keys::key_params(table),
-        "Result<bool, rok_data::Error>",
-    );
-    let mut calls = Vec::new();
-    if let Some(call) = tenant_filter_call(table) {
-        calls.push(call);
-    }
-    let binds = keys::key_binds(table);
-    for (column, bind) in table.key_columns().into_iter().zip(&binds) {
-        calls.push(filter_call(table, column, bind));
-    }
-    calls.push(".count(executor)".to_owned());
-    calls.push(".await".to_owned());
-    calls.push(".map(|count| count > 0)".to_owned());
-    push_chain(
-        output,
-        4,
-        "",
-        &model_chain(&table.struct_name, &mut calls, 4, ""),
-        &calls,
-    );
-    output.push_str("}\n");
-}
-
-fn render_list(output: &mut String, table: &Table) {
-    let keys = table.primary_key_columns();
-    let doc = if keys.is_empty() {
-        "Fetches every row, in no particular order."
-    } else {
-        "Fetches every row, ordered by primary key."
-    };
-
-    output.push('\n');
-    push_read_doc(output, table, &[doc]);
-    push_fn_head(
-        output,
-        "list",
-        &keys::tenant_params(table),
-        &format!("Result<Vec<{}>, rok_data::Error>", table.struct_name),
-    );
-    let mut calls = Vec::new();
-    if let Some(call) = tenant_filter_call(table) {
-        calls.push(call);
-    }
-    for column in &keys {
-        calls.push(format!(
-            ".order_by({}::{})",
-            table.struct_name,
-            column.rust_name.to_uppercase()
-        ));
-    }
-    calls.push(".all(executor)".to_owned());
-    calls.push(".await".to_owned());
-    push_chain(
-        output,
-        4,
-        "",
-        &model_chain(&table.struct_name, &mut calls, 4, ""),
-        &calls,
-    );
-    output.push_str("}\n");
-}
-
-fn render_list_page(output: &mut String, table: &Table) {
-    let keys = table.primary_key_columns();
-    output.push('\n');
-    push_read_doc(
-        output,
-        table,
-        &[
-            "Fetches at most `limit` rows after skipping `offset`, ordered by primary key so",
-            "consecutive pages neither repeat nor skip rows. Both values must be non-negative.",
-        ],
-    );
-    push_fn_head(
-        output,
-        "list_page",
-        &keys::scoped_params(table, &["limit: i64".to_owned(), "offset: i64".to_owned()]),
-        &format!("Result<Vec<{}>, rok_data::Error>", table.struct_name),
-    );
-    let mut calls = Vec::new();
-    if let Some(call) = tenant_filter_call(table) {
-        calls.push(call);
-    }
-    for column in &keys {
-        calls.push(format!(
-            ".order_by({}::{})",
-            table.struct_name,
-            column.rust_name.to_uppercase()
-        ));
-    }
-    calls.push(".limit(limit as u64)".to_owned());
-    calls.push(".offset(offset as u64)".to_owned());
-    calls.push(".all(executor)".to_owned());
-    calls.push(".await".to_owned());
-    push_chain(
-        output,
-        4,
-        "",
-        &model_chain(&table.struct_name, &mut calls, 4, ""),
-        &calls,
-    );
-    output.push_str("}\n");
-}
-
-fn render_count(output: &mut String, table: &Table) {
-    output.push('\n');
-    push_read_doc(output, table, &["Counts every row."]);
-    push_fn_head(
-        output,
-        "count",
-        &keys::tenant_params(table),
-        "Result<i64, rok_data::Error>",
-    );
-    let mut calls = vec![".count(executor)".to_owned(), ".await".to_owned()];
-    if let Some(call) = tenant_filter_call(table) {
-        calls.insert(0, call);
-    }
-    push_chain(
-        output,
-        4,
-        "",
-        &model_chain(&table.struct_name, &mut calls, 4, ""),
-        &calls,
-    );
-    output.push_str("}\n");
+    output.push_str("    }\n");
+    output.clone()
 }
 
 #[cfg(test)]

@@ -31,8 +31,8 @@ impl Book {
         E: rok_data::Executor<'e>,
     {
         if input.is_empty() {
-            let current = super::read::get_by_id(executor, id).await?;
-            return current.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
+            let row = Self::by_primary_key(id).first(executor).await?;
+            return row.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
         }
 
         let mut update = Book::update_all().filter(Book::ID.eq(id));
@@ -63,35 +63,4 @@ impl Book {
         }
         Ok(())
     }
-}
-
-/// Calls [`Book::create`], which this module function forwards to.
-#[deprecated(note = "call `Book::create` instead")]
-pub async fn create<'e, E>(executor: E, input: NewBook) -> Result<Book, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Book::create(executor, input).await
-}
-
-/// Calls [`Book::patch`], which this module function forwards to.
-#[deprecated(note = "call `Book::patch` instead")]
-pub async fn patch<'e, E>(
-    executor: E,
-    id: BookId,
-    input: UpdateBook,
-) -> Result<Book, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Book::patch(executor, id, input).await
-}
-
-/// Calls [`Book::destroy`], which this module function forwards to.
-#[deprecated(note = "call `Book::destroy` instead")]
-pub async fn destroy<'e, E>(executor: E, id: BookId) -> Result<(), rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Book::destroy(executor, id).await
 }
