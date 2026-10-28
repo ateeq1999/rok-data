@@ -100,11 +100,14 @@ heading — a tag without one fails the release. See workspace ADR 0008.
 
 Before the tag, check that the crates.io names are free: a name that is
 taken cannot be published, and the workflow's publish step fails on it.
-For 0.2.0, `rok-data`, `rok-data-core`, `rok-data-macros`,
-`rok-data-codegen` and `rok-data-sqlc` are free, but `rok-cli` is taken
-by another crate (the CLI of `axum-rok-http`, 0.6.1) — so the CLI
-publishes as `rok-data-cli` (free, resolved 2026-10-21); the directory
-and the `rok` binary keep their names.
+`rok-data`, `rok-data-core`, `rok-data-macros`, `rok-data-codegen` and
+`rok-data-sqlc` are ours since 0.2.0. `rok-cli` is taken by another crate
+(the CLI of `axum-rok-http`), so the CLI publishes as `rok-data-cli`; the
+directory and the `rok` binary keep their names. crates.io limits how many
+*new* crates one account publishes in a short time: v0.2.0's run published
+five and was refused the sixth (`429`), so `rok-data-cli` first publishes
+with 0.3.0. A run that fails that way is rerun by hand on the same tag once
+the limit lifts; published versions are skipped.
 
 The published crates keep their integration tests, and some of them
 (`rok-data-codegen`'s, `rok-cli`'s) need the repository's own layout

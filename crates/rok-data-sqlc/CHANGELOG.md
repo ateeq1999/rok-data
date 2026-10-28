@@ -5,7 +5,10 @@ All notable changes to rok-data-sqlc are recorded here. The format follows
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Changes to
 the *generated* API count as breaking (see ADR 0012).
 
-## [Unreleased]
+## Workspace 0.3.0 - 2026-10-28
+
+Published as `rok-data-sqlc` 0.3.0 with the workspace (root `CHANGELOG.md`);
+the version numbers below are the engine's own, from before it joined.
 
 ### Breaking changes to the generated API
 

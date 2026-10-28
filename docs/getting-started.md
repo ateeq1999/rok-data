@@ -280,7 +280,7 @@ name still works, with a note):
 input = "sql"          # .sql sources
 output = "db-gen"      # generated crate directory
 crate_name = "notes-db"
-rok_data_version = "0.2"   # or rok_data_path = "../../crates/rok-data"
+rok_data_version = "0.3"   # or rok_data_path = "../../crates/rok-data"
 ```
 
 Flags beat the file; `--strict` fails on generator warnings (queries

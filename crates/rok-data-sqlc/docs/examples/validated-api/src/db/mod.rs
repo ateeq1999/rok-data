@@ -5,7 +5,7 @@
 // The generated code requires these dependencies in the consuming crate
 // (SQLx 0.9 needs Rust 1.94 or newer):
 //   sqlx = { version = "0.9", features = ["runtime-tokio", "postgres", "derive", "rust_decimal"] }
-//   rok-data = { version = "0.2", features = ["decimal"] }
+//   rok-data = { version = "0.3", features = ["decimal"] }
 //   serde = { version = "1", features = ["derive"] }
 //   serde_json = "1"
 //   rust_decimal = { version = "1", features = ["serde"] }

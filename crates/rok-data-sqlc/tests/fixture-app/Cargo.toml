@@ -9,7 +9,7 @@ publish = false
 sqlx = { version = "0.9", features = ["runtime-tokio", "postgres", "derive", "uuid", "chrono", "rust_decimal", "ipnetwork", "mac_address"] }
 # The generated data layer resolves the workspace crate while the release
 # pins the published one, so the fixture keeps both the path and the range.
-rok-data = { path = "../../../rok-data", version = "0.2", features = ["chrono", "decimal", "ipnetwork", "json", "mac_address", "uuid"] }
+rok-data = { path = "../../../rok-data", version = "0.3", features = ["chrono", "decimal", "ipnetwork", "json", "mac_address", "uuid"] }
 # `INET`, `CIDR` and `MACADDR` in plain_schema.sql.
 ipnetwork = "0.21"
 mac_address = "1"
