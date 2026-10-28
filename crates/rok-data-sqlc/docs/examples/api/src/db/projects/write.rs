@@ -36,8 +36,8 @@ impl Project {
         E: rok_data::Executor<'e>,
     {
         if input.is_empty() {
-            let current = super::read::get_by_id(executor, id).await?;
-            return current.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
+            let row = Self::by_primary_key(id).first(executor).await?;
+            return row.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
         }
 
         let mut update = Project::update_all().filter(Project::ID.eq(id));
@@ -68,35 +68,4 @@ impl Project {
         }
         Ok(())
     }
-}
-
-/// Calls [`Project::create`], which this module function forwards to.
-#[deprecated(note = "call `Project::create` instead")]
-pub async fn create<'e, E>(executor: E, input: NewProject) -> Result<Project, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Project::create(executor, input).await
-}
-
-/// Calls [`Project::patch`], which this module function forwards to.
-#[deprecated(note = "call `Project::patch` instead")]
-pub async fn patch<'e, E>(
-    executor: E,
-    id: ProjectId,
-    input: UpdateProject,
-) -> Result<Project, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Project::patch(executor, id, input).await
-}
-
-/// Calls [`Project::destroy`], which this module function forwards to.
-#[deprecated(note = "call `Project::destroy` instead")]
-pub async fn destroy<'e, E>(executor: E, id: ProjectId) -> Result<(), rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Project::destroy(executor, id).await
 }

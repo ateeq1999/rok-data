@@ -271,14 +271,14 @@ pub struct CreateTaskDto {
 
 `model.rs` and `repo.rs` don't hold rows or SQL of their own. They re-export
 the table's part of the data layer, so the feature reads like the original
-guidelines' `model.rs` and `repo.rs`:
+guidelines' `model.rs` and `repo.rs`. The reads and writes are the model's
+(`Task::find`, `Task::by_primary_key`, `Task::patch`), so `repo.rs` re-exports
+only the free functions, the list's and the relationships':
 
 <!-- source: docs/examples/api/src/features/tasks/repo.rs -->
 ```rust
 pub use crate::db::tasks::listing::*;
-pub use crate::db::tasks::read::*;
 pub use crate::db::tasks::relationships::*;
-pub use crate::db::tasks::write::*;
 ```
 
 ## 6. Services and transactions

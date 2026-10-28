@@ -294,6 +294,7 @@ is a library; `rok` forwards the tokens verbatim). Subcommand set:
 | `generate`     | `g`   | parse the schema and emit `src/db/<table>/{…}` modules, optional api/openapi |
 | `init`         | `i`   | scaffold a project (engine ADR 0016 skeleton, `-w axum` for axum, or `--template actix`/`axum`), files-if-absent |
 | `check-arch`   | `a`   | check `src/` layout against the engine's ADR 0016 rules; violations → exit 1 |
+| `query add`    | `q a` | append one annotated query to a query file and generate; kept only if it generates |
 
 Executive summary of the main flags (full text: `rok sqlc generate --help`):
 
@@ -310,6 +311,32 @@ Executive summary of the main flags (full text: `rok sqlc generate --help`):
 `init` next steps and the `--template` list (`actix`, `axum`) print on stdout;
 the scaffolder never overwrites existing files. Templates ship their own
 `README.md` with the dependency list to add.
+
+### `rok sqlc query add <NAME> <SQL> [OPTIONS]`
+
+```console
+$ rok sqlc query add OwnedMedia "SELECT * FROM media WHERE id = \$1 AND owner_id = \$2 LIMIT 1" --file media
+added `OwnedMedia` to queries/media.sql
+```
+
+It appends `-- name: <NAME> :<mode>` and the SQL (ending in `;`) to the
+query file, then generates the same way `rok sqlc generate` does with the
+discovered config. If generation fails, the file is restored (a new file is
+removed), and the error names the query's failure and its line.
+
+| Flag                  | Meaning                                                              |
+| --------------------- | -------------------------------------------------------------------- |
+| `NAME`                | the query's name, PascalCase: `OwnedMedia` generates `owned_media`; must be new in the file |
+| `SQL`                 | the statement, with `$1`, `$2`, … placeholders                       |
+| `-f, --file FILE`     | a stem (`media`) under the one configured `queries` directory, or a path ending in `.sql` |
+| `-o, --one`, `-m, --maybe-one`, `-M, --many`, `-x, --exec`, `-r, --execrows` | the return mode, at most one; omitted, it is inferred |
+| `-c, --config FILE`   | config file instead of discovered `rok-data-sqlc.toml`                |
+
+The inferred mode:
+
+- `INSERT … RETURNING` is `:one`;
+- any other statement returning rows (a `SELECT`, a `RETURNING`) is `:many`, or `:maybe_one` when it ends in `LIMIT 1`;
+- an `INSERT`, `UPDATE` or `DELETE` without `RETURNING` is `:execrows`.
 
 `check-arch` prints each violation as `path:line: rule: message`. The rules
 are the project's `AGENTS.md` six (the architecture guide states them):

@@ -42,9 +42,9 @@ pub trait TasksServiceApi {
         let key = query.sort.unwrap_or(default);
         let sort = Some(Sort { key, direction });
         let q = query.q.as_deref().filter(|q| !q.is_empty());
-        let rows = repo::list_matching(self.pool(), user.id, q, sort, pagination.into()).await?;
-        let total = repo::count_matching(self.pool(), user.id, q).await?;
-        Ok(PaginatedResponse::new(rows, pagination, total))
+        let (page, per_page) = (pagination.page.into(), pagination.per_page.into());
+        let rows = Task::matching(user.id, q, sort);
+        Ok(rows.paginate(self.pool(), page, per_page).await?.into())
     }
 
     /// What [`create`](Self::create) does, on `conn`: the caller's connection or

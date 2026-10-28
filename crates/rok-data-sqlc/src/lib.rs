@@ -29,6 +29,7 @@ mod generate;
 mod generator;
 mod output;
 mod project;
+mod query_add;
 mod report;
 mod schema;
 

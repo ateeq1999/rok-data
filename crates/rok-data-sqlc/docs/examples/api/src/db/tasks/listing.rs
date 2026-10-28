@@ -5,8 +5,9 @@
 //!
 //! The reads of one row the caller owns: another caller's row is none.
 
-use super::super::search::{Sort, Window, push_contains_any};
+use super::super::search::{Direction, Sort};
 use super::models::{Task, TaskId};
+use rok_data::Model;
 
 /// The columns `GET /api/v1/tasks?sort=` takes, in `snake_case`.
 #[derive(
@@ -32,73 +33,51 @@ impl TaskSort {
             Self::CreatedAt => "created_at",
         }
     }
+
+    /// How this key orders rows, in `direction`.
+    #[must_use]
+    pub fn order(self, direction: Direction) -> rok_data::Order<Task> {
+        let column = match self {
+            Self::Id => Task::ID,
+            Self::CreatedAt => Task::CREATED_AT,
+        };
+        match direction {
+            Direction::Asc => column.asc(),
+            Direction::Desc => column.desc(),
+        }
+    }
+}
+
+/// A sort as the chain's order: `.order_by(sort)`.
+impl From<Sort<TaskSort>> for rok_data::Order<Task> {
+    fn from(sort: Sort<TaskSort>) -> Self {
+        sort.key.order(sort.direction)
+    }
 }
 
 /// The columns `q` matches.
-const SEARCH_COLUMNS: &[&str] = &["title"];
+const SEARCH_COLUMNS: [rok_data::Column<Task>; 1] = [Task::TITLE];
 
-/// Fetches one page of rows `owner` owns matching `q`, ordered by `sort`, ties by primary key.
-/// `q` matches a row when one of the [`SEARCH_COLUMNS`] contains it, ignoring
-/// case; `%`, `_` and `\` in it match themselves.
-pub async fn list_matching<'e, E>(
-    executor: E,
-    owner: uuid::Uuid,
-    q: Option<&str>,
-    sort: Option<Sort<TaskSort>>,
-    page: Window,
-) -> Result<Vec<Task>, sqlx::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    let mut query = sqlx::QueryBuilder::<sqlx::Postgres>::new(
-        r#"
-        SELECT
-            id,
-            owner_id,
-            project_id,
-            title,
-            done,
-            created_at
-        FROM tasks
-        WHERE TRUE
-        "#,
-    );
-    query.push(" AND owner_id = ");
-    query.push_bind(owner);
-    if let Some(q) = q {
-        push_contains_any(SEARCH_COLUMNS, q, &mut query);
+impl Task {
+    /// The rows of the list endpoint `owner` owns matching `q`, ordered by `sort`, ties by primary key.
+    /// Run it a page at a time with `.paginate(executor, page, per_page)`.
+    /// `q` matches a row when one of the [`SEARCH_COLUMNS`] contains it, ignoring
+    /// case; `%`, `_` and `\` in it match themselves.
+    #[must_use]
+    pub fn matching(
+        owner: uuid::Uuid,
+        q: Option<&str>,
+        sort: Option<Sort<TaskSort>>,
+    ) -> rok_data::Select<Task> {
+        let mut query = Task::filter(Task::OWNER_ID.eq(owner));
+        if let Some(q) = q {
+            query = query.filter_any(SEARCH_COLUMNS, |column| column.icontains(q));
+        }
+        if let Some(sort) = sort {
+            query = query.order_by(sort);
+        }
+        query.order_by(Task::ID)
     }
-    query.push(" ORDER BY ");
-    if let Some(sort) = sort {
-        query.push(sort.key.column());
-        query.push(sort.direction.sql());
-        query.push(", ");
-    }
-    query.push("id");
-    query.push(" LIMIT ");
-    query.push_bind(page.limit());
-    query.push(" OFFSET ");
-    query.push_bind(page.offset());
-    query.build_query_as::<Task>().fetch_all(executor).await
-}
-
-/// Counts the rows `owner` owns matching `q`: every page's rows together.
-pub async fn count_matching<'e, E>(
-    executor: E,
-    owner: uuid::Uuid,
-    q: Option<&str>,
-) -> Result<i64, sqlx::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    let mut query =
-        sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT COUNT(*) FROM tasks WHERE TRUE");
-    query.push(" AND owner_id = ");
-    query.push_bind(owner);
-    if let Some(q) = q {
-        push_contains_any(SEARCH_COLUMNS, q, &mut query);
-    }
-    query.build_query_scalar::<i64>().fetch_one(executor).await
 }
 
 /// Fetches the row with the given primary key if `owner` owns it (its `owner_id`),
@@ -107,27 +86,14 @@ pub async fn get_owned<'e, E>(
     executor: E,
     id: TaskId,
     owner: uuid::Uuid,
-) -> Result<Option<Task>, sqlx::Error>
+) -> Result<Option<Task>, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, Task>(
-        r#"
-        SELECT
-            id,
-            owner_id,
-            project_id,
-            title,
-            done,
-            created_at
-        FROM tasks
-        WHERE id = $1 AND owner_id = $2
-        "#,
-    )
-    .bind(id)
-    .bind(owner)
-    .fetch_optional(executor)
-    .await
+    Task::by_primary_key(id)
+        .filter(Task::OWNER_ID.eq(owner))
+        .first(executor)
+        .await
 }
 
 /// Returns whether `owner` owns the row with the given primary key, locking
@@ -137,23 +103,16 @@ pub async fn lock_owned<'e, E>(
     executor: E,
     id: TaskId,
     owner: uuid::Uuid,
-) -> Result<bool, sqlx::Error>
+) -> Result<bool, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    let row = sqlx::query_scalar::<_, i32>(
-        r#"
-        SELECT 1
-        FROM tasks
-        WHERE id = $1 AND owner_id = $2
-        FOR UPDATE
-        "#,
-    )
-    .bind(id)
-    .bind(owner)
-    .fetch_optional(executor)
-    .await?;
-    Ok(row.is_some())
+    Task::by_primary_key(id)
+        .filter(Task::OWNER_ID.eq(owner))
+        .for_update()
+        .first(executor)
+        .await
+        .map(|row| row.is_some())
 }
 
 /// Returns whether `owner` owns the row with the given primary key: the
@@ -162,23 +121,14 @@ pub async fn exists_owned<'e, E>(
     executor: E,
     id: TaskId,
     owner: uuid::Uuid,
-) -> Result<bool, sqlx::Error>
+) -> Result<bool, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_scalar::<_, bool>(
-        r#"
-        SELECT EXISTS (
-            SELECT 1
-            FROM tasks
-            WHERE id = $1 AND owner_id = $2
-        )
-        "#,
-    )
-    .bind(id)
-    .bind(owner)
-    .fetch_one(executor)
-    .await
+    Task::by_primary_key(id)
+        .filter(Task::OWNER_ID.eq(owner))
+        .exists(executor)
+        .await
 }
 
 /// Whether `owner` owns `row` (its `owner_id`).

@@ -3,6 +3,7 @@
 //! Functions for the annotated queries in the query file.
 
 use super::categories::models::CategoryId;
+use super::products::models::Product;
 use super::products::models::ProductId;
 
 /// A row returned by `active_products_in_category`.
@@ -22,11 +23,11 @@ pub struct ActiveProductsInCategoryRow {
 pub async fn active_products_in_category<'e, E>(
     executor: E,
     category_id: CategoryId,
-) -> Result<Vec<ActiveProductsInCategoryRow>, sqlx::Error>
+) -> Result<Vec<ActiveProductsInCategoryRow>, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, ActiveProductsInCategoryRow>(
+    rok_data::raw(
         r#"
         SELECT id, sku, name, price
         FROM products
@@ -51,11 +52,11 @@ pub struct ProductCountsByCategoryRow {
 /// Runs the `ProductCountsByCategory` query (`:many`).
 pub async fn product_counts_by_category<'e, E>(
     executor: E,
-) -> Result<Vec<ProductCountsByCategoryRow>, sqlx::Error>
+) -> Result<Vec<ProductCountsByCategoryRow>, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, ProductCountsByCategoryRow>(
+    rok_data::raw(
         r#"
         SELECT c.name, COUNT(p.id) AS product_count
         FROM categories c
@@ -82,15 +83,15 @@ pub struct UpsertProductPriceParams {
 }
 
 /// Runs the `UpsertProductPrice` query (`:one`).
-/// Fails with `sqlx::Error::RowNotFound` when no row matches.
+/// Fails with `rok_data::Error::Database(sqlx::Error::RowNotFound)` when no row matches.
 pub async fn upsert_product_price<'e, E>(
     executor: E,
     params: UpsertProductPriceParams,
-) -> Result<super::products::models::Product, sqlx::Error>
+) -> Result<Product, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, super::products::models::Product>(
+    rok_data::raw(
         r#"
         INSERT INTO products (category_id, sku, name, price)
         VALUES ($1, $2, $3, $4)
@@ -119,11 +120,11 @@ pub struct SearchProductNamesRow {
 pub async fn search_product_names<'e, E>(
     executor: E,
     pattern: &str,
-) -> Result<Vec<SearchProductNamesRow>, sqlx::Error>
+) -> Result<Vec<SearchProductNamesRow>, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, SearchProductNamesRow>(
+    rok_data::raw(
         r#"
         SELECT sku, upper(name) AS display_name
         FROM products
@@ -141,17 +142,16 @@ where
 pub async fn archive_category<'e, E>(
     executor: E,
     category_id: CategoryId,
-) -> Result<u64, sqlx::Error>
+) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    let result = sqlx::query(
+    rok_data::raw(
         r#"
         UPDATE products SET status = 'archived' WHERE category_id = $1
         "#,
     )
     .bind(category_id)
     .execute(executor)
-    .await?;
-    Ok(result.rows_affected())
+    .await
 }

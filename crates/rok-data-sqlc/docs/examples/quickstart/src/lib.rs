@@ -8,8 +8,9 @@ pub mod db;
 use db::categories::models::{Category, NewCategory};
 use db::products::filter::{ProductFilter, ProductSortKey};
 use db::products::models::{NewProduct, Product, UpdateProduct};
-use db::search::{Ordered, Sort, Text, Window};
+use db::search::{Ordered, Sort, Text};
 use db::types::ProductStatus;
+use rok_data::Model;
 use rust_decimal::Decimal;
 use sqlx::PgPool;
 
@@ -54,24 +55,22 @@ pub async fn quickstart(pool: &PgPool) -> Result<(), rok_data::Error> {
     Product::patch(&mut *tx, hammer.id, patch).await?;
     tx.commit().await?;
 
-    // Lookups take the table's typed id, or a unique key.
-    let by_id = db::products::read::get_by_id(pool, hammer.id).await?;
-    let by_sku = db::products::read::get_by_sku(pool, "HAM-1").await?;
+    // Find by the typed id, or read through a unique key's chain.
+    let by_id = Product::find(pool, hammer.id).await?;
+    let by_sku = Product::by_sku("HAM-1").first(pool).await?;
     assert_eq!(by_id, by_sku);
 
-    // Typed search: filter, sort, and page.
+    // Typed search: a filter, then sort and page on the chain.
     let filter = ProductFilter {
         price: vec![Ordered::Lt(Decimal::new(5000, 2))],
         name: vec![Text::Contains("hammer".into())],
         ..ProductFilter::default()
     };
-    let cheap = db::products::read::search(
-        pool,
-        filter,
-        Sort::asc(ProductSortKey::Price),
-        Window::first(20),
-    )
-    .await?;
+    let cheap = Product::search(filter)?
+        .order_by(Sort::asc(ProductSortKey::Price))
+        .limit(20)
+        .all(pool)
+        .await?;
 
     // Relationships: every product's category, in one query.
     let categories = db::products::relationships::load_category(pool, &cheap).await?;

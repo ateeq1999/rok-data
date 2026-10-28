@@ -2,10 +2,12 @@
 
 use super::*;
 
-/// Every `pub async fn` signature in `source`, as `name(params)` on one line.
+/// Every `pub fn` / `pub async fn` signature in `source`, as `name(params)`
+/// on one line.
 fn signatures(source: &str) -> Vec<String> {
     source
-        .split("pub async fn ")
+        .replace("pub async fn ", "pub fn ")
+        .split("pub fn ")
         .skip(1)
         .map(|rest| {
             let name = rest.split(['<', '(']).next().unwrap();
@@ -44,17 +46,14 @@ fn tenant_tables_take_the_tenant_right_after_the_executor() -> Result<()> {
 
     let read = signatures(&resource_file(&dir, "notes", "read.rs")?);
     let write = signatures(model_impl(&resource_file(&dir, "notes", "write.rs")?));
+    // The reads are chains on the model, the tenant first; the caller runs
+    // them on its executor.
     assert_eq!(
         read,
         [
-            "get_by_id(executor: E, organization_id: uuid::Uuid, id: NoteId)",
-            "exists_by_id(executor: E, organization_id: uuid::Uuid, id: NoteId)",
-            "get_by_code(executor: E, organization_id: uuid::Uuid, code: &str)",
-            "list(executor: E, organization_id: uuid::Uuid)",
-            "list_page(executor: E, organization_id: uuid::Uuid, limit: i64, offset: i64)",
-            "count(executor: E, organization_id: uuid::Uuid)",
-            "search(executor: E, organization_id: uuid::Uuid, filter: NoteFilter, sort: Sort<NoteSortKey>, page: Window)",
-            "search_after(executor: E, organization_id: uuid::Uuid, filter: NoteFilter, after: Option<NoteId>, limit: Limit)",
+            "by_primary_key(organization_id: uuid::Uuid, id: NoteId)",
+            "by_code(organization_id: uuid::Uuid, code: &str)",
+            "search(organization_id: uuid::Uuid, filter: NoteFilter)",
         ]
     );
     assert_eq!(
@@ -85,7 +84,7 @@ fn a_primary_key_including_the_tenant_takes_the_tenant_once() -> Result<()> {
     let read = signatures(&resource_file(&dir, "members", "read.rs")?);
     assert_eq!(
         read[0],
-        "get_by_id(executor: E, organization_id: uuid::Uuid, id: uuid::Uuid)"
+        "by_primary_key(organization_id: uuid::Uuid, id: uuid::Uuid)"
     );
     assert!(
         read.iter()
@@ -117,11 +116,11 @@ fn without_the_tenant_convention_signatures_are_unchanged() -> Result<()> {
 
     assert_eq!(
         signatures(&resource_file(&plain, "notes", "read.rs")?)[0],
-        "get_by_id(executor: E, id: NoteId)"
+        "by_primary_key(id: NoteId)"
     );
     assert_eq!(
         signatures(&resource_file(&plain, "members", "read.rs")?)[0],
-        "get_by_id(executor: E, key: MemberKey)"
+        "by_primary_key(key: MemberKey)"
     );
     // A table without the tenant column is generated as if no convention
     // were configured.

@@ -10,11 +10,11 @@ pub async fn open_task<'e, E>(
     executor: E,
     id: ProjectId,
     owner_id: uuid::Uuid,
-) -> Result<u64, sqlx::Error>
+) -> Result<u64, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    let result = sqlx::query(
+    rok_data::raw(
         r#"
         UPDATE projects SET open_tasks = open_tasks + 1
         WHERE id = $1 AND owner_id = $2
@@ -23,8 +23,7 @@ where
     .bind(id)
     .bind(owner_id)
     .execute(executor)
-    .await?;
-    Ok(result.rows_affected())
+    .await
 }
 
 /// A row returned by `project_stats`.
@@ -37,15 +36,15 @@ pub struct ProjectStatsRow {
 }
 
 /// Runs the `ProjectStats` query (`:one`).
-/// Fails with `sqlx::Error::RowNotFound` when no row matches.
+/// Fails with `rok_data::Error::Database(sqlx::Error::RowNotFound)` when no row matches.
 pub async fn project_stats<'e, E>(
     executor: E,
     owner_id: uuid::Uuid,
-) -> Result<ProjectStatsRow, sqlx::Error>
+) -> Result<ProjectStatsRow, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
-    sqlx::query_as::<_, ProjectStatsRow>(
+    rok_data::raw(
         r#"
         SELECT count(*) AS projects, coalesce(sum(open_tasks), 0)::BIGINT AS open_tasks
         FROM projects

@@ -2,8 +2,11 @@
 
 use super::super::categories::filter::CategoryFilter;
 use super::super::categories::models::CategoryId;
-use super::super::search::{Equality, Ordered, Text, correlate, open_exists, push_null_check};
+use super::super::search::{
+    Condition, Direction, Equality, Ordered, Sort, Text, correlate, open_exists, push_null_check,
+};
 use super::super::types;
+use super::models::Product;
 use super::models::ProductId;
 
 /// Conditions for `search` over `products`.
@@ -44,18 +47,16 @@ pub struct ProductFilter {
 }
 
 impl ProductFilter {
-    /// Appends the `WHERE` clause for these conditions.
+    /// These conditions as one condition on the model's chain.
     ///
     /// # Errors
     ///
-    /// `sqlx::Error::InvalidArgument` when relationship filters nest more than
+    /// `rok_data::Error::InvalidQuery` when relationship filters nest more than
     /// `MAX_RELATIONSHIP_DEPTH` deep.
-    pub(crate) fn push_where(
-        self,
-        query: &mut sqlx::QueryBuilder<sqlx::Postgres>,
-    ) -> Result<(), sqlx::Error> {
-        query.push(" WHERE TRUE");
-        self.push_conditions("products", 0, query)
+    pub(crate) fn condition(self) -> Result<rok_data::Expr<Product>, rok_data::Error> {
+        let mut query = Condition::default();
+        self.push_conditions("products", 0, &mut query)?;
+        Ok(query.into_expr())
     }
 
     /// Appends ` AND <condition>` for each condition, without the `WHERE` clause or
@@ -65,14 +66,14 @@ impl ProductFilter {
     ///
     /// # Errors
     ///
-    /// `sqlx::Error::InvalidArgument` when relationship filters nest more than
+    /// `rok_data::Error::InvalidQuery` when relationship filters nest more than
     /// `MAX_RELATIONSHIP_DEPTH` deep.
     pub(crate) fn push_conditions(
         self,
         outer: &str,
         depth: usize,
-        query: &mut sqlx::QueryBuilder<sqlx::Postgres>,
-    ) -> Result<(), sqlx::Error> {
+        query: &mut Condition,
+    ) -> Result<(), rok_data::Error> {
         for condition in self.id {
             condition.push("id", query);
         }
@@ -130,18 +131,29 @@ pub enum ProductSortKey {
 }
 
 impl ProductSortKey {
-    /// The SQL column this key sorts by.
+    /// How this key orders rows, in `direction`.
     #[must_use]
-    pub fn column(self) -> &'static str {
-        match self {
-            Self::Id => "id",
-            Self::CategoryId => "category_id",
-            Self::Sku => "sku",
-            Self::Name => "name",
-            Self::Price => "price",
-            Self::Status => "status",
-            Self::CreatedAt => "created_at",
-            Self::Description => "description",
+    pub fn order(self, direction: Direction) -> rok_data::Order<Product> {
+        let column = match self {
+            Self::Id => Product::ID,
+            Self::CategoryId => Product::CATEGORY_ID,
+            Self::Sku => Product::SKU,
+            Self::Name => Product::NAME,
+            Self::Price => Product::PRICE,
+            Self::Status => Product::STATUS,
+            Self::CreatedAt => Product::CREATED_AT,
+            Self::Description => Product::DESCRIPTION,
+        };
+        match direction {
+            Direction::Asc => column.asc(),
+            Direction::Desc => column.desc(),
         }
+    }
+}
+
+/// A sort as the chain's order: `.order_by(sort)`.
+impl From<Sort<ProductSortKey>> for rok_data::Order<Product> {
+    fn from(sort: Sort<ProductSortKey>) -> Self {
+        sort.key.order(sort.direction)
     }
 }

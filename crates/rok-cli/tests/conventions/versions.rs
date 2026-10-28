@@ -23,7 +23,7 @@ fn version_column_is_managed_and_versions_only_the_tables_that_have_it() -> Resu
     let documents = write_rs(&versioned, "documents")?;
     assert!(
         documents.contains(
-            "    id: DocumentId,\n    expected_version: i64,\n    input: UpdateDocument,\n) -> Result<UpdateOutcome<Document>, rok_data::Error>"
+            "        id: DocumentId,\n        expected_version: i64,\n        input: UpdateDocument,\n    ) -> Result<UpdateOutcome<Document>, rok_data::Error>"
         ),
         "{documents}"
     );

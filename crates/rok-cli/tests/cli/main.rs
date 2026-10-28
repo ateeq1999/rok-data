@@ -29,6 +29,7 @@ mod keys;
 mod migrations;
 mod modules;
 mod queries;
+mod query_add;
 mod runs;
 mod validate;
 

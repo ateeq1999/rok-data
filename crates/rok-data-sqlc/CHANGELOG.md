@@ -63,6 +63,11 @@ Generated data calls move onto the runtime (engine ADR 0023):
 
 ### Added
 
+- **`rok sqlc query add <NAME> <SQL>` (`q a`):** appends one annotated
+  query to a query file (`--file media`, or a path) and generates. The file
+  keeps the query only when it generates; otherwise it is restored and the
+  error names the failure and its line. The return mode is inferred from
+  the statement, or set with `-o`/`-m`/`-M`/`-x`/`-r`.
 - **`db::prelude` brings the search vocabulary too:** each model's filter
   and sort key, `Sort`, `Direction`, `Equality`, `Ordered`, `Text`, and the
   generated enums (`types::*`). So `use crate::db::prelude::*;` is the only

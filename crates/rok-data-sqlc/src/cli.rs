@@ -142,6 +142,85 @@ enum Command {
         #[arg(short, long, value_name = "FILE")]
         config: Option<PathBuf>,
     },
+
+    /// Work with annotated queries
+    #[command(visible_alias = "q")]
+    Query {
+        #[command(subcommand)]
+        action: QueryCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum QueryCommand {
+    /// Append one annotated query to a query file and generate; the file
+    /// keeps it only when the generation succeeds
+    #[command(visible_alias = "a")]
+    Add {
+        /// The query's name, in PascalCase: `OwnedMedia` generates `owned_media`
+        #[arg(value_name = "NAME")]
+        name: String,
+
+        /// The SQL, with `$1`, `$2`, … placeholders
+        #[arg(value_name = "SQL")]
+        sql: String,
+
+        /// The query file: a stem (`media`) under the configured `queries`
+        /// directory, or a path ending in `.sql`
+        #[arg(short, long, value_name = "FILE")]
+        file: Option<String>,
+
+        #[command(flatten)]
+        mode: ModeArgs,
+
+        /// Read options from this config file instead of discovering
+        /// rok-data-sqlc.toml in the current directory or its parents
+        #[arg(short, long, value_name = "FILE")]
+        config: Option<PathBuf>,
+    },
+}
+
+/// The return mode of `query add`, when the SQL doesn't say it the way the
+/// inference reads it: an `INSERT … RETURNING` is `:one`, a `SELECT` or other
+/// `RETURNING` is `:many` (`:maybe_one` with `LIMIT 1`), anything else
+/// `:execrows`.
+#[derive(Debug, clap::Args)]
+#[group(multiple = false)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "clap flags of one exclusive group"
+)]
+struct ModeArgs {
+    /// Exactly one row (`:one`)
+    #[arg(short = 'o', long)]
+    one: bool,
+    /// Zero or one row (`:maybe_one`)
+    #[arg(short, long)]
+    maybe_one: bool,
+    /// Any number of rows (`:many`)
+    #[arg(short = 'M', long)]
+    many: bool,
+    /// No result (`:exec`)
+    #[arg(short = 'x', long)]
+    exec: bool,
+    /// The number of affected rows (`:execrows`)
+    #[arg(short = 'r', long)]
+    execrows: bool,
+}
+
+impl ModeArgs {
+    fn mode(&self) -> Option<crate::queries::ReturnMode> {
+        use crate::queries::ReturnMode;
+        [
+            (self.one, ReturnMode::One),
+            (self.maybe_one, ReturnMode::MaybeOne),
+            (self.many, ReturnMode::Many),
+            (self.exec, ReturnMode::Exec),
+            (self.execrows, ReturnMode::ExecRows),
+        ]
+        .into_iter()
+        .find_map(|(set, mode)| set.then_some(mode))
+    }
 }
 
 /// The clap definition of the `rok-data-sqlc` command line.
@@ -169,6 +248,28 @@ where
     };
     match cli.command {
         Command::CheckArch { lenient, config } => check_arch(config, lenient),
+        Command::Query {
+            action:
+                QueryCommand::Add {
+                    name,
+                    sql,
+                    file,
+                    mode,
+                    config,
+                },
+        } => {
+            let add = crate::query_add::QueryAdd {
+                name: name.clone(),
+                sql,
+                file,
+                mode: mode.mode(),
+                config,
+            };
+            let (path, report) = crate::query_add::run(add)?;
+            print_report(&Config::default(), &report);
+            println!("added `{name}` to {}", display_path(&path));
+            Ok(())
+        }
         Command::Init {
             dir,
             template: Some(template),

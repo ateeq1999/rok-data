@@ -37,8 +37,8 @@ impl Task {
         E: rok_data::Executor<'e>,
     {
         if input.is_empty() {
-            let current = super::read::get_by_id(executor, id).await?;
-            return current.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
+            let row = Self::by_primary_key(id).first(executor).await?;
+            return row.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
         }
 
         let mut update = Task::update_all().filter(Task::ID.eq(id));
@@ -72,35 +72,4 @@ impl Task {
         }
         Ok(())
     }
-}
-
-/// Calls [`Task::create`], which this module function forwards to.
-#[deprecated(note = "call `Task::create` instead")]
-pub async fn create<'e, E>(executor: E, input: NewTask) -> Result<Task, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Task::create(executor, input).await
-}
-
-/// Calls [`Task::patch`], which this module function forwards to.
-#[deprecated(note = "call `Task::patch` instead")]
-pub async fn patch<'e, E>(
-    executor: E,
-    id: TaskId,
-    input: UpdateTask,
-) -> Result<Task, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Task::patch(executor, id, input).await
-}
-
-/// Calls [`Task::destroy`], which this module function forwards to.
-#[deprecated(note = "call `Task::destroy` instead")]
-pub async fn destroy<'e, E>(executor: E, id: TaskId) -> Result<(), rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Task::destroy(executor, id).await
 }

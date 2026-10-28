@@ -47,7 +47,10 @@ impl Invoice {
         E: rok_data::Executor<'e>,
     {
         if input.is_empty() {
-            let Some(row) = super::read::get_by_id(executor, organization_id, id).await? else {
+            let row = Self::by_primary_key(organization_id, id)
+                .first(executor)
+                .await?;
+            let Some(row) = row else {
                 return Ok(UpdateOutcome::NotFound);
             };
             if row.row_version != expected_version {
@@ -168,71 +171,4 @@ impl Invoice {
         }
         Ok(())
     }
-}
-
-/// Calls [`Invoice::create`], which this module function forwards to.
-#[deprecated(note = "call `Invoice::create` instead")]
-pub async fn create<'e, E>(
-    executor: E,
-    organization_id: OrganizationId,
-    input: NewInvoice,
-) -> Result<Invoice, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Invoice::create(executor, organization_id, input).await
-}
-
-/// Calls [`Invoice::patch`], which this module function forwards to.
-#[deprecated(note = "call `Invoice::patch` instead")]
-pub async fn patch<'e, E>(
-    executor: E,
-    organization_id: OrganizationId,
-    id: InvoiceId,
-    expected_version: i64,
-    input: UpdateInvoice,
-) -> Result<UpdateOutcome<Invoice>, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Invoice::patch(executor, organization_id, id, expected_version, input).await
-}
-
-/// Calls [`Invoice::destroy`], which this module function forwards to.
-#[deprecated(note = "call `Invoice::destroy` instead")]
-pub async fn destroy<'e, E>(
-    executor: E,
-    organization_id: OrganizationId,
-    id: InvoiceId,
-) -> Result<(), rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Invoice::destroy(executor, organization_id, id).await
-}
-
-/// Calls [`Invoice::restore`], which this module function forwards to.
-#[deprecated(note = "call `Invoice::restore` instead")]
-pub async fn restore<'e, E>(
-    executor: E,
-    organization_id: OrganizationId,
-    id: InvoiceId,
-) -> Result<(), rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Invoice::restore(executor, organization_id, id).await
-}
-
-/// Calls [`Invoice::delete_permanently`], which this module function forwards to.
-#[deprecated(note = "call `Invoice::delete_permanently` instead")]
-pub async fn delete_permanently<'e, E>(
-    executor: E,
-    organization_id: OrganizationId,
-    id: InvoiceId,
-) -> Result<(), rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Invoice::delete_permanently(executor, organization_id, id).await
 }

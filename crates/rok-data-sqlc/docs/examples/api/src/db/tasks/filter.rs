@@ -2,7 +2,10 @@
 
 use super::super::projects::filter::ProjectFilter;
 use super::super::projects::models::ProjectId;
-use super::super::search::{Equality, Ordered, Text, correlate, open_exists};
+use super::super::search::{
+    Condition, Direction, Equality, Ordered, Sort, Text, correlate, open_exists,
+};
+use super::models::Task;
 use super::models::TaskId;
 
 /// Conditions for `search` over `tasks`.
@@ -40,18 +43,16 @@ pub struct TaskFilter {
 }
 
 impl TaskFilter {
-    /// Appends the `WHERE` clause for these conditions.
+    /// These conditions as one condition on the model's chain.
     ///
     /// # Errors
     ///
-    /// `sqlx::Error::InvalidArgument` when relationship filters nest more than
+    /// `rok_data::Error::InvalidQuery` when relationship filters nest more than
     /// `MAX_RELATIONSHIP_DEPTH` deep.
-    pub(crate) fn push_where(
-        self,
-        query: &mut sqlx::QueryBuilder<sqlx::Postgres>,
-    ) -> Result<(), sqlx::Error> {
-        query.push(" WHERE TRUE");
-        self.push_conditions("tasks", 0, query)
+    pub(crate) fn condition(self) -> Result<rok_data::Expr<Task>, rok_data::Error> {
+        let mut query = Condition::default();
+        self.push_conditions("tasks", 0, &mut query)?;
+        Ok(query.into_expr())
     }
 
     /// Appends ` AND <condition>` for each condition, without the `WHERE` clause or
@@ -61,14 +62,14 @@ impl TaskFilter {
     ///
     /// # Errors
     ///
-    /// `sqlx::Error::InvalidArgument` when relationship filters nest more than
+    /// `rok_data::Error::InvalidQuery` when relationship filters nest more than
     /// `MAX_RELATIONSHIP_DEPTH` deep.
     pub(crate) fn push_conditions(
         self,
         outer: &str,
         depth: usize,
-        query: &mut sqlx::QueryBuilder<sqlx::Postgres>,
-    ) -> Result<(), sqlx::Error> {
+        query: &mut Condition,
+    ) -> Result<(), rok_data::Error> {
         for condition in self.id {
             condition.push("id", query);
         }
@@ -116,16 +117,27 @@ pub enum TaskSortKey {
 }
 
 impl TaskSortKey {
-    /// The SQL column this key sorts by.
+    /// How this key orders rows, in `direction`.
     #[must_use]
-    pub fn column(self) -> &'static str {
-        match self {
-            Self::Id => "id",
-            Self::OwnerId => "owner_id",
-            Self::ProjectId => "project_id",
-            Self::Title => "title",
-            Self::Done => "done",
-            Self::CreatedAt => "created_at",
+    pub fn order(self, direction: Direction) -> rok_data::Order<Task> {
+        let column = match self {
+            Self::Id => Task::ID,
+            Self::OwnerId => Task::OWNER_ID,
+            Self::ProjectId => Task::PROJECT_ID,
+            Self::Title => Task::TITLE,
+            Self::Done => Task::DONE,
+            Self::CreatedAt => Task::CREATED_AT,
+        };
+        match direction {
+            Direction::Asc => column.asc(),
+            Direction::Desc => column.desc(),
         }
+    }
+}
+
+/// A sort as the chain's order: `.order_by(sort)`.
+impl From<Sort<TaskSortKey>> for rok_data::Order<Task> {
+    fn from(sort: Sort<TaskSortKey>) -> Self {
+        sort.key.order(sort.direction)
     }
 }

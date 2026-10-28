@@ -30,13 +30,18 @@ pub enum UpdateOutcome<T> {
 }
 
 /// Everything a call site needs: `use crate::db::prelude::*;` brings
-/// rok-data's prelude, every model with its scopes, and each model's
-/// inputs, ids and keys (`NewBook`, `UpdateBook`, `BookId`).
+/// rok-data's prelude, every model with its scopes, each model's
+/// inputs, ids and keys (`NewBook`, `UpdateBook`, `BookId`), its filter
+/// and sort key, and the shared search and enum types.
 pub mod prelude {
     pub use rok_data::prelude::*;
 
+    pub use super::invoices::filter::{InvoiceFilter, InvoiceSortKey};
     pub use super::invoices::models::Invoice;
     pub use super::invoices::models::*;
+    pub use super::organizations::filter::{OrganizationFilter, OrganizationSortKey};
     pub use super::organizations::models::Organization;
     pub use super::organizations::models::*;
+    pub use super::search::{Direction, Equality, Ordered, Sort, Text};
+    pub use super::types::*;
 }

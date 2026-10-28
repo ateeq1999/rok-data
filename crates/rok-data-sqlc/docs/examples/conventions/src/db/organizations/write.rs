@@ -34,8 +34,8 @@ impl Organization {
         E: rok_data::Executor<'e>,
     {
         if input.is_empty() {
-            let current = super::read::get_by_id(executor, id).await?;
-            return current.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
+            let row = Self::by_primary_key(id).first(executor).await?;
+            return row.ok_or_else(|| rok_data::Error::not_found::<Self>(None));
         }
 
         let mut update = Organization::update_all().filter(Organization::ID.eq(id));
@@ -59,38 +59,4 @@ impl Organization {
         }
         Ok(())
     }
-}
-
-/// Calls [`Organization::create`], which this module function forwards to.
-#[deprecated(note = "call `Organization::create` instead")]
-pub async fn create<'e, E>(
-    executor: E,
-    input: NewOrganization,
-) -> Result<Organization, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Organization::create(executor, input).await
-}
-
-/// Calls [`Organization::patch`], which this module function forwards to.
-#[deprecated(note = "call `Organization::patch` instead")]
-pub async fn patch<'e, E>(
-    executor: E,
-    id: OrganizationId,
-    input: UpdateOrganization,
-) -> Result<Organization, rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Organization::patch(executor, id, input).await
-}
-
-/// Calls [`Organization::destroy`], which this module function forwards to.
-#[deprecated(note = "call `Organization::destroy` instead")]
-pub async fn destroy<'e, E>(executor: E, id: OrganizationId) -> Result<(), rok_data::Error>
-where
-    E: rok_data::Executor<'e>,
-{
-    Organization::destroy(executor, id).await
 }
