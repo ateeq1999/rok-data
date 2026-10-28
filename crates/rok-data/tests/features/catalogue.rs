@@ -93,3 +93,68 @@ fn every_rule_answers_its_code_and_message() {
         ]
     );
 }
+
+#[derive(Debug, Clone, PartialEq, Input)]
+struct Code {
+    #[rok(validate(min_length = 2, max_length = 4))]
+    short: String,
+    #[rok(validate(fixed_length = 1))]
+    letter: String,
+}
+
+#[test]
+fn character_counts_answer_the_length_codes() {
+    let rok_data::Error::Validation(errors) = Code {
+        short: "abcdé".into(),
+        letter: "ab".into(),
+    }
+    .validate_fields()
+    .unwrap_err() else {
+        panic!("expected validation errors");
+    };
+    let got: Vec<(&str, &str)> = errors
+        .errors()
+        .iter()
+        .map(|e| (e.code, e.message.as_str()))
+        .collect();
+    assert_eq!(
+        got,
+        [
+            ("maxLength", "short must be at most 4 characters"),
+            ("fixedLength", "letter must be exactly 1 character"),
+        ]
+    );
+}
+
+#[cfg(feature = "regex")]
+#[derive(Debug, Clone, PartialEq, Input)]
+struct Contact {
+    #[rok(validate(mobile(locales = ["ar-SA"], strict)))]
+    phone: String,
+    #[rok(validate(postal_code(countries = ["US", "DE"])))]
+    zip: String,
+    #[rok(validate(regex = "^[a-z]+-[0-9]+$"))]
+    tag: String,
+}
+
+#[cfg(feature = "regex")]
+#[test]
+fn pattern_rules_check_their_tables() {
+    let ok = Contact {
+        phone: "+966512345678".into(),
+        zip: "12345".into(),
+        tag: "ab-12".into(),
+    };
+    assert!(ok.validate_fields().is_ok());
+    let rok_data::Error::Validation(errors) = Contact {
+        phone: "0512345678".into(),
+        zip: "1234".into(),
+        tag: "AB12".into(),
+    }
+    .validate_fields()
+    .unwrap_err() else {
+        panic!("expected validation errors");
+    };
+    let codes: Vec<&str> = errors.errors().iter().map(|e| e.code).collect();
+    assert_eq!(codes, ["mobile", "postalCode", "regex"]);
+}

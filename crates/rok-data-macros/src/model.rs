@@ -144,7 +144,7 @@ fn parse_rules(
             rules.push(Rule::Database(rule));
         } else {
             return Err(r.error(
-                "unknown rule; expected `length`, `range`, `email`, `non_empty`, `custom`, `required_if`, `required_unless`, `required_with`, `url`, `uuid`, `ulid`, `ip`, `alpha`, `alpha_numeric`, `ascii`, `one_of`, `not_one_of`, `starts_with`, `ends_with`, `hex_code`, `iban`, `jwt`, `credit_card`, `coordinates`, `unique`, `exists` or `database`",
+                "unknown rule; expected `length`, `range`, `email`, `non_empty`, `custom`, `required_if`, `required_unless`, `required_with`, `url`, `uuid`, `ulid`, `ip`, `alpha`, `alpha_numeric`, `ascii`, `one_of`, `not_one_of`, `starts_with`, `ends_with`, `min_length`, `max_length`, `fixed_length`, `hex_code`, `iban`, `jwt`, `credit_card`, `coordinates`, `mobile`, `postal_code`, `regex`, `unique`, `exists` or `database`",
             ));
         }
         messages.push(message);

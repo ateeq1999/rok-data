@@ -1639,6 +1639,7 @@ dependencies = [
  "ipnetwork",
  "mac_address",
  "metrics",
+ "regex",
  "serde",
  "serde_json",
  "sqlx",

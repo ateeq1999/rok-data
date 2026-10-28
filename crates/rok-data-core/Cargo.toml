@@ -28,6 +28,8 @@ ipnetwork = ["dep:ipnetwork", "sqlx/ipnetwork"]
 mac_address = ["dep:mac_address", "sqlx/mac_address"]
 # `Encrypted` columns: AES-256-GCM under a process-wide key.
 encryption = ["dep:aes-gcm", "dep:base64"]
+# The pattern rules (`mobile`, `postal_code`, `regex`).
+regex = ["dep:regex"]
 
 [dependencies]
 sqlx = { workspace = true }
@@ -46,6 +48,7 @@ ipnetwork = { version = "0.21", optional = true }
 mac_address = { version = "1", optional = true }
 aes-gcm = { version = "0.10", optional = true, default-features = false, features = ["aes", "alloc", "getrandom"] }
 base64 = { version = "0.22", optional = true }
+regex = { version = "1", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.7", default-features = false, features = [

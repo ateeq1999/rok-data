@@ -202,11 +202,15 @@ fn handle_min_length(value: &str) -> Result<(), validator::ValidationError> {
         dto.contains("    check(letters(value, true, false, true, false), \"alphaNumeric\")"),
         "{dto}"
     );
-    // Each function once, though both bodies use the rules; the helpers
-    // they call are in `shared/validation.rs`.
+    // Each function once, though both bodies use the rules; `check` is in
+    // `shared/validation.rs`, the rule itself in the runtime's catalogue.
     assert_eq!(dto.matches("\nfn handle_min_length(").count(), 1, "{dto}");
     assert!(
-        dto.contains("use crate::shared::validation::{check, letters};\n"),
+        dto.contains("use rok_data::validate::catalogue::letters;\n"),
+        "{dto}"
+    );
+    assert!(
+        dto.contains("use crate::shared::validation::check;\n"),
         "{dto}"
     );
     assert!(!dto.contains("fn check("), "{dto}");
@@ -281,11 +285,13 @@ fn transforms_keep_null_and_defaults() -> Result<()> {
         dto.contains("    let value = value.trim();\n    normalize_email(value)\n}"),
         "{dto}"
     );
-    let shared = project.read("src/shared/validation.rs")?;
+    // The transform is the runtime's, not a copy in `shared/validation.rs`.
     assert!(
-        shared.contains("\npub fn normalize_email(value: &str) -> String {"),
-        "{shared}"
+        dto.contains("use rok_data::validate::catalogue::normalize_email;"),
+        "{dto}"
     );
+    let shared = project.read("src/shared/validation.rs")?;
+    assert!(!shared.contains("fn normalize_email"), "{shared}");
     Ok(())
 }
 
@@ -427,10 +433,11 @@ fn url_is_a_generated_check() -> Result<()> {
     );
     assert!(!dto.contains("format = \"uri\""), "{dto}");
     assert!(!dto.contains("url(code"), "{dto}");
-    let shared = project.read("src/shared/validation.rs")?;
     assert!(
-        shared.contains("\npub fn is_url(value: &str) -> bool {"),
-        "{shared}"
+        dto.contains("use rok_data::validate::catalogue::is_url;"),
+        "{dto}"
     );
+    let shared = project.read("src/shared/validation.rs")?;
+    assert!(!shared.contains("fn is_url"), "{shared}");
     Ok(())
 }

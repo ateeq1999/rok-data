@@ -35,6 +35,13 @@ mod schema;
 // Implementation details, public only for the `rok sqlc` commands in `rok-cli` and
 // this crate's own tests (`parser`, `queries`). Not part of the API; they
 // may change in any release.
+/// The pattern tables the `mobile` and `postalCode` rules read, for the
+/// test that keeps the runtime's copy equal.
+#[doc(hidden)]
+pub mod rule_patterns {
+    pub use crate::api_rules::{MOBILE_PATTERNS, POSTAL_PATTERNS};
+}
+
 #[doc(hidden)]
 pub mod cli;
 // The scaffolding library behind `rok sqlc init` and the root `rok init`

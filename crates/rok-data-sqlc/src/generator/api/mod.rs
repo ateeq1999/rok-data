@@ -31,7 +31,6 @@ mod relations;
 mod root;
 mod rule_functions;
 mod rule_snippets;
-mod rule_tables;
 mod rules;
 mod schemas;
 mod scope;

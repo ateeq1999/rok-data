@@ -32,6 +32,28 @@ pub(crate) enum Check {
     Jwt,
     CreditCard(Vec<LitStr>),
     Coordinates,
+    /// `mobile(locales = [...], strict)`.
+    Mobile {
+        locales: Vec<LitStr>,
+        strict: bool,
+    },
+    /// `postal_code(countries = [...])`.
+    PostalCode(Vec<LitStr>),
+    /// `regex = "…"`.
+    Regex(LitStr),
+    /// `min_length = n` / `max_length = n` / `fixed_length = n`, in characters.
+    Characters {
+        count: u32,
+        bound: Bound,
+    },
+}
+
+/// Which way a [`Check::Characters`] bounds the count.
+#[derive(Clone, Copy)]
+pub(crate) enum Bound {
+    Min,
+    Max,
+    Exact,
 }
 
 /// `["a", "b"]`.
@@ -177,6 +199,46 @@ pub(crate) fn parse_check(
             })?;
             Some(Check::CreditCard(providers))
         }
+        "mobile" => {
+            let (mut locales, mut strict) = (Vec::new(), false);
+            options(meta, message, |option| {
+                if option.path.is_ident("locales") {
+                    locales = strings(option.value()?)?;
+                    Ok(true)
+                } else if option.path.is_ident("strict") {
+                    strict = true;
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            })?;
+            Some(Check::Mobile { locales, strict })
+        }
+        "postal_code" => {
+            let mut countries = Vec::new();
+            options(meta, message, |option| {
+                if option.path.is_ident("countries") {
+                    countries = strings(option.value()?)?;
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            })?;
+            if countries.is_empty() {
+                return Err(meta.error("expected `countries = [\"…\", …]`"));
+            }
+            Some(Check::PostalCode(countries))
+        }
+        "regex" => Some(Check::Regex(meta.value()?.parse()?)),
+        "min_length" | "max_length" | "fixed_length" => {
+            let count = meta.value()?.parse::<LitInt>()?.base10_parse()?;
+            let bound = match name.as_str() {
+                "min_length" => Bound::Min,
+                "max_length" => Bound::Max,
+                _ => Bound::Exact,
+            };
+            Some(Check::Characters { count, bound })
+        }
         _ => None,
     })
 }
@@ -201,6 +263,19 @@ impl Check {
             Check::Jwt => "jwt",
             Check::CreditCard(_) => "creditCard",
             Check::Coordinates => "coordinates",
+            Check::Mobile { .. } => "mobile",
+            Check::PostalCode(_) => "postalCode",
+            Check::Regex(_) => "regex",
+            Check::Characters {
+                bound: Bound::Min, ..
+            } => "minLength",
+            Check::Characters {
+                bound: Bound::Max, ..
+            } => "maxLength",
+            Check::Characters {
+                bound: Bound::Exact,
+                ..
+            } => "fixedLength",
         }
     }
 
@@ -252,6 +327,21 @@ impl Check {
             Check::Jwt => "be a JWT".to_owned(),
             Check::CreditCard(_) => "be a credit card number".to_owned(),
             Check::Coordinates => "be latitude and longitude coordinates".to_owned(),
+            Check::Mobile { .. } => "be a mobile phone number".to_owned(),
+            Check::PostalCode(_) => "be a postal code".to_owned(),
+            Check::Regex(_) => "match the expected format".to_owned(),
+            Check::Characters { count, bound } => {
+                let characters = if *count == 1 {
+                    "1 character".to_owned()
+                } else {
+                    format!("{count} characters")
+                };
+                match bound {
+                    Bound::Min => format!("be at least {characters}"),
+                    Bound::Max => format!("be at most {characters}"),
+                    Bound::Exact => format!("be exactly {characters}"),
+                }
+            }
         };
         format!("{field} must {what}")
     }
@@ -290,6 +380,18 @@ impl Check {
             Check::Jwt => quote!(#c::is_jwt(text)),
             Check::CreditCard(providers) => quote!(#c::is_credit_card(text, &[#(#providers),*])),
             Check::Coordinates => quote!(#c::is_coordinates(text)),
+            Check::Mobile { locales, strict } => {
+                quote!(#validate::patterns::is_mobile(text, &[#(#locales),*], #strict))
+            }
+            Check::PostalCode(countries) => {
+                quote!(#validate::patterns::is_postal_code(text, &[#(#countries),*]))
+            }
+            Check::Regex(pattern) => quote!(#validate::patterns::matches_pattern(text, #pattern)),
+            Check::Characters { count, bound } => match bound {
+                Bound::Min => quote!(text.chars().count() >= #count as usize),
+                Bound::Max => quote!(text.chars().count() <= #count as usize),
+                Bound::Exact => quote!(text.chars().count() == #count as usize),
+            },
         }
     }
 }

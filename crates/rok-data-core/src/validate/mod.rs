@@ -31,6 +31,7 @@ pub mod catalogue;
 mod database;
 mod input;
 mod messages;
+pub mod patterns;
 #[cfg(any(feature = "json", feature = "axum"))]
 mod report;
 pub mod schema;

@@ -9,7 +9,6 @@ use super::dto::body_columns;
 use super::feature::Feature;
 use super::layout::{Uses, push_call, push_signature, push_signature_where};
 use super::rule_snippets as snippets;
-use super::rule_tables;
 use super::rules::function_name;
 use crate::api_rules::Rule;
 use crate::generator::sql::str_literal;
@@ -61,30 +60,32 @@ impl Helper {
         }
     }
 
-    /// Its snippets, with what it calls.
+    /// Whether the runtime's rule catalogue holds it
+    /// (`rok_data::validate::catalogue`, workspace ADR 0021); the others are
+    /// written into `shared/validation.rs`.
+    fn in_runtime(self) -> bool {
+        !matches!(
+            self,
+            Helper::Check | Helper::MatchesRegex | Helper::Transformed
+        )
+    }
+
+    /// The path a `dto.rs` imports it from.
+    fn path(self) -> String {
+        if self.in_runtime() {
+            format!("rok_data::validate::catalogue::{}", self.name())
+        } else {
+            format!("crate::shared::validation::{}", self.name())
+        }
+    }
+
+    /// Its snippets for `shared/validation.rs`; none for a runtime one.
     fn snippets(self) -> &'static [&'static str] {
         match self {
             Helper::Check => &[snippets::CHECK],
             Helper::MatchesRegex => &[snippets::MATCHES_REGEX],
-            Helper::Letters => &[snippets::LETTERS],
-            Helper::Uuid => &[snippets::IS_UUID],
-            Helper::Ulid => &[snippets::IS_ULID],
-            Helper::HexCode => &[snippets::IS_HEX_CODE],
-            Helper::Jwt => &[snippets::IS_JWT],
-            Helper::Iban => &[snippets::IS_IBAN, rule_tables::IBAN_FORMAT_LIST],
-            Helper::Coordinates => &[snippets::IS_COORDINATES, snippets::DEGREES],
-            Helper::CreditCard => &[
-                snippets::IS_CREDIT_CARD,
-                snippets::LUHN,
-                rule_tables::CARD_PROVIDER_LIST,
-            ],
-            Helper::Url => &[snippets::IS_URL],
-            Helper::NormalizeEmail => &[
-                snippets::NORMALIZE_EMAIL,
-                snippets::REMOVE_SINGLE_DOTS,
-                rule_tables::EMAIL_DOMAINS,
-            ],
             Helper::Transformed => &[snippets::TRANSFORMED],
+            _ => &[],
         }
     }
 }
@@ -110,7 +111,7 @@ pub fn shared_helpers(features: &[Feature<'_>]) -> String {
 /// call from `shared/validation.rs`.
 pub fn push_functions(output: &mut String, uses: &mut Uses, feature: &Feature<'_>) {
     for helper in render_functions(output, feature) {
-        uses.add(&format!("crate::shared::validation::{}", helper.name()));
+        uses.add(&helper.path());
     }
 }
 
@@ -392,42 +393,19 @@ fn push_check_function(output: &mut String, column: &Column, rule: &Rule, needs:
 /// validator.js's `isMobilePhone` pattern of `locale`, `\d` written
 /// `[0-9]` (JavaScript's `\d` is ASCII).
 fn mobile_pattern(locale: &str) -> Option<&'static str> {
-    Some(match locale {
-        "ar-AE" => r"^((\+?971)|0)?5[024568][0-9]{7}$",
-        "ar-BH" => r"^(\+?973)?(3|6)[0-9]{7}$",
-        "ar-EG" => r"^((\+?20)|0)?1[0125][0-9]{8}$",
-        "ar-JO" => r"^(\+?962|0)?7[789][0-9]{7}$",
-        "ar-KW" => r"^(\+?965)([569][0-9]{7}|41[0-9]{6})$",
-        "ar-OM" => r"^((\+|00)968)?([79][1-9])[0-9]{6}$",
-        "ar-QA" => r"^(\+?974|0)?([3567][0-9]{7})$",
-        "ar-SA" => r"^(!?(\+?966)|0)?5[0-9]{8}$",
-        "de-DE" => r"^((\+49|0)1)(5[0-25-9][0-9]|6([23]|0[0-9]?)|7([0-57-9]|6[0-9]))[0-9]{7,9}$",
-        "en-CA" | "en-US" => {
-            r"^((\+1|1)?( |-)?)?(\([2-9][0-9]{2}\)|[2-9][0-9]{2})( |-)?([2-9][0-9]{2}( |-)?[0-9]{4})$"
-        }
-        "en-GB" => r"^(\+?44|0)7[1-9][0-9]{8}$",
-        "en-IN" => r"^(\+?91|0)?[6789][0-9]{9}$",
-        "es-ES" => r"^(\+?34)?[6|7][0-9]{8}$",
-        "fr-FR" => r"^(\+?33|0)[67][0-9]{8}$",
-        "tr-TR" => r"^(\+?90|0)?5[0-9]{9}$",
-        _ => return None,
-    })
+    crate::api_rules::MOBILE_PATTERNS
+        .iter()
+        .find(|(key, _)| *key == locale)
+        .map(|(_, pattern)| *pattern)
 }
 
 /// validator.js's `isPostalCode` pattern of `country`, `\d` written
 /// `[0-9]`, and `/i` as `(?i)`.
 fn postal_pattern(country: &str) -> Option<&'static str> {
-    Some(match country {
-        "CA" => {
-            r"(?i)^[ABCEGHJKLMNPRSTVXY][0-9][ABCEGHJ-NPRSTV-Z][\s\-]?[0-9][ABCEGHJ-NPRSTV-Z][0-9]$"
-        }
-        "DE" | "SA" => r"^[0-9]{5}$",
-        "ES" => r"^(5[0-2]{1}|[0-4]{1}[0-9]{1})[0-9]{3}$",
-        "FR" => r"^(?:(?:0[1-9]|[1-8][0-9]|9[0-5])[0-9]{3}|97[1-46][0-9]{2})$",
-        "GB" => r"(?i)^(gir\s?0aa|[a-z]{1,2}[0-9][0-9a-z]?\s?([0-9][a-z]{2})?)$",
-        "US" => r"^[0-9]{5}(-[0-9]{4})?$",
-        _ => return None,
-    })
+    crate::api_rules::POSTAL_PATTERNS
+        .iter()
+        .find(|(key, _)| *key == country)
+        .map(|(_, pattern)| *pattern)
 }
 
 #[cfg(test)]

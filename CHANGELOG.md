@@ -293,6 +293,16 @@ compiler finds the call sites.
   `shared/validation.rs`. The `normalize_email` transform now normalizes
   as the generated APIs' `normalizeEmail` does (provider subaddresses,
   Gmail dots) and no longer trims: add `trim` before it.
+- **The rest of the catalogue** (input-validation ticket 07, second
+  part): `min_length = n`, `max_length = n`, `fixed_length = n`
+  (characters, codes `minLength` / `maxLength` / `fixedLength`), and with
+  the new runtime feature `regex`: `mobile(locales = [...], strict)`,
+  `postal_code(countries = [...])` and `regex = "…"`. Their pattern
+  tables live in `validate::patterns` and in the engine; a test keeps the
+  two equal. Generated APIs now import the rule checks
+  (`is_url`, `letters`, `normalize_email`, …) from
+  `rok_data::validate::catalogue` instead of carrying copies in
+  `shared/validation.rs`.
 - **JSON Schema from an input** (input-validation ticket 06):
   `Input::json_schema()` (feature `json`) is the input as JSON Schema
   2020-12 — field types, `required`, and the field rules a schema can say
