@@ -6,7 +6,7 @@ annotates each generated handler and type for
 document at `/api-docs/openapi.json` with Swagger UI at `/docs/`. The
 samples on this page come from [`docs/examples/api`](../examples/api),
 except those showing a scaffolded file as `init` writes it, which come from
-`init`'s templates in `src/init/templates/`.
+`init`'s scaffold in `src/init/scaffold/`.
 
 `[api] openapi = false` turns all of it off. The generated files then
 mention no utoipa, exactly as before the document existed. The files
@@ -81,7 +81,7 @@ as `liveness` and `readiness`.
 lists your own handlers and schemas, and `document()` merges the generated
 document into it, titled and versioned after your crate:
 
-<!-- source: src/init/templates/openapi.rs -->
+<!-- source: src/init/scaffold/openapi.rs -->
 ```rust
 /// Your hand-written paths and schemas: list a handler carrying
 /// `#[utoipa::path]` in `paths(...)`, and a type deriving `ToSchema` that
@@ -115,7 +115,7 @@ generated API](customizing.md#a-hand-written-feature) walks through it.
 The scaffolded `app.rs` mounts both routes. `/docs` redirects to `/docs/`,
 where Swagger UI lives:
 
-<!-- source: src/init/templates/app.rs -->
+<!-- source: src/init/scaffold/app.rs -->
 ```rust
 pub fn configure(cfg: &mut web::ServiceConfig, pool: &PgPool, keys: &web::Data<JwtKeys>) {
     cfg.app_data(web::Data::new(pool.clone()))

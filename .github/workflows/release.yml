@@ -215,7 +215,7 @@ jobs:
           version="${{ needs.prepare.outputs.version }}"
           # Dependencies first; the CLI crate last so
           # `cargo install rok-data-cli` resolves the published set.
-          for crate in rok-data-macros rok-data-core rok-data rok-data-codegen rok-data-sqlc rok-data-cli; do
+          for crate in rok-data-macros rok-data-core rok-data rok-data-codegen rok-templates rok-data-sqlc rok-data-cli; do
             status="$(curl -s -o /dev/null -w '%{http_code}' \
               -A "rok-data release workflow (https://github.com/${{ github.repository }})" \
               "https://crates.io/api/v1/crates/$crate/$version")"

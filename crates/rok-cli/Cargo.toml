@@ -21,6 +21,8 @@ path = "src/main.rs"
 rok-data = { workspace = true }
 rok-data-codegen = { workspace = true }
 rok-data-sqlc = { workspace = true }
+# `rok tools …` (ADR 0026). A sibling checkout during development; crates.io once published.
+rok-tools-cli = { path = "../../../rok-tools/crates/rok-tools-cli", version = "0.1.0", optional = true }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
@@ -28,6 +30,11 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt", "macros", "time"] }
 toml = { version = "1", default-features = false, features = ["parse", "serde"] }
+
+[features]
+default = ["tools"]
+# `rok tools <tool>`: every rok-tools Tool, the Payload Runner and `[tools.*]` config.
+tools = ["dep:rok-tools-cli"]
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

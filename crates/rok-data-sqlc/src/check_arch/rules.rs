@@ -26,6 +26,13 @@ const RULE_1_ROOT: &[&str] = &["app.rs", "main.rs", "error.rs"];
 /// The feature files rule 1 lets name the watched crate, either backend's.
 const RULE_1_FEATURE: &[&str] = &["routes.rs", "handlers.rs"];
 
+/// The wiring's root file, and the directory of its submodules: `src/app/`
+/// is the module `app.rs` is, split up, so every rule treats its files as
+/// `app.rs`.
+pub(super) const WIRING_FILE: &str = "app.rs";
+/// See [`WIRING_FILE`].
+pub(super) const WIRING_DIR: &str = "app";
+
 /// actix-web's rule 1: the default backend's own rule, watching
 /// `actix_web` over the shared file table.
 pub(super) const ACTIX_WEB: Rule1 = Rule1 {
@@ -80,7 +87,10 @@ pub(crate) fn rules(framework: ApiFramework) -> [String; 6] {
     let root = |files: &[&str]| {
         files
             .iter()
-            .map(|file| format!("`{file}`, "))
+            .map(|file| match *file {
+                WIRING_FILE => format!("`{file}` or `{WIRING_DIR}/`, "),
+                _ => format!("`{file}`, "),
+            })
             .collect::<String>()
     };
     let ports: Vec<String> = SQLX_PORT_TYPES
@@ -133,7 +143,7 @@ pub(crate) fn scope() -> String {
          rules 1, 2, 4, 5 and 6 and the layout: a feature directory holds only \
          {}; no file or directory is named `utils`, `helpers` or `common`; and \
          `src/` has no top-level directory but the data layer's, `shared/`, the \
-         features' and `bin/`. Test code is exempt from every rule: files under \
+         features', `app/` (the wiring, split up) and `bin/`. Test code is exempt from every rule: files under \
          `#![cfg(test)]`, items under `#[cfg(test)]`, `#[test]` and \
          `#[<path>::test]` functions, and `tests/`, which is not read. Each \
          violation prints as `path:line: rule: message`. Rule 3 is yours to keep.",
@@ -206,14 +216,14 @@ mod tests {
         assert_eq!(
             one,
             "In a feature, only `routes.rs` and `handlers.rs` use `actix_web`. Outside \
-             the features, so may `app.rs`, `main.rs`, `error.rs`, the features' \
+             the features, so may `app.rs` or `app/`, `main.rs`, `error.rs`, the features' \
              `generated.rs`, `shared/` and the data layer."
         );
         assert_eq!(
             two,
             "In a feature, only `repo.rs` and `model.rs` use `sqlx`, and `service.rs` \
              and `service_api.rs` may name `sqlx::PgPool` and `sqlx::PgConnection` and \
-             nothing else. Outside the features, so may `app.rs`, `error.rs`, the \
+             nothing else. Outside the features, so may `app.rs` or `app/`, `error.rs`, the \
              features' `generated.rs`, `shared/` and the data layer."
         );
         // The axum rule allows the same files, and names `axum`: the rule
@@ -222,7 +232,7 @@ mod tests {
         assert_eq!(
             one,
             "In a feature, only `routes.rs` and `handlers.rs` use `axum`. Outside \
-             the features, so may `app.rs`, `main.rs`, `error.rs`, the features' \
+             the features, so may `app.rs` or `app/`, `main.rs`, `error.rs`, the features' \
              `generated.rs`, `shared/` and the data layer."
         );
     }

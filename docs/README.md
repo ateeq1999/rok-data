@@ -55,11 +55,11 @@ page; edit the source file and re-mark.
 
 | Path | What it is |
 | ---- | ---------- |
-| [`decisions/`](decisions/) (0001–0021) | workspace ADRs — every deliberate cross-crate choice; the single source for "why" |
+| [`decisions/`](decisions/) (0001–0025) | workspace ADRs — every deliberate cross-crate choice; the single source for "why" |
 | [`migration-audit.md`](migration-audit.md) | what was audited out of the four source repositories before consolidation |
 | [`migration-plan.md`](migration-plan.md) | the original consolidation plan |
 | [`unified-pipeline-plan.md`](unified-pipeline-plan.md) | the 0.2.0 pipeline plan (schema-dir truth, front door, templates) |
-| [`specs/`](specs/) | per-release specs (0.3.0 model-shaped layer, 0.4.0 everyday verbs, the sqlc absorption, input validation) |
+| [`specs/`](specs/) | per-release specs (0.3.0 model-shaped layer, 0.4.0 everyday verbs, the sqlc absorption, input validation, 0.5.0 production templates) |
 | [`research/toasty-patterns.md`](research/toasty-patterns.md) | the toasty study behind With-loading's shape |
 
 The engine's own ADR series and guides live outside this directory, in

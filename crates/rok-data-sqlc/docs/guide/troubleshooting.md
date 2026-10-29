@@ -323,7 +323,7 @@ src/features/users/extra.rs:1: layout: feature `users` holds a file it may not: 
 ```
 
 ```text
-src/jobs:1: layout: unknown top-level directory `jobs`: src/ holds only bin, db, features, shared
+src/jobs:1: layout: unknown top-level directory `jobs`: src/ holds only app, bin, db, features, shared
 ```
 
 ```text

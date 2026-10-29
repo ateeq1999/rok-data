@@ -2,9 +2,9 @@
 //! generation settings in a `[generate]` section, beside the `[api]` and
 //! `[conventions]` sections the legacy file holds at the top level.
 //!
-//! The sections the engine does not own — `[project]` and `[scaffold]` —
+//! The sections the engine does not own — `[project]`, `[scaffold]` and `[tools]` —
 //! are read and ignored: each engine reads only its own sections, and the
-//! others belong to the scaffolders.
+//! others belong to the scaffolders (and `[tools]` to rok-tools).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -36,6 +36,10 @@ pub(super) struct RawProject {
     #[serde(default)]
     #[allow(dead_code)]
     scaffold: Option<toml::Table>,
+    /// The `[tools.<tool>]` settings, owned by rok-tools (workspace ADR 0026).
+    #[serde(default)]
+    #[allow(dead_code)]
+    tools: Option<toml::Table>,
 }
 
 /// The `[generate]` section: the engine's generation settings. The keys are
@@ -200,6 +204,16 @@ mod tests {
             .expect_err("the unknown key is refused")
             .to_string();
         assert!(error.contains("schem"), "{error}");
+    }
+
+    #[test]
+    fn the_tools_section_belongs_to_rok_tools() {
+        let raw = toml::from_str::<RawProject>("[tools.loc]\nmax_lines = 600\n");
+        assert!(raw.is_ok(), "[tools] is accepted and ignored");
+        let error = toml::from_str::<RawProject>("[tool.loc]\nmax_lines = 600\n")
+            .expect_err("a misspelled section is still refused")
+            .to_string();
+        assert!(error.contains("tool"), "{error}");
     }
 
     #[test]

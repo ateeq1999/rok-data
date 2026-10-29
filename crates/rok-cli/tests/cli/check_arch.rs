@@ -470,7 +470,7 @@ const LAYOUT: &[&str] = &[
     "src/features/notes/extra:1: layout: feature `notes` holds a file it may not: a feature has only mod.rs, routes.rs, handlers.rs, dto.rs, model.rs, repo.rs, service_api.rs, service.rs",
     "src/features/notes/validators.rs:1: layout: feature `notes` holds a file it may not: a feature has only mod.rs, routes.rs, handlers.rs, dto.rs, model.rs, repo.rs, service_api.rs, service.rs",
     "src/helpers:1: layout: no module may be named `helpers`: put the code in shared/ or in a feature",
-    "src/helpers:1: layout: unknown top-level directory `helpers`: src/ holds only bin, db, features, shared",
+    "src/helpers:1: layout: unknown top-level directory `helpers`: src/ holds only app, bin, db, features, shared",
     "src/shared/utils.rs:1: layout: no module may be named `utils`: put the code in shared/ or in a feature",
 ];
 

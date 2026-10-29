@@ -472,6 +472,13 @@ pub(crate) fn parse(args: &[String]) -> ParseOutcome {
         "Legacy: generate SQLx Rust modules from SQL schema files \
                  (generate|init|check-arch); superseded by `rok gen`",
     ));
+    // Likewise `rok tools …` is routed to rok-tools before this parser (ADR 0026).
+    #[cfg(feature = "tools")]
+    let command = command.subcommand(
+        rok_tools_cli::command()
+            .name("tools")
+            .about("Developer tools: grep, replace, loc, refactor, … (`rok tools list`)"),
+    );
     match command.try_get_matches_from(inputs(args)) {
         Ok(matches) => match Command::from_arg_matches(&matches) {
             Ok(command) => ParseOutcome::Command(command),

@@ -1,5 +1,5 @@
 //! `rok sqlc init --template <NAME>` copies a ready-made project's files
-//! from `templates/`, embedded in the binary, each only when absent. It
+//! from the rok-templates crate, embedded in the binary, each only when absent. It
 //! leaves out rok-data-sqlc's generated ones (`rok sqlc generate` writes them), but
 //! copies the template's pinned `Cargo.lock`, and generates nothing.
 
@@ -7,12 +7,12 @@ use super::*;
 
 /// The template `actix`'s directory in the repository.
 fn actix_template() -> PathBuf {
-    common::manifest_dir().join("templates/actix-api")
+    common::template_dir("actix-api")
 }
 
 /// The template `axum`'s directory in the repository.
 fn axum_template() -> PathBuf {
-    common::manifest_dir().join("templates/axum-api")
+    common::template_dir("axum-api")
 }
 
 /// The template's files as `init` copies them: every one but

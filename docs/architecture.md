@@ -78,6 +78,7 @@ door, and their removal is deferred to 1.0 (engine ADR 0012).
 | `rok-data`        | facade: re-exports core + macros; the single dependency of applications        | core, macros                        |
 | `rok-data-codegen`| model-crate generator (legacy `rok generate`): reads `.sql`, emits a cargo crate; stages migration pairs (`rok gen --migration`) | core (types), toml                  |
 | `rok-data-sqlc`   | model generator (legacy `rok sqlc generate|init|check|check-arch|query`; the emitted modules are models since 0.3.0, engine ADR 0018); the API features have an actix-web and an axum backend   | own pg parser, clap  |
+| `rok-templates`   | the actix and axum project templates `init --template` copies, embedded by `build.rs`; data only (workspace ADR 0022) | none                                |
 | `rok-data-cli`    | the `rok` binary: argument routing, output formats, connection handling        | codegen, core, sqlc, clap, tokio    |
 
 Since 0.3.0 the data layer is model-shaped (workspace ADR 0014): the verbs

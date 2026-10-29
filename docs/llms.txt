@@ -33,8 +33,8 @@
 - [Migration audit](migration-audit.md): what the four source repositories held before consolidation.
 - [Migration plan](migration-plan.md): the original consolidation plan.
 - [Unified pipeline plan](unified-pipeline-plan.md): the 0.2.0 pipeline plan — schema-dir truth, front door, templates.
-- [Workspace ADRs](decisions/0001-runtime-lineage.md): deliberate cross-crate decisions, 0001–0021 (see the directory `docs/decisions/` for all).
-- [Engine specs](specs/0.3.0-model-shaped-data-layer.md): per-release specs (0.4.0 everyday verbs, sqlc absorption, input validation) under `docs/specs/`.
+- [Workspace ADRs](decisions/0001-runtime-lineage.md): deliberate cross-crate decisions, 0001–0025 (see the directory `docs/decisions/` for all).
+- [Engine specs](specs/0.3.0-model-shaped-data-layer.md): per-release specs (0.4.0 everyday verbs, sqlc absorption, input validation, 0.5.0 production templates) under `docs/specs/`.
 - [Toasty patterns research](research/toasty-patterns.md): the study behind With-loading's shape.
 
 ## Nearby (root)

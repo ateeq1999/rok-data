@@ -18,7 +18,10 @@ use anyhow::{Context, Result, bail};
 use crate::ApiFramework;
 
 pub(crate) use rules::rules_markdown;
-use rules::{Rule1, SQLX_FEATURE, SQLX_PORT_FILES, SQLX_PORT_TYPES, SQLX_ROOT, rule_1};
+use rules::{
+    Rule1, SQLX_FEATURE, SQLX_PORT_FILES, SQLX_PORT_TYPES, SQLX_ROOT, WIRING_DIR, WIRING_FILE,
+    rule_1,
+};
 use source::Reference;
 
 /// The files a feature directory may hold.
@@ -268,8 +271,14 @@ impl Layout {
         rel.strip_prefix(self.features.as_slice()) == Some(&["generated.rs".to_owned()][..])
     }
 
+    /// Whether `rel` is one of the root files `names`, or lies under
+    /// `src/app/` when `names` holds `app.rs`, whose submodules those are.
     fn is_root(rel: &[String], names: &[&str]) -> bool {
-        rel.len() == 1 && names.contains(&rel[0].as_str())
+        match rel {
+            [file] => names.contains(&file.as_str()),
+            [dir, _, ..] => dir == WIRING_DIR && names.contains(&WIRING_FILE),
+            [] => false,
+        }
     }
 
     /// The layout checks of one file or directory.
@@ -300,7 +309,7 @@ impl Layout {
             );
         }
         if rel.len() == 1 && !name.contains('.') {
-            let mut allowed = vec!["shared", "bin"];
+            let mut allowed = vec!["shared", "bin", WIRING_DIR];
             allowed.extend(self.db.first().map(String::as_str));
             allowed.extend(self.features.first().map(String::as_str));
             if !allowed.contains(&name.as_str()) {

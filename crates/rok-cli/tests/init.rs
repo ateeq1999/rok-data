@@ -4,7 +4,7 @@
 //! directory — every file written once and never rewritten.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Output};
 
 use anyhow::Result;
@@ -143,7 +143,7 @@ fn init_copies_a_template_instead_of_the_skeleton() -> Result<()> {
         "Cargo.lock",
         "README.md",
         "rok-data-sqlc.toml",
-        "src/app.rs",
+        "src/app/mod.rs",
         "src/main.rs",
         "schema/0001_init.sql",
         "migrations/0001_init.up.sql",
@@ -213,7 +213,7 @@ fn init_copies_the_axum_template() -> Result<()> {
         "Cargo.lock",
         "README.md",
         "rok-data-sqlc.toml",
-        "src/app.rs",
+        "src/app/mod.rs",
         "src/main.rs",
         "schema/0001_init.sql",
         "migrations/0001_init.up.sql",
@@ -353,16 +353,15 @@ fn the_help_lists_the_templates() -> Result<()> {
     Ok(())
 }
 
-/// The template the engine ships is the one the root command offers.
+/// The templates the engine offers are the ones rok-templates holds.
 #[test]
 fn the_offered_templates_are_the_engines() {
     let offered: Vec<&str> = rok_data_sqlc::init::template_names().collect();
     assert_eq!(offered, vec!["actix", "axum"]);
-    let engine: PathBuf = common::manifest_dir();
-    for template in ["templates/actix-api", "templates/axum-api"] {
+    for template in ["actix-api", "axum-api"] {
         assert!(
-            engine.join(template).is_dir(),
-            "the offered template is not in the engine"
+            common::template_dir(template).is_dir(),
+            "the offered template `{template}` is not in rok-templates"
         );
     }
 }

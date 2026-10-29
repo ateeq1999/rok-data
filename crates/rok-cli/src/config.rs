@@ -25,7 +25,7 @@ pub(crate) struct GenConfig {
 
 /// The full config file. Each section's schema belongs to the reader of
 /// that section: the generator validates only `[generate]` (legacy
-/// spelling `[gen]`); the other four sections exist here as file-level
+/// spelling `[gen]`); the other five sections exist here as file-level
 /// schema names so a typo'd section is an error — their owning engine's
 /// config reader applies them directly from the file.
 #[derive(Debug, Default, serde::Deserialize)]
@@ -45,6 +45,10 @@ pub(crate) struct ConfigFile {
     #[serde(default)]
     #[allow(dead_code)]
     pub scaffold: Option<toml::Table>,
+    /// `[tools.<tool>]`: read by rok-tools (`rok tools …`, ADR 0026).
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub tools: Option<toml::Table>,
 }
 
 /// The canonical config file name.
@@ -167,4 +171,16 @@ pub(crate) fn options(
     options.renames = renames;
     options.allow_destructive = allow_destructive;
     Ok(options)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_tools_section_belongs_to_rok_tools() {
+        let path = Path::new(FILE);
+        assert!(parse("[tools.loc]\nmax_lines = 600\n", path).is_ok());
+        assert!(parse("[tool.loc]\nmax_lines = 600\n", path).is_err());
+    }
 }

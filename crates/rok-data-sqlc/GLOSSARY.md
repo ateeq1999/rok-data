@@ -45,10 +45,6 @@ _Avoid_: interface, client, gateway
 A file rok-data-sqlc writes only when it is absent, as a starting point, and never rewrites; from then on the user owns it. A service is one.
 _Avoid_: template, stub, generated file (that is rewritten on every run)
 
-**Template**:
-A complete starter project, for one web framework, that rok-data-sqlc's `init` copies into a new project: application skeleton, schema, and the API generated from it.
-_Avoid_: starter, boilerplate, scaffold (that is a single scaffolded file)
-
 **Schema snapshot**:
 A verbatim copy of the input schema SQL embedded in generated code as a constant. Never executed; not a migration system.
 _Avoid_: migration

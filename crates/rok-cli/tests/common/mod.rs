@@ -14,6 +14,18 @@ pub(crate) fn sqlc_manifest_dir() -> PathBuf {
         .expect("the rok-data-sqlc crate is next to rok-cli")
 }
 
+/// The template directory `dir` (such as `axum-api`) of the rok-templates
+/// crate, which `rok sqlc init --template` copies (workspace ADR 0022).
+pub(crate) fn template_dir(dir: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("rok-templates")
+        .join("templates")
+        .join(dir)
+        .canonicalize()
+        .expect("the rok-templates crate is next to rok-cli")
+}
+
 /// The rok-data-sqlc crate's root, for code that still calls it that way.
 pub(crate) fn manifest_dir() -> PathBuf {
     sqlc_manifest_dir()

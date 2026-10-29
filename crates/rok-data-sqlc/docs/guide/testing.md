@@ -187,7 +187,7 @@ Under axum, an API test builds the same router `main.rs` serves,
 dev-dependency). No server starts here either. The axum template's
 `tests/support/mod.rs` wraps this as `call`:
 
-<!-- source: templates/axum-api/tests/support/mod.rs -->
+<!-- source: ../rok-templates/templates/axum-api/tests/support/mod.rs -->
 ```rust
     let response = router(state.clone()).oneshot(request).await?;
 ```

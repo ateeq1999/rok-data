@@ -14,6 +14,7 @@
 //! rok db check|inspect
 //! rok schema dump|diff
 //! rok sqlc generate|init|check-arch   # legacy: forwarded to the engine
+//! rok tools <tool> [ARGS]             # forwarded to rok-tools (`tools` feature)
 //! ```
 //!
 //! `rok generate` and `rok sqlc …` are the legacy surfaces
@@ -62,9 +63,15 @@ use Outcome::{Continue, Handled};
 /// `rok sqlc …` reuses the config resolution and clap grammar that the
 /// `rok-data-sqlc` engine tests also exercise, so their definitions live in
 /// that crate. Everything else is parsed here.
+///
+/// `rok tools …` is routed the same way to rok-tools (ADR 0026).
 fn route_sqlc(args: &[String]) -> Outcome {
     if args.len() >= 2 && args[1] == "sqlc" {
         return Handled(commands::sqlc::run(&args[2..]));
+    }
+    #[cfg(feature = "tools")]
+    if args.len() >= 2 && args[1] == "tools" {
+        return Handled(commands::tools::run(&args[2..]));
     }
     Continue
 }

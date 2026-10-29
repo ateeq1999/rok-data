@@ -19,12 +19,7 @@ categories = ["database", "development-tools", "command-line-utilities"]
 # the module corpus and the fixture crates, which stay in the repository.
 include = [
     "/src/**/*.rs",
-    "/src/init/templates/*",
-    # `init --template`: `build.rs` embeds `templates/`, but not a build of a
-    # template made in place.
-    "/build.rs",
-    "/templates/**",
-    "!/templates/*/target/**",
+    "/src/init/scaffold/*",
     "/Cargo.toml",
     "/README.md",
     "/CHANGELOG.md",
@@ -57,6 +52,8 @@ heck = "0.5"
 proc-macro2 = { version = "1", features = ["span-locations"] }
 regex-syntax = "0.8"
 rok-data-codegen = { path = "../rok-data-codegen", version = "0.4.0" }
+# `init --template`: the templates it copies, embedded (workspace ADR 0022).
+rok-templates = { path = "../rok-templates", version = "0.4.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sqlparser = { version = "0.59", features = ["visitor"] }

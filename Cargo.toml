@@ -5,11 +5,12 @@ members = [
     "crates/rok-data-macros",
     "crates/rok-data",
     "crates/rok-data-codegen",
+    "crates/rok-templates",
     "crates/rok-data-sqlc",
     "crates/rok-cli",
 ]
 
-# Fixture crates under the sqlc engine's tests/ and templates/ build with
+# Fixture crates under the sqlc engine's tests/, and the templates, build with
 # their own Cargo.lock and dependency set; keep cargo from treating the
 # workspace as their root.
 exclude = [
@@ -17,8 +18,8 @@ exclude = [
     "crates/rok-data-sqlc/tests/api-app",
     "crates/rok-data-sqlc/tests/axum-app",
     "crates/rok-data-sqlc/tests/fixture-app",
-    "crates/rok-data-sqlc/templates/actix-api",
-    "crates/rok-data-sqlc/templates/axum-api",
+    "crates/rok-templates/templates/actix-api",
+    "crates/rok-templates/templates/axum-api",
     "crates/rok-data-sqlc/docs/examples/api",
     "crates/rok-data-sqlc/docs/examples/conventions",
     "crates/rok-data-sqlc/docs/examples/quickstart",
@@ -41,6 +42,7 @@ rok-data-core = { path = "crates/rok-data-core", version = "0.4.0" }
 rok-data-macros = { path = "crates/rok-data-macros", version = "0.4.0" }
 rok-data = { path = "crates/rok-data", version = "0.4.0" }
 rok-data-codegen = { path = "crates/rok-data-codegen", version = "0.4.0" }
+rok-templates = { path = "crates/rok-templates", version = "0.4.0" }
 rok-data-sqlc = { path = "crates/rok-data-sqlc", version = "0.4.0" }
 sqlx = { version = "0.9", default-features = false, features = [
     "runtime-tokio",

@@ -321,7 +321,7 @@ dropped and the wider one added.
 for the page your front end serves. `compose` escapes the HTML body, so
 values go in as they are:
 
-<!-- source: templates/actix-api/src/shared/mail/templates.rs -->
+<!-- source: ../rok-templates/templates/actix-api/src/shared/mail/templates.rs -->
 ```rust
     pub fn verification(&self, to: &str, token: &str) -> Mail {
         compose(
@@ -344,7 +344,7 @@ values go in as they are:
 for in `policy`: each purpose's lifetime and the message that carries it
 (`None` for a token that is never mailed):
 
-<!-- source: templates/actix-api/src/shared/security/auth_token.rs -->
+<!-- source: ../rok-templates/templates/actix-api/src/shared/security/auth_token.rs -->
 ```rust
 pub fn policy(purpose: AuthTokenPurpose) -> (TimeDelta, Option<RenderLink>) {
     match purpose {

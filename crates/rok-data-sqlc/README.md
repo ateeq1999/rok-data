@@ -1297,7 +1297,7 @@ derives `ToSchema`, and `src/features/generated.rs` gathers them in
 paths and schemas go in the scaffolded `src/openapi.rs`, whose `ApiDoc`
 the generated document merges into:
 
-<!-- source: src/init/templates/openapi.rs -->
+<!-- source: src/init/scaffold/openapi.rs -->
 ```rust
 #[derive(OpenApi)]
 #[openapi(paths(), components(schemas()))]
@@ -1443,7 +1443,7 @@ The layout checks (`layout`):
   `dto.rs`, `model.rs`, `repo.rs`, `service_api.rs` and `service.rs`;
 - no file or directory is named `utils`, `helpers` or `common`;
 - `src/` has no top-level directory but the data layer's, `shared/`, the
-  features directory's and `bin/`.
+  features directory's, `app/` (the wiring, `app.rs` split up) and `bin/`.
 
 The rules, read from the Rust source with `syn` (comments, strings and
 test code, `#[cfg(test)]` or `#[test]`, never count):

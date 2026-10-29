@@ -43,7 +43,8 @@ fails the build when the generated code goes stale.
 | `rok-data-core` | `Db`, `Expr`/`Select`, migrations, introspect | site `/crates/rok-data-core` |
 | `rok-data-macros` | the derives + `#[rok_data::test]` | site `/crates/rok-data-macros` |
 | `rok-data-codegen` | whole-crate generator + migration diff | site `/crates/rok-data-codegen` |
-| `rok-data-sqlc` | resource-module engine, templates, check-arch | site `/crates/rok-data-sqlc` |
+| `rok-data-sqlc` | resource-module engine, init, check-arch | site `/crates/rok-data-sqlc` |
+| `rok-templates` | the actix and axum starter templates | `crates/rok-templates/README.md` |
 | `rok-data-cli` | the `rok` binary | site `/crates/rok-cli` |
 
 ## Scope of this documentation

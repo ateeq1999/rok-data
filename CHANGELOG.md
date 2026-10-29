@@ -9,6 +9,27 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+**Changed**
+
+- The actix and axum templates moved from `crates/rok-data-sqlc/templates/`
+  to a crate of their own, `rok-templates` (workspace ADR 0022), which
+  `rok-data-sqlc` depends on. `rok sqlc init --template` copies the same
+  files as before. The engine's plain-init scaffold moved from
+  `src/init/templates/` to `src/init/scaffold/`.
+- `rok sqlc check-arch` treats `src/app/` as `app.rs` split up: its files
+  may use the framework and `sqlx` as `app.rs` does, and it is no longer
+  an unknown top-level directory. Rules 1 and 2 now read "`app.rs` or
+  `app/`"; regenerate a project's `AGENTS.md` rules section from
+  `rok sqlc init` output if you keep it in step.
+- Both templates' wiring is split by responsibility into `src/app/`:
+  `state.rs`, `router.rs`, `run.rs` and `ports.rs` (the last shared by
+  both templates). The public paths (`app::AppState`, `app::run`, …) are
+  unchanged.
+- The templates' `Config::from_env` reports every wrong setting at once
+  (`ConfigErrors`) instead of stopping at the first, and the server logs
+  its settings at start-up with secrets left out (`Config::summary`).
+  The config unit tests moved to `tests/config.rs`.
+
 ## [0.4.0] — typed keys, a runtime-backed data layer, and direct uploads
 
 Breaking. Model lookups take the model's own key type, and the code

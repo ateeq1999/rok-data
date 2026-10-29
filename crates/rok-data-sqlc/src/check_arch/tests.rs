@@ -166,6 +166,38 @@ fn the_actix_rule_is_what_it_always_printed() -> Result<()> {
     Ok(())
 }
 
+/// `src/app/` is `app.rs` split up: its files may name the framework and
+/// `sqlx` as `app.rs` does, and it is no unknown top-level directory.
+/// Another directory still is.
+#[test]
+fn the_wiring_may_be_split_into_app() -> Result<()> {
+    for framework in [ApiFramework::ActixWeb, ApiFramework::Axum] {
+        let watched = match framework {
+            ApiFramework::ActixWeb => "actix_web",
+            ApiFramework::Axum => "axum",
+        };
+        let router = format!("use {watched}::http::StatusCode;\nuse sqlx::PgPool;\n");
+        let files = [
+            ("src/app.rs", "mod router;\nmod state;\n"),
+            ("src/app/router.rs", router.as_str()),
+            (
+                "src/app/state.rs",
+                "use sqlx::PgPool;\npub struct S(PgPool);\n",
+            ),
+        ];
+        assert_eq!(violations(framework, &files)?, Vec::<String>::new());
+    }
+    let files = [("src/wiring/router.rs", "pub struct R;\n")];
+    let found = violations(ApiFramework::Axum, &files)?;
+    assert!(
+        found
+            .iter()
+            .any(|v| v.contains("unknown top-level directory `wiring`")),
+        "{found:?}"
+    );
+    Ok(())
+}
+
 #[test]
 fn rule_1_reports_the_other_framework_but_in_the_data_layer() -> Result<()> {
     // The other framework's crate is a rule-1 violation everywhere but the

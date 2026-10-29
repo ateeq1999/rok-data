@@ -136,8 +136,9 @@ table's, the rule is the input's)
 
 ### Pipeline pieces (deferred from the engine context)
 
-The terms **Table**, **Resource**, **API feature**, **Template**,
+The terms **Table**, **Resource**, **API feature**,
 **Scaffolded file**, **Drift**, **Convention**, **Preset**, and the
 relationship vocabulary are owned by the engine context's glossary at
-`crates/rok-data-sqlc/GLOSSARY.md`; this context reuses them with the
-same meaning rather than redefining them.
+`crates/rok-data-sqlc/GLOSSARY.md`, and **Template** and **Capability**
+by the templates context's at `crates/rok-templates/GLOSSARY.md`; this
+context reuses them with the same meaning rather than redefining them.

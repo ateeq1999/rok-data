@@ -17,7 +17,7 @@ use crate::rok_data_sqlc;
 
 /// The template's directory.
 fn template_dir() -> PathBuf {
-    common::manifest_dir().join("templates/axum-api")
+    common::template_dir("axum-api")
 }
 
 /// A project made from the template: `init --template axum` (which copies
@@ -189,20 +189,26 @@ fn axum_template_passes_its_checks_and_tests() -> Result<()> {
     starts_only_when_configured(dir)
 }
 
-/// Started without its settings, the server says which one is missing in
-/// one readable line, no `Debug` dump, and exits non-zero.
+/// Started without its settings, the server names every one missing, a
+/// readable line each, no `Debug` dump, and exits non-zero.
 fn starts_only_when_configured(dir: &Path) -> Result<()> {
     let output = cargo(dir, &["run", "--quiet"])
         .env_remove("DATABASE_URL")
         .env_remove("JWT_SECRET")
+        .env_remove("TOTP_ENCRYPTION_KEY")
         .output()
         .context("failed to run cargo run")?;
     let stderr = String::from_utf8_lossy(&output.stderr);
     ensure!(
-        !output.status.success()
-            && stderr.trim_end() == "error: environment variable `DATABASE_URL` is not set",
+        !output.status.success() && stderr.trim_end() == MISSING_SETTINGS,
         "the server started without DATABASE_URL, or said so unreadably ({}):\n{stderr}",
         output.status
     );
     Ok(())
 }
+
+/// What the server says started with none of its required settings.
+const MISSING_SETTINGS: &str = "error: 3 settings are wrong:\n  \
+    - environment variable `DATABASE_URL` is not set\n  \
+    - environment variable `JWT_SECRET` is not set\n  \
+    - environment variable `TOTP_ENCRYPTION_KEY` is not set";

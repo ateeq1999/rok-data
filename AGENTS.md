@@ -10,7 +10,9 @@ belongs.
 (audit: `docs/migration-audit.md`). The runtime lives in
 `rok-data-core` (+ `rok-data-macros` + the `rok-data` facade), the model
 crate generator in `rok-data-codegen`, the resource-module generator
-engine in `rok-data-sqlc`, and the only binary is `rok` in `rok-cli`.
+engine in `rok-data-sqlc`, the actix and axum project templates its
+`init --template` copies in `rok-templates`, and the only binary is
+`rok` in `rok-cli`.
 Libraries never depend on `rok-data-cli`; the CLI delegates to library
 functions; sqlx is depended on only by `rok-data-core`.
 
@@ -23,6 +25,7 @@ functions; sqlx is depended on only by `rok-data-core`.
 | Model-crate generator change                    | `crates/rok-data-codegen` + its tests; maybe `examples/sqlgen`     |
 | Resource-module/OpenAPI generator change        | `crates/rok-data-sqlc/src/...` + engine tests                     |
 | `rok sqlc …` behavior change                    | **the engine's** `src/cli.rs` — grammar lives there, not in rok-cli |
+| Template or capability change (actix/axum starters) | `crates/rok-templates/templates/{actix-api,axum-api}` — excluded from the workspace; `tests/template_drift.rs` keeps their shared files identical; compile gates in `crates/rok-cli/tests/fixture_compile/*_template.rs` |
 | CLI wiring / output formats / new root commands | `crates/rok-cli/src/{cli,commands,context,output,config}.rs`       |
 | Migration file format change                    | `crates/rok-data-core/src/{migration,migration_file}.rs` both      |
 | Fixtures (compile crates)                       | `crates/rok-data-sqlc/tests/{api-app,fixture-app,modules-app}` — excluded from the workspace; they manage own deps |
@@ -106,12 +109,14 @@ taken cannot be published, and the workflow's publish step fails on it.
 directory and the `rok` binary keep their names. crates.io limits how many
 *new* crates one account publishes in a short time: v0.2.0's run published
 five and was refused the sixth (`429`), so `rok-data-cli` first publishes
-with 0.3.0. A run that fails that way is rerun by hand on the same tag once
-the limit lifts; published versions are skipped.
+with 0.3.0. `rok-templates` (workspace ADR 0022) first publishes with
+0.5.0, before `rok-data-sqlc`, which depends on it. A run that fails that
+way is rerun by hand on the same tag once the limit lifts; published
+versions are skipped.
 
 The published crates keep their integration tests, and some of them
 (`rok-data-codegen`'s, `rok-cli`'s) need the repository's own layout
-(`examples/sqlgen`, the engine's templates and examples): `cargo test`
+(`examples/sqlgen`, `rok-templates`' templates, the engine's examples): `cargo test`
 inside a downloaded `.crate` does not pass. Building and installing them
 is unaffected — that is what crates.io and `cargo install` do.
 
@@ -127,7 +132,7 @@ is unaffected — that is what crates.io and `cargo install` do.
   NNNN"); an imported ADR takes the next free number and nothing is
   renumbered (workspace ADR 0016).
 - The numbering collides by design and nothing is renumbered: the two
-  series number independently — the workspace's reaches 0021, the
+  series number independently — the workspace's reaches 0025, the
   engine's 0026 — so wherever the number alone is ambiguous, cite
   "engine ADR NNNN" or "workspace ADR NNNN" — a file path beside the
   cite leaves it unambiguous, and in-code doc comments keep the short

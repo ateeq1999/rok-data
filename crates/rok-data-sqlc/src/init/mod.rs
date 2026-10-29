@@ -12,7 +12,7 @@
 //! `crate::db::pool::{PoolSettings, init_pool}`.
 //!
 //! `init --template <NAME>` ([`init_template`]) copies a ready-made project
-//! of `templates/` instead.
+//! of the `rok-templates` crate instead.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -27,29 +27,29 @@ use crate::report::display_path;
 /// project and its text. Rust files get [`SCAFFOLD_HEADER`] as their first
 /// line; the others carry it in their own comment syntax.
 const COMMON: &[(&str, &str)] = &[
-    ("AGENTS.md", include_str!("templates/AGENTS.md")),
-    ("src/config.rs", include_str!("templates/config.rs")),
-    ("src/openapi.rs", include_str!("templates/openapi.rs")),
-    ("src/shared/mod.rs", include_str!("templates/shared/mod.rs")),
+    ("AGENTS.md", include_str!("scaffold/AGENTS.md")),
+    ("src/config.rs", include_str!("scaffold/config.rs")),
+    ("src/openapi.rs", include_str!("scaffold/openapi.rs")),
+    ("src/shared/mod.rs", include_str!("scaffold/shared/mod.rs")),
 ];
 
 /// The actix-web skeleton's own files: its wiring, extractors and config.
 const ACTIX_WEB: &[(&str, &str)] = &[
     (
         "rok-data-sqlc.toml",
-        include_str!("templates/rok-data-sqlc.toml"),
+        include_str!("scaffold/rok-data-sqlc.toml"),
     ),
-    ("src/app.rs", include_str!("templates/app.rs")),
-    ("src/error.rs", include_str!("templates/error.rs")),
+    ("src/app.rs", include_str!("scaffold/app.rs")),
+    ("src/error.rs", include_str!("scaffold/error.rs")),
     (
         "src/features/mod.rs",
-        include_str!("templates/features/mod.rs"),
+        include_str!("scaffold/features/mod.rs"),
     ),
-    ("src/lib.rs", include_str!("templates/lib.rs")),
-    ("src/main.rs", include_str!("templates/main.rs")),
+    ("src/lib.rs", include_str!("scaffold/lib.rs")),
+    ("src/main.rs", include_str!("scaffold/main.rs")),
     (
         "src/shared/auth.rs",
-        include_str!("templates/shared/auth.rs"),
+        include_str!("scaffold/shared/auth.rs"),
     ),
 ];
 
@@ -58,19 +58,19 @@ const ACTIX_WEB: &[(&str, &str)] = &[
 const AXUM: &[(&str, &str)] = &[
     (
         "rok-data-sqlc.toml",
-        include_str!("templates/axum/rok-data-sqlc.toml"),
+        include_str!("scaffold/axum/rok-data-sqlc.toml"),
     ),
-    ("src/app.rs", include_str!("templates/axum/app.rs")),
-    ("src/error.rs", include_str!("templates/axum/error.rs")),
+    ("src/app.rs", include_str!("scaffold/axum/app.rs")),
+    ("src/error.rs", include_str!("scaffold/axum/error.rs")),
     (
         "src/features/mod.rs",
-        include_str!("templates/axum/features/mod.rs"),
+        include_str!("scaffold/axum/features/mod.rs"),
     ),
-    ("src/lib.rs", include_str!("templates/axum/lib.rs")),
-    ("src/main.rs", include_str!("templates/axum/main.rs")),
+    ("src/lib.rs", include_str!("scaffold/axum/lib.rs")),
+    ("src/main.rs", include_str!("scaffold/axum/main.rs")),
     (
         "src/shared/auth.rs",
-        include_str!("templates/axum/shared/auth.rs"),
+        include_str!("scaffold/axum/shared/auth.rs"),
     ),
 ];
 
