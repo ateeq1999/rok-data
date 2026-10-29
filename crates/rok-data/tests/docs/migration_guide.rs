@@ -132,3 +132,37 @@ mod parameterized {
         let seniors = User::query().older_than(65);
     }
 }
+
+/// To 0.4.0: `find` takes the model's own key.
+mod typed_keys {
+    use rok_data::prelude::*;
+
+    #[derive(Debug, Clone, Copy, PartialEq, rok_data::DbNewtype)]
+    struct ProductId(i64);
+
+    #[derive(Debug, Clone, Copy, PartialEq, rok_data::DbNewtype)]
+    struct CategoryId(i64);
+
+    #[derive(Debug, Clone, Model)]
+    struct Product {
+        #[rok(primary_key)]
+        id: ProductId,
+        category_id: CategoryId,
+    }
+
+    #[derive(Debug, Clone, Model)]
+    struct Membership {
+        #[rok(primary_key)]
+        org_id: i64,
+        #[rok(primary_key)]
+        user_id: i64,
+    }
+
+    async fn lookups(db: Db, id: ProductId) -> rok_data::Result<()> {
+        let product = Product::find(&db, id).await?;
+        // `Product::find(&db, category_id)` doesn't compile: a `CategoryId`
+        // is not a `Product`'s key.
+        let membership = Membership::find_or_fail(&db, (1, 2)).await?;
+        Ok(())
+    }
+}

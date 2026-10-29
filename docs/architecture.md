@@ -1,4 +1,26 @@
+---
+title: Workspace architecture
+description: Crate responsibilities, dependency rules, the migration system's layers, and the generated-code marker contract.
+updated: 2026-10-29
+kind: reference
+source: AGENTS.md, Cargo.toml (workspace members)
+---
+
 # Workspace architecture
+
+## Agent brief
+
+- **What this page does:** the workspace's shape — what each crate owns,
+  four dependency rules that keep it holding, and the migration system's
+  layers.
+- **Rule for placing code:** runtime capability → `rok-data-core` (+ the
+  facade re-export when useful); derives → `rok-data-macros`; whole-crate
+  generation → `rok-data-codegen`; engine generation →
+  `rok-data-sqlc`; CLI wiring → `crates/rok-cli`. The full
+  task→file table lives in the root [`AGENTS.md`](../AGENTS.md)
+  ("Where changes belong").
+- **Never:** a library depending on `rok-data-cli`; sqlx outside
+  `rok-data-core`; a second binary in the workspace.
 
 `rok-data` is a Cargo workspace that consolidates four repositories behind
 one runtime, one generator pair, and one CLI.
@@ -55,7 +77,7 @@ door, and their removal is deferred to 1.0 (engine ADR 0012).
 | `rok-data-macros` | proc macros: the `Model` derive (typed columns, relations, scopes, the trait impls), `FromRow`/`DbEnum`/`DbNewtype` derives, `#[rok::test]`    | proc-macro2, quote, syn             |
 | `rok-data`        | facade: re-exports core + macros; the single dependency of applications        | core, macros                        |
 | `rok-data-codegen`| model-crate generator (legacy `rok generate`): reads `.sql`, emits a cargo crate; stages migration pairs (`rok gen --migration`) | core (types), toml                  |
-| `rok-data-sqlc`   | model generator (legacy `rok sqlc generate|init|check-arch`; the emitted modules are models since 0.3.0, engine ADR 0018); the API features have an actix-web and an axum backend   | own pg parser, clap  |
+| `rok-data-sqlc`   | model generator (legacy `rok sqlc generate|init|check|check-arch|query`; the emitted modules are models since 0.3.0, engine ADR 0018); the API features have an actix-web and an axum backend   | own pg parser, clap  |
 | `rok-data-cli`    | the `rok` binary: argument routing, output formats, connection handling        | codegen, core, sqlc, clap, tokio    |
 
 Since 0.3.0 the data layer is model-shaped (workspace ADR 0014): the verbs

@@ -1,0 +1,46 @@
+# rok-data
+
+> PostgreSQL data tooling for Rust, consolidated from the rok ecosystem
+> (rok-db, rok-fluent, rok-orm, rok-sqlc): one runtime (`rok-data-core` +
+> derives via the `rok-data` facade), two generators, one CLI (`rok`,
+> published as `rok-data-cli`). The schema directory is the only source
+> of truth; `rok init` and `rok gen` turn it into a Rust data layer and
+> actix-web or axum API features. Rust ≥ 1.94, PostgreSQL 12+.
+
+## Start here
+
+- [Docs map](README.md): what every file under docs/ is for, and the paste-to-agent conventions.
+- [rok-data overview](overview.md): what rok-data is, its crates at a glance, its scope vs. the rok family's sibling project, and the rok-cli/rok-data-cli naming trap.
+- [Installation](installation.md): `cargo install rok-data-cli` (binary `rok`), `cargo add rok-data`, platform notes.
+- [Getting started](getting-started.md): the front door (`rok init`, `rok gen`, staged migration pairs, CI drift check), the runtime by hand, the legacy generators.
+
+## For agents
+
+- [rok-data for coding agents](coding-agents.md): the machine contracts — `--json` shapes (`StatusRow`), exit codes, the unattended schema-change loop, the repo's agent skills.
+- [CLI reference](cli-reference.md): every `rok` command, flag, output and exit code; contract text matching the crates' grammars.
+- Agent skills (in-repo): `.agents/skills/rok-data/`, `rok-data-init/`, `rok-data-models/`, `rok-data-migrations/`, `rok-data-sqlc/` — each a `SKILL.md` with triggering descriptions.
+
+## Reference
+
+- [Workspace architecture](architecture.md): crate responsibilities, the four dependency rules, migration-system layers, generated-code markers.
+- [Feature matrix](feature-matrix.md): every capability mapped from the four source repositories, with the old→new CLI command table.
+- [Pagination](pagination.md): `paginate`/`simple_paginate`/cursors/chunking/streaming and the JSON wire shapes.
+- [Migrating to rok-data](migration-guide.md): per-repository notes (rok-db, rok-sqlc, rok-fluent, rok-orm) and the 0.4.0 / 0.3.0 upgrades.
+- [Benchmarks](benchmarks.md): the `Expr`/`Select` builder-effort bench, honestly scoped.
+
+## Records (history; read, don't rewrite)
+
+- [Migration audit](migration-audit.md): what the four source repositories held before consolidation.
+- [Migration plan](migration-plan.md): the original consolidation plan.
+- [Unified pipeline plan](unified-pipeline-plan.md): the 0.2.0 pipeline plan — schema-dir truth, front door, templates.
+- [Workspace ADRs](decisions/0001-runtime-lineage.md): deliberate cross-crate decisions, 0001–0021 (see the directory `docs/decisions/` for all).
+- [Engine specs](specs/0.3.0-model-shaped-data-layer.md): per-release specs (0.4.0 everyday verbs, sqlc absorption, input validation) under `docs/specs/`.
+- [Toasty patterns research](research/toasty-patterns.md): the study behind With-loading's shape.
+
+## Nearby (root)
+
+- `../README.md` — project front page, install and quick start.
+- `../CHANGELOG.md` — every release's notes; a tag without its `## [X.Y.Z]` section fails.
+- `../GLOSSARY.md` (+ `GLOSSARY-MAP.md`) — the project's language.
+- `../AGENTS.md` — working rules for agents in this repository.
+- `../crates/rok-data-sqlc/docs/` — the engine's own ADRs (engine ADR 0026 newest) and guides.

@@ -1,4 +1,22 @@
+---
+title: Feature matrix
+description: What exists where — runtime and generation capabilities traced from the four source repositories to this workspace.
+updated: 2026-10-29
+kind: reference
+source: docs/migration-guide.md, crates/*/README.md
+---
+
 # Feature matrix
+
+## Agent brief
+
+- **What this page does:** the capability ledger after consolidation.
+  "—" = no implementation in the workspace; "mapped" = documented
+  equivalent, no ported implementation; ✔ = in this workspace (version
+  tags note the release that introduced it).
+- **Use it to answer:** "does rok-data still do X?" and "which origin
+  repo did X come from?" — then confirm the API shape in
+  [`getting-started.md`](getting-started.md) or `cargo doc`.
 
 What exists where, after the consolidation. "—" means the capability has
 no implementation in the workspace; "mapped" means a documented

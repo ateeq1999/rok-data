@@ -1,4 +1,27 @@
+---
+title: Getting started with rok-data
+description: The front door (rok init / rok gen), the runtime by hand, and the two legacy generators.
+updated: 2026-10-29
+kind: guide
+source: README.md, docs/cli-reference.md, crates/rok-data/tests/docs/getting_started.rs (compiled samples)
+---
+
 # Getting started with rok-data
+
+## Agent brief
+
+- **What this page does:** walks the front door (`rok init`, `rok gen`),
+  the runtime by hand (`rok-data` facade, `rok migrate`), and the two
+  legacy generators (`rok generate`, `rok sqlc …`).
+- **Start here:** `rok init my-api --schema schema.sql && cd my-api && rok gen`.
+- **Environment:** Rust ≥ 1.94, PostgreSQL 12+; `DATABASE_URL` (or
+  `--database-url`) for anything database-touching; generation itself
+  needs no database.
+- **Invariants you must keep:** the schema dir is the only source of
+  truth (workspace ADR 0010); every Rust sample below is compiled and
+  marked `<!-- source: … -->` — edit the compiled file, not this page.
+- **Legacy commands** (`rok generate`, `rok sqlc …`) still work exactly
+  as documented; removal is deferred to 1.0 (engine ADR 0012).
 
 This walks through the front door (`rok init` and `rok gen`) and the two
 older paths behind it: a rok-db-style application (runtime + whole-crate
@@ -280,7 +303,7 @@ name still works, with a note):
 input = "sql"          # .sql sources
 output = "db-gen"      # generated crate directory
 crate_name = "notes-db"
-rok_data_version = "0.3"   # or rok_data_path = "../../crates/rok-data"
+rok_data_version = "0.4"   # or rok_data_path = "../../crates/rok-data"
 ```
 
 Flags beat the file; `--strict` fails on generator warnings (queries
@@ -317,6 +340,10 @@ $ rok sqlc check-arch
 ## 5. Where to read further
 
 - Command contract: `docs/cli-reference.md`
+- The machine contracts for coding agents (JSON shapes, exit codes, the
+  unattended loop): `docs/coding-agents.md`
+- What rok-data is, its crates at a glance, and the naming trap:
+  `docs/overview.md`
 - Coming from rok-db/rok-sqlc/rok-fluent/rok-orm:
   `docs/migration-guide.md`
 - Why the workspace looks like this: `docs/architecture.md`,

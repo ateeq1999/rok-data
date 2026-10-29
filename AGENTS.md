@@ -143,3 +143,16 @@ is unaffected — that is what crates.io and `cargo install` do.
 - The milestone/expected snapshots in the engine (`milestone-1.txt`,
   templates' generated files) refresh only via the sanctioned
   `ROK_DATA_SQLC_UPDATE_EXPECTED=1` runs — never by hand-editing.
+- The working pages under `docs/` are AI-facing: YAML front matter
+  (title/description/updated/kind/source) plus an **Agent brief** the
+  page opens with. New working pages follow that template; records
+  (`docs/decisions/`, `docs/specs/`, plan/audit pages) stay records.
+- `docs/llms.txt` is the machine index of `docs/` — refresh its list (or
+  `docs/README.md`, the human map) in the same change that adds, renames
+  or retires a page.
+- Agent skills for this workspace live in `.agents/skills/rok-data*/SKILL.md`
+  (OpenCode, Claude-compatible and AGENTS-spec agents all discover them):
+  the five — `rok-data` (router/expert), `rok-data-init`,
+  `rok-data-models`, `rok-data-migrations`, `rok-data-sqlc`. A skill's
+  description carries its triggers; keep bodies as recipes and pointers,
+  not copies of `docs/`.

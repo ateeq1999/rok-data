@@ -1,0 +1,8 @@
+allowBuilds:
+  esbuild: set this to true or false
+# pnpm 11 reads build-script approvals from this file, not from
+# package.json's `pnpm` table (kept there for older tooling).
+strictDepBuilds: false
+onlyBuiltDependencies:
+  - esbuild
+  - lightningcss

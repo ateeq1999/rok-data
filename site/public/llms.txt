@@ -1,0 +1,42 @@
+# rok-data
+
+> One schema. All changes. PostgreSQL data tooling for Rust,
+> consolidated from the rok ecosystem (rok-db, rok-fluent, rok-orm,
+> rok-sqlc): one runtime behind the `rok-data` facade, two generators,
+> and one CLI — `rok` (published as `rok-data-cli`). The project's schema
+> directory is the only source of truth; `rok init` and `rok gen` turn it
+> into a typed Rust data layer and an actix-web or axum API.
+> Rust ≥ 1.94, PostgreSQL 12+.
+
+## This site
+
+- `/` — the home: what rok-data is, the workspace's crates, the loop.
+- `/guide/installation` — `cargo install rok-data-cli`, `cargo add
+  rok-data`, platform notes.
+- `/guide/getting-started` — the front door (`rok init`, `rok gen`,
+  staged pairs, `rok gen check`), the runtime by hand, derives.
+- `/agents` — the machine contracts: `--json` shapes, exit codes, the
+  unattended schema-change loop, the in-repo agent skills.
+- `/crates/rok-data` — the facade applications depend on.
+- `/crates/rok-data-core` — `Db`, `Expr`/`Select`, migrations,
+  introspection, paging.
+- `/crates/rok-data-macros` — `#[derive(Model)]`, the other derives,
+  `#[rok_data::test]`.
+- `/crates/rok-data-codegen` — the whole-crate generator and the
+  migration diff engine (legacy `rok generate`).
+- `/crates/rok-data-sqlc` — the resource-module engine, templates,
+  check-arch, OpenAPI.
+- `/crates/rok-cli` — the `rok` binary: every command, flag and exit
+  code (install: `cargo install rok-data-cli`).
+
+## The repository's AI-friendly markdown
+
+The authoritative docs are the repo's `docs/` tree — every page
+self-contained for pasting into a coding agent:
+
+- Index for machines:
+  https://raw.githubusercontent.com/ateeq1999/rok-data/main/docs/llms.txt
+- Agent skills (OpenCode/Claude/AGENTS-spec discoverable):
+  `.agents/skills/rok-data*/SKILL.md` — `rok-data`, `rok-data-init`,
+  `rok-data-models`, `rok-data-migrations`, `rok-data-sqlc`.
+- Source: https://github.com/ateeq1999/rok-data

@@ -1,4 +1,28 @@
+---
+title: "`rok` — CLI reference"
+description: Every command, flag, output and exit code of the workspace's single binary. Contract: matches crates/rok-cli/src/cli.rs and the engine's grammar.
+updated: 2026-10-29
+kind: reference
+source: crates/rok-cli/src/cli.rs, crates/rok-data-sqlc/src/cli.rs (engine grammar)
+---
+
 # `rok` — CLI reference
+
+## Agent notes
+
+- **Contract status:** this page is the user-facing summary; the exact
+  grammar is `crates/rok-cli/src/cli.rs` — and for the `sqlc` subtree the
+  engine's `crates/rok-data-sqlc/src/cli.rs`, which `rok` forwards to
+  verbatim. Any grammar change must update this page in the same PR —
+  matching the engine's tests — because the CLI's help text and this file
+  must agree.
+- **Machine readability:** `--json` (migrate/db commands, and `rok gen
+  check`) means one JSON document on stdout, nothing else there;
+  progress/prose on stderr. Exit codes: 0 success/help, 1 runtime
+  failure (and *usage* errors inside `rok sqlc …`), 2 root usage errors.
+- **Legacy subsets:** `rok generate` and `rok sqlc …` keep their flags,
+  output and exit codes unchanged; removal is deferred to 1.0 (engine
+  ADR 0012).
 
 The workspace's single binary. Contract text: this file is the user-facing
 summary; the exact grammar lives in `crates/rok-cli/src/cli.rs` and — for

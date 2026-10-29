@@ -13,7 +13,7 @@ PostgreSQL data tooling for Rust, consolidated from the rok ecosystem:
 ## Install
 
 ```sh
-cargo install rok-cli        # provides the `rok` binary
+cargo install rok-data-cli    # provides the `rok` binary
 ```
 
 Or take a prebuilt `rok` binary: the GitHub releases carry checksummed
@@ -90,9 +90,13 @@ from `.sql` files, `rok sqlc g` writes resource modules into an existing
 crate — but they are **legacy**: superseded by `rok init`/`rok gen`, with
 their removal deferred to 1.0.
 
-Crate-by-crate docs: [docs/getting-started.md](docs/getting-started.md),
-[docs/cli-reference.md](docs/cli-reference.md), and the per-crate
-`//!` docs (`cargo doc --workspace --open`).
+Crate-by-crate docs: [docs/README.md](docs/README.md) (the map),
+[docs/getting-started.md](docs/getting-started.md),
+[docs/cli-reference.md](docs/cli-reference.md), the overview
+([docs/overview.md](docs/overview.md)), and the per-crate
+`//!` docs (`cargo doc --workspace --open`). Agents: start from
+[docs/coding-agents.md](docs/coding-agents.md) and
+[docs/llms.txt](docs/llms.txt).
 
 ## The workspace
 

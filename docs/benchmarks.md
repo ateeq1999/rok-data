@@ -1,4 +1,20 @@
+---
+title: Benchmarks
+description: The builder-effort bench (criterion) — what is measured, the recorded medians, and the honest scope of these numbers.
+updated: 2026-10-29
+kind: reference
+source: crates/rok-data-core/benches/
+---
+
 # Benchmarks
+
+## Agent brief
+
+- **What this measures:** in-memory builder effort only — constructing
+  `Expr`/`Select` values and rendering SQL text. No database, no network,
+  no I/O. Never quote these as end-to-end performance.
+- **Rerun:** `cargo bench -p rok-data-core --bench builder` (criterion);
+  compare medians over time, `3s` warmup / `100` samples.
 
 What the workspace has measured so far, honestly scoped: these are
 **builder budgets** — the cost of constructing `Expr`/`Select` values and

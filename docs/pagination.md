@@ -1,4 +1,27 @@
+---
+title: Pagination
+description: Offset pages, cursor pages, chunking a table, streaming rows, and the JSON shapes pages answer on the wire.
+updated: 2026-10-29
+kind: reference
+source: crates/rok-data/tests/docs/pagination.rs (compiled samples)
+---
+
 # Pagination
+
+## Agent brief
+
+- **What this page does:** the paging surface — `paginate` /
+  `page` / `simple_paginate` / `for_page`, cursor pagination, chunking
+  and streaming, and the `serde` wire shapes (`paginator(links)`,
+  `resource(links)`).
+- **Pick by need:** total + numbers → `paginate`; model's default size →
+  `page` (`#[rok(per_page = N)]`, 15 default); no `COUNT(*)` →
+  `simple_paginate`; stable-under-inserts → `cursor_paginate`; bulk
+  process → `chunk_by_id` / `lazy_by_id`.
+- **Constraints:** pages are 1-based; cursor sort keys must be `NOT
+  NULL` (the primary key is the tiebreaker); `per_page = 0` is an error.
+- **Samples are compiled** (`crates/rok-data/tests/docs/pagination.rs`),
+  marked `<!-- source: … -->` — edit that file, not this page.
 
 Three ways to page through a query, a way to walk a whole table, and the
 JSON shapes a page answers in. Every sample below is compiled
