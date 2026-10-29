@@ -27,11 +27,26 @@ type Snapshot = BTreeMap<PathBuf, (u64, Option<SystemTime>)>;
 
 /// Generates with `args`, then again on every change, until interrupted.
 /// A failed run is printed and the watch goes on.
+///
+/// Each look a run starts from is taken before the run, so a change saved
+/// while it runs (or right after its last line) starts the next one.
 pub(super) fn watch(args: &GenerateArgs) -> Result<()> {
-    let mut inputs = inputs(args, generate_once(args).as_ref());
+    let config = match args.resolve() {
+        Ok(config) => Some(config),
+        Err(err) => {
+            eprintln!("error: {err:#}");
+            None
+        }
+    };
+    let mut inputs = inputs(args, config.as_ref());
+    let mut last = snapshot(&inputs);
+    if let Some(config) = &config
+        && let Err(err) = generate(config)
+    {
+        eprintln!("error: {err:#}");
+    }
     let shown: Vec<String> = inputs.iter().map(|path| display_path(path)).collect();
     println!("watching {} for changes (Ctrl-C stops)", shown.join(", "));
-    let mut last = snapshot(&inputs);
     loop {
         thread::sleep(POLL);
         let mut seen = snapshot(&inputs);
@@ -46,24 +61,14 @@ pub(super) fn watch(args: &GenerateArgs) -> Result<()> {
             }
             seen = settled;
         }
+        // The run generates from what `seen` saw; anything newer is a change.
+        last = seen;
         let config = regenerate(args);
-        inputs = inputs_or(args, config.as_ref(), inputs);
-        last = snapshot(&inputs);
-    }
-}
-
-/// The first run: the whole report, as without `--watch`.
-fn generate_once(args: &GenerateArgs) -> Option<Config> {
-    match args.resolve() {
-        Ok(config) => {
-            if let Err(err) = generate(&config) {
-                eprintln!("error: {err:#}");
-            }
-            Some(config)
-        }
-        Err(err) => {
-            eprintln!("error: {err:#}");
-            None
+        let next = inputs_or(args, config.as_ref(), inputs.clone());
+        if next != inputs {
+            // The configuration names other paths now: start from them.
+            inputs = next;
+            last = snapshot(&inputs);
         }
     }
 }
