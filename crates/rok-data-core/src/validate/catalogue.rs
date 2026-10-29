@@ -82,7 +82,8 @@ pub fn is_jwt(value: &str) -> bool {
         })
 }
 /// validator.js's `isIBAN`: whitespace and `-` removed and the rest
-/// uppercased, a country's format from [`IBAN_FORMATS`], and the mod-97
+/// uppercased, the country's format (a per-country table of lengths and
+/// patterns, `IBAN_FORMATS`), and the mod-97
 /// check.
 #[must_use]
 pub fn is_iban(value: &str) -> bool {

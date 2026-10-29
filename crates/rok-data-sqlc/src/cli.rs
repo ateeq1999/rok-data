@@ -1,5 +1,5 @@
 //! The `rok-data-sqlc` command line: parses flags into a [`Config`], calls
-//! [`generate`](crate::generate), and prints the [`Report`].
+//! [`generate`](crate::generate), and prints the [`Report`](crate::Report).
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
