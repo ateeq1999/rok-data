@@ -30,6 +30,28 @@ that it exists and won't ship a tag without it).
   its settings at start-up with secrets left out (`Config::summary`).
   The config unit tests moved to `tests/config.rs`.
 
+**Added**
+
+- The templates' security baseline (`src/app/middleware.rs` over the
+  shared `src/shared/security/headers.rs`): security headers on every
+  answer (`nosniff`, `X-Frame-Options`, `frame-ancestors 'none'`,
+  `Referrer-Policy`, and HSTS when `APP_URL` is `https://`);
+  `CORS_ALLOWED_ORIGINS` (`*` or a list; unset, the API's own origin
+  only); a panicking handler answered `500 internal_error` instead of a
+  dropped connection; `GLOBAL_RATE_LIMIT`, a per-IP limit on every route
+  but health (off by default); `JWT_SECRET_PREVIOUS`, to rotate
+  `JWT_SECRET` without signing anyone out; and `deny.toml`, a
+  `cargo deny check` policy that both templates pass. It ignores eight
+  advisories no update can clear yet, each with the reason it can't reach
+  the template (HS256-only JWTs, a build-time `zip`, the configured S3
+  store, actix's TLS-only HTTP/2). Both templates' `Cargo.lock` files were
+  refreshed: complete, and on `tokio` 1.54.1 (the yanked 1.54.0 had an
+  advisory).
+- The actix template's application is `app::app(state)`, the routes of
+  `app::configure` wrapped in that middleware; tests build it with
+  `test::init_service(app(state))`. It depends on `actix-cors` and
+  `futures-util` now.
+
 ## [0.4.0] — typed keys, a runtime-backed data layer, and direct uploads
 
 Breaking. Model lookups take the model's own key type, and the code
