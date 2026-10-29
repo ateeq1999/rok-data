@@ -293,6 +293,7 @@ is a library; `rok` forwards the tokens verbatim). Subcommand set:
 | -------------- | ----- | ------------------------------------------------------------------------- |
 | `generate`     | `g`   | parse the schema and emit `src/db/<table>/{…}` modules, optional api/openapi |
 | `init`         | `i`   | scaffold a project (engine ADR 0016 skeleton, `-w axum` for axum, or `--template actix`/`axum`), files-if-absent |
+| `check`        | `c`   | the generated code is up to date; with `--db`, every annotated query agrees with the database; any difference → exit 1 |
 | `check-arch`   | `a`   | check `src/` layout against the engine's ADR 0016 rules; violations → exit 1 |
 | `query add`    | `q a` | append one annotated query to a query file and generate; kept only if it generates |
 
@@ -307,6 +308,7 @@ Executive summary of the main flags (full text: `rok sqlc generate --help`):
 | `-a, --api-output DIR`| API feature layer into this directory                             |
 | `-w, --api-framework FW`| the API backend: `actix_web` (the default) or `axum`             |
 | `-d, --derive <NAME>` | extra derives (`serde`, `validate`, …); `-e` engine features           |
+| `-W, --watch`         | regenerate on every change to the schema, the query files or the config file, until interrupted (not with `-k`/`-n`) |
 
 `init` next steps and the `--template` list (`actix`, `axum`) print on stdout;
 the scaffolder never overwrites existing files. Templates ship their own
@@ -337,6 +339,49 @@ The inferred mode:
 - `INSERT … RETURNING` is `:one`;
 - any other statement returning rows (a `SELECT`, a `RETURNING`) is `:many`, or `:maybe_one` when it ends in `LIMIT 1`;
 - an `INSERT`, `UPDATE` or `DELETE` without `RETURNING` is `:execrows`.
+
+### `rok sqlc generate --watch`
+
+```console
+$ rok sqlc g --watch
+generated src/db/media/models.rs
+…
+watching rok-data-sqlc.toml, schema, queries for changes (Ctrl-C stops)
+regenerated in 84 ms: 1 written, 0 removed, 82 unchanged
+```
+
+The first run prints the whole report; each later run prints its failures
+and warnings, then one line. A failed run (an unsupported query, say, with
+its file and line) does not end the watch. The inputs are polled every
+250 ms, and a change waits until they stop changing, so one save
+regenerates once. Migrations are never applied: that stays `rok migrate up`.
+
+### `rok sqlc check [OPTIONS]`
+
+```console
+$ rok sqlc check --db
+generated code is up to date (83 files)
+queries/media.sql:75: BigMedia: parameter `$1` (`min_size`) is `INT8` in the database; the generated code uses `i32`
+Error: 1 mismatch(es) in 51 queries checked against the database
+```
+
+It fails when the generated code is out of date, as `generate --check`
+does, with the discovered config. With `--db`, it then prepares every
+annotated query against the database, without running it (engine ADR 0026),
+and compares the parameter types, the result columns' names and types, and
+their nullability with the generated code. Each difference is a line
+`file:line: Query: message` on stdout. A type the check does not know (a
+user's own `-- param:` type) is a note on stderr, not a failure.
+
+| Flag                  | Meaning                                                              |
+| --------------------- | -------------------------------------------------------------------- |
+| `-d, --db [URL]`      | also check the queries against this database; bare, `DATABASE_URL`   |
+| `-l, --lenient`       | skip unsupported tables and queries with warnings                    |
+| `-c, --config FILE`   | config file instead of discovered `rok-data-sqlc.toml`                |
+
+Apply the migrations first (`rok migrate up`): the queries are checked
+against the database as it is.
+
 
 `check-arch` prints each violation as `path:line: rule: message`. The rules
 are the project's `AGENTS.md` six (the architecture guide states them):

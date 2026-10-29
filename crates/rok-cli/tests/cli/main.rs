@@ -14,6 +14,7 @@ mod common;
 
 mod api;
 mod api_rules;
+mod check;
 mod check_arch;
 mod check_arch_axum;
 mod collisions;
@@ -32,6 +33,7 @@ mod queries;
 mod query_add;
 mod runs;
 mod validate;
+mod watch;
 
 use common::shown;
 

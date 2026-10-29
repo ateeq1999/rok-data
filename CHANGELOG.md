@@ -12,6 +12,12 @@ that it exists and won't ship a tag without it).
 Added: `rok sqlc query add <NAME> <SQL> --file <stem>` appends one annotated
 query and generates, keeping it only when it generates (`docs/cli-reference.md`).
 
+Added: `rok sqlc check --db` prepares every annotated query against the
+database and reports type, name and nullability mismatches with the
+generated code, for CI; `rok sqlc generate --watch` regenerates on change
+(engine ADR 0026). The runtime gains `introspect::describe(db, sql)`: a
+statement's parameter and column types, without running it.
+
 Added: direct uploads in the actix and axum templates. A presigned `PUT` to
 S3-compatible stores, or an API-signed URL for `file://` and `memory://`,
 checked on completion; presigned download URLs (engine ADR 0024).

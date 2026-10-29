@@ -1,4 +1,4 @@
-//! `rok sqlc generate|init|check-arch` — the SQLx module generator from
+//! `rok sqlc generate|init|check|check-arch|query` — the SQLx module generator from|init|check-arch` — the SQLx module generator from
 //! `rok-data-sqlc`.
 //!
 //! The engine carries its own user-tested clap grammar (`run_from`, used by
@@ -15,6 +15,8 @@
 
 use std::process::ExitCode;
 
+use rok_data_sqlc::check_db::{Described, DescribedColumn, Describer};
+
 /// Run the `sqlc` subcommand with `args` (not including the `rok sqlc`
 /// program tokens). Mirrors the pre-consolidation `rok-sqlc` main binary:
 /// `--help`/`--version` succeed, clap usage errors exit 1 with clap's own
@@ -25,7 +27,7 @@ pub(crate) fn run(args: &[String]) -> ExitCode {
     // consolidated CLI presents this group.
     let mut full: Vec<String> = vec!["rok sqlc".into()];
     full.extend(args.iter().cloned());
-    match rok_data_sqlc::cli::run_from(full) {
+    match rok_data_sqlc::cli::run_with(full, &connect) {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
             // Usage errors carry clap's own formatted message, prefix included.
@@ -37,6 +39,42 @@ pub(crate) fn run(args: &[String]) -> ExitCode {
             }
             ExitCode::FAILURE
         }
+    }
+}
+
+/// `check --db`'s connection: the runtime's `introspect::describe` on a
+/// current-thread runtime of its own (`rok sqlc` runs before the CLI's).
+fn connect(url: &str) -> anyhow::Result<Box<dyn Describer>> {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    let db = runtime.block_on(rok_data::Db::connect(url))?;
+    Ok(Box::new(RuntimeDescriber { runtime, db }))
+}
+
+struct RuntimeDescriber {
+    runtime: tokio::runtime::Runtime,
+    db: rok_data::Db,
+}
+
+impl Describer for RuntimeDescriber {
+    fn describe(&mut self, sql: &str) -> Result<Described, String> {
+        let statement = self
+            .runtime
+            .block_on(rok_data::introspect::describe(&self.db, sql))
+            .map_err(|err| err.to_string())?;
+        Ok(Described {
+            params: statement.params,
+            columns: statement
+                .columns
+                .into_iter()
+                .map(|column| DescribedColumn {
+                    name: column.name,
+                    type_name: column.type_name,
+                    nullable: column.nullable,
+                })
+                .collect(),
+        })
     }
 }
 

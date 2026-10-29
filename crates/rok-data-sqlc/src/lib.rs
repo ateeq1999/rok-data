@@ -43,6 +43,10 @@ pub mod rule_patterns {
     pub use crate::api_rules::{MOBILE_PATTERNS, POSTAL_PATTERNS};
 }
 
+// `check --db`'s seam: the `Describer` the `rok` binary implements over
+// the runtime, so this crate keeps no database driver.
+#[doc(hidden)]
+pub mod check_db;
 #[doc(hidden)]
 pub mod cli;
 // The scaffolding library behind `rok sqlc init` and the root `rok init`

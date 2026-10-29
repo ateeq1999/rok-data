@@ -76,6 +76,18 @@ Generated data calls move onto the runtime (engine ADR 0023):
   ```rust
   User::search(filter)?.order_by(Sort::desc(UserSortKey::CreatedAt)).paginate(..)
   ```
+- **`rok sqlc check` (`c`), with `--db` (engine ADR 0026):** fails on
+  drift, as `generate --check` does. With `--db [URL]` (bare:
+  `DATABASE_URL`), it also prepares every annotated query against the
+  database without running it, and reports each parameter or result column
+  whose type, name or nullability the generated code gets wrong, and each
+  query that doesn't prepare, as `file:line: Query: message`. Exit 1 on any.
+  The `rok` binary supplies the connection (`cli::run_with`); the engine
+  keeps no database driver.
+- **`rok sqlc generate --watch` (`-W`):** regenerates whenever the schema,
+  the query files or the config file change, printing one line a run, or
+  the failure with its file and line, and keeps watching. Migrations are
+  never applied.
 - **Direct uploads in both templates (engine ADR 0024):** `POST
   /media/uploads` answers an upload ticket with a presigned `PUT` URL;
   `POST /media/{id}/complete` checks the stored bytes' size and detected

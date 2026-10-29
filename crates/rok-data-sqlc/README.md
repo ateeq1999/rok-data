@@ -670,6 +670,11 @@ or a path ending in `.sql`. The return mode is inferred:
 `-o`/`--one`, `-m`/`--maybe-one`, `-M`/`--many`, `-x`/`--exec` or
 `-r`/`--execrows` sets the mode instead.
 
+`rok sqlc g --watch` (`-W`) keeps generating while you write queries. It
+regenerates on every change to the schema, the query files or the config
+file, and prints one line a run, or the failure with its file and line,
+then keeps watching.
+
 ## Conventions and the `rok` preset
 
 A convention says what a column means in every table that has it. All
@@ -1158,6 +1163,9 @@ project's architecture (see [Checking the
 architecture](#checking-the-architecture-rok-data-sqlc-check-arch)) and takes
 only `-c` and `-l`. `query` (`q`) works with query files: `query add` appends
 one query and generates (see [Adding a query](#adding-a-query-rok-sqlc-query-add)).
+`check` (`c`) checks that the generated code is up to date and, with `--db`,
+that every query agrees with the database (see [Checking queries against the
+database](#checking-queries-against-the-database-rok-sqlc-check---db)).
 
 | Flag | Meaning |
 |---|---|
@@ -1173,6 +1181,7 @@ one query and generates (see [Adding a query](#adding-a-query-rok-sqlc-query-add
 | `-w`, `--api-framework <FRAMEWORK>` | The web framework the API features are generated for: `actix_web` (the default) or `axum` (`api.framework`). |
 | `-n`, `--dry-run` | Print what would be written, removed or refused, and touch nothing. |
 | `-k`, `--check` | Write nothing. List missing, changed and stale files, and exit 1 if there are any. |
+| `-W`, `--watch` | Regenerate whenever the schema, the query files or the config file change, until interrupted. Not with `--check` or `--dry-run`; migrations are never applied. |
 | `-f`, `--force` | Overwrite existing files that rok-data-sqlc did not generate. |
 | `-l`, `--lenient` | Skip unsupported tables and queries with warnings instead of failing. |
 | `-h`, `--help` | Print help and exit 0. |
@@ -1519,6 +1528,34 @@ Line endings don't count as drift. rok-data-sqlc reads migrations and query
 files with CRLF as LF and writes `\n`, and it compares generated files the
 same way. A checkout with CRLF line endings (Windows, `core.autocrlf`)
 therefore generates the same code and passes `--check`.
+
+### Checking queries against the database: `rok sqlc check --db`
+
+`rok sqlc check` fails on drift, as `--check` does. With `--db`, it then
+prepares every annotated query against `DATABASE_URL` (or `--db <URL>`),
+without running it, and compares what the database answers with the
+generated code (engine ADR 0026):
+
+```console
+$ rok sqlc check --db
+generated code is up to date (83 files)
+queries/media.sql:75: BigMedia: parameter `$1` (`min_size`) is `INT8` in the database; the generated code uses `i32`
+Error: 1 mismatch(es) in 51 queries checked against the database
+```
+
+It reports parameters typed other than the database infers, result columns
+named or typed otherwise, a column that can be `NULL` decoding into a
+non-`Option` type, and a query that does not prepare. Apply the migrations
+first (`rok migrate up`). A type the check does not know, such as your own
+`-- param:` type, is a note, not a failure. `check --db` connects through
+the `rok` binary.
+
+`check` takes `-c` and `-l`, as `generate` does, and:
+
+| Flag | Meaning |
+|---|---|
+| `-d`, `--db [URL]` | Also check every query against this database; bare, against `DATABASE_URL`. |
+
 
 ## Supported SQL and type mapping
 

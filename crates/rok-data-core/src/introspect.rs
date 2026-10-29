@@ -340,6 +340,67 @@ fn parse_index_columns(indexdef: &str) -> Vec<String> {
         .collect()
 }
 
+/// A statement as PostgreSQL prepares it: the types of its parameters and
+/// result columns, read without running it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Statement {
+    /// Each parameter's type name, in placeholder order (`INT8`, `TEXT`,
+    /// `UUID[]`, or an enum's own name).
+    pub params: Vec<String>,
+    /// Each result column, in order.
+    pub columns: Vec<StatementColumn>,
+}
+
+/// One result column of a [`Statement`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StatementColumn {
+    /// The name PostgreSQL gives the column.
+    pub name: String,
+    /// Its type name, as for [`Statement::params`].
+    pub type_name: String,
+    /// Whether it can be `NULL`: `Some` for a column read from a table (or an
+    /// outer join's), `None` when PostgreSQL can't tell, as for most
+    /// expressions.
+    pub nullable: Option<bool>,
+}
+
+/// Prepares `sql` and answers its parameter and column types, without
+/// running it. The statement is prepared inside a transaction that is
+/// rolled back, so not even a planner side effect outlives the call.
+///
+/// ```rust,no_run
+/// # async fn example(db: rok_data_core::Db) -> Result<(), rok_data_core::Error> {
+/// let statement =
+///     rok_data_core::introspect::describe(&db, "SELECT id FROM users WHERE email = $1").await?;
+/// assert_eq!(statement.params, ["TEXT"]);
+/// # Ok(())
+/// # }
+/// ```
+pub async fn describe(db: &Db, sql: &str) -> Result<Statement, Error> {
+    use sqlx::{Column, Either, Executor, SqlSafeStr, TypeInfo};
+
+    let mut tx = db.begin().await?;
+    let described = (&mut tx)
+        .describe(sqlx::AssertSqlSafe(sql.to_owned()).into_sql_str())
+        .await?;
+    tx.rollback().await?;
+    let params = match described.parameters {
+        Some(Either::Left(types)) => types.iter().map(|ty| ty.name().to_owned()).collect(),
+        Some(Either::Right(_)) | None => Vec::new(),
+    };
+    let columns = described
+        .columns
+        .iter()
+        .enumerate()
+        .map(|(index, column)| StatementColumn {
+            name: column.name().to_owned(),
+            type_name: column.type_info().name().to_owned(),
+            nullable: described.nullable.get(index).copied().flatten(),
+        })
+        .collect();
+    Ok(Statement { params, columns })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

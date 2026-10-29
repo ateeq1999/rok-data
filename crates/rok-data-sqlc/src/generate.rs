@@ -1,7 +1,7 @@
 //! The generation pipeline behind [`generate`](crate::generate): read the
 //! inputs, parse and analyze them, plan the files, and write them.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, bail};
@@ -10,23 +10,50 @@ use heck::ToSnakeCase;
 use crate::config::{Config, Derive};
 use crate::output::is_generated_file;
 use crate::queries::AnalyzedQuery;
-use crate::report::{Error, QueryFailure, RefusedFile, Report, Result, TableFailure, display_path};
+use crate::report::{Error, RefusedFile, Report, Result, TableFailure, display_path};
 use crate::schema::{self, BaseType, EnumType, Shape, Table};
-use crate::{api_config, generator, output, parser, queries};
+use crate::{api_config, generator, output, parser};
 
+mod query_files;
 mod snapshot;
 
+use query_files::{AnalyzedFile, analyze_query_file, query_inputs};
 use snapshot::{prepared, sql as snapshot_sql};
 
 pub(crate) fn generate(config: &Config) -> Result<Report> {
+    analyze(config).map(|(report, _)| report)
+}
+
+/// What a run analyzed, for `check --db` to compare against a database:
+/// every query, where it is written, and the tables and enums it was
+/// analyzed against.
+#[derive(Debug, Default)]
+pub(crate) struct Analysis {
+    pub(crate) queries: Vec<LocatedQuery>,
+    /// Every table of the schema, typed ids filled in.
+    pub(crate) tables: Vec<Table>,
+    pub(crate) enums: Vec<EnumType>,
+}
+
+/// An analyzed query and the line of the file its `-- name:` is on.
+#[derive(Debug)]
+pub(crate) struct LocatedQuery {
+    pub(crate) path: PathBuf,
+    pub(crate) line: usize,
+    pub(crate) query: AnalyzedQuery,
+}
+
+/// A [`generate`] run that also answers its [`Analysis`].
+pub(crate) fn analyze(config: &Config) -> Result<(Report, Analysis)> {
     let mut report = Report::default();
-    match run(config, &mut report) {
-        Ok(()) => Ok(report),
+    let mut analysis = Analysis::default();
+    match run(config, &mut report, &mut analysis) {
+        Ok(()) => Ok((report, analysis)),
         Err(err) => Err(Error::new(err, report)),
     }
 }
 
-fn run(config: &Config, report: &mut Report) -> anyhow::Result<()> {
+fn run(config: &Config, report: &mut Report, analysis: &mut Analysis) -> anyhow::Result<()> {
     let output_dir = &config.output;
     let resource = config.resource.as_deref();
     let (dry_run, force, lenient) = (config.dry_run, config.force, config.lenient);
@@ -169,10 +196,23 @@ fn run(config: &Config, report: &mut Report) -> anyhow::Result<()> {
             "table module `queries` collides with the generated `queries` module; rename the table or omit --queries"
         );
     }
+    analysis.tables = generator::keys::resolve(&parsed.schema.tables);
+    analysis.enums.clone_from(&parsed.schema.enums);
     let mut analyzed = Vec::new();
     let mut failed_files = Vec::new();
     for input in &query_inputs {
-        let (queries, failures) = analyze_query_file(&input.path, &parsed, &selected)?;
+        let AnalyzedFile {
+            queries,
+            failures,
+            lines,
+        } = analyze_query_file(&input.path, &parsed, &selected)?;
+        analysis
+            .queries
+            .extend(queries.iter().map(|query| LocatedQuery {
+                path: input.path.clone(),
+                line: lines.get(&query.name).copied().unwrap_or(0),
+                query: query.clone(),
+            }));
         if !failures.is_empty() {
             failed_files.push(format!("`{}`", display_path(&input.path)));
         }
@@ -443,145 +483,6 @@ fn migration_files(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
     }
     files.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
     Ok(files)
-}
-
-/// One query file to analyze.
-struct QueryInput {
-    path: PathBuf,
-    /// The generated module under `queries/`, named after the file stem;
-    /// `None` when a single query file becomes `queries.rs`.
-    module: Option<String>,
-}
-
-/// Expands the query inputs. A lone file keeps the single-module layout
-/// (`queries.rs`); a directory (its `*.sql` files, sorted by name) or several
-/// inputs produce one module per file under `queries/`.
-fn query_inputs(inputs: &[PathBuf]) -> anyhow::Result<Vec<QueryInput>> {
-    if let [path] = inputs
-        && !path.is_dir()
-    {
-        return Ok(vec![QueryInput {
-            path: path.clone(),
-            module: None,
-        }]);
-    }
-
-    let mut files = Vec::new();
-    for input in inputs {
-        if !input.is_dir() {
-            files.push(input.clone());
-            continue;
-        }
-        let read_error = || format!("failed to read query directory `{}`", display_path(input));
-        let mut found = std::fs::read_dir(input)
-            .with_context(read_error)?
-            .map(|entry| entry.map(|entry| entry.path()))
-            .collect::<std::io::Result<Vec<_>>>()
-            .with_context(read_error)?;
-        found.retain(|path| path.is_file() && path.extension().is_some_and(|ext| ext == "sql"));
-        if found.is_empty() {
-            bail!(
-                "query directory `{}` contains no `.sql` files",
-                display_path(input)
-            );
-        }
-        found.sort();
-        files.extend(found);
-    }
-
-    let mut seen: HashMap<String, PathBuf> = HashMap::new();
-    let mut modules = Vec::with_capacity(files.len());
-    for path in files {
-        let module = query_module_name(&path)?;
-        if let Some(first) = seen.insert(module.clone(), path.clone()) {
-            bail!(
-                "query files `{}` and `{}` would both generate module `{module}`; rename one of them",
-                display_path(&first),
-                display_path(&path)
-            );
-        }
-        modules.push(QueryInput {
-            path,
-            module: Some(module),
-        });
-    }
-    Ok(modules)
-}
-
-/// The module a query file generates under `queries/`: its stem, which must
-/// already be a snake_case Rust identifier that is not a keyword.
-fn query_module_name(path: &Path) -> anyhow::Result<String> {
-    let stem = path
-        .file_stem()
-        .map(|stem| stem.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    match parser::naming::rust_identifier(&stem) {
-        Ok(ident) if ident == stem => Ok(stem),
-        suggestion => {
-            let hint = match suggestion {
-                Ok(ident) => format!("; rename it to `{ident}.sql`"),
-                Err(_) => String::new(),
-            };
-            bail!(
-                "query file `{}`: `{stem}` is not a valid Rust module name (use lowercase letters, digits and underscores, not starting with a digit or naming a keyword){hint}",
-                display_path(path)
-            )
-        }
-    }
-}
-
-/// Parses and analyzes one query file. Unsupported queries come back as
-/// failures for the caller to report.
-fn analyze_query_file(
-    path: &Path,
-    parsed: &parser::ParsedSchema,
-    selected: &[Table],
-) -> anyhow::Result<(Vec<AnalyzedQuery>, Vec<QueryFailure>)> {
-    let text = read_text(path)
-        .with_context(|| format!("failed to read query file `{}`", display_path(path)))?;
-
-    let (defs, mut failures) = queries::parse_query_file(&text);
-    if defs.is_empty() && failures.is_empty() {
-        bail!(
-            "query file `{}` contains no `-- name:` annotated queries",
-            display_path(path)
-        );
-    }
-    let generated_modules: HashSet<String> = selected
-        .iter()
-        .map(|table| table.module_name.clone())
-        .collect();
-    // Columns carry the typed ids the generated resources define, so query
-    // parameters and result columns drawn from a key use them too.
-    let mut tables = generator::keys::resolve(&parsed.schema.tables);
-    for column in tables.iter_mut().flat_map(|table| &mut table.columns) {
-        if column
-            .typed_id
-            .as_ref()
-            .is_some_and(|id| !generated_modules.contains(&id.module))
-        {
-            column.typed_id = None;
-        }
-    }
-    let (analyzed, analysis_failures) = queries::analyze_queries(
-        &defs,
-        &tables,
-        &parsed.schema.enums,
-        &generated_modules,
-        &parsed.failures,
-    );
-    failures.extend(analysis_failures);
-
-    let failures = failures
-        .into_iter()
-        .map(|failure| QueryFailure {
-            query: failure.query,
-            reason: failure.reason,
-            path: failure.line.map(|_| path.to_path_buf()),
-            line: failure.line,
-        })
-        .collect();
-    Ok((analyzed, failures))
 }
 
 /// Where a `[modules]` entry lives, as a dotted key path:
