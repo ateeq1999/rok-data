@@ -31,7 +31,10 @@ export default function Footer() {
             llms.txt
           </a>
         </div>
-        <p className="island-kicker m-0">One schema. All changes.</p>
+        <p className="island-kicker m-0 inline-flex items-center gap-2">
+          <img src="/logo.svg" alt="" width={20} height={20} className="h-5 w-5" />
+          One schema. All changes.
+        </p>
       </div>
     </footer>
   )

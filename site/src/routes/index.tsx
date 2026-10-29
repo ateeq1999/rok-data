@@ -6,10 +6,10 @@ function HomePage() {
   return (
     <main className="page-wrap px-4 pb-8 pt-14">
       <section className="island-shell rise-in relative overflow-hidden rounded-[2rem] px-6 py-10 sm:px-10 sm:py-14">
-        <div className="pointer-events-none absolute -left-20 -top-24 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(79,184,178,0.32),transparent_66%)]" />
-        <div className="pointer-events-none absolute -bottom-20 -right-20 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(47,106,74,0.18),transparent_66%)]" />
+        <div className="pointer-events-none absolute -left-20 -top-24 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(6,182,212,0.28),transparent_66%)]" />
+        <div className="pointer-events-none absolute -bottom-20 -right-20 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(16,185,129,0.18),transparent_66%)]" />
         <p className="island-kicker mb-3">rok-data Documentation</p>
-        <h1 className="display-title mb-5 max-w-3xl text-4xl leading-[1.02] font-bold tracking-tight text-[var(--sea-ink)] sm:text-6xl">
+        <h1 className="display-title gradient-text mb-5 max-w-3xl text-4xl leading-[1.02] font-bold tracking-tight sm:text-6xl">
           One schema. All changes.
         </h1>
         <p className="mb-8 max-w-2xl text-base text-[var(--sea-ink-soft)] sm:text-lg">
@@ -22,19 +22,19 @@ function HomePage() {
         <div className="flex flex-wrap gap-3">
           <Link
             to="/guide/installation"
-            className="rounded-full border border-[rgba(50,143,151,0.3)] bg-[rgba(79,184,178,0.14)] px-5 py-2.5 text-sm font-semibold text-[var(--lagoon-deep)] no-underline transition hover:-translate-y-0.5 hover:bg-[rgba(79,184,178,0.24)]"
+            className="btn-primary rounded-full px-5 py-2.5 text-sm no-underline"
           >
             Get Started
           </Link>
           <Link
             to="/guide/getting-started"
-            className="rounded-full border border-[rgba(23,58,64,0.2)] bg-white/50 px-5 py-2.5 text-sm font-semibold text-[var(--sea-ink)] no-underline transition hover:-translate-y-0.5 hover:border-[rgba(23,58,64,0.35)]"
+            className="btn-secondary rounded-full px-5 py-2.5 text-sm no-underline"
           >
             Quick Start
           </Link>
           <Link
             to="/agents"
-            className="rounded-full border border-[rgba(23,58,64,0.2)] bg-white/50 px-5 py-2.5 text-sm font-semibold text-[var(--sea-ink)] no-underline transition hover:-translate-y-0.5 hover:border-[rgba(23,58,64,0.35)]"
+            className="btn-secondary rounded-full px-5 py-2.5 text-sm no-underline"
           >
             For Agents
           </Link>
@@ -42,7 +42,7 @@ function HomePage() {
             href="https://github.com/ateeq1999/rok-data"
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-full border border-[rgba(23,58,64,0.2)] bg-white/50 px-5 py-2.5 text-sm font-semibold text-[var(--sea-ink)] no-underline transition hover:-translate-y-0.5 hover:border-[rgba(23,58,64,0.35)]"
+            className="btn-secondary rounded-full px-5 py-2.5 text-sm no-underline"
           >
             GitHub
           </a>
@@ -96,12 +96,12 @@ function HomePage() {
             Core Crates
           </h2>
           <ul className="m-0 space-y-2 text-sm text-[var(--sea-ink-soft)]">
-            <li><Link to="/crates/rok-data" className="text-primary hover:underline">rok-data</Link> — the facade applications depend on</li>
-            <li><Link to="/crates/rok-data-core" className="text-primary hover:underline">rok-data-core</Link> — Db, Expr/Select, migrations, introspect</li>
-            <li><Link to="/crates/rok-data-macros" className="text-primary hover:underline">rok-data-macros</Link> — derives + #[rok_data::test]</li>
-            <li><Link to="/crates/rok-data-codegen" className="text-primary hover:underline">rok-data-codegen</Link> — whole-crate generator</li>
-            <li><Link to="/crates/rok-data-sqlc" className="text-primary hover:underline">rok-data-sqlc</Link> — resource-module engine</li>
-            <li><Link to="/crates/rok-cli" className="text-primary hover:underline">rok (rok-data-cli)</Link> — the one binary</li>
+            <li><Link to="/crates/rok-data" className="hover:underline">rok-data</Link> — the facade applications depend on</li>
+            <li><Link to="/crates/rok-data-core" className="hover:underline">rok-data-core</Link> — Db, Expr/Select, migrations, introspect</li>
+            <li><Link to="/crates/rok-data-macros" className="hover:underline">rok-data-macros</Link> — derives + #[rok_data::test]</li>
+            <li><Link to="/crates/rok-data-codegen" className="hover:underline">rok-data-codegen</Link> — whole-crate generator</li>
+            <li><Link to="/crates/rok-data-sqlc" className="hover:underline">rok-data-sqlc</Link> — resource-module engine</li>
+            <li><Link to="/crates/rok-cli" className="hover:underline">rok (rok-data-cli)</Link> — the one binary</li>
           </ul>
         </div>
 
@@ -111,11 +111,11 @@ function HomePage() {
             Resources
           </h2>
           <ul className="m-0 space-y-2 text-sm text-[var(--sea-ink-soft)]">
-            <li><Link to="/guide/getting-started" className="text-primary hover:underline">Getting Started</Link></li>
-            <li><Link to="/agents" className="text-primary hover:underline">Coding Agents (JSON contracts)</Link></li>
-            <li><a href="https://github.com/ateeq1999/rok-data/tree/main/docs" className="text-primary hover:underline" target="_blank" rel="noreferrer">docs/ (AI-friendly markdown)</a></li>
-            <li><a href="https://raw.githubusercontent.com/ateeq1999/rok-data/main/docs/llms.txt" className="text-primary hover:underline" target="_blank" rel="noreferrer">docs/llms.txt</a></li>
-            <li><a href="https://crates.io/crates/rok-data-cli" className="text-primary hover:underline" target="_blank" rel="noreferrer">crates.io</a></li>
+            <li><Link to="/guide/getting-started" className="hover:underline">Getting Started</Link></li>
+            <li><Link to="/agents" className="hover:underline">Coding Agents (JSON contracts)</Link></li>
+            <li><a href="https://github.com/ateeq1999/rok-data/tree/main/docs" className="hover:underline" target="_blank" rel="noreferrer">docs/ (AI-friendly markdown)</a></li>
+            <li><a href="https://raw.githubusercontent.com/ateeq1999/rok-data/main/docs/llms.txt" className="hover:underline" target="_blank" rel="noreferrer">docs/llms.txt</a></li>
+            <li><a href="https://crates.io/crates/rok-data-cli" className="hover:underline" target="_blank" rel="noreferrer">crates.io</a></li>
           </ul>
         </div>
       </section>
@@ -125,7 +125,7 @@ function HomePage() {
         <h2 className="mb-4 text-xl font-semibold text-[var(--sea-ink)]">
           One schema. All changes.
         </h2>
-        <pre className="overflow-x-auto rounded-lg bg-muted p-4 text-xs"><code>{`$ rok init my-api --schema schema.sql
+        <pre className="text-xs"><code>{`$ rok init my-api --schema schema.sql
 $ cd my-api && rok gen          # src/db/** + src/features/**
 $ rok gen --migration add_posts # stages 0002_add_posts.{up,down}.sql
 $ rok gen check                 # CI: exit 1 when the code is stale

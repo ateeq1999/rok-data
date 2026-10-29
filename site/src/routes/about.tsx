@@ -9,7 +9,7 @@ function About() {
     <main className="page-wrap px-4 py-12">
       <section className="island-shell rounded-2xl p-6 sm:p-8">
         <p className="island-kicker mb-2">About</p>
-        <h1 className="display-title mb-3 text-4xl font-bold text-[var(--sea-ink)] sm:text-5xl">
+        <h1 className="display-title gradient-text mb-3 text-4xl font-bold sm:text-5xl">
           One workspace, one truth.
         </h1>
         <p className="m-0 max-w-3xl text-base leading-8 text-[var(--sea-ink-soft)]">
@@ -40,7 +40,7 @@ function About() {
               href="https://github.com/ateeq1999/rok-data/blob/main/docs/migration-guide.md"
               target="_blank"
               rel="noreferrer"
-              className="text-primary hover:underline"
+              className="hover:underline"
             >
               migration-guide.md
             </a>{' '}
@@ -49,7 +49,7 @@ function About() {
               href="https://github.com/ateeq1999/rok-data/tree/main/docs/decisions"
               target="_blank"
               rel="noreferrer"
-              className="text-primary hover:underline"
+              className="hover:underline"
             >
               workspace ADRs
             </a>
@@ -79,14 +79,14 @@ function About() {
         <h2 className="mb-4 text-xl font-semibold text-[var(--sea-ink)]">
           The front door, again
         </h2>
-        <pre className="overflow-x-auto rounded-lg bg-muted p-4 text-xs"><code>{`$ cargo install rok-data-cli
+        <pre className="text-xs"><code>{`$ cargo install rok-data-cli
 $ rok init my-api --schema schema.sql
 $ cd my-api && rok gen`}</code></pre>
         <p className="mt-4 m-0 text-sm text-[var(--sea-ink-soft)]">
           From here:{' '}
-          <Link to="/guide/getting-started" className="text-primary hover:underline">getting started</Link>,{' '}
-          <Link to="/crates/rok-cli" className="text-primary hover:underline">the CLI</Link>,{' '}
-          <Link to="/agents" className="text-primary hover:underline">agents</Link>.
+          <Link to="/guide/getting-started" className="hover:underline">getting started</Link>,{' '}
+          <Link to="/crates/rok-cli" className="hover:underline">the CLI</Link>,{' '}
+          <Link to="/agents" className="hover:underline">agents</Link>.
         </p>
       </section>
     </main>

@@ -9,7 +9,7 @@ function RokDataSqlcDocs() {
     <div className="mx-auto max-w-4xl px-4 py-8">
       <article className="prose dark:prose-invert max-w-none">
         <h1>rok-data-sqlc</h1>
-        <p className="text-lg text-muted">
+        <p className="text-lg text-[var(--sea-ink-soft)]">
           The resource-module engine: parses a schema without a database and
           generates modules — models, queries, API features, OpenAPI — into
           an existing crate.
@@ -28,7 +28,7 @@ function RokDataSqlcDocs() {
             href="https://github.com/ateeq1999/rok-data/tree/main/crates/rok-data-sqlc"
             target="_blank"
             rel="noreferrer"
-            className="text-sm text-muted-foreground no-underline hover:underline"
+            className="text-sm text-[var(--sea-ink-soft)] no-underline hover:underline"
           >
             source: crates/rok-data-sqlc
           </a>

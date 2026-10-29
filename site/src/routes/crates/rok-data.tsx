@@ -9,7 +9,7 @@ function RokDataFacadeDocs() {
     <div className="mx-auto max-w-4xl px-4 py-8">
       <article className="prose dark:prose-invert max-w-none">
         <h1>rok-data</h1>
-        <p className="text-lg text-muted">
+        <p className="text-lg text-[var(--sea-ink-soft)]">
           The facade: one crate that re-exports the runtime and the macros —
           the single dependency applications take.
         </p>
@@ -27,7 +27,7 @@ function RokDataFacadeDocs() {
             href="https://github.com/ateeq1999/rok-data/tree/main/crates/rok-data"
             target="_blank"
             rel="noreferrer"
-            className="text-sm text-muted-foreground no-underline hover:underline"
+            className="text-sm text-[var(--sea-ink-soft)] no-underline hover:underline"
           >
             source: crates/rok-data
           </a>
