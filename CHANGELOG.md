@@ -76,6 +76,21 @@ that it exists and won't ship a tag without it).
   (template migration `0007_jobs`), `Sender` gives way to the worker, and
   `Outbox::enqueue`/`commit` keep their signatures, so no flow changes.
   `queries/mail.sql` is now `queries/queue.sql`.
+- The templates' schedules (`src/shared/jobs/schedule.rs`):
+  `Schedule::new().cron::<Kind>("*/5 * * * *")?` enqueues a job kind at
+  every tick of a UTC cron pattern (`croner`), once across every process:
+  the transaction that moves the kind's `last_tick` forward
+  (`job_schedules`, template migration `0008_job_schedules`) enqueues it.
+  A missed tick runs once; a new schedule waits for its first tick; a bad
+  pattern stops the start-up. `Schedule::tick_at` takes the clock for
+  tests. The upload sweep is the scheduled `media.sweep_uploads` job
+  (every 5 minutes); `MEDIA_UPLOAD_SWEEP_SECS` and
+  `MediaService::sweep_every` are gone.
+- `APP_ROLE=all|web|worker`: `web` serves the API only, `worker` runs the
+  jobs and the schedule and answers only `/health`, `all` (the default)
+  both. The axum template's `app::serve_as(role, …)` serves one role;
+  `app::serve` is `all`. Kinds are registered in `app::worker`, schedules
+  in `app::schedule`.
 - The actix template's application is `app::app(state)`, the routes of
   `app::configure` wrapped in that middleware; tests build it with
   `test::init_service(app(state))`. It depends on `actix-cors` and

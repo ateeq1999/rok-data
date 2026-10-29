@@ -9,10 +9,19 @@ nothing. Jobs implement a typed `Job` trait (kind, serde payload, `run`,
 timeout, `on_dead`). The mail outbox, which already worked this way, is
 folded in: mail is the `mail.send` job, and `outbound_mail` goes away
 (template migration `0007_jobs`). Crons are jobs too: every instance runs
-the scheduler, and each tick inserts a job keyed `(kind, scheduled_for)`
-with `ON CONFLICT DO NOTHING`, so exactly one replica enqueues it, with
-no leader election or held lock; a missed tick runs once, without
-catch-up. `APP_ROLE=all|web|worker` picks what a process runs.
+the scheduler, and each tick is claimed by moving the kind's `last_tick`
+forward in `job_schedules` (`UPDATE … WHERE last_tick < $tick`, template
+migration `0008_job_schedules`); the row lock lets exactly one
+transaction succeed, and it enqueues the tick's job, with no leader
+election or held lock. A missed tick runs once, without catch-up; a new
+schedule waits for its first tick. `APP_ROLE=all|web|worker` picks what a
+process runs.
+
+*Amended 2026-10-29, while building it:* the first design keyed each tick
+by a unique insert of the job row (`(kind, scheduled_for)`, `ON CONFLICT
+DO NOTHING`). That holds only while the row exists: a fast replica runs
+the job and deletes it, and a replica waking a moment later inserts the
+same key again. The schedule row keeps the claim after the job is gone.
 
 ## Considered Options
 
