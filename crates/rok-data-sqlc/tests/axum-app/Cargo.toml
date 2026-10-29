@@ -20,7 +20,7 @@ chrono = { version = "0.4", features = ["serde"] }
 jsonwebtoken = { version = "11", features = ["rust_crypto"] }
 # The generated data layer resolves the workspace crate while the release
 # pins the published one, so the fixture keeps both the path and the range.
-rok-data = { path = "../../../rok-data", version = "0.3", features = ["chrono", "decimal", "ipnetwork", "json", "uuid"] }
+rok-data = { path = "../../../rok-data", version = "0.4", features = ["chrono", "decimal", "ipnetwork", "json", "uuid"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # The axum extractor of the data layer names serde's path-aware error.

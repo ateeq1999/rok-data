@@ -56,7 +56,7 @@ clap = { version = "4", features = ["derive"] }
 heck = "0.5"
 proc-macro2 = { version = "1", features = ["span-locations"] }
 regex-syntax = "0.8"
-rok-data-codegen = { path = "../rok-data-codegen", version = "0.3.0" }
+rok-data-codegen = { path = "../rok-data-codegen", version = "0.4.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sqlparser = { version = "0.59", features = ["visitor"] }

@@ -47,7 +47,7 @@ fn scaffold_with(name: &str, init: &[&str]) -> Result<tempfile::TempDir> {
         format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n"),
     )?;
     rok_data_sqlc(dir, init)?;
-    // Inside the repository the `rok-data = "0.3"` the hints name resolves
+    // Inside the repository the `rok-data = "0.4"` the hints name resolves
     // to the workspace crate (the release publishes it afterwards); cargo
     // substitutes it for crates.io while the tests run.
     common::rok_data_patch_shim(dir)?;

@@ -7,6 +7,10 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+## Workspace 0.4.0 - 2026-10-29
+
+Published as `rok-data-sqlc` 0.4.0 with the workspace (root `CHANGELOG.md`).
+
 ### Breaking changes to the generated API
 
 Generated data calls move onto the runtime (engine ADR 0023):

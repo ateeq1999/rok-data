@@ -1575,7 +1575,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "rok-data"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "axum-core",
  "http-body-util",
@@ -1592,7 +1592,7 @@ dependencies = [
 
 [[package]]
 name = "rok-data-cli"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1609,7 +1609,7 @@ dependencies = [
 
 [[package]]
 name = "rok-data-codegen"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "prettyplease",
  "proc-macro2",
@@ -1626,7 +1626,7 @@ dependencies = [
 
 [[package]]
 name = "rok-data-core"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "aes-gcm",
  "async-stream",
@@ -1650,7 +1650,7 @@ dependencies = [
 
 [[package]]
 name = "rok-data-macros"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -1660,7 +1660,7 @@ dependencies = [
 
 [[package]]
 name = "rok-data-sqlc"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "clap",

@@ -9,48 +9,79 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
-Added: `rok sqlc query add <NAME> <SQL> --file <stem>` appends one annotated
-query and generates, keeping it only when it generates (`docs/cli-reference.md`).
+## [0.4.0] — typed keys, a runtime-backed data layer, and direct uploads
 
-Added: `rok sqlc check --db` prepares every annotated query against the
-database and reports type, name and nullability mismatches with the
-generated code, for CI; `rok sqlc generate --watch` regenerates on change
-(engine ADR 0026). The runtime gains `introspect::describe(db, sql)`: a
-statement's parameter and column types, without running it.
+Breaking. Model lookups take the model's own key type, and the code
+`rok sqlc` generates calls the runtime instead of sqlx. Follow
+`docs/migration-guide.md` §To 0.4.0: regenerate, then fix what the
+compiler reports.
 
-Breaking (runtime): `Model` gains `type Key`, the primary key's Rust type
-(the key field's type, a tuple of the key fields' types in field order for a
-composite key, `()` without a key). `#[derive(Model)]` sets it. `find`,
-`find_or_fail`, `find_many`, the `ModelCollection` key lookups and
-`audit::history` take `impl Into<Self::Key>`, so `Product::find(&db,
-category_id)` no longer compiles. A hand-written `impl Model` adds the
-`type Key` line, and a composite key passes a tuple of the right arity
-(a wrong arity was a runtime `InvalidQuery` before; it doesn't compile now).
+**What changed**
 
-Added: direct uploads in the actix and axum templates. A presigned `PUT` to
-S3-compatible stores, or an API-signed URL for `file://` and `memory://`,
-checked on completion; presigned download URLs (engine ADR 0024).
+- **Lookups take the model's own key type** (runtime). `Model` gains
+  `type Key`, set by `#[derive(Model)]`:
+  - for a single-column key, the key field's type;
+  - for a composite key, a tuple of the key fields' types, in field order;
+  - for a table without a key, `()`.
 
-Breaking for generated code (engine ADR 0023, in progress): the generated
-data layer stops naming `sqlx`.
+  `find`, `find_or_fail`, `find_many`, the `ModelCollection` key lookups
+  and `audit::history` take `impl Into<Self::Key>`, so
+  `Product::find(&db, category_id)` no longer compiles. A composite key of
+  the wrong length used to fail at run time (`InvalidQuery`); now it fails
+  to compile.
+  - **Breaking for a hand-written `impl Model`:** add a `type Key` line.
+- **Generated data calls go through the runtime** (engine ADR 0023).
+  - **Errors:** generated functions fail with `rok_data::Error` instead of
+    `sqlx::Error`. Annotated queries run through `rok_data::raw`.
+  - **Reads:** generated reads are the runtime's verbs (`Row::find`,
+    `Row::all`, `Row::count`) plus chains built from the schema:
+    `Row::by_primary_key(…)` and `Row::by_<columns>(…)`, which replaces
+    `get_by_<columns>`.
+  - **Lists and search:** `Row::matching(…)` and `Row::search(filter)`
+    return a chain that the caller orders and pages, so a page and its total
+    take one round trip.
+  - **Removed:** `get_by_id`, `exists_by_id`, `list`, `list_page`, `count`,
+    `search_after` and the deprecated `write::` wrappers.
+  - **Composite key structs** convert into the model's key tuple.
+  - **Still on sqlx:** two generated paths, the versioned `patch` and the
+    relationship loaders. A later release converts them.
 
-- **Annotated queries** fail with `rok_data::Error` and run through
-  `rok_data::raw`. The runtime gains `Raw::scalar_optional`,
-  `Raw::scalars`, and `&[T]` binds for enum and typed-id lists.
-- **List endpoints** read a `Row::matching(…)` chain and answer the
-  runtime's `Page` in one round trip. The runtime gains
-  `Column::icontains`.
-- **Search** is one `Row::search(filter)` chain, ordered and paged by the
-  caller; `search_after` and `db/search.rs`'s `Window`/`Limit` are gone.
-  A filter builds one `rok_data` condition. `POST /search` pages a
-  `Row::search_sorted(…)` chain. The runtime gains `NaiveDateTime` and
-  `NaiveTime` list binds.
-- **Reads** are the runtime's verbs (`Row::find`, `Row::all`, `Row::count`)
-  plus the chains the schema knows: `Row::by_primary_key(…)` and
-  `Row::by_<columns>(…)` (was `get_by_<columns>`). The generated
-  `get_by_id`, `exists_by_id`, `list`, `list_page` and `count` are gone, and
-  so are the deprecated `write::` module wrappers. A composite key struct is
-  a `rok_data::IntoKey`.
+  The runtime gains `Raw::scalar_optional`, `Raw::scalars`, `&[T]` binds
+  for enum and typed-id lists, `NaiveDateTime`/`NaiveTime` list binds, and
+  `Column::icontains`. The engine's CHANGELOG lists every changed
+  generated item.
+- **Direct uploads in both templates** (engine ADR 0024).
+  - **Uploads:** `POST /media/uploads` answers a presigned `PUT` URL.
+    `POST /media/{id}/complete` then checks the stored bytes' size and
+    detected type.
+  - **Downloads:** `GET /media/{id}/url` answers a presigned download URL.
+  - **Signing:** `s3://` stores sign the URLs themselves (SigV4).
+    `file://` and `memory://` URLs are signed by the API, under a key
+    derived from `JWT_SECRET`.
+  - **Cleanup:** a background sweep deletes uploads that are never
+    completed.
+  - **Breaking for a project made from a template:** migration
+    `0006_media_uploads` is new, and so are the settings
+    `MEDIA_UPLOAD_URL_TTL_SECS`, `MEDIA_DOWNLOAD_URL_TTL_SECS`,
+    `MEDIA_UPLOAD_SWEEP_SECS` and `STORAGE_PUBLIC_ENDPOINT`.
+    `shared/storage/` is scaffolded once, so an existing project copies the
+    change in by hand.
+
+**Added**
+
+- **`rok sqlc check --db`** (engine ADR 0026). It prepares every annotated
+  query against the database without running it, and reports each type,
+  name or nullability mismatch with the generated code as
+  `file:line: Query: message`. Without `--db`, `rok sqlc check` fails on
+  drift, as `generate --check` does.
+- **`rok sqlc generate --watch`** regenerates whenever the schema, the query
+  files or the config file change.
+- **`rok sqlc query add <NAME> <SQL> --file <stem>`** appends one annotated
+  query and generates. The file keeps the query only if it generates.
+- **`rok_data::introspect::describe(db, sql)`** answers a statement's
+  parameter and column types without running it.
+- **`db::prelude`** brings in the generated search vocabulary too, so one
+  `use` serves a handler.
 
 ## [0.3.0] — the model-shaped data layer
 

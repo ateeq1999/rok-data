@@ -1499,7 +1499,7 @@ dependencies = [
 
 [[package]]
 name = "rok-data"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "rok-data-core",
  "rok-data-macros",
@@ -1507,7 +1507,7 @@ dependencies = [
 
 [[package]]
 name = "rok-data-core"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "async-stream",
  "futures-core",
@@ -1523,7 +1523,7 @@ dependencies = [
 
 [[package]]
 name = "rok-data-macros"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
