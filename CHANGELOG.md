@@ -55,6 +55,13 @@ that it exists and won't ship a tag without it).
   OTLP/HTTP (OpenTelemetry 0.32), continuing a caller's W3C `traceparent`.
   `config::log_settings` replaces `config::log_filter`. The actix template
   traces requests through `tracing-actix-web`.
+- The templates' metrics (`src/shared/metrics.rs`, shared): with
+  `METRICS_ADDR` set, `/metrics` in Prometheus's format on a listener of
+  its own: request counts and durations by method, matched route and
+  status, the database pool's connections, and sign-ins by outcome and
+  lockouts. Unset, nothing is recorded. The settings readers and their
+  errors moved from `config.rs` to `src/shared/settings.rs`
+  (`config::{ConfigError, ConfigErrors}` still name them).
 - The actix template's application is `app::app(state)`, the routes of
   `app::configure` wrapped in that middleware; tests build it with
   `test::init_service(app(state))`. It depends on `actix-cors` and
