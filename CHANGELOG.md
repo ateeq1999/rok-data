@@ -107,6 +107,14 @@ that it exists and won't ship a tag without it).
   (`Background::stop_within`). The actix template handles the signal
   itself (`disable_signals`, `shutdown_timeout`) so the readiness flip
   comes first. The axum template's health routes are `app::health_routes`.
+- The templates ship how they run and ship (shared by both): a
+  `Dockerfile` (cargo-chef layers, distroless, non-root, JSON logs; the
+  binary found whatever the crate is named), `compose.yaml` (PostgreSQL,
+  Floci 2.3.0 for S3 with its bucket created, Mailpit; the
+  `observability` profile adds Jaeger, Prometheus and Grafana with an
+  *API* dashboard under `deploy/compose/`), and
+  `.github/workflows/ci.yml` (fmt, clippy, tests against PostgreSQL,
+  `rok sqlc g --check` and `check-arch`, `cargo deny`, the image build).
 - The actix template's application is `app::app(state)`, the routes of
   `app::configure` wrapped in that middleware; tests build it with
   `test::init_service(app(state))`. It depends on `actix-cors` and
