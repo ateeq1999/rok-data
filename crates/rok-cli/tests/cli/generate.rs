@@ -99,7 +99,7 @@ fn generates_composite_keys_arrays_and_time() -> Result<()> {
 
     // A whole composite key finds its row: `LineItem::find(executor, key)`.
     assert!(
-        models.contains("impl rok_data::IntoKey for LineItemKey {"),
+        models.contains("impl From<LineItemKey> for (uuid::Uuid, uuid::Uuid) {"),
         "{models}"
     );
     let read = fs::read_to_string(out.join("line_items/read.rs"))?;

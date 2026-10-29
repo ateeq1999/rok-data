@@ -465,14 +465,23 @@ fn render_key_struct(output: &mut String, table: &Table, keys: &[&Column], serde
     output.push_str("}\n\n");
     // A whole key finds its row: `Row::find(executor, key)`. Without the
     // tenant column, it is no whole key, and `by_primary_key` takes the tenant.
+    // The row's `Model::Key` is the key fields' types in field order, which
+    // is column order, not necessarily the constraint's.
     if keys.len() == table.primary_key.len() {
         let name = key_struct_name(table);
-        let values: Vec<String> = keys
+        let in_field_order: Vec<&Column> = table
+            .columns
             .iter()
-            .map(|key| format!("self.{}.into()", key.rust_name))
+            .filter(|column| table.primary_key.contains(&column.sql_name))
+            .collect();
+        let types: Vec<String> = in_field_order.iter().map(|key| key.field_type()).collect();
+        let values: Vec<String> = in_field_order
+            .iter()
+            .map(|key| format!("key.{}", key.rust_name))
             .collect();
         output.push_str(&format!(
-            "/// The key's values in primary-key order, as `Row::find` takes them.\nimpl rok_data::IntoKey for {name} {{\n    fn into_key(self) -> Vec<rok_data::Value> {{\n        vec![{}]\n    }}\n}}\n\n",
+            "/// The key as the row's `Model::Key`, so `Row::find` takes it.\nimpl From<{name}> for ({}) {{\n    fn from(key: {name}) -> Self {{\n        ({})\n    }}\n}}\n\n",
+            types.join(", "),
             values.join(", ")
         ));
     }

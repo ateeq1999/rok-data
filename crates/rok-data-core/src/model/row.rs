@@ -37,6 +37,11 @@ pub trait Model:
     const PRIMARY_KEY: &'static str;
     /// Every primary key column, in order (more than one for composite keys).
     const PRIMARY_KEYS: &'static [&'static str] = &[Self::PRIMARY_KEY];
+    /// The primary key's Rust type: the key field's type, a tuple of the
+    /// key fields' types in field order for a composite key, or `()` for a
+    /// table without one. [`find`](Self::find) takes what converts into it,
+    /// so another table's typed id doesn't compile as this one's key.
+    type Key: IntoKey + Send;
     /// Every column read from and written to the database, in field order.
     const COLUMNS: &'static [&'static str];
     /// Columns filled in by the database (serial ids, defaults, triggers).
@@ -185,24 +190,24 @@ pub trait Model:
     /// Fetch a record by primary key, or `None`.
     fn find<'e, E>(
         executor: E,
-        id: impl IntoKey,
+        id: impl Into<Self::Key>,
     ) -> impl Future<Output = Result<Option<Self>>> + Send
     where
         E: Executor<'e>,
     {
-        let select = key_expr::<Self>(id.into_key()).map(Self::filter);
+        let select = key_expr::<Self>(id.into().into_key()).map(Self::filter);
         async move { select?.first(executor).await }
     }
 
     /// Fetch a record by primary key, failing with [`Error::NotFound`].
     fn find_or_fail<'e, E>(
         executor: E,
-        id: impl IntoKey,
+        id: impl Into<Self::Key>,
     ) -> impl Future<Output = Result<Self>> + Send
     where
         E: Executor<'e>,
     {
-        let values = id.into_key();
+        let values = id.into().into_key();
         let key = key_string(&values);
         let select = key_expr::<Self>(values).map(Self::filter);
         async move {
@@ -220,9 +225,9 @@ pub trait Model:
     ) -> impl Future<Output = Result<Vec<Self>>> + Send
     where
         E: Executor<'e>,
-        K: IntoKey,
+        K: Into<Self::Key>,
     {
-        let keys: Vec<Vec<Value>> = ids.into_iter().map(IntoKey::into_key).collect();
+        let keys: Vec<Vec<Value>> = ids.into_iter().map(|id| id.into().into_key()).collect();
         let select = if Self::PRIMARY_KEYS.len() == 1 {
             Ok(Self::filter(
                 Self::primary_key_column().is_in(keys.into_iter().flatten()),

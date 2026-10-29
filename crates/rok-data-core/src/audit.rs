@@ -143,9 +143,9 @@ pub async fn disable<M: Model>(db: &Db) -> Result<()> {
 /// composite keys.
 pub async fn history<'e, M: Model>(
     executor: impl Executor<'e>,
-    key: impl crate::IntoKey,
+    key: impl Into<M::Key>,
 ) -> Result<Vec<AuditEntry>> {
-    let values = key.into_key();
+    let values = crate::IntoKey::into_key(key.into());
     AuditEntry::for_table::<M>()
         .filter(Expr::raw(
             format!(
@@ -231,6 +231,7 @@ impl Hooks for AuditEntry {}
 impl Model for AuditEntry {
     const TABLE: &'static str = TABLE;
     const PRIMARY_KEY: &'static str = "id";
+    type Key = i64;
     const COLUMNS: &'static [&'static str] = &[
         "id",
         "table_name",

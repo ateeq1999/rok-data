@@ -7,7 +7,7 @@ The generated `db/` folder used two styles at once. CRUD went through the runtim
 **Calls are model methods.**
 
 - **The shape:** a table's reads and writes are associated functions on its model, `User::by_email(email)`, `User::search(filter)`, `User::matching(q, sort)`, rather than free functions in `read.rs`/`write.rs`/`listing.rs`.
-- **What the runtime already names isn't generated:** `Model` already gives every model `find`, `find_or_fail`, `all`, `count`, `exists` and `query`. So the engine stops emitting `get_by_id`, `exists_by_id`, `list`, `list_page` and `count`, and a call site uses the runtime's verb (`User::find(&db, id)`), one name per operation (workspace ADR 0020). A composite key struct implements `rok_data::IntoKey`, so `find` takes it too. The engine generates only what the schema knows and the runtime doesn't:
+- **What the runtime already names isn't generated:** `Model` already gives every model `find`, `find_or_fail`, `all`, `count`, `exists` and `query`. So the engine stops emitting `get_by_id`, `exists_by_id`, `list`, `list_page` and `count`, and a call site uses the runtime's verb (`User::find(&db, id)`), one name per operation (workspace ADR 0020). `find` takes what converts into the model's `Model::Key`, so another table's typed id does not compile as the key; a composite key struct converts into the key tuple, so `find` takes it too. The engine generates only what the schema knows and the runtime doesn't:
   - `by_primary_key`: the key's chain;
   - `by_<columns>`: one per unique key, `User::by_email(email)`;
   - the filter's `search`;

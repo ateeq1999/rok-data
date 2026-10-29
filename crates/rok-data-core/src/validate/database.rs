@@ -197,6 +197,7 @@ mod tests {
     impl Model for User {
         const TABLE: &'static str = "users";
         const PRIMARY_KEY: &'static str = "id";
+        type Key = i64;
         const COLUMNS: &'static [&'static str] = &["id", "email"];
         fn primary_key(&self) -> Value {
             Value::from(self.id)

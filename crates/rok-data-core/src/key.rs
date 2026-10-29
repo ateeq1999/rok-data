@@ -32,6 +32,14 @@ macro_rules! tuple_keys {
 
 tuple_keys!((A, B), (A, B, C), (A, B, C, D));
 
+/// The key of a table without a primary key: no values, so a lookup by it
+/// fails with [`Error::InvalidQuery`].
+impl IntoKey for () {
+    fn into_key(self) -> Vec<Value> {
+        Vec::new()
+    }
+}
+
 /// `pk1 = v1 AND pk2 = v2 …` for model `M`.
 pub(crate) fn key_expr<M: Model>(values: Vec<Value>) -> Result<Expr<M>> {
     if values.len() != M::PRIMARY_KEYS.len() {

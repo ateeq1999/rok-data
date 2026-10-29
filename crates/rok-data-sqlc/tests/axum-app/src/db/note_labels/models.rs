@@ -17,10 +17,10 @@ pub struct NoteLabelKey {
     pub label_id: LabelId,
 }
 
-/// The key's values in primary-key order, as `Row::find` takes them.
-impl rok_data::IntoKey for NoteLabelKey {
-    fn into_key(self) -> Vec<rok_data::Value> {
-        vec![self.note_id.into(), self.label_id.into()]
+/// The key as the row's `Model::Key`, so `Row::find` takes it.
+impl From<NoteLabelKey> for (NoteId, LabelId) {
+    fn from(key: NoteLabelKey) -> Self {
+        (key.note_id, key.label_id)
     }
 }
 

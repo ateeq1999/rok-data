@@ -286,6 +286,33 @@ pub mod prelude {
 /// let _ = Post::query().join(Post::USER).with_sql::<(User, Option<User>), _>();
 /// ```
 ///
+/// `find` takes the model's own key (`Model::Key`), so another table's
+/// typed id doesn't compile as it:
+///
+/// ```compile_fail
+/// use rok_data::prelude::*;
+/// #[derive(Debug, Clone, Copy, PartialEq, rok_data::DbNewtype)] struct ProductId(i64);
+/// #[derive(Debug, Clone, Copy, PartialEq, rok_data::DbNewtype)] struct CategoryId(i64);
+/// #[derive(Model)] struct Product { #[rok(primary_key)] id: ProductId, category_id: CategoryId }
+///
+/// async fn f(db: Db, category_id: CategoryId) {
+///     let _ = Product::find(&db, category_id).await;
+/// }
+/// ```
+///
+/// ```
+/// use rok_data::prelude::*;
+/// #[derive(Debug, Clone, Copy, PartialEq, rok_data::DbNewtype)] struct ProductId(i64);
+/// #[derive(Debug, Clone, Copy, PartialEq, rok_data::DbNewtype)] struct CategoryId(i64);
+/// #[derive(Model)] struct Product { #[rok(primary_key)] id: ProductId, category_id: CategoryId }
+/// #[derive(Model)] struct Member { #[rok(primary_key)] org_id: i64, #[rok(primary_key)] user_id: i64 }
+///
+/// async fn f(db: Db, product_id: ProductId) {
+///     let _ = Product::find(&db, product_id).await;
+///     let _ = Member::find(&db, (1, 2)).await;
+/// }
+/// ```
+///
 /// A model needs no `Clone` to derive, and `get` hands back a
 /// [`ModelCollection`] the collection verbs work on at once:
 ///

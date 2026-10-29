@@ -21,7 +21,9 @@ Generated data calls move onto the runtime (engine ADR 0023):
   - `list`, `list_page` and `count` become `Row::all`, `Row::query()…paginate(..)`
     and `Row::count`.
 
-  A composite key struct implements `rok_data::IntoKey`, so `find` takes it.
+  A composite key struct converts into the row's `Model::Key` (the key tuple,
+  in field order), so `find` takes it; another table's typed id does not
+  compile as the key.
 - **Writes:** the deprecated 0.2 module wrappers (`<table>::write::create`
   and the rest) are gone; the verbs live on the model only.
 - **API lookups:** `GET …/by-<column>/{value}` keeps its handler and service

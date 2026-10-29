@@ -26,6 +26,7 @@ struct Note {
 impl Model for Note {
     const TABLE: &'static str = "notes";
     const PRIMARY_KEY: &'static str = "id";
+    type Key = i64;
     const COLUMNS: &'static [&'static str] = &["id", "text"];
 
     fn primary_key(&self) -> Value {

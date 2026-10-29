@@ -3,8 +3,8 @@
 
 use std::time::Duration;
 
+use rok_data::ChangeOp;
 use rok_data::prelude::*;
-use rok_data::{ChangeOp, Error};
 
 #[derive(Debug, Clone, PartialEq, Model)]
 #[rok(has_many(notes = Note::MEMBERSHIP_ORG))]
@@ -84,11 +84,6 @@ async fn crud_by_composite_key(db: Db) {
     assert!(
         err.is_not_found() && err.to_string().contains("(9, 9)"),
         "{err}"
-    );
-    let err = Membership::find(&db, 1_i64).await.unwrap_err();
-    assert!(
-        matches!(err, Error::InvalidQuery(_)),
-        "wrong number of key values"
     );
 
     let many = Membership::find_many(&db, [(1_i64, 1_i64), (2_i64, 1_i64), (3_i64, 3_i64)])

@@ -18,6 +18,15 @@ generated code, for CI; `rok sqlc generate --watch` regenerates on change
 (engine ADR 0026). The runtime gains `introspect::describe(db, sql)`: a
 statement's parameter and column types, without running it.
 
+Breaking (runtime): `Model` gains `type Key`, the primary key's Rust type
+(the key field's type, a tuple of the key fields' types in field order for a
+composite key, `()` without a key). `#[derive(Model)]` sets it. `find`,
+`find_or_fail`, `find_many`, the `ModelCollection` key lookups and
+`audit::history` take `impl Into<Self::Key>`, so `Product::find(&db,
+category_id)` no longer compiles. A hand-written `impl Model` adds the
+`type Key` line, and a composite key passes a tuple of the right arity
+(a wrong arity was a runtime `InvalidQuery` before; it doesn't compile now).
+
 Added: direct uploads in the actix and axum templates. A presigned `PUT` to
 S3-compatible stores, or an API-signed URL for `file://` and `memory://`,
 checked on completion; presigned download URLs (engine ADR 0024).

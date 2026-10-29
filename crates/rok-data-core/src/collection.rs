@@ -95,8 +95,8 @@ impl<M: Model> ModelCollection<M> {
     /// (`42`, `"a@b.c"`) for a single-column key, a tuple in field order
     /// for a composite key. Integer keys compare across widths, so
     /// `find(42)` finds a `SMALLINT` key 42 as the SQL paths already do.
-    pub fn find<K: IntoKey>(&self, key: K) -> Option<&M> {
-        let wanted = key.into_key();
+    pub fn find(&self, key: impl Into<M::Key>) -> Option<&M> {
+        let wanted = key.into().into_key();
         self.rows
             .iter()
             .find(|row| keys_match(&row.key_values(), &wanted))
@@ -105,8 +105,8 @@ impl<M: Model> ModelCollection<M> {
     /// The row whose primary key is `key`, or
     /// [`Error::NotFound`](crate::Error::NotFound) — the same error
     /// [`Model::find_or_fail`] builds.
-    pub fn find_or_fail<K: IntoKey>(&self, key: K) -> Result<&M> {
-        let wanted = key.into_key();
+    pub fn find_or_fail(&self, key: impl Into<M::Key>) -> Result<&M> {
+        let wanted = key.into().into_key();
         self.rows
             .iter()
             .find(|row| keys_match(&row.key_values(), &wanted))
@@ -125,7 +125,7 @@ impl<M: Model> ModelCollection<M> {
     /// `true` if some row's primary key is `key` (the key shapes
     /// [`find`](Self::find) takes). Named apart from the slice's
     /// `contains(&row)`, which `Deref` still offers.
-    pub fn contains_key<K: IntoKey>(&self, key: K) -> bool {
+    pub fn contains_key(&self, key: impl Into<M::Key>) -> bool {
         self.find(key).is_some()
     }
 
@@ -193,8 +193,8 @@ impl<M: Model> ModelCollection<M> {
     }
 
     /// The rows whose primary key is one of `keys`.
-    pub fn only<K: IntoKey>(self, keys: impl IntoIterator<Item = K>) -> Self {
-        let wanted: Vec<Vec<Value>> = keys.into_iter().map(IntoKey::into_key).collect();
+    pub fn only<K: Into<M::Key>>(self, keys: impl IntoIterator<Item = K>) -> Self {
+        let wanted: Vec<Vec<Value>> = keys.into_iter().map(|key| key.into().into_key()).collect();
         let rows = self
             .rows
             .into_iter()
@@ -204,8 +204,8 @@ impl<M: Model> ModelCollection<M> {
     }
 
     /// The rows whose primary key is none of `keys`.
-    pub fn except<K: IntoKey>(self, keys: impl IntoIterator<Item = K>) -> Self {
-        let wanted: Vec<Vec<Value>> = keys.into_iter().map(IntoKey::into_key).collect();
+    pub fn except<K: Into<M::Key>>(self, keys: impl IntoIterator<Item = K>) -> Self {
+        let wanted: Vec<Vec<Value>> = keys.into_iter().map(|key| key.into().into_key()).collect();
         let rows = self
             .rows
             .into_iter()
@@ -379,6 +379,7 @@ mod tests {
     impl Model for User {
         const TABLE: &'static str = "users";
         const PRIMARY_KEY: &'static str = "id";
+        type Key = i64;
         const COLUMNS: &'static [&'static str] = &["id", "name"];
 
         fn primary_key(&self) -> Value {

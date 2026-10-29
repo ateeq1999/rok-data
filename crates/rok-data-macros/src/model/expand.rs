@@ -311,6 +311,18 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
         }
         None => quote!(""),
     };
+    // `Model::Key`: the key field's type, a tuple of the key fields' types
+    // in field order, or `()` without a key.
+    let key_type = match pks.as_slice() {
+        [single] => {
+            let ty = &single.ty;
+            quote!(#ty)
+        }
+        many => {
+            let tys = many.iter().map(|f| &f.ty);
+            quote!((#(#tys,)*))
+        }
+    };
     let pk_ident = pks.first().map(|f| &f.ident);
     let primary_key_fn = match pk_ident {
         Some(ident) => quote! {
@@ -384,6 +396,7 @@ pub(crate) fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
             const TABLE: &'static str = #table;
             const PRIMARY_KEY: &'static str = #pk_column;
             const PRIMARY_KEYS: &'static [&'static str] = &[#(#pk_columns),*];
+            type Key = #key_type;
             const COLUMNS: &'static [&'static str] = &[#(#column_names),*];
             const GENERATED: &'static [&'static str] = &[#(#generated),*];
             const CREATED_AT_COLUMN: ::core::option::Option<&'static str> = #created_at;

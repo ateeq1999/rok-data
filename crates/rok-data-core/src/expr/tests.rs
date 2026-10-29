@@ -18,6 +18,7 @@ impl crate::Hooks for T {}
 impl Model for T {
     const TABLE: &'static str = "t";
     const PRIMARY_KEY: &'static str = "a";
+    type Key = i64;
     const COLUMNS: &'static [&'static str] = &["a", "b"];
     fn primary_key(&self) -> Value {
         Value::I32(None)
