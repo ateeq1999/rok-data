@@ -98,6 +98,15 @@ that it exists and won't ship a tag without it).
   Retries and cancellations are audited (`job.retried`, `job.cancelled`)
   through the feature's `JobAudit` port, implemented in `app/ports.rs`.
   Its SQL is `queries/jobs.sql`.
+- The templates drain on `SIGTERM` (`src/shared/shutdown.rs`, shared):
+  `/health/ready` answers `503` at once while every request is still
+  served for `SHUTDOWN_DELAY_SECS` (5), then the server stops accepting
+  and the requests in flight finish within `SHUTDOWN_GRACE_SECS` (25),
+  then the job worker stops; a job still running past the grace is
+  abandoned, its claim released, no attempt counted
+  (`Background::stop_within`). The actix template handles the signal
+  itself (`disable_signals`, `shutdown_timeout`) so the readiness flip
+  comes first. The axum template's health routes are `app::health_routes`.
 - The actix template's application is `app::app(state)`, the routes of
   `app::configure` wrapped in that middleware; tests build it with
   `test::init_service(app(state))`. It depends on `actix-cors` and
