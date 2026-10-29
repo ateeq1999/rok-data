@@ -62,6 +62,20 @@ that it exists and won't ship a tag without it).
   lockouts. Unset, nothing is recorded. The settings readers and their
   errors moved from `config.rs` to `src/shared/settings.rs`
   (`config::{ConfigError, ConfigErrors}` still name them).
+- The templates' job queue (`src/shared/jobs/`, shared; workspace ADR
+  0024): one `jobs` table on PostgreSQL. A typed `Job` (kind, serde
+  payload, `run`, `MAX_ATTEMPTS`, `TIMEOUT`, `on_dead`) is enqueued on the
+  flow's transaction (`Queue::enqueue`, `enqueue_with` for a delay or a
+  unique key), and a `Worker` (`JOBS_CONCURRENCY`, 4) claims due jobs with
+  `FOR UPDATE SKIP LOCKED`, woken in-process and by `NOTIFY`, retrying with
+  backoff until a job is `dead`. A job's span continues the trace that
+  enqueued it; `/metrics` counts `jobs_total` and `jobs_queued`.
+  `Worker::run_due` runs due jobs inline for tests. Register kinds in
+  `app::worker`.
+- Mail is the `mail.send` job: the `outbound_mail` table is gone
+  (template migration `0007_jobs`), `Sender` gives way to the worker, and
+  `Outbox::enqueue`/`commit` keep their signatures, so no flow changes.
+  `queries/mail.sql` is now `queries/queue.sql`.
 - The actix template's application is `app::app(state)`, the routes of
   `app::configure` wrapped in that middleware; tests build it with
   `test::init_service(app(state))`. It depends on `actix-cors` and

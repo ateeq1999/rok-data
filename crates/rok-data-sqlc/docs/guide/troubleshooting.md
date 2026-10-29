@@ -450,11 +450,11 @@ each mail's address and subject at `info`, and its body at `debug`
 **No mail arrives.** With the default `MAIL_TRANSPORT=log`, nothing is
 sent: set `smtp` ([Accounts](auth.md#sending-real-mail)). With SMTP, the
 log has a `WARN` per failed attempt and an `ERROR` when a mail goes
-`dead`, and each row keeps its `last_error`:
+`dead`, and each `mail.send` job keeps its `last_error`:
 
 ```sql
 SELECT payload->>'to' AS "to", status, attempts, last_error
-FROM outbound_mail ORDER BY created_at DESC LIMIT 20;
+FROM jobs WHERE kind = 'mail.send' ORDER BY created_at DESC LIMIT 20;
 ```
 
 A mailed link points at the wrong host: set `APP_URL` to your front end's

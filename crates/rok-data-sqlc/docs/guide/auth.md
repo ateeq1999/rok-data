@@ -46,8 +46,8 @@ shows actix-web wiring, the axum template does the same in axum's terms.
 | `queries/auth.sql` | the `auth` feature's SQL (`db::queries::auth`) |
 | `queries/two_factor.sql`, `queries/api_keys.sql` | the `two_factor` and `api_keys` features' SQL |
 | `queries/account.sql` | the `account` feature's SQL |
-| `queries/session.sql`, `queries/mail.sql` | the session check and the outbox, for `shared/` |
-| `schema/0002_auth.sql` | `auth_tokens` and `outbound_mail` (`users.token_version` is in `schema/0001_init.sql`) |
+| `queries/session.sql`, `queries/queue.sql` | the session check and the job queue (mail is a job), for `shared/` |
+| `schema/0002_auth.sql`, `schema/0005_jobs.sql` | `auth_tokens`, and `jobs`, the queue mail goes through (`users.token_version` is in `schema/0001_init.sql`) |
 | `schema/0003_two_factor.sql`, `0004_api_keys.sql` | `totp_recovery_codes` (`users.totp_last_step` is in `schema/0001_init.sql`), the `two_factor_pending` purpose; `api_keys`' indexes |
 
 `check-arch` applies in full: `auth` writes through its own query module,
@@ -287,22 +287,22 @@ Mailpit at `smtp://localhost:1025` in development). The sender domain needs
 SPF and DKIM records for the mail to reach inboxes; your provider documents
 them.
 
-Mail leaves through an outbox. A flow writes its message as an
-`outbound_mail` row on its own transaction, so a flow that fails sends
-nothing, and a task started with the server sends it right after the
+Mail leaves through the job queue. A flow writes its message as a
+`mail.send` job on its own transaction, so a flow that fails sends
+nothing, and the job worker started with the server sends it right after the
 commit, and every 5 seconds whatever is due. A failed send is retried after
-30 seconds, then 1, 2 and 4 minutes; after the fifth failure the row is
+30 seconds, then 1, 2 and 4 minutes; after the fifth failure the job is
 `dead`: it keeps its address, subject and `last_error`, loses its bodies
 (and the link in them), and is never tried again. Look for them with:
 
 ```sql
 SELECT id, payload->>'to' AS "to", payload->>'subject' AS subject, last_error, updated_at
-FROM outbound_mail WHERE status = 'dead' ORDER BY updated_at DESC;
+FROM jobs WHERE kind = 'mail.send' AND status = 'dead' ORDER BY updated_at DESC;
 ```
 
-A sent row is deleted. Delivery is at least once: a crash between sending a
+A sent mail's job is deleted. Delivery is at least once: a crash between sending a
 mail and recording it sends it again. Several instances share the outbox
-safely; each claims rows the others aren't sending. `/health/ready` doesn't
+safely; each claims jobs the others aren't running. `/health/ready` doesn't
 depend on mail.
 
 ## Adding a flow

@@ -159,7 +159,7 @@ feature with no table of its own (the actix template's `auth`, which writes
 after no feature (or the single `queries.rs` of a lone query file) is
 anyone's, which is where SQL that `shared/` runs belongs: the actix
 template's `queries/session.sql` holds the check `AuthUser` makes on every
-request, and `queries/mail.sql` the outbox's. Two features that need the
+request, and `queries/queue.sql` the job queue's. Two features that need the
 same SQL each keep a copy, or one calls the other through a port.
 
 `check-arch` reads `src/` with a Rust parser, so comments and strings
