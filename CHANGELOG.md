@@ -47,6 +47,14 @@ that it exists and won't ship a tag without it).
   store, actix's TLS-only HTTP/2). Both templates' `Cargo.lock` files were
   refreshed: complete, and on `tokio` 1.54.1 (the yanked 1.54.0 had an
   advisory).
+- The templates' logs and traces (`src/shared/telemetry.rs`, shared):
+  `LOG_FORMAT=pretty|json`; every request in a span with its method,
+  matched route, request id (answered as `x-request-id`, new in the actix
+  template) and the caller's `user_id`; and, when
+  `OTEL_EXPORTER_OTLP_ENDPOINT` is set, every span exported over
+  OTLP/HTTP (OpenTelemetry 0.32), continuing a caller's W3C `traceparent`.
+  `config::log_settings` replaces `config::log_filter`. The actix template
+  traces requests through `tracing-actix-web`.
 - The actix template's application is `app::app(state)`, the routes of
   `app::configure` wrapped in that middleware; tests build it with
   `test::init_service(app(state))`. It depends on `actix-cors` and
