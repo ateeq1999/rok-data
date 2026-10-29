@@ -1,6 +1,6 @@
 # ADR 0022: the templates live in their own crate
 
-Date: 2026-10-29 · Status: accepted
+Date: 2026-10-29 · Status: accepted (amended by ADR 0027)
 
 The actix and axum templates move from `crates/rok-data-sqlc/templates/`
 to `crates/rok-templates`, so template work (capabilities,

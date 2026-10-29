@@ -1,6 +1,6 @@
 # ADR 0023: capabilities ship built in, switched by the environment
 
-Date: 2026-10-29 · Status: accepted
+Date: 2026-10-29 · Status: accepted (amended by ADR 0029)
 
 A template's capabilities (logs and traces, metrics, jobs, crons,
 security headers, rate limits, and so on) are always in the template and

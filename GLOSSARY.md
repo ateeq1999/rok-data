@@ -28,6 +28,14 @@ Verification that generated files on disk still match what the current
 schema dir would generate; a failing check exits non-zero for CI.
 _Avoid_: stale check, codegen lint
 
+**Client**:
+A typed caller of a project's API, in TypeScript, Dart or Rust, generated from the API's OpenAPI document and kept in step with it by `rok gen`.
+_Avoid_: SDK, API wrapper, hand-written fetcher
+
+**Server**:
+A named PostgreSQL server connection a user registers once and reaches from any project, to create, drop or query databases on it.
+_Avoid_: connection (for the named, registered thing), profile, host
+
 **Legacy alias**:
 An old command name kept working after the command surface is rebuilt,
 forwarding verbatim into the same implementation.
