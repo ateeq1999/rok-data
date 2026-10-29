@@ -91,6 +91,13 @@ that it exists and won't ship a tag without it).
   both. The axum template's `app::serve_as(role, …)` serves one role;
   `app::serve` is `all`. Kinds are registered in `app::worker`, schedules
   in `app::schedule`.
+- The templates' `jobs` feature, the job queue for admins (`AdminUser`):
+  `GET /api/v1/jobs` (by `status` and `kind`, paginated, payloads never
+  answered), `POST /api/v1/jobs/{id}/retry` (a dead job back in the queue)
+  and `DELETE /api/v1/jobs/{id}` (cancel; `409` while a worker runs it).
+  Retries and cancellations are audited (`job.retried`, `job.cancelled`)
+  through the feature's `JobAudit` port, implemented in `app/ports.rs`.
+  Its SQL is `queries/jobs.sql`.
 - The actix template's application is `app::app(state)`, the routes of
   `app::configure` wrapped in that middleware; tests build it with
   `test::init_service(app(state))`. It depends on `actix-cors` and
