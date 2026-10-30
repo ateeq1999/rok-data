@@ -115,6 +115,17 @@ that it exists and won't ship a tag without it).
   *API* dashboard under `deploy/compose/`), and
   `.github/workflows/ci.yml` (fmt, clippy, tests against PostgreSQL,
   `rok sqlc g --check` and `check-arch`, `cargo deny`, the image build).
+- The templates' AWS reference deployment (`deploy/terraform/`, shared;
+  workspace ADR 0025): modules for the network, RDS PostgreSQL 17, the
+  uploads bucket, SES (identity, DKIM, SMTP credentials), Secrets Manager
+  (`JWT_SECRET` and `TOTP_ENCRYPTION_KEY` generated) and the service (ECR,
+  ECS Fargate `web` behind an ALB checking `/health/ready` and `worker`,
+  a `migrate` task, CloudWatch logs), composed by `modules/app` for
+  `envs/staging` and `envs/prod` (S3 state with `use_lockfile`, made by
+  `bootstrap/`). `envs/local` applies what Floci emulates, and
+  `terraform test` checks it; CI runs it beside `validate` and `tflint`.
+  The `Dockerfile` gains a `migrate` target (`rok migrate up` over
+  `migrations/`), which the deploy runs before each version.
 - The actix template's application is `app::app(state)`, the routes of
   `app::configure` wrapped in that middleware; tests build it with
   `test::init_service(app(state))`. It depends on `actix-cors` and
