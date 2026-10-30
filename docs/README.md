@@ -55,7 +55,7 @@ page; edit the source file and re-mark.
 
 | Path | What it is |
 | ---- | ---------- |
-| [`decisions/`](decisions/) (0001–0030) | workspace ADRs — every deliberate cross-crate choice; the single source for "why" |
+| [`decisions/`](decisions/) (0001–0031) | workspace ADRs — every deliberate cross-crate choice; the single source for "why" |
 | [`migration-audit.md`](migration-audit.md) | what was audited out of the four source repositories before consolidation |
 | [`migration-plan.md`](migration-plan.md) | the original consolidation plan |
 | [`unified-pipeline-plan.md`](unified-pipeline-plan.md) | the 0.2.0 pipeline plan (schema-dir truth, front door, templates) |
