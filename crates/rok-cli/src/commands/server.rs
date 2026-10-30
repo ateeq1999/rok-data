@@ -2,7 +2,7 @@
 //!
 //! Per-user server registry with OS keychain password storage.
 
-use crate::cli::ServerAction;
+use crate::cli::server::ServerAction;
 use crate::config::{ServerConfig, read_servers, servers_path, write_servers};
 use crate::keychain::{KeychainError, delete_password, env_var_name, get_password, store_password};
 use crate::output::{PasswordStatus, server_add_json, server_list_json, server_remove_json};

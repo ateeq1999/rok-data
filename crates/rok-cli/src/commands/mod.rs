@@ -13,7 +13,10 @@ pub mod sqlc;
 #[cfg(rok_tools)]
 pub(crate) mod tools;
 
-use crate::cli::{Command, DbAction, MigrateAction, SchemaAction};
+use crate::cli::Command;
+use crate::cli::db::DbAction;
+use crate::cli::migrate::MigrateAction;
+use crate::cli::schema::SchemaAction;
 
 /// Execute a parsed command; errors print `error: …` outside and exit 1.
 pub(crate) async fn execute(command: Command) -> Result<ExitCode, String> {
