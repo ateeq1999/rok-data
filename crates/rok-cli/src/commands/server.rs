@@ -40,7 +40,6 @@ pub fn run(action: ServerAction) -> Result<std::process::ExitCode, String> {
     }
 }
 
-#[derive(Debug)]
 struct ServerAdd {
     name: String,
     url: Option<String>,
@@ -192,7 +191,6 @@ impl ServerAdd {
     }
 }
 
-#[derive(Debug)]
 struct ServerRemove {
     name: String,
 }
