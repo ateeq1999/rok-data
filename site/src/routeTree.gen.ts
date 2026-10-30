@@ -14,12 +14,20 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GuideInstallationRouteImport } from './routes/guide/installation'
 import { Route as GuideGettingStartedRouteImport } from './routes/guide/getting-started'
+import { Route as CratesRokTemplatesRouteImport } from './routes/crates/rok-templates'
 import { Route as CratesRokDataSqlcRouteImport } from './routes/crates/rok-data-sqlc'
 import { Route as CratesRokDataMacrosRouteImport } from './routes/crates/rok-data-macros'
 import { Route as CratesRokDataCoreRouteImport } from './routes/crates/rok-data-core'
 import { Route as CratesRokDataCodegenRouteImport } from './routes/crates/rok-data-codegen'
 import { Route as CratesRokDataRouteImport } from './routes/crates/rok-data'
 import { Route as CratesRokCliRouteImport } from './routes/crates/rok-cli'
+import { Route as GuideTemplatesIndexRouteImport } from './routes/guide/templates/index'
+import { Route as GuideTemplatesSecurityRouteImport } from './routes/guide/templates/security'
+import { Route as GuideTemplatesObservabilityRouteImport } from './routes/guide/templates/observability'
+import { Route as GuideTemplatesJobsRouteImport } from './routes/guide/templates/jobs'
+import { Route as GuideTemplatesFilesRouteImport } from './routes/guide/templates/files'
+import { Route as GuideTemplatesDeployingAwsRouteImport } from './routes/guide/templates/deploying-aws'
+import { Route as GuideTemplatesAuthRouteImport } from './routes/guide/templates/auth'
 
 const AgentsRoute = AgentsRouteImport.update({
   id: '/agents',
@@ -44,6 +52,11 @@ const GuideInstallationRoute = GuideInstallationRouteImport.update({
 const GuideGettingStartedRoute = GuideGettingStartedRouteImport.update({
   id: '/guide/getting-started',
   path: '/guide/getting-started',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CratesRokTemplatesRoute = CratesRokTemplatesRouteImport.update({
+  id: '/crates/rok-templates',
+  path: '/crates/rok-templates',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CratesRokDataSqlcRoute = CratesRokDataSqlcRouteImport.update({
@@ -76,6 +89,43 @@ const CratesRokCliRoute = CratesRokCliRouteImport.update({
   path: '/crates/rok-cli',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GuideTemplatesIndexRoute = GuideTemplatesIndexRouteImport.update({
+  id: '/guide/templates/',
+  path: '/guide/templates/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuideTemplatesSecurityRoute = GuideTemplatesSecurityRouteImport.update({
+  id: '/guide/templates/security',
+  path: '/guide/templates/security',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuideTemplatesObservabilityRoute =
+  GuideTemplatesObservabilityRouteImport.update({
+    id: '/guide/templates/observability',
+    path: '/guide/templates/observability',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const GuideTemplatesJobsRoute = GuideTemplatesJobsRouteImport.update({
+  id: '/guide/templates/jobs',
+  path: '/guide/templates/jobs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuideTemplatesFilesRoute = GuideTemplatesFilesRouteImport.update({
+  id: '/guide/templates/files',
+  path: '/guide/templates/files',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuideTemplatesDeployingAwsRoute =
+  GuideTemplatesDeployingAwsRouteImport.update({
+    id: '/guide/templates/deploying-aws',
+    path: '/guide/templates/deploying-aws',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const GuideTemplatesAuthRoute = GuideTemplatesAuthRouteImport.update({
+  id: '/guide/templates/auth',
+  path: '/guide/templates/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -87,8 +137,16 @@ export interface FileRoutesByFullPath {
   '/crates/rok-data-core': typeof CratesRokDataCoreRoute
   '/crates/rok-data-macros': typeof CratesRokDataMacrosRoute
   '/crates/rok-data-sqlc': typeof CratesRokDataSqlcRoute
+  '/crates/rok-templates': typeof CratesRokTemplatesRoute
   '/guide/getting-started': typeof GuideGettingStartedRoute
   '/guide/installation': typeof GuideInstallationRoute
+  '/guide/templates/auth': typeof GuideTemplatesAuthRoute
+  '/guide/templates/deploying-aws': typeof GuideTemplatesDeployingAwsRoute
+  '/guide/templates/files': typeof GuideTemplatesFilesRoute
+  '/guide/templates/jobs': typeof GuideTemplatesJobsRoute
+  '/guide/templates/observability': typeof GuideTemplatesObservabilityRoute
+  '/guide/templates/security': typeof GuideTemplatesSecurityRoute
+  '/guide/templates/': typeof GuideTemplatesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -100,8 +158,16 @@ export interface FileRoutesByTo {
   '/crates/rok-data-core': typeof CratesRokDataCoreRoute
   '/crates/rok-data-macros': typeof CratesRokDataMacrosRoute
   '/crates/rok-data-sqlc': typeof CratesRokDataSqlcRoute
+  '/crates/rok-templates': typeof CratesRokTemplatesRoute
   '/guide/getting-started': typeof GuideGettingStartedRoute
   '/guide/installation': typeof GuideInstallationRoute
+  '/guide/templates/auth': typeof GuideTemplatesAuthRoute
+  '/guide/templates/deploying-aws': typeof GuideTemplatesDeployingAwsRoute
+  '/guide/templates/files': typeof GuideTemplatesFilesRoute
+  '/guide/templates/jobs': typeof GuideTemplatesJobsRoute
+  '/guide/templates/observability': typeof GuideTemplatesObservabilityRoute
+  '/guide/templates/security': typeof GuideTemplatesSecurityRoute
+  '/guide/templates': typeof GuideTemplatesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -114,8 +180,16 @@ export interface FileRoutesById {
   '/crates/rok-data-core': typeof CratesRokDataCoreRoute
   '/crates/rok-data-macros': typeof CratesRokDataMacrosRoute
   '/crates/rok-data-sqlc': typeof CratesRokDataSqlcRoute
+  '/crates/rok-templates': typeof CratesRokTemplatesRoute
   '/guide/getting-started': typeof GuideGettingStartedRoute
   '/guide/installation': typeof GuideInstallationRoute
+  '/guide/templates/auth': typeof GuideTemplatesAuthRoute
+  '/guide/templates/deploying-aws': typeof GuideTemplatesDeployingAwsRoute
+  '/guide/templates/files': typeof GuideTemplatesFilesRoute
+  '/guide/templates/jobs': typeof GuideTemplatesJobsRoute
+  '/guide/templates/observability': typeof GuideTemplatesObservabilityRoute
+  '/guide/templates/security': typeof GuideTemplatesSecurityRoute
+  '/guide/templates/': typeof GuideTemplatesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -129,8 +203,16 @@ export interface FileRouteTypes {
     | '/crates/rok-data-core'
     | '/crates/rok-data-macros'
     | '/crates/rok-data-sqlc'
+    | '/crates/rok-templates'
     | '/guide/getting-started'
     | '/guide/installation'
+    | '/guide/templates/auth'
+    | '/guide/templates/deploying-aws'
+    | '/guide/templates/files'
+    | '/guide/templates/jobs'
+    | '/guide/templates/observability'
+    | '/guide/templates/security'
+    | '/guide/templates/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -142,8 +224,16 @@ export interface FileRouteTypes {
     | '/crates/rok-data-core'
     | '/crates/rok-data-macros'
     | '/crates/rok-data-sqlc'
+    | '/crates/rok-templates'
     | '/guide/getting-started'
     | '/guide/installation'
+    | '/guide/templates/auth'
+    | '/guide/templates/deploying-aws'
+    | '/guide/templates/files'
+    | '/guide/templates/jobs'
+    | '/guide/templates/observability'
+    | '/guide/templates/security'
+    | '/guide/templates'
   id:
     | '__root__'
     | '/'
@@ -155,8 +245,16 @@ export interface FileRouteTypes {
     | '/crates/rok-data-core'
     | '/crates/rok-data-macros'
     | '/crates/rok-data-sqlc'
+    | '/crates/rok-templates'
     | '/guide/getting-started'
     | '/guide/installation'
+    | '/guide/templates/auth'
+    | '/guide/templates/deploying-aws'
+    | '/guide/templates/files'
+    | '/guide/templates/jobs'
+    | '/guide/templates/observability'
+    | '/guide/templates/security'
+    | '/guide/templates/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -169,8 +267,16 @@ export interface RootRouteChildren {
   CratesRokDataCoreRoute: typeof CratesRokDataCoreRoute
   CratesRokDataMacrosRoute: typeof CratesRokDataMacrosRoute
   CratesRokDataSqlcRoute: typeof CratesRokDataSqlcRoute
+  CratesRokTemplatesRoute: typeof CratesRokTemplatesRoute
   GuideGettingStartedRoute: typeof GuideGettingStartedRoute
   GuideInstallationRoute: typeof GuideInstallationRoute
+  GuideTemplatesAuthRoute: typeof GuideTemplatesAuthRoute
+  GuideTemplatesDeployingAwsRoute: typeof GuideTemplatesDeployingAwsRoute
+  GuideTemplatesFilesRoute: typeof GuideTemplatesFilesRoute
+  GuideTemplatesJobsRoute: typeof GuideTemplatesJobsRoute
+  GuideTemplatesObservabilityRoute: typeof GuideTemplatesObservabilityRoute
+  GuideTemplatesSecurityRoute: typeof GuideTemplatesSecurityRoute
+  GuideTemplatesIndexRoute: typeof GuideTemplatesIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -208,6 +314,13 @@ declare module '@tanstack/react-router' {
       path: '/guide/getting-started'
       fullPath: '/guide/getting-started'
       preLoaderRoute: typeof GuideGettingStartedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/crates/rok-templates': {
+      id: '/crates/rok-templates'
+      path: '/crates/rok-templates'
+      fullPath: '/crates/rok-templates'
+      preLoaderRoute: typeof CratesRokTemplatesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/crates/rok-data-sqlc': {
@@ -252,6 +365,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CratesRokCliRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/guide/templates/': {
+      id: '/guide/templates/'
+      path: '/guide/templates'
+      fullPath: '/guide/templates/'
+      preLoaderRoute: typeof GuideTemplatesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guide/templates/security': {
+      id: '/guide/templates/security'
+      path: '/guide/templates/security'
+      fullPath: '/guide/templates/security'
+      preLoaderRoute: typeof GuideTemplatesSecurityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guide/templates/observability': {
+      id: '/guide/templates/observability'
+      path: '/guide/templates/observability'
+      fullPath: '/guide/templates/observability'
+      preLoaderRoute: typeof GuideTemplatesObservabilityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guide/templates/jobs': {
+      id: '/guide/templates/jobs'
+      path: '/guide/templates/jobs'
+      fullPath: '/guide/templates/jobs'
+      preLoaderRoute: typeof GuideTemplatesJobsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guide/templates/files': {
+      id: '/guide/templates/files'
+      path: '/guide/templates/files'
+      fullPath: '/guide/templates/files'
+      preLoaderRoute: typeof GuideTemplatesFilesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guide/templates/deploying-aws': {
+      id: '/guide/templates/deploying-aws'
+      path: '/guide/templates/deploying-aws'
+      fullPath: '/guide/templates/deploying-aws'
+      preLoaderRoute: typeof GuideTemplatesDeployingAwsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guide/templates/auth': {
+      id: '/guide/templates/auth'
+      path: '/guide/templates/auth'
+      fullPath: '/guide/templates/auth'
+      preLoaderRoute: typeof GuideTemplatesAuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -265,8 +427,16 @@ const rootRouteChildren: RootRouteChildren = {
   CratesRokDataCoreRoute: CratesRokDataCoreRoute,
   CratesRokDataMacrosRoute: CratesRokDataMacrosRoute,
   CratesRokDataSqlcRoute: CratesRokDataSqlcRoute,
+  CratesRokTemplatesRoute: CratesRokTemplatesRoute,
   GuideGettingStartedRoute: GuideGettingStartedRoute,
   GuideInstallationRoute: GuideInstallationRoute,
+  GuideTemplatesAuthRoute: GuideTemplatesAuthRoute,
+  GuideTemplatesDeployingAwsRoute: GuideTemplatesDeployingAwsRoute,
+  GuideTemplatesFilesRoute: GuideTemplatesFilesRoute,
+  GuideTemplatesJobsRoute: GuideTemplatesJobsRoute,
+  GuideTemplatesObservabilityRoute: GuideTemplatesObservabilityRoute,
+  GuideTemplatesSecurityRoute: GuideTemplatesSecurityRoute,
+  GuideTemplatesIndexRoute: GuideTemplatesIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

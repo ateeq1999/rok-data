@@ -92,7 +92,7 @@ rok migrate up && rok migrate status --json`}</code></pre>
 
         <h2>In-repo agent skills</h2>
         <p>
-          The repository ships five OpenCode/Claude/AGENTS-spec skills
+          The repository ships six OpenCode/Claude/AGENTS-spec skills
           under <code>.agents/skills/rok-data*/</code>:
         </p>
         <table className="w-full">
@@ -105,6 +105,7 @@ rok migrate up && rok migrate status --json`}</code></pre>
             <tr className="border-b"><td className="py-2 font-mono text-sm">rok-data-models</td><td className="py-2 text-sm">authoring model code (derive, chains, verbs)</td></tr>
             <tr className="border-b"><td className="py-2 font-mono text-sm">rok-data-migrations</td><td className="py-2 text-sm">migration design, staging, drift, JSON contract</td></tr>
             <tr className="border-b"><td className="py-2 font-mono text-sm">rok-data-sqlc</td><td className="py-2 text-sm">engine internals inside crates/rok-data-sqlc</td></tr>
+            <tr className="border-b"><td className="py-2 font-mono text-sm">rok-data-docs-site</td><td className="py-2 text-sm">sync the docs site with the repository</td></tr>
           </tbody>
         </table>
 

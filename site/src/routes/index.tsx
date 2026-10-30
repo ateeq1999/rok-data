@@ -101,6 +101,7 @@ function HomePage() {
             <li><Link to="/crates/rok-data-macros" className="hover:underline">rok-data-macros</Link> — derives + #[rok_data::test]</li>
             <li><Link to="/crates/rok-data-codegen" className="hover:underline">rok-data-codegen</Link> — whole-crate generator</li>
             <li><Link to="/crates/rok-data-sqlc" className="hover:underline">rok-data-sqlc</Link> — resource-module engine</li>
+            <li><Link to="/crates/rok-templates" className="hover:underline">rok-templates</Link> — production actix/axum templates</li>
             <li><Link to="/crates/rok-cli" className="hover:underline">rok (rok-data-cli)</Link> — the one binary</li>
           </ul>
         </div>
@@ -112,6 +113,7 @@ function HomePage() {
           </h2>
           <ul className="m-0 space-y-2 text-sm text-[var(--sea-ink-soft)]">
             <li><Link to="/guide/getting-started" className="hover:underline">Getting Started</Link></li>
+            <li><Link to="/guide/templates" className="hover:underline">Templates Guide</Link></li>
             <li><Link to="/agents" className="hover:underline">Coding Agents (JSON contracts)</Link></li>
             <li><a href="https://github.com/ateeq1999/rok-data/tree/main/docs" className="hover:underline" target="_blank" rel="noreferrer">docs/ (AI-friendly markdown)</a></li>
             <li><a href="https://raw.githubusercontent.com/ateeq1999/rok-data/main/docs/llms.txt" className="hover:underline" target="_blank" rel="noreferrer">docs/llms.txt</a></li>
