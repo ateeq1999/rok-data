@@ -220,7 +220,14 @@ pub struct ServersConfig {
 ///
 /// Returns an error if the platform config directory cannot be determined
 /// (e.g., on headless Linux/CI without HOME or XDG_CONFIG_HOME set).
+///
+/// The `ROK_CONFIG_DIR` environment variable overrides the platform default.
+/// This is intended for testing and portable deployments.
 pub fn config_dir() -> Result<PathBuf, String> {
+    // Allow override for testing and portable deployments
+    if let Ok(override_dir) = std::env::var("ROK_CONFIG_DIR") {
+        return Ok(PathBuf::from(override_dir));
+    }
     dirs::config_dir().map(|p| p.join("rok")).ok_or_else(|| {
         #[cfg(target_os = "linux")]
         {

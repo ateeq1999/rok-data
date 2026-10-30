@@ -483,13 +483,26 @@ pub enum ServerAction {
         /// Prompt for password interactively (hidden input).
         #[arg(long, conflicts_with = "url")]
         password_prompt: bool,
+        /// Print machine-readable JSON output.
+        #[arg(long)]
+        json: bool,
     },
     /// List all registered servers.
-    List,
+    List {
+        /// Print machine-readable JSON output.
+        #[arg(long)]
+        json: bool,
+    },
     /// Remove a registered server and its password from the keychain.
     Remove {
         /// Name of the server to remove.
         name: String,
+        /// Skip confirmation prompt.
+        #[arg(long, short = 'y')]
+        yes: bool,
+        /// Print machine-readable JSON output.
+        #[arg(long)]
+        json: bool,
     },
 }
 

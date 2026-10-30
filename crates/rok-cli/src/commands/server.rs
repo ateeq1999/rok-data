@@ -5,6 +5,7 @@
 use crate::cli::ServerAction;
 use crate::config::{ServerConfig, read_servers, servers_path, write_servers};
 use crate::keychain::{KeychainError, delete_password, env_var_name, get_password, store_password};
+use crate::output::{PasswordStatus, server_add_json, server_list_json, server_remove_json};
 use std::io::Write;
 
 /// Runs the `server` subcommand.
@@ -19,6 +20,7 @@ pub fn run(action: ServerAction) -> Result<std::process::ExitCode, String> {
             database,
             sslmode,
             password_prompt,
+            json,
         } => {
             let add = ServerAdd {
                 name,
@@ -29,12 +31,13 @@ pub fn run(action: ServerAction) -> Result<std::process::ExitCode, String> {
                 database,
                 sslmode,
                 password_prompt,
+                json,
             };
             add.run()
         }
-        ServerAction::List => list().map(|_| std::process::ExitCode::SUCCESS),
-        ServerAction::Remove { name } => {
-            let remove = ServerRemove { name };
+        ServerAction::List { json } => list(json).map(|_| std::process::ExitCode::SUCCESS),
+        ServerAction::Remove { name, yes, json } => {
+            let remove = ServerRemove { name, yes, json };
             remove.run()
         }
     }
@@ -49,6 +52,7 @@ struct ServerAdd {
     database: Option<String>,
     sslmode: Option<String>,
     password_prompt: bool,
+    json: bool,
 }
 
 impl ServerAdd {
@@ -70,11 +74,13 @@ impl ServerAdd {
             Ok(()) => true,
             Err(KeychainError::Unavailable(msg)) => {
                 // Keychain unavailable - warn and instruct user to use env var
-                eprintln!("warning: {msg}");
-                eprintln!(
-                    "Set {} in the environment to provide the password.",
-                    env_var_name(&server.name)
-                );
+                if !self.json {
+                    eprintln!("warning: {msg}");
+                    eprintln!(
+                        "Set {} in the environment to provide the password.",
+                        env_var_name(&server.name)
+                    );
+                }
                 false
             }
             Err(e) => return Err(e.to_string()),
@@ -85,7 +91,10 @@ impl ServerAdd {
         write_servers(&servers_path()?, &config)?;
 
         // Success message
-        if keychain_available {
+        if self.json {
+            let json = server_add_json(&server.name, keychain_available);
+            crate::output::json_line(json);
+        } else if keychain_available {
             println!(
                 "Server '{}' added. Password stored in OS keychain (service: rok, account: {}).",
                 server.name, server.name
@@ -193,6 +202,8 @@ impl ServerAdd {
 
 struct ServerRemove {
     name: String,
+    yes: bool,
+    json: bool,
 }
 
 impl ServerRemove {
@@ -206,63 +217,115 @@ impl ServerRemove {
             .position(|s| s.name == self.name)
             .ok_or_else(|| format!("server '{}' not found", self.name))?;
 
+        // Confirm before removing (unless --yes)
+        if !self.yes && !self.json {
+            print!("Type the server name to confirm: ");
+            std::io::stdout().flush().map_err(|e| e.to_string())?;
+            let mut input = String::new();
+            std::io::stdin()
+                .read_line(&mut input)
+                .map_err(|e| e.to_string())?;
+            let input = input.trim();
+            if input != self.name {
+                return Err("confirmation failed: server name does not match".to_owned());
+            }
+        }
+
         config.servers.remove(pos);
         write_servers(&servers_path()?, &config)?;
 
         // Delete password from keychain
-        match delete_password(&self.name) {
-            Ok(()) => {
-                println!(
-                    "Server '{}' removed. Password deleted from OS keychain.",
-                    self.name
-                );
-            }
+        let keychain_available = match delete_password(&self.name) {
+            Ok(()) => true,
             Err(KeychainError::Unavailable(msg)) => {
-                eprintln!("warning: {msg}");
-                eprintln!("Unset {} if no longer needed.", env_var_name(&self.name));
+                if !self.json {
+                    eprintln!("warning: {msg}");
+                    eprintln!("Unset {} if no longer needed.", env_var_name(&self.name));
+                }
+                false
             }
             Err(e) => return Err(e.to_string()),
+        };
+
+        // Success message
+        if self.json {
+            let json = server_remove_json(&self.name, keychain_available);
+            crate::output::json_line(json);
+        } else if keychain_available {
+            println!(
+                "Server '{}' removed. Password deleted from OS keychain.",
+                self.name
+            );
+        } else {
+            println!(
+                "Server '{}' removed. Unset {} if no longer needed.",
+                self.name,
+                env_var_name(&self.name)
+            );
         }
 
         Ok(std::process::ExitCode::SUCCESS)
     }
 }
 
-fn list() -> Result<(), String> {
+fn list(json: bool) -> Result<(), String> {
     let config = read_servers(None)?;
 
     if config.servers.is_empty() {
-        println!("No servers registered.");
+        if json {
+            let json = server_list_json(&[], &[]);
+            crate::output::json_line(json);
+        } else {
+            println!("No servers registered.");
+        }
         return Ok(());
     }
 
-    // Print table header
-    println!(
-        "{:<12} {:<30} {:>5} {:<12} {:<12} PASSWORD",
-        "NAME", "HOST", "PORT", "USER", "DEFAULT DB"
-    );
-    println!("{}", "-".repeat(90));
-
+    // Check password status for each server
+    let mut password_statuses = Vec::new();
     for server in &config.servers {
-        // Check if password exists in keychain or env
-        let password_status = match get_password(&server.name) {
+        let status = match get_password(&server.name) {
             Ok(_) => {
                 // Check if it came from keychain or env
                 let env_var = env_var_name(&server.name);
                 if std::env::var(&env_var).is_ok() {
-                    format!("env {} ✓", env_var)
+                    PasswordStatus::Env
                 } else {
-                    "keychain ✓".to_owned()
+                    PasswordStatus::Keychain
                 }
             }
-            Err(_) => "missing ✗".to_owned(),
+            Err(_) => PasswordStatus::Missing,
         };
+        password_statuses.push(status);
+    }
 
-        let db = server.database.as_deref().unwrap_or("-");
+    if json {
+        let json = server_list_json(&config.servers, &password_statuses);
+        crate::output::json_line(json);
+    } else {
+        // Print table header
         println!(
-            "{:<12} {:<30} {:>5} {:<12} {:<12} {}",
-            server.name, server.host, server.port, server.user, db, password_status
+            "{:<12} {:<30} {:>5} {:<12} {:<12} PASSWORD",
+            "NAME", "HOST", "PORT", "USER", "DEFAULT DB"
         );
+        println!("{}", "-".repeat(90));
+
+        for (server, status) in config.servers.iter().zip(password_statuses.iter()) {
+            let password_str = match status {
+                PasswordStatus::Keychain => "keychain ✓".to_owned(),
+                PasswordStatus::Env => {
+                    let env_var = env_var_name(&server.name);
+                    format!("env {} ✓", env_var)
+                }
+                PasswordStatus::Missing => "missing ✗".to_owned(),
+            };
+
+            let db = server.database.as_deref().unwrap_or("-");
+            println!(
+                "{:<12} {:<30} {:>5} {:<12} {:<12} {}",
+                server.name, server.host, server.port, server.user, db, password_str
+            );
+        }
     }
 
     Ok(())
@@ -298,6 +361,7 @@ mod tests {
             database: None,
             sslmode: None,
             password_prompt: false,
+            json: false,
         };
         let server = add.parse_url(add.url.as_ref().unwrap()).unwrap();
         assert_eq!(server.name, "local");
@@ -319,6 +383,7 @@ mod tests {
             database: None,
             sslmode: None,
             password_prompt: false,
+            json: false,
         };
         let server = add.parse_url(add.url.as_ref().unwrap()).unwrap();
         assert_eq!(server.name, "ci");
@@ -338,6 +403,7 @@ mod tests {
             database: Some("postgres".to_owned()),
             sslmode: Some("require".to_owned()),
             password_prompt: false,
+            json: false,
         };
         let server = add.build_from_flags().unwrap();
         assert_eq!(server.name, "staging");
@@ -357,6 +423,7 @@ mod tests {
             database: None,
             sslmode: None,
             password_prompt: false,
+            json: false,
         };
         let result = add.build_from_flags();
         assert!(result.is_err());

@@ -307,9 +307,9 @@ rok schema diff [--database-url] [--dir migrations]
 ## `rok server` — per-user server registry (ADR 0028)
 
 ```text
-rok server add <NAME> [--url <URL>] [--host <HOST>] [--port <PORT>] [--user <USER>] [--database <DB>] [--sslmode <MODE>] [--password-prompt]
-rok server list
-rok server remove <NAME>
+rok server add <NAME> [--url <URL>] [--host <HOST>] [--port <PORT>] [--user <USER>] [--database <DB>] [--sslmode <MODE>] [--password-prompt] [--json]
+rok server list [--json]
+rok server remove <NAME> [--yes] [--json]
 ```
 
 Manages a per-user registry of PostgreSQL servers in `servers.toml` (located in the OS config directory: `$XDG_CONFIG_HOME/rok`, `~/Library/Application Support/rok`, `%APPDATA%\rok`). Passwords are stored in the OS keychain (macOS Keychain, Windows Credential Manager, Linux `libsecret`) under service `rok`, account `<NAME>`. When no keychain is available (headless Linux, CI), the password is read from the environment variable `ROK_SERVER_<NAME>_PASSWORD` (uppercase, hyphens → underscores).
@@ -328,6 +328,7 @@ Registers a new server. The password is extracted from the URL (if present) and 
 | `--database <DB>`     | Default database for admin operations (default: `postgres`)        |
 | `--sslmode <MODE>`    | SSL mode: `disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full` |
 | `--password-prompt`   | Prompt for password interactively (hidden input); conflicts with `--url` |
+| `--json`              | Print machine-readable JSON output                                 |
 
 **Examples:**
 
@@ -348,6 +349,10 @@ Server 'ci' added (password from ROK_SERVER_CI_PASSWORD).
 
 Lists all registered servers, masking passwords. Shows the resolved host:port and whether a password is present in the keychain/env.
 
+| Flag    | Meaning                              |
+| ------- | ------------------------------------ |
+| `--json` | Print machine-readable JSON output   |
+
 ```
 $ rok server list
 NAME     HOST                    PORT  USER   DEFAULT DB  PASSWORD
@@ -358,7 +363,12 @@ ci       ci-db.example.com       5432  ciuser    postgres   env ROK_SERVER_CI_PA
 
 ### `rok server remove <NAME>`
 
-Removes the server from `servers.toml` and deletes its password from the keychain (or instructs to unset the env var).
+Removes the server from `servers.toml` and deletes its password from the keychain (or instructs to unset the env var). Requires confirmation unless `--yes` is given.
+
+| Flag    | Meaning                              |
+| ------- | ------------------------------------ |
+| `--yes`  | Skip confirmation prompt             |
+| `--json` | Print machine-readable JSON output   |
 
 ```
 $ rok server remove ci

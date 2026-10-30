@@ -1,7 +1,7 @@
 # Ticket 03: `rok server add|list|remove` commands
 
 **Blocked by:** 01-servers-toml-and-config-dir, 02-keychain-integration
-**Status:** ready-for-agent
+**Status:** done
 
 ## Scope
 

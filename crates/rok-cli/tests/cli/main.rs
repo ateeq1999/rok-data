@@ -32,6 +32,7 @@ mod modules;
 mod queries;
 mod query_add;
 mod runs;
+mod servers;
 mod servers_config;
 mod validate;
 mod watch;

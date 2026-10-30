@@ -28,7 +28,15 @@ that it exists and won't ship a tag without it).
   New library API in `rok_data_cli::keychain`:
   `store_password()`, `get_password()`, `delete_password()`, `env_var_name()`,
   `KeychainError`.
-  New command group `rok server add|list|remove` for managing the server registry.
+
+- Command group `rok server add|list|remove` for managing the server registry (ticket 03, ADR 0028).
+  - `rok server add <NAME> [--url <URL>] [--host <HOST>] [--port <PORT>] [--user <USER>] [--database <DB>] [--sslmode <MODE>] [--password-prompt] [--json]`
+    Registers a server; password from URL or prompt stored in keychain (or env var fallback).
+  - `rok server list [--json]`
+    Lists registered servers with password status (keychain ✓ / env ✓ / missing ✗).
+  - `rok server remove <NAME> [--yes] [--json]`
+    Removes server and its password; `--yes` skips confirmation prompt.
+  All three commands support `--json` for machine-readable output.
 
 ## [0.5.0] — production-ready templates
 
