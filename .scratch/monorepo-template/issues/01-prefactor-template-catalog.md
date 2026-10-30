@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] rok-templates exposes the catalog: the `--template` names that exist (`actix`, `axum`), which template directory each name resolves to, the destination-path convention for template files (the `.template` suffix stripping), and access to each template's embedded files including its manifest
 - [ ] The engine's init resolves names, file lists and destinations through the catalog; its local template table is gone

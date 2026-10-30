@@ -23,6 +23,11 @@ pub(super) struct RawProject {
     #[serde(default)]
     #[allow(dead_code)]
     project: Option<toml::Table>,
+    /// The `[apps]` section of a Monorepo template's scaffold: the Apps and
+    /// their directories, owned by the front door (workspace ADR 0027).
+    #[serde(default)]
+    #[allow(dead_code)]
+    apps: Option<toml::Table>,
     /// The generation settings.
     #[serde(default)]
     generate: Option<GenerationKeys>,

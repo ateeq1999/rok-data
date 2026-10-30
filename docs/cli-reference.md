@@ -80,7 +80,7 @@ schema seeding and the report.
 
 | Flag                  | Meaning                                                            |
 | --------------------- | ------------------------------------------------------------------ |
-| `-t, --template NAME` | copy this Template instead of the skeleton (`actix` or `axum`)      |
+| `-t, --template NAME` | copy this Template instead of the skeleton (`actix`, `axum`, or `monorepo`)      |
 | `-w, --api-framework FW` | the skeleton's web framework: `actix_web` (the default) or `axum`; not with `--template`, which has its own |
 | `-s, --schema PATH`   | seed the truth directory (`schema/`) with this file's content       |
 
@@ -137,6 +137,26 @@ The settings file: `rok.toml` (the canonical name, workspace ADR 0011) holds the
 generation settings in its `[generate]` section, beside `[api]` and
 `[conventions]`; the engine's `rok-data-sqlc.toml`, whose keys sit at the
 top level, is read as well. Flags beat the file.
+
+### Monorepo projects: `[apps]`
+
+A `rok.toml` whose `[apps]` section names the Apps of a monorepo (workspace
+ADR 0027) changes `rok gen`'s behavior: it regenerates every named App from
+its own settings file inside the App's directory, and stages each App's
+migrations into its own history dir. The flags that shape one project
+(`--schema`, `--output`, `--queries`, `--resource`, `--migrations-dir`,
+`--api-framework`) are refused — they belong to one App, and saying them in
+that App's directory does.
+
+```toml
+[apps]
+api = "apps/api"
+```
+
+The `--json` output becomes an array of objects, one per App, each carrying
+an `"app"` field with the App's name. Prose output prints a one-line banner
+(`api:`) before each App's report. `rok gen check` aggregates: the generated
+code is up to date only when every App is clean.
 
 The `[api]` section holds the API features' settings. Its `framework` key
 picks the web framework they are generated for: `actix_web` (the default)
@@ -316,7 +336,7 @@ is a library; `rok` forwards the tokens verbatim). Subcommand set:
 | Command        | Alias | One-liner                                                                 |
 | -------------- | ----- | ------------------------------------------------------------------------- |
 | `generate`     | `g`   | parse the schema and emit `src/db/<table>/{…}` modules, optional api/openapi |
-| `init`         | `i`   | scaffold a project (engine ADR 0016 skeleton, `-w axum` for axum, or `--template actix`/`axum`), files-if-absent |
+| `init`         | `i`   | scaffold a project (engine ADR 0016 skeleton, `-w axum` for axum, or `--template actix`/`axum`/`monorepo`), files-if-absent |
 | `check`        | `c`   | the generated code is up to date; with `--db`, every annotated query agrees with the database; any difference → exit 1 |
 | `check-arch`   | `a`   | check `src/` layout against the engine's ADR 0016 rules; violations → exit 1 |
 | `query add`    | `q a` | append one annotated query to a query file and generate; kept only if it generates |
@@ -334,7 +354,7 @@ Executive summary of the main flags (full text: `rok sqlc generate --help`):
 | `-d, --derive <NAME>` | extra derives (`serde`, `validate`, …); `-e` engine features           |
 | `-W, --watch`         | regenerate on every change to the schema, the query files or the config file, until interrupted (not with `-k`/`-n`) |
 
-`init` next steps and the `--template` list (`actix`, `axum`) print on stdout;
+`init` next steps and the `--template` list (`actix`, `axum`, `monorepo`) print on stdout;
 the scaffolder never overwrites existing files. Templates ship their own
 `README.md` with the dependency list to add.
 

@@ -235,7 +235,7 @@ document's wiring from the files `init` scaffolded:
 
 ```text
 error: invalid value 'nope' for '--template <NAME>'
-  [possible values: actix, axum]
+  [possible values: actix, axum, monorepo]
 ```
 
 `rok sqlc init --template` takes `actix` and `axum`, the two templates so far.

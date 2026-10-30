@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (rok-templates owns the template catalog).
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] The catalog declares `monorepo` with its Apps: `api` first (web/mobile follow in later tickets); single-app templates keep working exactly as before
 - [ ] Init writes: the root manifest files (workspace `Cargo.toml`, root `rok.toml` with the `[project]` shape naming the Apps) and the whole `apps/api/` App — files-if-absent policy holds across every App, single run, one report

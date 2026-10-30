@@ -74,18 +74,79 @@ fn rename_crate(text: &str, from: &str, to: &str) -> String {
     renamed
 }
 
+/// The template's crate, by directory prefix: each file whose destination
+/// is a `Cargo.toml` — a single-app template's manifest at the root, an
+/// App's within a Monorepo template — declares the crate the `.rs` files
+/// under it name. A virtual manifest (the monorepo root's `[workspace]`)
+/// declares none. Deeper prefixes first, so an App's manifest wins over a
+/// root one.
+fn declared_crates(files: &[File]) -> Vec<(String, String)> {
+    let mut crates: Vec<(String, String)> = files
+        .iter()
+        .filter_map(|file| {
+            let destination = catalog::destination(file.path);
+            if std::path::Path::new(destination).file_name() != Some("Cargo.toml".as_ref()) {
+                return None;
+            }
+            let krate = declared_crate(&String::from_utf8_lossy(file.bytes))?;
+            let prefix = std::path::Path::new(destination)
+                .parent()
+                .and_then(|parent| parent.to_str())
+                .unwrap_or("")
+                .replace('\\', "/");
+            Some((prefix, krate))
+        })
+        .collect();
+    crates.sort_by(|a, b| b.0.len().cmp(&a.0.len()).then_with(|| a.0.cmp(&b.0)));
+    crates
+}
+
+/// Whether `destination` sits under `prefix`: the prefix's own files,
+/// when the prefix is the template root (`""`), or the files the prefix's
+/// directory holds.
+fn under_prefix(destination: &str, prefix: &str) -> bool {
+    prefix.is_empty() || destination == prefix || destination.starts_with(&format!("{prefix}/"))
+}
+
+/// The crate the manifest `dir`'s directory holds, when it holds one:
+/// what the template files copied into that directory must name.
+fn crate_under(dir: &Path) -> Option<String> {
+    let manifest = std::fs::read_to_string(dir.join("Cargo.toml")).ok()?;
+    declared_crate(&manifest)
+}
+
 /// The template's files to copy under `dir`, each its path in the project
 /// and its text with `\n` line endings: all but rok-data-sqlc's generated ones.
-/// When the project's library crate is `krate` and the template's (its
-/// `Cargo.toml`'s) another, the Rust files name `krate` instead.
+/// When the project's library crate is `krate` and a template subtree's
+/// (its `Cargo.toml`'s) another, the Rust files of that subtree name
+/// `krate` instead.
 fn plan(dir: &Path, files: &[File], krate: Option<&str>) -> Result<Vec<(PathBuf, String)>> {
-    let template_crate = files
-        .iter()
-        .find(|file| catalog::destination(file.path) == "Cargo.toml")
-        .and_then(|file| declared_crate(&String::from_utf8_lossy(file.bytes)));
-    let rename = match (template_crate, krate) {
-        (Some(from), Some(to)) if from != to => Some((from, to)),
-        _ => None,
+    let crates = declared_crates(files);
+    // Each subtree's rename target: a template root's is the project's
+    // crate (`krate`, the crate the project's own manifest declares), an
+    // App's within a Monorepo template is the crate the App's manifest
+    // already names — when the project holds the manifest, the template's
+    // is not copied, and the App's files must name what its manifest
+    // declares. A subtree with no existing manifest keeps its template
+    // crate: its manifest is copied beside the files.
+    let renames: Vec<(String, String, Option<String>)> = crates
+        .into_iter()
+        .map(|(prefix, from)| {
+            let to = if prefix.is_empty() {
+                krate.map(str::to_owned)
+            } else {
+                crate_under(&dir.join(&prefix))
+            };
+            (prefix, from, to)
+        })
+        .collect();
+    let renamed = |file: &File| -> Option<(String, String)> {
+        let destination = catalog::destination(file.path);
+        let (_, from, to) = renames
+            .iter()
+            .find(|(prefix, _, _)| under_prefix(destination, prefix))?;
+        let to = to.as_ref()?;
+        (from != to).then(|| (from.clone(), to.clone()))
     };
     let mut planned = Vec::new();
     for file in files {
@@ -101,7 +162,7 @@ fn plan(dir: &Path, files: &[File], krate: Option<&str>) -> Result<Vec<(PathBuf,
         if catalog::destination(file.path) == "src/db/schema.json" {
             continue;
         }
-        let text = match &rename {
+        let text = match &renamed(file) {
             Some((from, to)) if file.path.ends_with(".rs") => rename_crate(&text, from, to),
             _ => text,
         };
@@ -287,12 +348,50 @@ mod tests {
         );
     }
 
+    /// A Monorepo template's Apps rename within their own subtree: the
+    /// root workspace manifest (virtual, `[workspace]` alone) declares
+    /// none, a fresh scaffold's App keeps its template crate (its
+    /// manifest is copied beside the files), and into a project that
+    /// holds the App's manifest already, the App's files name what that
+    /// manifest declares.
+    #[test]
+    fn a_monorepo_renames_each_app_within_its_subtree() -> Result<()> {
+        let files = &[
+            File {
+                path: "Cargo.toml.template",
+                bytes: b"[workspace]\nmembers = [\"apps/api\"]\n",
+            },
+            File {
+                path: "apps/api/Cargo.toml.template",
+                bytes: b"[package]\nname = \"axum-api\"\n[lib]\nname = \"axum_api\"\n",
+            },
+            File {
+                path: "apps/api/src/main.rs",
+                bytes: b"use axum_api::{app, config};\n",
+            },
+        ];
+        // A fresh scaffold: nothing renames.
+        let planned = plan(Path::new("p"), files, None)?;
+        assert_eq!(planned[2].1, "use axum_api::{app, config};\n");
+        // The App's manifest held by the project: its crate is the
+        // project's for the App's files.
+        let project = tempfile::tempdir()?;
+        fs::create_dir_all(project.path().join("apps/api"))?;
+        fs::write(
+            project.path().join("apps/api/Cargo.toml"),
+            "[package]\nname = \"my-api\"\n[lib]\nname = \"my_api\"\n",
+        )?;
+        let planned = plan(project.path(), files, None)?;
+        assert_eq!(planned[2].1, "use my_api::{app, config};\n");
+        Ok(())
+    }
+
     #[test]
     fn an_unknown_template_lists_the_valid_ones() {
         let err = files("rocket").err().map(|err| err.to_string());
         assert_eq!(
             err.as_deref(),
-            Some("unknown template `rocket`; the templates are: actix, axum")
+            Some("unknown template `rocket`; the templates are: actix, axum, monorepo")
         );
     }
 }
