@@ -9,6 +9,16 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+**Added**
+
+- Per-user server registry (`servers.toml`) in the OS config directory
+  (`$XDG_CONFIG_HOME/rok`, `~/Library/Application Support/rok`, `%APPDATA%\rok`),
+  with `ServerConfig { name, host, port, user, database, sslmode }` schema,
+  atomic writes, 0600 permissions, and `deny_unknown_fields` parsing.
+  New library API in `rok_data_cli::config`:
+  `config_dir()`, `servers_path()`, `read_servers()`, `write_servers()`,
+  `ServerConfig`, `ServersConfig` (ticket 01, ADR 0028).
+
 ## [0.5.0] — production-ready templates
 
 Not breaking. The runtime and the generated API are unchanged. The

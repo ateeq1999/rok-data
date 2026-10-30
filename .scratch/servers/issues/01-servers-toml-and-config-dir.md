@@ -1,7 +1,7 @@
 # Ticket 01: servers.toml and config directory
 
 **Blocked by:** none
-**Status:** ready-for-agent
+**Status:** done
 
 ## Scope
 
