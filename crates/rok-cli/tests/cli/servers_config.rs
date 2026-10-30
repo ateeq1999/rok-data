@@ -22,7 +22,7 @@ fn minimal_server() -> ServerConfig {
 
 #[test]
 fn config_dir_returns_platform_appropriate_path() {
-    let dir = config_dir();
+    let dir = config_dir().expect("config_dir should succeed in test environment");
     // On all platforms, the path should end with "rok"
     assert!(dir.to_string_lossy().ends_with("rok"));
     // And it should be an absolute path
@@ -31,8 +31,8 @@ fn config_dir_returns_platform_appropriate_path() {
 
 #[test]
 fn servers_path_returns_config_dir_joined_servers_toml() {
-    let path = servers_path();
-    let dir = config_dir();
+    let path = servers_path().expect("servers_path should succeed in test environment");
+    let dir = config_dir().expect("config_dir should succeed in test environment");
     assert_eq!(path, dir.join("servers.toml"));
 }
 

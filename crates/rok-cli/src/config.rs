@@ -10,7 +10,7 @@ use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use dirs_next;
+use dirs;
 use rok_data_codegen::{Dependency, Options, Rename};
 use serde::{Deserialize, Serialize};
 
@@ -217,21 +217,41 @@ pub struct ServersConfig {
 /// - Linux: `$XDG_CONFIG_HOME/rok` or `~/.config/rok`
 /// - macOS: `~/Library/Application Support/rok`
 /// - Windows: `%APPDATA%\rok`
-pub fn config_dir() -> PathBuf {
-    dirs_next::config_dir()
-        .expect("config directory is defined on all supported platforms")
-        .join("rok")
+///
+/// Returns an error if the platform config directory cannot be determined
+/// (e.g., on headless Linux/CI without HOME or XDG_CONFIG_HOME set).
+pub fn config_dir() -> Result<PathBuf, String> {
+    dirs::config_dir().map(|p| p.join("rok")).ok_or_else(|| {
+        #[cfg(target_os = "linux")]
+        {
+            "cannot determine config directory: set HOME or XDG_CONFIG_HOME".to_owned()
+        }
+        #[cfg(target_os = "macos")]
+        {
+            "cannot determine config directory: set HOME".to_owned()
+        }
+        #[cfg(target_os = "windows")]
+        {
+            "cannot determine config directory: set APPDATA or USERPROFILE".to_owned()
+        }
+        #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+        {
+            "cannot determine config directory on this platform".to_owned()
+        }
+    })
 }
 
 /// Returns the path to `servers.toml` in the config directory.
-pub fn servers_path() -> PathBuf {
-    config_dir().join("servers.toml")
+pub fn servers_path() -> Result<PathBuf, String> {
+    config_dir().map(|p| p.join("servers.toml"))
 }
 
 /// Reads `servers.toml` from the given path (or the default location if `None`).
 /// Returns an empty config if the file does not exist.
 pub fn read_servers(path: Option<&Path>) -> Result<ServersConfig, String> {
-    let path = path.map(Path::to_path_buf).unwrap_or_else(servers_path);
+    let path = path
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| servers_path().unwrap());
     match fs::read_to_string(&path) {
         Ok(text) => {
             let config: ServersConfig =
