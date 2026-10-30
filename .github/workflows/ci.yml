@@ -135,3 +135,28 @@ jobs:
           bun install --frozen-lockfile
           bun run typecheck
           bun run test
+
+  # The monorepo template's desktop App (workspace ADR 0031): the fixture
+  # gate scaffolds a monorepo with `rok`, then builds `apps/desktop` and runs
+  # its tests headless (GPUI's test support, no window). GPUI's Linux build
+  # links these libraries; the Linux matrix above lacks them, so there the
+  # gate prints its skip note (the macOS and Windows jobs need none and run
+  # it).
+  desktop:
+    name: Desktop App (GPUI)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install GPUI's Linux libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev libfontconfig-dev libx11-xcb-dev libxcb1-dev
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.94"
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: desktop
+      - name: Gate the scaffolded desktop App
+        run: cargo test -p rok-data-cli --test fixture_compile --locked -- desktop --test-threads=1

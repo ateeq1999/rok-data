@@ -1,7 +1,7 @@
 # 01: import rok-ui's bloc-http starter as apps/desktop
 
 **Blocked by:** none
-**Status:** ready-for-agent
+**Status:** done
 
 Spec: `docs/specs/desktop-starter.md`, What ships (the import) and Gates.
 
