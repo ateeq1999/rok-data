@@ -473,7 +473,7 @@ pub(crate) fn parse(args: &[String]) -> ParseOutcome {
                  (generate|init|check-arch); superseded by `rok gen`",
     ));
     // Likewise `rok tools …` is routed to rok-tools before this parser (ADR 0026).
-    #[cfg(feature = "tools")]
+    #[cfg(rok_tools)]
     let command = command.subcommand(
         rok_tools_cli::command()
             .name("tools")

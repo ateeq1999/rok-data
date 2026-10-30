@@ -23,8 +23,9 @@ rok-data-codegen = { workspace = true }
 rok-data-sqlc = { workspace = true }
 # `rok tools …` (ADR 0026) waits for rok-tools-cli on crates.io: a path into
 # a sibling checkout neither builds in CI nor publishes. To build it locally,
-# restore this line and the `tools` feature's `dep:rok-tools-cli`:
-# rok-tools-cli = { path = "../../../rok-tools/crates/rok-tools-cli", version = "0.1.0", optional = true }
+# restore this line and build with `RUSTFLAGS="--cfg rok_tools"`, the cfg the
+# `rok tools` code is gated on:
+# rok-tools-cli = { path = "../../../rok-tools/crates/rok-tools-cli", version = "0.1.0" }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
@@ -32,11 +33,6 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt", "macros", "time"] }
 toml = { version = "1", default-features = false, features = ["parse", "serde"] }
-
-[features]
-# `rok tools <tool>`: every rok-tools Tool, the Payload Runner and `[tools.*]`
-# config. Off, and refused at compile time, until rok-tools-cli is published.
-tools = []
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

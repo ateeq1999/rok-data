@@ -9,7 +9,7 @@ pub mod init;
 pub mod migrate;
 pub mod schema;
 pub mod sqlc;
-#[cfg(feature = "tools")]
+#[cfg(rok_tools)]
 pub(crate) mod tools;
 
 use crate::cli::{Command, DbAction, MigrateAction, SchemaAction};

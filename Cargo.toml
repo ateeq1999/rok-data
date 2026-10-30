@@ -57,6 +57,9 @@ unsafe_code = "forbid"
 missing_docs = "warn"
 missing_debug_implementations = "warn"
 unreachable_pub = "warn"
+# `rok_tools` gates `rok tools` in rok-cli until rok-tools-cli is published
+# (ADR 0026); set it with `RUSTFLAGS="--cfg rok_tools"`.
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(rok_tools)"] }
 
 [workspace.lints.clippy]
 dbg_macro = "warn"
