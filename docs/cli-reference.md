@@ -30,12 +30,15 @@ the `sqlc` subtree — the engine's `crates/rok-data-sqlc/src/cli.rs`, which
 `rok` forwards to verbatim.
 
 ```text
+rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
+rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
 rok init [NAME]                   scaffold a project (skeleton or template)
 rok gen [OPTIONS] [check]         data layer and API features from the schema dir
 rok generate [OPTIONS] [check]      legacy: model-crate generator
 rok migrate <COMMAND>               runs migrations on the database
 rok db <COMMAND>                    connectivity / structure of a database
 rok schema <COMMAND>                live schema as DDL; journal-vs-files diff
+rok server <COMMAND>                per-user server registry (ADR 0028)
 rok sqlc <COMMAND>                  legacy: resource-module generator (engine)
 ```
 
@@ -69,6 +72,8 @@ scaffolds), and their removal is deferred to 1.0.
 ## `rok init` — scaffold a project
 
 ```text
+rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
+rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
 Usage: rok init [OPTIONS] [NAME]
 ```
 
@@ -107,6 +112,8 @@ unreadable `--schema` file) prints `error: …` on stderr and exits 1.
 ## `rok gen` — the front door: the data layer from the schema dir
 
 ```text
+rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
+rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
 Usage: rok gen [OPTIONS] [COMMAND]
 ```
 
@@ -215,6 +222,8 @@ group's; the booleans OR.
 ## `rok generate` — whole-crate generation (legacy)
 
 ```text
+rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
+rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
 Usage: rok generate [OPTIONS] [COMMAND]
 ```
 
@@ -285,16 +294,81 @@ matching file). Checksum drift on an applied file is fatal to `up` /
 ```text
 rok db check   [--database-url] [--json]  connect, ping, server version, pool settings
 rok db inspect [--database-url] [--json] [--table T]  user tables; or one table's
-                                          columns (name, type, length, nullability,
-                                          default, is_pk), indexes and foreign keys
+                                           columns (name, type, length, nullability,
+                                           default, is_pk), indexes and foreign keys
+rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
+rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
 ```
 
-Both commands use `information_schema`/`pg_catalog` via
+Both `check` and `inspect` use `information_schema`/`pg_catalog` via
 `rok-data-core::introspect`.
+
+
+### `rok db create <DBNAME> [OPTIONS]`
+
+Creates a new database on the target server.
+
+| Flag                  | Meaning                                                            |
+| --------------------- | ------------------------------------------------------------------ |
+| `DBNAME`              | Name of the database to create                                     |
+| `--database-url <URL>`| Ad-hoc connection URL (takes precedence over `--server` and `DATABASE_URL`) |
+| `--server <NAME>`     | Use a registered server (mutually exclusive with `--database-url`) |
+| `--json`              | Print machine-readable JSON output                                 |
+
+Connection resolution precedence:
+1. `--database-url` (explicit ad-hoc)
+2. `--server <NAME>` (resolved via `servers.toml` + keychain/env)
+3. `DATABASE_URL` (project default)
+
+When `--server` is used, the connection URL is built from the server config + password from keychain/env. The `database` field from the server config is used as the initial connection database (typically `postgres` for admin ops).
+
+**Examples:**
+
+```
+$ rok db create myapp_staging --server staging
+Database 'myapp_staging' created on server 'staging'.
+
+$ rok db create test_db --database-url postgres://user:pass@host/db
+Database 'test_db' created.
+```
+
+### `rok db drop <DBNAME> [OPTIONS]`
+
+Drops a database on the target server. Requires typed confirmation: the user must type the database name exactly. `--yes` bypasses for scripts. Refuses to drop the database named in the project's `DATABASE_URL` unless `--force` is given.
+
+| Flag                  | Meaning                                                            |
+| --------------------- | ------------------------------------------------------------------ |
+| `DBNAME`              | Name of the database to drop                                       |
+| `--database-url <URL>`| Ad-hoc connection URL (takes precedence over `--server` and `DATABASE_URL`) |
+| `--server <NAME>`     | Use a registered server (mutually exclusive with `--database-url`) |
+| `--yes`               | Skip typed-name confirmation prompt (for scripts)                  |
+| `--force`             | Allow dropping the project's own database (from `DATABASE_URL`)    |
+| `--json`              | Print machine-readable JSON output                                 |
+
+Connection resolution follows the same precedence as `create`.
+
+**Examples:**
+
+```
+$ rok db drop old_db --server local
+Type the database name to confirm: old_db
+Database 'old_db' dropped.
+
+$ rok db drop myapp_prod --server prod --yes
+Database 'myapp_prod' dropped.
+
+$ rok db drop myapp --server local   # myapp is the project's DATABASE_URL database
+error: refusing to drop the project's own database (DATABASE_URL). Use --force to override.
+
+$ rok db drop myapp --server local --force --yes
+Database 'myapp' dropped.
+```
 
 ## `rok schema` — live schema, and journal consistency
 
 ```text
+rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
+rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
 rok schema dump [--database-url]       approximate CREATE TABLE DDL for every user table
 rok schema diff [--database-url] [--dir migrations]
                                        compares the journal's applied migrations with
@@ -302,6 +376,83 @@ rok schema diff [--database-url] [--dir migrations]
 ```
 
 `diff` is the CI guard: exit 1 when journal and files disagree.
+
+## `rok server` — per-user server registry (ADR 0028)
+
+```text
+rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
+rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
+rok server add <NAME> [--url <URL>] [--host <HOST>] [--port <PORT>] [--user <USER>] [--database <DB>] [--sslmode <MODE>] [--password-prompt] [--json]
+rok server list [--json]
+rok server remove <NAME> [--yes] [--json]
+```
+
+Manages a per-user registry of PostgreSQL servers in `servers.toml` (located in the OS config directory: `$XDG_CONFIG_HOME/rok`, `~/Library/Application Support/rok`, `%APPDATA%\rok`). Passwords are stored in the OS keychain (macOS Keychain, Windows Credential Manager, Linux `libsecret`) under service `rok`, account `<NAME>`. When no keychain is available (headless Linux, CI), the password is read from the environment variable `ROK_SERVER_<NAME>_PASSWORD` (uppercase, hyphens → underscores). `ROK_KEYCHAIN=off` skips the keychain entirely, so passwords come only from that variable (for CI). `ROK_CONFIG_DIR` overrides the directory `servers.toml` lives in.
+
+### `rok server add <NAME> [OPTIONS]`
+
+Registers a new server. The password is extracted from the URL (if present) and stored in the OS keychain. If no keychain is available, a warning is printed and the user is instructed to set the `ROK_SERVER_<NAME>_PASSWORD` environment variable.
+
+| Flag                  | Meaning                                                            |
+| --------------------- | ------------------------------------------------------------------ |
+| `NAME`                | Name of the server (used as the keychain account)                  |
+| `--url <URL>`         | Connection URL: `postgres://user:password@host:port/db?sslmode=...`; password extracted and stored in keychain; conflicts with `--host`, `--user`, `--database`, `--sslmode`, `--password-prompt` |
+| `--host <HOST>`       | Hostname or IP address (requires `--user`)                         |
+| `--port <PORT>`       | Port number (default: 5432)                                        |
+| `--user <USER>`       | Database user                                                      |
+| `--database <DB>`     | Default database for admin operations (default: `postgres`)        |
+| `--sslmode <MODE>`    | SSL mode: `disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full` |
+| `--password-prompt`   | Prompt for password interactively (hidden input); conflicts with `--url` |
+| `--json`              | Print machine-readable JSON output                                 |
+
+**Examples:**
+
+```
+$ rok server add local --url postgres://postgres:secret@localhost:5432/postgres
+Server 'local' added. Password stored in OS keychain (service: rok, account: local).
+
+$ rok server add staging --host staging-db.example.com --user rok --password-prompt
+Server 'staging' added. Password stored in OS keychain (service: rok, account: staging).
+
+$ rok server add ci --url postgres://user@host/db   # no password in URL
+warning: OS keychain unavailable: ...
+Set ROK_SERVER_CI_PASSWORD in the environment to provide the password.
+Server 'ci' added (password from ROK_SERVER_CI_PASSWORD).
+```
+
+### `rok server list`
+
+Lists all registered servers, masking passwords. Shows the resolved host:port and whether a password is present in the keychain/env.
+
+| Flag    | Meaning                              |
+| ------- | ------------------------------------ |
+| `--json` | Print machine-readable JSON output   |
+
+```
+$ rok server list
+NAME     HOST                    PORT  USER   DEFAULT DB  PASSWORD
+local    localhost               5432  postgres  postgres   keychain ✓
+staging  staging-db.example.com  5432  rok       postgres   keychain ✓
+ci       ci-db.example.com       5432  ciuser    postgres   env ROK_SERVER_CI_PASSWORD ✓
+```
+
+### `rok server remove <NAME>`
+
+Removes the server from `servers.toml` and deletes its password from the keychain (or instructs to unset the env var). Requires confirmation unless `--yes` is given.
+
+| Flag    | Meaning                              |
+| ------- | ------------------------------------ |
+| `--yes`  | Skip confirmation prompt             |
+| `--json` | Print machine-readable JSON output   |
+
+```
+$ rok server remove ci
+Server 'ci' removed. Password deleted from OS keychain.
+
+$ rok server remove ci   # when keychain unavailable
+warning: OS keychain unavailable: ...
+Unset ROK_SERVER_CI_PASSWORD if no longer needed.
+```
 
 ## `rok sqlc` — resource-module generator (delegated engine, legacy)
 

@@ -9,6 +9,43 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+**Added**
+
+- Per-user server registry (`servers.toml`) in the OS config directory
+  (`$XDG_CONFIG_HOME/rok`, `~/Library/Application Support/rok`, `%APPDATA%\rok`),
+  with `ServerConfig { name, host, port, user, database, sslmode }` schema,
+  atomic writes, 0600 permissions, and `deny_unknown_fields` parsing.
+  New library API in `rok_data_cli::config`:
+  `config_dir()`, `servers_path()`, `read_servers()`, `write_servers()`,
+  `ServerConfig`, `ServersConfig` (ticket 01, ADR 0028).
+
+- OS keychain integration for server passwords (ticket 02, ADR 0028).
+  Uses the `keyring` crate (macOS Keychain, Windows Credential Manager,
+  Linux `libsecret` via `secret-service`). Service name: `rok`.
+  Account name: the server name.
+  Fallback: environment variable `ROK_SERVER_<NAME>_PASSWORD`
+  (uppercase, hyphens → underscores) when no keychain is available (CI/headless).
+  `ROK_KEYCHAIN=off` skips the keychain entirely, so passwords come only from
+  that variable; `ROK_CONFIG_DIR` overrides where `servers.toml` lives.
+
+- Command group `rok server add|list|remove` for managing the server registry (ticket 03, ADR 0028).
+  - `rok server add <NAME> [--url <URL>] [--host <HOST>] [--port <PORT>] [--user <USER>] [--database <DB>] [--sslmode <MODE>] [--password-prompt] [--json]`
+    Registers a server; password from URL or prompt stored in keychain (or env var fallback).
+  - `rok server list [--json]`
+    Lists registered servers with password status (keychain ✓ / env ✓ / missing ✗).
+  - `rok server remove <NAME> [--yes] [--json]`
+    Removes server and its password; `--yes` skips confirmation prompt.
+  All three commands support `--json` for machine-readable output.
+
+- `rok db create|drop` with `--server` support (ticket 04, ADR 0028).
+  - `rok db create <DBNAME> [--database-url <URL>] [--server <NAME>] [--json]`
+    Creates a database on the target server. Connection resolution: `--database-url` > `--server` > `DATABASE_URL`.
+  - `rok db drop <DBNAME> [--database-url <URL>] [--server <NAME>] [--yes] [--force] [--json]`
+    Drops a database on the target server. Typed-name confirmation required (`--yes` bypasses for scripts).
+    Refuses to drop the project's own database (from `DATABASE_URL`) unless `--force` is given.
+  - Both commands support `--json` for machine-readable output.
+  - SQL identifiers are quoted safely using double quotes.
+
 ## [0.5.0] — production-ready templates
 
 Not breaking. The runtime and the generated API are unchanged. The

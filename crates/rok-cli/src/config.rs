@@ -7,9 +7,12 @@
 //! read.
 
 use std::ffi::OsStr;
+use std::fs;
 use std::path::{Path, PathBuf};
 
+use dirs;
 use rok_data_codegen::{Dependency, Options, Rename};
+use serde::{Deserialize, Serialize};
 
 /// The file contents. Unknown keys are errors, like before.
 #[derive(Debug, Default, serde::Deserialize)]
@@ -171,6 +174,135 @@ pub(crate) fn options(
     options.renames = renames;
     options.allow_destructive = allow_destructive;
     Ok(options)
+}
+
+// ============================================================================
+// Server config (servers.toml) — ADR 0028
+// ============================================================================
+
+/// A single registered PostgreSQL server.
+///
+/// The `database` field is the default database to connect to for
+/// administrative operations (create/drop/query other databases).
+/// It is not the project's database.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ServerConfig {
+    /// Unique name for this server (used as the keychain account).
+    pub name: String,
+    /// Hostname or IP address.
+    pub host: String,
+    /// Port number (default PostgreSQL: 5432).
+    pub port: u16,
+    /// Database user.
+    pub user: String,
+    /// Default database to connect to for admin operations (typically `postgres`).
+    #[serde(default)]
+    pub database: Option<String>,
+    /// SSL mode: `disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full`.
+    #[serde(default)]
+    pub sslmode: Option<String>,
+}
+
+/// The `servers.toml` file contents.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ServersConfig {
+    /// List of registered servers.
+    #[serde(default)]
+    pub servers: Vec<ServerConfig>,
+}
+
+/// Returns the per-user config directory for `rok`:
+/// - Linux: `$XDG_CONFIG_HOME/rok` or `~/.config/rok`
+/// - macOS: `~/Library/Application Support/rok`
+/// - Windows: `%APPDATA%\rok`
+///
+/// Returns an error if the platform config directory cannot be determined
+/// (e.g., on headless Linux/CI without HOME or XDG_CONFIG_HOME set).
+///
+/// The `ROK_CONFIG_DIR` environment variable overrides the platform default.
+/// This is intended for testing and portable deployments.
+pub fn config_dir() -> Result<PathBuf, String> {
+    // Allow override for testing and portable deployments
+    if let Ok(override_dir) = std::env::var("ROK_CONFIG_DIR") {
+        return Ok(PathBuf::from(override_dir));
+    }
+    dirs::config_dir().map(|p| p.join("rok")).ok_or_else(|| {
+        #[cfg(target_os = "linux")]
+        {
+            "cannot determine config directory: set HOME or XDG_CONFIG_HOME".to_owned()
+        }
+        #[cfg(target_os = "macos")]
+        {
+            "cannot determine config directory: set HOME".to_owned()
+        }
+        #[cfg(target_os = "windows")]
+        {
+            "cannot determine config directory: set APPDATA or USERPROFILE".to_owned()
+        }
+        #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+        {
+            "cannot determine config directory on this platform".to_owned()
+        }
+    })
+}
+
+/// Returns the path to `servers.toml` in the config directory.
+pub fn servers_path() -> Result<PathBuf, String> {
+    config_dir().map(|p| p.join("servers.toml"))
+}
+
+/// Reads `servers.toml` from the given path (or the default location if `None`).
+/// Returns an empty config if the file does not exist.
+pub fn read_servers(path: Option<&Path>) -> Result<ServersConfig, String> {
+    let path = match path {
+        Some(path) => path.to_path_buf(),
+        None => servers_path()?,
+    };
+    match fs::read_to_string(&path) {
+        Ok(text) => {
+            let config: ServersConfig =
+                toml::from_str(&text).map_err(|e| format!("{}: {}", path.display(), e))?;
+            Ok(config)
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(ServersConfig::default()),
+        Err(e) => Err(format!("{}: {}", path.display(), e)),
+    }
+}
+
+/// Writes `servers.toml` atomically: writes to a temp file, then renames.
+/// Creates the config directory if it doesn't exist.
+/// Sets file permissions to 0600 on Unix.
+pub fn write_servers(path: &Path, config: &ServersConfig) -> Result<(), String> {
+    // Ensure parent directory exists
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("{}: {}", parent.display(), e))?;
+    }
+
+    let text = toml::to_string_pretty(config).map_err(|e| e.to_string())?;
+
+    // Atomic write: write to temp file, then rename
+    let temp_path = path.with_extension("toml.tmp");
+    fs::write(&temp_path, text).map_err(|e| format!("{}: {}", temp_path.display(), e))?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(&temp_path)
+            .map_err(|e| e.to_string())?
+            .permissions();
+        perms.set_mode(0o600);
+        fs::set_permissions(&temp_path, perms).map_err(|e| e.to_string())?;
+    }
+    #[cfg(windows)]
+    {
+        // On Windows, we rely on the default ACLs which are typically user-only
+        let _ = fs::metadata(&temp_path);
+    }
+
+    fs::rename(&temp_path, path).map_err(|e| format!("{}: {}", path.display(), e))?;
+    Ok(())
 }
 
 #[cfg(test)]

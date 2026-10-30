@@ -20,6 +20,7 @@ mod check_arch_axum;
 mod collisions;
 mod config;
 mod constraint_changes;
+mod db;
 mod derives;
 mod flags;
 mod generate;
@@ -32,6 +33,8 @@ mod modules;
 mod queries;
 mod query_add;
 mod runs;
+mod servers;
+mod servers_config;
 mod validate;
 mod watch;
 

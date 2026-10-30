@@ -106,6 +106,9 @@ pub(crate) enum Command {
     /// The live schema as DDL, and journal-vs-files comparison.
     #[command(subcommand)]
     Schema(SchemaAction),
+    /// Per-user server registry (ADR 0028).
+    #[command(subcommand)]
+    Server(ServerAction),
 }
 
 /// Nested actions of `rok generate`.
@@ -400,7 +403,7 @@ pub(crate) enum MigrateAction {
     },
 }
 
-/// `rok db check|inspect`.
+/// `rok db check|inspect|create|drop`.
 #[derive(Debug, Subcommand)]
 pub(crate) enum DbAction {
     /// Connect, ping, and report server version plus pool settings.
@@ -424,6 +427,40 @@ pub(crate) enum DbAction {
         #[arg(long)]
         json: bool,
     },
+    /// Create a new database on the target server.
+    Create {
+        /// Name of the database to create.
+        name: String,
+        /// The database to connect to (default: DATABASE_URL).
+        #[arg(long, value_name = "URL")]
+        database_url: Option<String>,
+        /// Use a registered server (default: DATABASE_URL).
+        #[arg(long, value_name = "NAME")]
+        server: Option<String>,
+        /// Print a machine-readable JSON object.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Drop a database on the target server.
+    Drop {
+        /// Name of the database to drop.
+        name: String,
+        /// The database to connect to (default: DATABASE_URL).
+        #[arg(long, value_name = "URL")]
+        database_url: Option<String>,
+        /// Use a registered server (default: DATABASE_URL).
+        #[arg(long, value_name = "NAME")]
+        server: Option<String>,
+        /// Skip the typed-name confirmation prompt (for scripts).
+        #[arg(long, short = 'y')]
+        yes: bool,
+        /// Allow dropping the project's own database (from DATABASE_URL).
+        #[arg(long)]
+        force: bool,
+        /// Print a machine-readable JSON object.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 /// `rok schema dump|diff`.
@@ -443,6 +480,63 @@ pub(crate) enum SchemaAction {
         /// The database (default: DATABASE_URL).
         #[arg(long, value_name = "URL")]
         database_url: Option<String>,
+    },
+}
+
+/// `rok server add|list|remove` — per-user server registry (ADR 0028).
+#[derive(Debug, Subcommand)]
+pub enum ServerAction {
+    /// Register a new server.
+    ///
+    /// The password is extracted from the URL (if present) and stored in the OS keychain.
+    /// If no keychain is available, a warning is printed and the user is instructed to set
+    /// the ROK_SERVER_<NAME>_PASSWORD environment variable.
+    Add {
+        /// Name of the server (used as the keychain account).
+        name: String,
+        /// Connection URL: postgres://user:password@host:port/db?sslmode=...
+        ///
+        /// The password is extracted and stored in the keychain.
+        #[arg(long, value_name = "URL", conflicts_with_all = ["host", "port", "user", "database", "sslmode", "password_prompt"])]
+        url: Option<String>,
+        /// Hostname or IP address.
+        #[arg(long, value_name = "HOST", requires = "user")]
+        host: Option<String>,
+        /// Port number (default: 5432).
+        #[arg(long, value_name = "PORT", default_value = "5432")]
+        port: u16,
+        /// Database user.
+        #[arg(long, value_name = "USER")]
+        user: Option<String>,
+        /// Default database for admin operations (default: postgres).
+        #[arg(long, value_name = "DB")]
+        database: Option<String>,
+        /// SSL mode: disable, allow, prefer, require, verify-ca, verify-full.
+        #[arg(long, value_name = "MODE")]
+        sslmode: Option<String>,
+        /// Prompt for password interactively (hidden input).
+        #[arg(long, conflicts_with = "url")]
+        password_prompt: bool,
+        /// Print machine-readable JSON output.
+        #[arg(long)]
+        json: bool,
+    },
+    /// List all registered servers.
+    List {
+        /// Print machine-readable JSON output.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Remove a registered server and its password from the keychain.
+    Remove {
+        /// Name of the server to remove.
+        name: String,
+        /// Skip confirmation prompt.
+        #[arg(long, short = 'y')]
+        yes: bool,
+        /// Print machine-readable JSON output.
+        #[arg(long)]
+        json: bool,
     },
 }
 

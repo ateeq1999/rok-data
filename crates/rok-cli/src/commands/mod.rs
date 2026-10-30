@@ -8,6 +8,7 @@ pub mod generate;
 pub mod init;
 pub mod migrate;
 pub mod schema;
+pub mod server;
 pub mod sqlc;
 #[cfg(rok_tools)]
 pub(crate) mod tools;
@@ -59,6 +60,30 @@ pub(crate) async fn execute(command: Command) -> Result<ExitCode, String> {
                 database_url,
                 json,
             } => db::inspect(table.as_deref(), database_url.as_deref(), json).await,
+            DbAction::Create {
+                name,
+                database_url,
+                server,
+                json,
+            } => db::create(&name, database_url.as_deref(), server.as_deref(), json).await,
+            DbAction::Drop {
+                name,
+                database_url,
+                server,
+                yes,
+                force,
+                json,
+            } => {
+                db::drop(
+                    &name,
+                    database_url.as_deref(),
+                    server.as_deref(),
+                    yes,
+                    force,
+                    json,
+                )
+                .await
+            }
         },
         Command::Schema(action) => match action {
             SchemaAction::Dump { database_url } => schema::dump(database_url.as_deref()).await,
@@ -66,5 +91,6 @@ pub(crate) async fn execute(command: Command) -> Result<ExitCode, String> {
                 schema::diff(&dir, database_url.as_deref()).await
             }
         },
+        Command::Server(action) => server::run(action),
     }
 }

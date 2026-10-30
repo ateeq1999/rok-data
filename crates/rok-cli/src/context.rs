@@ -2,6 +2,9 @@
 
 use std::time::Duration;
 
+use crate::config::{ServerConfig, read_servers};
+use crate::keychain::get_password;
+
 /// Every command that works on a database connects through here so the
 /// timeout/error diagnostics match exactly (a plain probe first: a pooling
 /// connect failure only says "timed out", the probe says why).
@@ -25,6 +28,24 @@ impl Connection {
             .ok_or_else(|| {
                 "needs a database: set DATABASE_URL or pass --database-url".to_owned()
             })?;
+        Ok(Connection {
+            url: Box::leak(url.into_boxed_str()),
+        })
+    }
+
+    /// Resolve connection using a registered server name.
+    /// Builds the URL from servers.toml + password from keychain/env.
+    pub(crate) fn resolve_with_server(server_name: &str) -> Result<Self, String> {
+        let config = read_servers(None)?;
+        let server = config
+            .servers
+            .iter()
+            .find(|s| s.name == server_name)
+            .ok_or_else(|| format!("server '{}' not found", server_name))?;
+
+        let password = get_password(server_name).map_err(|e| e.to_string())?;
+
+        let url = build_url_from_server(server, &password)?;
         Ok(Connection {
             url: Box::leak(url.into_boxed_str()),
         })
@@ -69,4 +90,59 @@ impl Connection {
             .await
             .map_err(|e| format!("can't connect to the database: {e}"))
     }
+}
+
+/// Builds a PostgreSQL connection URL from a ServerConfig and password.
+fn build_url_from_server(server: &ServerConfig, password: &str) -> Result<String, String> {
+    use url::Url;
+
+    // Start with a base URL that has a host so we can set username/password
+    let mut url =
+        Url::parse("postgres://localhost").map_err(|e| format!("invalid base URL: {e}"))?;
+
+    url.set_username(server.user.as_str())
+        .map_err(|_| "invalid username")?;
+    url.set_password(Some(password))
+        .map_err(|_| "invalid password")?;
+
+    let host = &server.host;
+    url.set_host(Some(host)).map_err(|_| "invalid host")?;
+    url.set_port(Some(server.port))
+        .map_err(|_| "invalid port")?;
+
+    // Use the server's database field (default: postgres) for admin operations
+    let db = server.database.as_deref().unwrap_or("postgres");
+    url.set_path(&format!("/{}", db));
+
+    if let Some(sslmode) = &server.sslmode {
+        url.query_pairs_mut().append_pair("sslmode", sslmode);
+    }
+
+    Ok(url.to_string())
+}
+
+/// Extracts the database name from a DATABASE_URL for project database protection.
+pub(crate) fn extract_project_db_name(database_url: Option<&str>) -> Option<String> {
+    database_url.and_then(|u| {
+        url::Url::parse(u).ok().and_then(|url| {
+            url.path_segments()
+                .and_then(|mut s| s.next())
+                .map(|s| s.to_owned())
+        })
+    })
+}
+
+/// Prompts the user to type a database name for confirmation.
+/// Returns true if the input matches the expected name exactly.
+#[allow(dead_code)]
+pub(crate) fn confirm_drop_name(expected: &str) -> Result<bool, String> {
+    use std::io::{Write, stdin, stdout};
+
+    print!("Type the database name to confirm: ");
+    stdout().flush().map_err(|e| e.to_string())?;
+
+    let mut input = String::new();
+    stdin().read_line(&mut input).map_err(|e| e.to_string())?;
+
+    Ok(input.trim() == expected)
 }

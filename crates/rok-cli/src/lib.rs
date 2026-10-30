@@ -28,8 +28,9 @@ use std::process::ExitCode;
 
 mod cli;
 pub mod commands;
-mod config;
+pub mod config;
 mod context;
+mod keychain;
 mod output;
 
 /// Run the CLI with `args` (including the program name, like
