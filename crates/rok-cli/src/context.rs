@@ -150,18 +150,3 @@ pub(crate) fn extract_project_db_name(database_url: Option<&str>) -> Option<Stri
         })
     })
 }
-
-/// Prompts the user to type a database name for confirmation.
-/// Returns true if the input matches the expected name exactly.
-#[allow(dead_code)]
-pub(crate) fn confirm_drop_name(expected: &str) -> Result<bool, String> {
-    use std::io::{Write, stdin, stdout};
-
-    print!("Type the database name to confirm: ");
-    stdout().flush().map_err(|e| e.to_string())?;
-
-    let mut input = String::new();
-    stdin().read_line(&mut input).map_err(|e| e.to_string())?;
-
-    Ok(input.trim() == expected)
-}

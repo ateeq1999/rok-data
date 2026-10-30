@@ -91,8 +91,12 @@ impl KeychainStore for NoKeychain {
         Ok(None)
     }
 
+    /// Fails like `store`: nothing was deleted, so `server remove` says to
+    /// unset the variable instead of claiming a keychain entry is gone.
     fn delete(&self, _server_name: &str) -> Result<(), keyring::Error> {
-        Ok(())
+        Err(keyring::Error::NoStorageAccess(
+            "the OS keychain is off (ROK_KEYCHAIN=off)".into(),
+        ))
     }
 }
 

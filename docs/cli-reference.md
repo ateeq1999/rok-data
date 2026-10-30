@@ -381,7 +381,10 @@ Text output: one table name per line; with `--table`, one line per column
 ### `rok db create <NAME> [OPTIONS]`
 
 Creates database `NAME` (`CREATE DATABASE`, the name quoted as an
-identifier) on the target.
+identifier) on the target. With neither `--server` nor `--database-url`,
+it creates on the server the project's `DATABASE_URL` names, and says so
+first on stderr:
+`warning: no --server or --database-url; creating on the server DATABASE_URL names (<masked URL>)`.
 
 | Flag                   | Meaning                                                    |
 | ---------------------- | ---------------------------------------------------------- |
@@ -422,7 +425,8 @@ Two guards, checked before anything is dropped:
    the drop is refused unless `--force` — whichever connection
    (`--database-url`, `--server`) the drop itself uses.
 2. **Typed confirmation.** Without `--yes`, the command prints
-   `Type the database name to confirm: ` and reads one line; anything but
+   `Type the database name to confirm: ` on stderr (stdout stays the
+   result's, `--json` included) and reads one line; anything but
    the exact name fails with
    `confirmation failed: database name does not match`.
 
@@ -564,11 +568,12 @@ Registers a server, from a URL or from discrete flags.
 | `--json`            | Print one JSON object                                                                         |
 
 The URL needs a host and a user; a URL without a port means 5432, without
-a path no default database. The password (from the URL or the prompt) is
-stored in the keychain; when that fails — no keychain, or
+a path no default database. The password (from the URL, or from the
+prompt, which `--password-prompt` prints on stderr) is stored in the
+keychain. With no password given, or when storing fails — no keychain, or
 `ROK_KEYCHAIN=off` — a warning on stderr names `ROK_SERVER_<NAME>_PASSWORD`
-and the server is still added. A name already registered is an error
-(`server '<NAME>' already exists`).
+and the server is still added, its password to come from that variable. A
+name already registered is an error (`server '<NAME>' already exists`).
 
 ```text
 $ rok server add local --url postgres://postgres:secret@localhost:5432/postgres
@@ -576,6 +581,11 @@ Server 'local' added. Password stored in OS keychain (service: rok, account: loc
 
 $ ROK_KEYCHAIN=off rok server add ci --url postgres://ci:secret@ci-db.example.com/postgres
 warning: Couldn't access platform secure storage: the OS keychain is off (ROK_KEYCHAIN=off); set ROK_SERVER_CI_PASSWORD instead
+Set ROK_SERVER_CI_PASSWORD in the environment to provide the password.
+Server 'ci' added (password from ROK_SERVER_CI_PASSWORD).
+
+$ rok server add ci --url postgres://ci@ci-db.example.com/postgres   # no password in the URL
+warning: no password given; set ROK_SERVER_CI_PASSWORD instead
 Set ROK_SERVER_CI_PASSWORD in the environment to provide the password.
 Server 'ci' added (password from ROK_SERVER_CI_PASSWORD).
 ```
@@ -609,6 +619,9 @@ With none registered it prints `No servers registered.` `--json`:
 ### `rok server remove <NAME> [OPTIONS]`
 
 Removes the server from `servers.toml` and deletes its keychain entry.
+When there is no keychain to delete from (none reachable, or
+`ROK_KEYCHAIN=off`), it says to unset the variable instead and reports
+`"password_deleted_from_keychain": false`.
 
 | Flag          | Meaning                  |
 | ------------- | ------------------------ |
@@ -617,13 +630,18 @@ Removes the server from `servers.toml` and deletes its keychain entry.
 | `--json`      | Print one JSON object    |
 
 Without `--yes` (and without `--json`) the command prints
-`Type the server name to confirm: ` and needs the exact name. An unknown
-name is an error (`server '<NAME>' not found`).
+`Type the server name to confirm: ` on stderr and needs the exact name. An
+unknown name is an error (`server '<NAME>' not found`).
 
 ```text
 $ rok server remove ci
 Type the server name to confirm: ci
 Server 'ci' removed. Password deleted from OS keychain.
+
+$ ROK_KEYCHAIN=off rok server remove ci --yes
+warning: Couldn't access platform secure storage: the OS keychain is off (ROK_KEYCHAIN=off); set ROK_SERVER_CI_PASSWORD instead
+Unset ROK_SERVER_CI_PASSWORD if no longer needed.
+Server 'ci' removed. Unset ROK_SERVER_CI_PASSWORD if no longer needed.
 ```
 
 `--json`: `{"name": "<NAME>", "removed": true,

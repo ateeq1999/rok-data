@@ -125,6 +125,14 @@ pub(crate) async fn create(
     json: bool,
 ) -> Result<ExitCode, String> {
     let connection = context::Connection::resolve_target(database_url, server)?;
+    if database_url.is_none() && server.is_none() {
+        // Creating next to the project's own database is rarely what was
+        // meant (spec: servers.md), so say which server this is.
+        eprintln!(
+            "warning: no --server or --database-url; creating on the server DATABASE_URL names ({url})",
+            url = connection.url_masked()
+        );
+    }
 
     // Connect to the admin database (postgres) to create the new database
     let db = connection.probe_into_db().await?;
@@ -174,9 +182,10 @@ pub(crate) async fn drop(
 
     // Typed-name confirmation (unless --yes)
     if !yes {
-        use std::io::{Write, stdin, stdout};
-        print!("Type the database name to confirm: ");
-        stdout().flush().map_err(|e| e.to_string())?;
+        use std::io::{Write, stderr, stdin};
+        // The prompt goes to stderr: stdout carries only the result.
+        eprint!("Type the database name to confirm: ");
+        stderr().flush().map_err(|e| e.to_string())?;
 
         let mut input = String::new();
         stdin().read_line(&mut input).map_err(|e| e.to_string())?;

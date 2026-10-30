@@ -62,6 +62,17 @@ that it exists and won't ship a tag without it).
 
 - `rok server add --password-prompt`'s help no longer claims hidden
   input: the password is read from standard input as typed.
+- `rok server add` without a password (none in `--url`, no
+  `--password-prompt`) adds the server and warns that its password comes
+  from `ROK_SERVER_<NAME>_PASSWORD`, as ADR 0028's spec shows, instead of
+  failing.
+- The confirmation prompts of `rok db drop` and `rok server remove` (and
+  `--password-prompt`'s) go to stderr, so stdout holds only the result —
+  one JSON document under `--json`.
+- `rok server remove` with `ROK_KEYCHAIN=off` no longer reports a keychain
+  entry as deleted; it says to unset the variable.
+- `rok db create` with neither `--server` nor `--database-url` warns that
+  it creates on the server `DATABASE_URL` names.
 
 ## [0.5.0] — production-ready templates
 

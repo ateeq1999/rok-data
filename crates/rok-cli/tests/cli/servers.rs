@@ -114,11 +114,11 @@ fn server_add_with_url_stores_password_in_keychain() {
 }
 
 #[test]
-fn server_add_with_discrete_flags_and_password_prompt() {
+fn server_add_with_discrete_flags_and_no_password_uses_the_variable() {
     let temp_dir = TempDir::new().expect("temp dir");
 
-    // We can't easily test interactive password prompt in automated tests,
-    // so we test the validation that either URL or flags+password are provided.
+    // Without a password (no URL password, no --password-prompt) the server
+    // is still added; its password comes from the variable (ADR 0028).
     let output = run_server_output(
         &temp_dir,
         &[
@@ -136,8 +136,13 @@ fn server_add_with_discrete_flags_and_password_prompt() {
             "require",
         ],
     );
-    // Should fail because no password provided
-    assert_failure(&output, "password required");
+    assert_success(&output);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ROK_SERVER_STAGING_PASSWORD"), "{stderr}");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "Server 'staging' added (password from ROK_SERVER_STAGING_PASSWORD).\n"
+    );
 }
 
 #[test]

@@ -169,3 +169,18 @@ pub(crate) fn assert_error(output: &Output, message: &str) {
         stderr(output)
     );
 }
+
+/// Whether database `name` exists, asked of the server through `rok db query`.
+pub(crate) fn database_exists(base: &url::Url, name: &str) -> bool {
+    let output = Sandbox::new().run(&[
+        "db",
+        "query",
+        &format!("SELECT count(*) AS n FROM pg_database WHERE datname = '{name}'"),
+        "--database-url",
+        &url_for(base, "postgres"),
+        "--json",
+    ]);
+    assert_success(&output);
+    let report = json(&output);
+    report["results"][0]["rows"][0][0] == "1"
+}
