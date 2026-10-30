@@ -7,7 +7,7 @@
 //! Fallback order when retrieving a password:
 //! 1. OS keychain (service `rok`, account `<NAME>`)
 //! 2. Environment variable `ROK_SERVER_<NAME>_PASSWORD` (uppercase, hyphens → underscores)
-//! 3. Error: "no password for server '<NAME>': not in keychain and ROK_SERVER_<NAME>_PASSWORD not set"
+//! 3. Error: `no password for server '<NAME>': not in keychain and ROK_SERVER_<NAME>_PASSWORD not set`
 //!
 //! Nothing probes the keychain: an operation is attempted, and a keychain
 //! that cannot be reached (headless Linux, CI) is reported as `Unavailable`,
