@@ -58,6 +58,12 @@ that it exists and won't ship a tag without it).
   (`{"committed": false, "error": {"statement", "message"}}` on failure).
   Same connection resolution as `create`/`drop`.
 
+- The monorepo template (`rok init --template monorepo`) ships its web
+  App at `apps/web`: the TanStack Start starter, run with plain bun, its
+  dev server pointed at `apps/api` (`127.0.0.1:8080`). `init --template`
+  now copies a template's binary files (the web App's `favicon.ico` and
+  `logo.png`) byte for byte (0027 ticket 03, workspace ADR 0027).
+
 **Changed**
 
 - `rok server add --password-prompt`'s help no longer claims hidden

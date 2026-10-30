@@ -255,6 +255,7 @@ where
                     "run `rok gen` from the root to generate every named App from its own schema",
                     "set DATABASE_URL and JWT_SECRET for apps/api (see its .env.example) and apply apps/api/migrations/",
                     "`cargo test` in apps/api, then `cargo run -p axum-api`",
+                    "in apps/web, `bun install`, then `bun run dev` (it forwards /api to apps/api)",
                 ]);
             }
             print_next_steps(&steps);

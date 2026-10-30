@@ -4,10 +4,12 @@
 
 **Blocked by:** 02 (monorepo shell — `--template monorepo`).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `apps/web` lives in the template with its own self-check: tree imported, mechanical alignment only (package name derives from the manifest, no content rewriting — the API-layer swap is not this ticket), and `bun install --frozen-lockfile && bun run typecheck && bun test` passes on the imported tree
-- [ ] Init writes `apps/web` under its manifest as it does the api App (files-if-absent across the Apps; hidden/OS junk excluded from embedding), and the web app runs against `apps/api`'s locally-served spec: sign-in works at the enforced URL contract (base URL/env pointed at the local api, auth flows calling the axum endpoints it already serves)
-- [ ] Gate: a `fixture_compile` test checks the scaffolded `apps/web` (install/typecheck/tests), printing a skip note and passing when bun is absent; commits gate the sourced tree the same way
-- [ ] CI: a job installs bun and runs the web gate (and keeps the Rust matrix untouched)
-- [ ] The embedding stays lean: what the template ships is what `cargo package` includes (checked), binaries don't gain stray files; format/clippy and all engine/rok-cli suites stay green
+- [x] `apps/web` lives in the template with its own self-check: tree imported, mechanical alignment only (package name derives from the manifest, no content rewriting — the API-layer swap is not this ticket), and `bun install --frozen-lockfile && bun run typecheck && bun run test` passes on the imported tree (`bun run test` is the App's vitest suite; `bun test` would be bun's own runner)
+- [x] Init writes `apps/web` under its manifest as it does the api App (files-if-absent across the Apps; hidden/OS junk excluded from embedding), and the web app runs against `apps/api`'s locally-served spec: sign-in works at the enforced URL contract (base URL/env pointed at the local api, auth flows calling the axum endpoints it already serves)
+- [x] Gate: a `fixture_compile` test checks the scaffolded `apps/web` (install/typecheck/tests), printing a skip note and passing when bun is absent; commits gate the sourced tree the same way
+- [x] CI: a job installs bun and runs the web gate (and keeps the Rust matrix untouched)
+- [x] The embedding stays lean: what the template ships is what `cargo package` includes (checked), binaries don't gain stray files; format/clippy and all engine/rok-cli suites stay green
+
+**Notes (done):** the only differences from the upstream starter are the package name (`web`, the App's catalog name), the eight `"latest"` dependencies pinned to the versions `bun.lock` already resolved (the lock's package set is unchanged), `!.env.example` in `.gitignore` (its `.env*` would hide the shipped example), and the dev proxy's default target `http://127.0.0.1:8080` (`apps/api`'s `BIND_ADDR`). `.cta.json` (create-tanstack-app's metadata, naming pnpm and `start-app`) is not shipped. The App's tests need jsdom's `localStorage`: on Node 25+ the gate runs them with `NODE_OPTIONS=--no-experimental-webstorage`; CI runs Node 22. Sign-in was checked by hand through the dev proxy (register, verify, login, `/users/me`); passkeys, QR login and OAuth call endpoints `axum-api` does not serve.

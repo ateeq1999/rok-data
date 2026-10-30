@@ -101,3 +101,37 @@ jobs:
         run: cargo build --workspace --all-targets --locked
       - name: Test
         run: cargo test --workspace --all-targets --locked
+
+  # The monorepo template's web App (workspace ADR 0027), with its own
+  # tooling: the fixture gate scaffolds a monorepo with `rok` and runs
+  # `bun install --frozen-lockfile`, typecheck and tests in its `apps/web`
+  # (it prints a skip note in the jobs above, which have no bun); then the
+  # sourced tree in rok-templates gets the same checks. Node 22 (LTS) runs
+  # vitest; bun is pinned to the version the template's `bun.lock` was
+  # written with.
+  web:
+    name: Web App (bun)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.94"
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: web
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Gate the scaffolded web App
+        run: cargo test -p rok-data-cli --test fixture_compile --locked -- web --test-threads=1
+      - name: Gate the sourced web App
+        working-directory: crates/rok-templates/templates/monorepo/apps/web
+        run: |
+          bun install --frozen-lockfile
+          bun run typecheck
+          bun run test

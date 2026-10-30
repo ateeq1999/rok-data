@@ -3,9 +3,13 @@
 //! `cargo install`. It writes `$OUT_DIR/templates.rs`: one `Embedded` (see
 //! `src/lib.rs`) per template, its directory and its files, each
 //! a `File`: its path (relative, with `/`) and its bytes through
-//! `include_bytes!`. A template's
-//! top-level `target/` (a build of it in place) is left out; everything
-//! else is embedded, and `init` decides what it copies.
+//! `include_bytes!`. What building or installing a template in place
+//! leaves behind is left out: its top-level `target/` and, at any depth,
+//! the directories of [`LOCAL_DIRS`]; so are the files of [`LOCAL_FILES`]
+//! (OS junk, a developer's `.env`). Everything else, hidden files such as
+//! `.env.example` included, is embedded, and `init` decides what it
+//! copies. `Cargo.toml`'s `include` leaves out the same paths, so the
+//! package ships what is embedded (`tests/package.rs` checks it).
 
 use std::env;
 use std::fs;
@@ -56,16 +60,35 @@ fn file_name(path: &Path) -> String {
         .unwrap_or_default()
 }
 
+/// Directories a JS App's install or build writes in place, at any depth:
+/// its dependencies and its build output (what the web App's `.gitignore`
+/// names).
+const LOCAL_DIRS: &[&str] = &[
+    "node_modules",
+    "dist",
+    "dist-ssr",
+    ".output",
+    ".tanstack",
+    ".vinxi",
+    ".wrangler",
+];
+
+/// Files that are a machine's, never a template's: OS junk, and a
+/// developer's own environment (`.env`; the template ships `.env.example`).
+const LOCAL_FILES: &[&str] = &[".DS_Store", "Thumbs.db", "desktop.ini", ".env"];
+
 /// Every file under `dir` as (its path relative to `template`, with `/`,
-/// and its absolute path), but those of `template`'s `target/`.
+/// and its absolute path), but those of `template`'s `target/`, of the
+/// [`LOCAL_DIRS`] and the [`LOCAL_FILES`].
 fn collect(template: &Path, dir: &Path, files: &mut Vec<(String, String)>) -> io::Result<()> {
     for path in sorted_entries(dir)? {
+        let name = file_name(&path);
         if path.is_dir() {
-            if dir == template && file_name(&path) == "target" {
+            if (dir == template && name == "target") || LOCAL_DIRS.contains(&name.as_str()) {
                 continue;
             }
             collect(template, &path, files)?;
-        } else {
+        } else if !LOCAL_FILES.contains(&name.as_str()) {
             let relative = path
                 .strip_prefix(template)
                 .map_err(io::Error::other)?

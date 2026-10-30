@@ -17,6 +17,7 @@ mod example_api;
 mod fixture_app;
 mod init;
 mod monorepo_template;
+mod web_app;
 
 use std::path::Path;
 use std::process::Command;
