@@ -1,7 +1,7 @@
 ---
 title: Migrating to `rok-data`
-description: Per-repository migration notes (rok-db, rok-sqlc, rok-fluent, rok-orm) and the 0.4.0 / 0.3.0 release upgrades.
-updated: 2026-10-29
+description: Per-repository migration notes (rok-db, rok-sqlc, rok-fluent, rok-orm) and the 0.5.0 / 0.4.0 / 0.3.0 release upgrades.
+updated: 2026-10-30
 kind: guide
 source: crates/rok-data/tests/docs/migration_guide.rs (compiled samples), CHANGELOG.md
 ---
@@ -12,7 +12,8 @@ source: crates/rok-data/tests/docs/migration_guide.rs (compiled samples), CHANGE
 
 - **What this page does:** per-repository notes — what changes when a
   project moves from rok-db, rok-sqlc, rok-fluent or rok-orm into this
-  workspace — plus the release upgrades **To 0.4.0** and **To 0.3.0**.
+  workspace — plus the release upgrades **To 0.5.0**, **To 0.4.0** and
+  **To 0.3.0**.
 - **Upgrade recipe (any release):** regenerate once (`rok gen`, or
   `rok sqlc generate` for engine projects), then fix what the compiler
   reports. The compiler finds the breakages; this page explains each.
@@ -28,9 +29,41 @@ what was actually renamed, removed, or unified. Everything not listed is
 unchanged — same APIs, same test suites, same behavior (verified by
 porting the original tests).
 
-Two sections are not about a repository lineage: **To 0.4.0** and **To
-0.3.0**, the upgrades between workspace releases. The runtime's public
-surface and the generated output change in both.
+Three sections are not about a repository lineage: **To 0.5.0**, **To
+0.4.0** and **To 0.3.0**, the upgrades between workspace releases. The
+runtime's public surface and the generated output change in the last two;
+0.5.0 changes the templates only.
+
+## To 0.5.0
+
+Nothing to change: the runtime, the generated code and `rok sqlc`'s
+grammar are as in 0.4.0. Move the `rok-data` pin to `"0.5"` and
+regenerate (`rok sqlc generate`). Only the dependency hint in
+`db/mod.rs` changes. `rok sqlc check-arch` now accepts `src/app/`, the
+wiring split into files, as it accepts `app.rs`.
+
+### Projects made from a template: the production capabilities
+
+The 0.5.0 templates add jobs and schedules, logs and traces, metrics, the
+security baseline, draining on `SIGTERM`, a Dockerfile, `compose.yaml`,
+CI and `deploy/terraform/`. They live in scaffolded files, which are
+yours, so a project made from an earlier template doesn't get them by
+regenerating. To take one, make a fresh project with `rok sqlc init
+--template actix` (or `axum`) and copy it in. Each page of the
+[templates' guide](../crates/rok-templates/docs/guide/index.md) names its
+files:
+
+- **Jobs** (`src/shared/jobs/`, the `jobs` feature, `app/run.rs`'s
+  `worker` and `schedule`): apply migrations `0007_jobs` and
+  `0008_job_schedules`, then move mail to
+  the queue (`src/shared/mail/outbox.rs`).
+- **Logs, traces and metrics**: `src/shared/telemetry.rs`,
+  `src/shared/metrics.rs`, and `main.rs`'s start-up.
+- **Security and draining**: `src/app/middleware.rs`,
+  `src/shared/security/headers.rs` and `src/shared/shutdown.rs`.
+- **Deploying**: `Dockerfile`, `compose.yaml`, `deploy/`,
+  `.github/workflows/ci.yml` and `deny.toml`. They don't depend on the
+  code above, only on the `/health/ready` route and `APP_ROLE`.
 
 ## To 0.4.0
 

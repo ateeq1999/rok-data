@@ -9,6 +9,19 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+## [0.5.0] — production-ready templates
+
+Not breaking. The runtime and the generated API are unchanged. The
+actix and axum templates (`rok sqlc init --template`) move to a crate of
+their own and gain what production asks for: jobs and schedules on
+PostgreSQL, logs, traces and metrics, a security baseline, draining on
+`SIGTERM`, a Docker image, a local stack, CI, and an AWS deployment in
+Terraform. Each capability is compiled in and off until its environment
+variable is set. The templates' guide is
+`crates/rok-templates/docs/guide/`. A project made from an earlier
+template keeps working; `docs/migration-guide.md` §To 0.5.0 says what to
+copy in for each capability.
+
 **Changed**
 
 - The actix and axum templates moved from `crates/rok-data-sqlc/templates/`

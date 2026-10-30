@@ -25,7 +25,7 @@
 - [Workspace architecture](architecture.md): crate responsibilities, the four dependency rules, migration-system layers, generated-code markers.
 - [Feature matrix](feature-matrix.md): every capability mapped from the four source repositories, with the old→new CLI command table.
 - [Pagination](pagination.md): `paginate`/`simple_paginate`/cursors/chunking/streaming and the JSON wire shapes.
-- [Migrating to rok-data](migration-guide.md): per-repository notes (rok-db, rok-sqlc, rok-fluent, rok-orm) and the 0.4.0 / 0.3.0 upgrades.
+- [Migrating to rok-data](migration-guide.md): per-repository notes (rok-db, rok-sqlc, rok-fluent, rok-orm) and the 0.5.0 / 0.4.0 / 0.3.0 upgrades.
 - [Benchmarks](benchmarks.md): the `Expr`/`Select` builder-effort bench, honestly scoped.
 
 ## Records (history; read, don't rewrite)

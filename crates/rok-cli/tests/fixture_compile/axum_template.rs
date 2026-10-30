@@ -27,7 +27,7 @@ fn materialize() -> Result<tempfile::TempDir> {
     let project = tempfile::TempDir::new()?;
     let dir = project.path();
     rok_data_sqlc(dir, &["init", "--template", "axum"])?;
-    // Inside the repository the template's `rok-data = "0.4"` resolves to
+    // Inside the repository the template's `rok-data = "0.5"` resolves to
     // the workspace crate (the release publishes it afterwards); cargo
     // substitutes it for crates.io while the tests run.
     common::rok_data_patch_shim(dir)?;

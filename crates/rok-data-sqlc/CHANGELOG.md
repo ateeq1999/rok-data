@@ -7,6 +7,21 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+## Workspace 0.5.0 - 2026-10-30
+
+Published as `rok-data-sqlc` 0.5.0 with the workspace (root `CHANGELOG.md`).
+The generated API is unchanged.
+
+- The actix and axum templates moved to the `rok-templates` crate
+  (workspace ADR 0022), which this crate depends on; `init --template`
+  copies the same files. The plain-init scaffold moved from
+  `src/init/templates/` to `src/init/scaffold/`.
+- `check-arch` treats `src/app/` like `app.rs`: rules 1 and 2 read
+  "`app.rs` or `app/`", and `app/` is no longer an unknown top-level
+  directory.
+- `auth.md` and `files.md` moved to the templates' guide
+  (`crates/rok-templates/docs/guide/`).
+
 ## Workspace 0.4.0 - 2026-10-29
 
 Published as `rok-data-sqlc` 0.4.0 with the workspace (root `CHANGELOG.md`).

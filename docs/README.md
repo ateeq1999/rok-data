@@ -28,7 +28,7 @@ contents for everything else.
 | [`architecture.md`](architecture.md) | crate responsibilities, dependency rules, migration-system layers |
 | [`feature-matrix.md`](feature-matrix.md) | what exists where, mapped from the four source repositories |
 | [`pagination.md`](pagination.md) | paging, cursors, chunking, streaming — the wire shapes too |
-| [`migration-guide.md`](migration-guide.md) | moving a project from rok-db / rok-sqlc / rok-fluent / rok-orm, and the 0.3.0 / 0.4.0 upgrades |
+| [`migration-guide.md`](migration-guide.md) | moving a project from rok-db / rok-sqlc / rok-fluent / rok-orm, and the 0.3.0 / 0.4.0 / 0.5.0 upgrades |
 | [`benchmarks.md`](benchmarks.md) | the builder-effort bench, honestly scoped |
 
 ## Agent-facing

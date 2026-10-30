@@ -2045,7 +2045,7 @@ dependencies = [
 
 [[package]]
 name = "rok-data"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "axum-core",
  "http-body-util",
@@ -2062,7 +2062,7 @@ dependencies = [
 
 [[package]]
 name = "rok-data-cli"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2080,7 +2080,7 @@ dependencies = [
 
 [[package]]
 name = "rok-data-codegen"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "prettyplease",
  "proc-macro2",
@@ -2097,7 +2097,7 @@ dependencies = [
 
 [[package]]
 name = "rok-data-core"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "aes-gcm",
  "async-stream",
@@ -2121,7 +2121,7 @@ dependencies = [
 
 [[package]]
 name = "rok-data-macros"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -2131,7 +2131,7 @@ dependencies = [
 
 [[package]]
 name = "rok-data-sqlc"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2150,7 +2150,7 @@ dependencies = [
 
 [[package]]
 name = "rok-templates"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "tempfile",

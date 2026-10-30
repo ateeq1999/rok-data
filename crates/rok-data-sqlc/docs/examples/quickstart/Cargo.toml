@@ -8,7 +8,7 @@ publish = false
 # The dependencies the generated `src/db/mod.rs` lists, plus tokio to run.
 [dependencies]
 sqlx = { version = "0.9", features = ["runtime-tokio", "postgres", "derive", "uuid", "chrono", "rust_decimal"] }
-rok-data = { version = "0.4", features = ["uuid", "chrono", "decimal"] }
+rok-data = { version = "0.5", features = ["uuid", "chrono", "decimal"] }
 uuid = "1"
 chrono = "0.4"
 rust_decimal = "1"

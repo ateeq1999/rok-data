@@ -103,7 +103,7 @@ actix-web = "4"
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 jsonwebtoken = { version = "11", features = ["rust_crypto"] }
-rok-data = { version = "0.4", features = ["uuid", "chrono"] }
+rok-data = { version = "0.5", features = ["uuid", "chrono"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sqlx = { version = "0.9", features = ["runtime-tokio", "postgres", "derive", "uuid", "chrono"] }

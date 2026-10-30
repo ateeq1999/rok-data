@@ -1334,7 +1334,7 @@ checksum = "cab834c73d247e67f4fae452806d17d3c7501756d98c8808d7c9c7aa7d18f973"
 
 [[package]]
 name = "rok-data"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "rok-data-core",
  "rok-data-macros",
@@ -1342,7 +1342,7 @@ dependencies = [
 
 [[package]]
 name = "rok-data-core"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "async-stream",
  "futures-core",
@@ -1356,7 +1356,7 @@ dependencies = [
 
 [[package]]
 name = "rok-data-macros"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
