@@ -132,7 +132,7 @@ pub(crate) async fn create(
     let db = connection.probe_into_db().await?;
 
     // CREATE DATABASE needs autocommit (outside transaction)
-    let sql = format!(r#"CREATE DATABASE "{}""#, name);
+    let sql = format!("CREATE DATABASE {}", quote_ident(name));
     rok_data::raw(&sql)
         .execute(&db)
         .await
@@ -167,9 +167,10 @@ pub(crate) async fn drop(
         context::Connection::resolve(database_url)?
     };
 
-    // Project database protection: refuse to drop the project's own database
-    // unless --force is given.
-    let project_db = context::extract_project_db_name(database_url);
+    // Project database protection: refuse to drop the database the project's
+    // DATABASE_URL names unless --force is given, whichever connection
+    // (--database-url, --server) the drop itself uses.
+    let project_db = context::extract_project_db_name(context::env_database_url().as_deref());
     if !force
         && let Some(ref project_db) = project_db
         && project_db.eq_ignore_ascii_case(name)
@@ -198,7 +199,7 @@ pub(crate) async fn drop(
     let db = connection.probe_into_db().await?;
 
     // DROP DATABASE needs autocommit (outside transaction)
-    let sql = format!(r#"DROP DATABASE "{}""#, name);
+    let sql = format!("DROP DATABASE {}", quote_ident(name));
     rok_data::raw(&sql)
         .execute(&db)
         .await
@@ -211,4 +212,28 @@ pub(crate) async fn drop(
     }
 
     Ok(ExitCode::SUCCESS)
+}
+
+/// `name` as a PostgreSQL quoted identifier: wrapped in double quotes, each
+/// double quote inside doubled, so no name can end the identifier early.
+fn quote_ident(name: &str) -> String {
+    format!("\"{}\"", name.replace('"', "\"\""))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::quote_ident;
+
+    #[test]
+    fn a_plain_name_is_quoted() {
+        assert_eq!(quote_ident("app_dev"), "\"app_dev\"");
+    }
+
+    #[test]
+    fn a_double_quote_inside_cannot_end_the_identifier() {
+        assert_eq!(
+            quote_ident("x\"; DROP DATABASE prod; --"),
+            "\"x\"\"; DROP DATABASE prod; --\""
+        );
+    }
 }

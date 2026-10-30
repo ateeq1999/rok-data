@@ -158,12 +158,12 @@ fn database_url() -> Option<String> {
 }
 
 /// Extracts the database name from a DATABASE_URL.
-fn extract_db_name(url: &str) -> Option<String> {
-    url::Url::parse(url)
-        .ok()?
-        .path_segments()?
-        .next()
-        .map(|s| s.to_owned())
+/// `url` pointed at the `postgres` maintenance database: only the path
+/// changes, so user and password stay as `DATABASE_URL` gives them.
+fn admin_url(url: &str) -> String {
+    let mut admin = url::Url::parse(url).expect("DATABASE_URL is a URL");
+    admin.set_path("/postgres");
+    admin.to_string()
 }
 
 #[test]
@@ -348,12 +348,7 @@ fn db_create_and_drop_integration() {
     };
 
     let temp_dir = TempDir::new().expect("temp dir");
-    let admin_url = database_url.replace(
-        extract_db_name(&database_url)
-            .as_deref()
-            .unwrap_or("postgres"),
-        "postgres",
-    );
+    let admin_url = admin_url(&database_url);
 
     // Create a test database
     let db_name = format!("rok_test_{}", std::process::id());
@@ -376,63 +371,51 @@ fn db_create_and_drop_integration() {
     assert!(stdout.contains(&format!("Database '{}' dropped", db_name)));
 }
 
-/// Integration test: refuses to drop project database without --force.
+/// Integration test: the database the project's DATABASE_URL names is
+/// refused without --force, whichever connection the drop uses, and dropped
+/// with it. The "project" database is a throwaway this test creates; the real
+/// DATABASE_URL database is never named.
 /// Skips with a printed note when DATABASE_URL is not set.
 #[test]
-fn db_drop_refuses_project_database_without_force() {
+fn db_drop_guards_the_project_database_until_force() {
     let Some(database_url) = database_url() else {
         eprintln!("skipping: DATABASE_URL not set");
         return;
     };
 
     let temp_dir = TempDir::new().expect("temp dir");
-    let project_db = extract_db_name(&database_url).expect("DATABASE_URL has a database name");
-    let admin_url = database_url.replace(&project_db, "postgres");
+    let admin_url = admin_url(&database_url);
+    let project_db = format!("rok_test_project_{}", std::process::id());
+    let mut project_url = url::Url::parse(&database_url).expect("DATABASE_URL is a URL");
+    project_url.set_path(&format!("/{project_db}"));
+    let as_project = |args: &[&str]| {
+        run_db(&temp_dir, args)
+            .env("DATABASE_URL", project_url.as_str())
+            .output()
+            .expect("failed to spawn rok binary")
+    };
 
-    // Try to drop the project database without --force
-    let output = run_db_output(
-        &temp_dir,
-        &["drop", &project_db, "--database-url", &admin_url, "--yes"],
-    );
+    assert_success(&as_project(&[
+        "create",
+        &project_db,
+        "--database-url",
+        &admin_url,
+    ]));
+
+    // Refused without --force, even through another connection.
+    let output = as_project(&["drop", &project_db, "--database-url", &admin_url, "--yes"]);
     assert_failure(&output, "refusing to drop the project's own database");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("--force"));
-}
+    assert!(String::from_utf8_lossy(&output.stderr).contains("--force"));
 
-/// Integration test: drops project database with --force.
-/// Skips with a printed note when DATABASE_URL is not set.
-#[test]
-fn db_drop_project_database_with_force() {
-    let Some(database_url) = database_url() else {
-        eprintln!("skipping: DATABASE_URL not set");
-        return;
-    };
-
-    let temp_dir = TempDir::new().expect("temp dir");
-    let project_db = extract_db_name(&database_url).expect("DATABASE_URL has a database name");
-    let admin_url = database_url.replace(&project_db, "postgres");
-
-    // Drop the project database with --force (this should work but we don't
-    // actually want to drop the real project DB in tests, so we create a
-    // separate test DB with the same name pattern and test the logic)
-    // Actually, we should NOT drop the real project DB. Instead, we test
-    // that --force bypasses the check by using a different DB name that
-    // matches the pattern.
-    let test_db = format!("{}_test", project_db);
-
-    // Create a test DB with similar name
-    let output = run_db_output(
-        &temp_dir,
-        &["create", &test_db, "--database-url", &admin_url],
-    );
-    assert_success(&output);
-
-    // Now try to drop it - since it's not the exact project DB name, it should work
-    let output = run_db_output(
-        &temp_dir,
-        &["drop", &test_db, "--database-url", &admin_url, "--yes"],
-    );
-    assert_success(&output);
+    // Dropped with --force.
+    assert_success(&as_project(&[
+        "drop",
+        &project_db,
+        "--database-url",
+        &admin_url,
+        "--yes",
+        "--force",
+    ]));
 }
 
 /// Integration test: server-based create and drop.
