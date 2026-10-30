@@ -249,9 +249,10 @@ pub fn servers_path() -> Result<PathBuf, String> {
 /// Reads `servers.toml` from the given path (or the default location if `None`).
 /// Returns an empty config if the file does not exist.
 pub fn read_servers(path: Option<&Path>) -> Result<ServersConfig, String> {
-    let path = path
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| servers_path().unwrap());
+    let path = match path {
+        Some(path) => path.to_path_buf(),
+        None => servers_path()?,
+    };
     match fs::read_to_string(&path) {
         Ok(text) => {
             let config: ServersConfig =
