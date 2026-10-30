@@ -8,25 +8,23 @@
 //! 1. OS keychain (service `rok`, account `<NAME>`)
 //! 2. Environment variable `ROK_SERVER_<NAME>_PASSWORD` (uppercase, hyphens → underscores)
 //! 3. Error: "no password for server '<NAME>': not in keychain and ROK_SERVER_<NAME>_PASSWORD not set"
+//!
+//! Nothing probes the keychain: an operation is attempted, and a keychain
+//! that cannot be reached (headless Linux, CI) is reported as `Unavailable`,
+//! naming the variable to set instead.
 
-use std::collections::HashMap;
 use std::env;
-use std::sync::{Mutex, OnceLock};
 
 /// Error type for keychain operations.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum KeychainError {
-    /// The OS keychain is not available (e.g., headless Linux/CI without libsecret).
+    /// The OS keychain cannot be reached (e.g., headless Linux/CI without libsecret).
     #[error("OS keychain unavailable: {0}")]
     Unavailable(String),
 
     /// The requested password was not found in the keychain or environment.
     #[error("no password for server '{server}': not in keychain and {env_var} not set")]
     NotFound { server: String, env_var: String },
-
-    /// A keyring crate error occurred.
-    #[error("keychain error: {0}")]
-    Keyring(#[from] keyring::Error),
 }
 
 /// The service name used in the keychain.
@@ -41,222 +39,241 @@ pub(crate) fn env_var_name(server_name: &str) -> String {
     )
 }
 
-/// Trait for keychain storage backends.
-pub(crate) trait KeychainStore: Send + Sync {
-    /// Store a password for the given server name.
-    fn store(&self, server_name: &str, password: &str) -> Result<(), KeychainError>;
+/// Where passwords are kept: the OS keychain, or a map in tests.
+trait KeychainStore {
+    /// Stores a password for the given server name.
+    fn store(&self, server_name: &str, password: &str) -> Result<(), keyring::Error>;
 
-    /// Retrieve a password for the given server name.
-    fn get(&self, server_name: &str) -> Result<Option<String>, KeychainError>;
+    /// Retrieves a password for the given server name; `None` when absent.
+    fn get(&self, server_name: &str) -> Result<Option<String>, keyring::Error>;
 
-    /// Delete a password for the given server name.
-    fn delete(&self, server_name: &str) -> Result<(), KeychainError>;
-
-    /// Check if the keychain is available (without side effects).
-    fn is_available(&self) -> bool;
+    /// Deletes a password for the given server name; absent is not an error.
+    fn delete(&self, server_name: &str) -> Result<(), keyring::Error>;
 }
 
-/// Real keychain store using the `keyring` crate.
-#[derive(Default)]
-pub(crate) struct RealKeychainStore;
+/// The OS keychain, through the `keyring` crate.
+struct OsKeychain;
 
-impl KeychainStore for RealKeychainStore {
-    fn store(&self, server_name: &str, password: &str) -> Result<(), KeychainError> {
-        let entry = keyring::Entry::new(SERVICE, server_name)?;
-        entry.set_password(password).map_err(KeychainError::from)
+impl KeychainStore for OsKeychain {
+    fn store(&self, server_name: &str, password: &str) -> Result<(), keyring::Error> {
+        keyring::Entry::new(SERVICE, server_name)?.set_password(password)
     }
 
-    fn get(&self, server_name: &str) -> Result<Option<String>, KeychainError> {
-        let entry = keyring::Entry::new(SERVICE, server_name)?;
-        match entry.get_password() {
+    fn get(&self, server_name: &str) -> Result<Option<String>, keyring::Error> {
+        match keyring::Entry::new(SERVICE, server_name)?.get_password() {
             Ok(password) => Ok(Some(password)),
             Err(keyring::Error::NoEntry) => Ok(None),
-            Err(e) => Err(KeychainError::from(e)),
+            Err(error) => Err(error),
         }
     }
 
-    fn delete(&self, server_name: &str) -> Result<(), KeychainError> {
-        let entry = keyring::Entry::new(SERVICE, server_name)?;
-        match entry.delete_credential() {
-            Ok(()) => Ok(()),
-            Err(keyring::Error::NoEntry) => Ok(()),
-            Err(e) => Err(KeychainError::from(e)),
+    fn delete(&self, server_name: &str) -> Result<(), keyring::Error> {
+        match keyring::Entry::new(SERVICE, server_name)?.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(error) => Err(error),
         }
     }
-
-    fn is_available(&self) -> bool {
-        // Test availability without side effects by checking if the platform supports keychain
-        // This is a best-effort check - we try to create an entry and see if it works
-        keyring::Entry::new(SERVICE, "__rok_keychain_test__")
-            .and_then(|e| e.set_password("test"))
-            .is_ok()
-            && keyring::Entry::new(SERVICE, "__rok_keychain_test__")
-                .and_then(|e| e.delete_credential())
-                .is_ok()
-    }
 }
 
-/// In-memory keychain store for testing.
-#[derive(Default)]
-#[cfg_attr(not(test), allow(dead_code))]
-pub(crate) struct MemoryKeychainStore {
-    entries: Mutex<HashMap<String, String>>,
-}
-
-impl MemoryKeychainStore {
-    #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) fn new() -> Self {
-        Self::default()
-    }
-}
-
-impl KeychainStore for MemoryKeychainStore {
-    fn store(&self, server_name: &str, password: &str) -> Result<(), KeychainError> {
-        self.entries
-            .lock()
-            .unwrap()
-            .insert(server_name.to_owned(), password.to_owned());
-        Ok(())
-    }
-
-    fn get(&self, server_name: &str) -> Result<Option<String>, KeychainError> {
-        Ok(self.entries.lock().unwrap().get(server_name).cloned())
-    }
-
-    fn delete(&self, server_name: &str) -> Result<(), KeychainError> {
-        self.entries.lock().unwrap().remove(server_name);
-        Ok(())
-    }
-
-    fn is_available(&self) -> bool {
-        true // Always available in tests
-    }
-}
-
-/// Global keychain store instance.
-static KEYCHAIN_STORE: OnceLock<RealKeychainStore> = OnceLock::new();
-
-/// Initialize the keychain store with a custom implementation (for testing).
-#[allow(dead_code)]
-pub(crate) fn init_keychain_store(_store: Box<dyn KeychainStore>) {
-    // In tests, we replace the default store by setting a flag
-    // For simplicity, we just note that tests use MemoryKeychainStore directly
-    // and the real implementation uses RealKeychainStore directly
-}
-
-/// Get the real keychain store.
-fn real_store() -> &'static RealKeychainStore {
-    KEYCHAIN_STORE.get_or_init(RealKeychainStore::default)
+/// The `Unavailable` error for a keychain failure, naming the fallback variable.
+fn unavailable(server_name: &str, error: &keyring::Error) -> KeychainError {
+    KeychainError::Unavailable(format!(
+        "{error}; set {} instead",
+        env_var_name(server_name)
+    ))
 }
 
 /// Stores a password in the OS keychain.
 ///
-/// On success, returns `Ok(())`.
-/// On keychain unavailability, returns `KeychainError::Unavailable` with a message
-/// instructing the user to set the environment variable fallback.
+/// Returns `KeychainError::Unavailable`, naming the environment variable to
+/// set instead, when the keychain cannot be reached.
 pub(crate) fn store_password(server_name: &str, password: &str) -> Result<(), KeychainError> {
-    let store = real_store();
-    if !store.is_available() {
-        return Err(KeychainError::Unavailable(
-            "no OS keychain available (headless Linux/CI without libsecret)".to_owned(),
-        ));
-    }
-    store.store(server_name, password)
+    store_in(&OsKeychain, server_name, password)
 }
 
-/// Retrieves a password, trying the OS keychain first, then the environment variable.
+/// Retrieves a password: the OS keychain first, then the environment variable.
 ///
-/// Returns the password on success.
-/// Returns `KeychainError::NotFound` if neither source has the password.
+/// A keychain that cannot be reached falls through to the variable, so CI
+/// works with the variable alone. Returns `KeychainError::NotFound` when
+/// neither has the password.
 pub(crate) fn get_password(server_name: &str) -> Result<String, KeychainError> {
-    let store = real_store();
+    get_in(&OsKeychain, server_name, |name| env::var(name).ok())
+}
 
-    // Try keychain first
-    match store.get(server_name)? {
-        Some(password) => return Ok(password),
-        None => {
-            // Fall through to env var
-        }
+/// Deletes a password from the OS keychain; an absent entry is not an error.
+///
+/// Returns `KeychainError::Unavailable` when the keychain cannot be reached.
+pub(crate) fn delete_password(server_name: &str) -> Result<(), KeychainError> {
+    delete_in(&OsKeychain, server_name)
+}
+
+fn store_in(
+    store: &dyn KeychainStore,
+    server_name: &str,
+    password: &str,
+) -> Result<(), KeychainError> {
+    store
+        .store(server_name, password)
+        .map_err(|error| unavailable(server_name, &error))
+}
+
+fn get_in(
+    store: &dyn KeychainStore,
+    server_name: &str,
+    env: impl Fn(&str) -> Option<String>,
+) -> Result<String, KeychainError> {
+    if let Ok(Some(password)) = store.get(server_name) {
+        return Ok(password);
     }
-
-    // Fallback to environment variable
     let env_var = env_var_name(server_name);
-    env::var(&env_var).map_err(|_| KeychainError::NotFound {
+    env(&env_var).ok_or(KeychainError::NotFound {
         server: server_name.to_owned(),
         env_var,
     })
 }
 
-/// Deletes a password from the OS keychain.
-///
-/// Returns `Ok(())` on success (including if the entry didn't exist).
-/// Returns `KeychainError::Unavailable` if the keychain is not available.
-pub(crate) fn delete_password(server_name: &str) -> Result<(), KeychainError> {
-    let store = real_store();
-    if !store.is_available() {
-        return Err(KeychainError::Unavailable(
-            "no OS keychain available (headless Linux/CI without libsecret)".to_owned(),
-        ));
-    }
-    store.delete(server_name)
+fn delete_in(store: &dyn KeychainStore, server_name: &str) -> Result<(), KeychainError> {
+    store
+        .delete(server_name)
+        .map_err(|error| unavailable(server_name, &error))
 }
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+
     use super::*;
+
+    /// A keychain in memory; `reachable: false` fails every call the way a
+    /// headless machine without a secret service does.
+    struct MemoryKeychain {
+        entries: RefCell<HashMap<String, String>>,
+        reachable: bool,
+    }
+
+    impl MemoryKeychain {
+        fn new() -> Self {
+            Self {
+                entries: RefCell::new(HashMap::new()),
+                reachable: true,
+            }
+        }
+
+        fn unreachable() -> Self {
+            Self {
+                reachable: false,
+                ..Self::new()
+            }
+        }
+
+        fn check(&self) -> Result<(), keyring::Error> {
+            if self.reachable {
+                Ok(())
+            } else {
+                Err(keyring::Error::PlatformFailure("no secret service".into()))
+            }
+        }
+    }
+
+    impl KeychainStore for MemoryKeychain {
+        fn store(&self, server_name: &str, password: &str) -> Result<(), keyring::Error> {
+            self.check()?;
+            self.entries
+                .borrow_mut()
+                .insert(server_name.to_owned(), password.to_owned());
+            Ok(())
+        }
+
+        fn get(&self, server_name: &str) -> Result<Option<String>, keyring::Error> {
+            self.check()?;
+            Ok(self.entries.borrow().get(server_name).cloned())
+        }
+
+        fn delete(&self, server_name: &str) -> Result<(), keyring::Error> {
+            self.check()?;
+            self.entries.borrow_mut().remove(server_name);
+            Ok(())
+        }
+    }
+
+    fn no_env(_: &str) -> Option<String> {
+        None
+    }
 
     #[test]
     fn env_var_name_uppercase_and_underscores() {
         assert_eq!(env_var_name("local"), "ROK_SERVER_LOCAL_PASSWORD");
         assert_eq!(env_var_name("staging-db"), "ROK_SERVER_STAGING_DB_PASSWORD");
         assert_eq!(env_var_name("Ci"), "ROK_SERVER_CI_PASSWORD");
+    }
+
+    #[test]
+    fn a_stored_password_is_read_back_from_the_keychain() {
+        let keychain = MemoryKeychain::new();
+        store_in(&keychain, "local", "s3cret").expect("store");
+        assert_eq!(get_in(&keychain, "local", no_env).expect("get"), "s3cret");
+    }
+
+    #[test]
+    fn the_keychain_wins_over_the_variable() {
+        let keychain = MemoryKeychain::new();
+        store_in(&keychain, "local", "from-keychain").expect("store");
+        let env = |_: &str| Some("from-env".to_owned());
         assert_eq!(
-            env_var_name("my-server-name"),
-            "ROK_SERVER_MY_SERVER_NAME_PASSWORD"
+            get_in(&keychain, "local", env).expect("get"),
+            "from-keychain"
         );
     }
 
     #[test]
-    fn memory_store_round_trip() {
-        let store = MemoryKeychainStore::new();
-        let server = "test_server";
-        let password = "test_password_123";
-
-        store.store(server, password).unwrap();
-        let retrieved = store.get(server).unwrap().unwrap();
-        assert_eq!(retrieved, password);
-
-        store.delete(server).unwrap();
-        assert!(store.get(server).unwrap().is_none());
+    fn an_absent_entry_falls_back_to_the_variable() {
+        let keychain = MemoryKeychain::new();
+        let env = |name: &str| (name == "ROK_SERVER_LOCAL_PASSWORD").then(|| "from-env".to_owned());
+        assert_eq!(get_in(&keychain, "local", env).expect("get"), "from-env");
     }
 
     #[test]
-    fn memory_store_delete_is_idempotent() {
-        let store = MemoryKeychainStore::new();
-        let server = "test_delete_idempotent";
-
-        // Delete non-existent should not error
-        store.delete(server).unwrap();
-
-        // Add and delete twice
-        store.store(server, "pwd").unwrap();
-        store.delete(server).unwrap();
-        store.delete(server).unwrap(); // Second delete should not error
+    fn an_unreachable_keychain_falls_back_to_the_variable() {
+        let keychain = MemoryKeychain::unreachable();
+        let env = |_: &str| Some("from-env".to_owned());
+        assert_eq!(get_in(&keychain, "ci", env).expect("get"), "from-env");
     }
 
     #[test]
-    fn memory_store_is_available() {
-        let store = MemoryKeychainStore::new();
-        assert!(store.is_available());
+    fn neither_source_is_not_found_naming_the_variable() {
+        let keychain = MemoryKeychain::new();
+        let error = get_in(&keychain, "staging-db", no_env).expect_err("no password");
+        assert!(
+            error.to_string().contains("ROK_SERVER_STAGING_DB_PASSWORD"),
+            "{error}"
+        );
     }
 
     #[test]
-    fn real_store_is_available_check_no_side_effects() {
-        // This test verifies that is_available() doesn't write to the keychain
-        // It just checks if the platform supports it
-        let store = RealKeychainStore;
-        // We can't easily assert the return value without a real keychain,
-        // but we can verify it doesn't panic or write probe entries
-        let _ = store.is_available();
+    fn storing_without_a_keychain_names_the_variable_to_set() {
+        let keychain = MemoryKeychain::unreachable();
+        let error = store_in(&keychain, "ci", "pw").expect_err("unreachable");
+        assert!(
+            matches!(&error, KeychainError::Unavailable(message) if message.contains("ROK_SERVER_CI_PASSWORD")),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn deleting_is_idempotent() {
+        let keychain = MemoryKeychain::new();
+        delete_in(&keychain, "gone").expect("absent entry");
+        store_in(&keychain, "local", "pw").expect("store");
+        delete_in(&keychain, "local").expect("delete");
+        delete_in(&keychain, "local").expect("delete again");
+        assert!(keychain.entries.borrow().is_empty());
+    }
+
+    #[test]
+    fn an_error_never_carries_the_password() {
+        let keychain = MemoryKeychain::unreachable();
+        let error = store_in(&keychain, "local", "hunter2").expect_err("unreachable");
+        assert!(!format!("{error} {error:?}").contains("hunter2"));
     }
 }
