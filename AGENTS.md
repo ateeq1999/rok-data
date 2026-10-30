@@ -157,7 +157,8 @@ is unaffected — that is what crates.io and `cargo install` do.
   or retires a page.
 - Agent skills for this workspace live in `.agents/skills/rok-data*/SKILL.md`
   (OpenCode, Claude-compatible and AGENTS-spec agents all discover them):
-  the five — `rok-data` (router/expert), `rok-data-init`,
-  `rok-data-models`, `rok-data-migrations`, `rok-data-sqlc`. A skill's
+  the six — `rok-data` (router/expert), `rok-data-init`,
+  `rok-data-models`, `rok-data-migrations`, `rok-data-sqlc`, and
+  `rok-data-docs-site` (syncs `site/` with the repo). A skill's
   description carries its triggers; keep bodies as recipes and pointers,
   not copies of `docs/`.

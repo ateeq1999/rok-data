@@ -18,7 +18,7 @@
 
 - [rok-data for coding agents](coding-agents.md): the machine contracts — `--json` shapes (`StatusRow`), exit codes, the unattended schema-change loop, the repo's agent skills.
 - [CLI reference](cli-reference.md): every `rok` command, flag, output and exit code; contract text matching the crates' grammars.
-- Agent skills (in-repo): `.agents/skills/rok-data/`, `rok-data-init/`, `rok-data-models/`, `rok-data-migrations/`, `rok-data-sqlc/` — each a `SKILL.md` with triggering descriptions.
+- Agent skills (in-repo): `.agents/skills/rok-data/`, `rok-data-init/`, `rok-data-models/`, `rok-data-migrations/`, `rok-data-sqlc/`, `rok-data-docs-site/` — each a `SKILL.md` with triggering descriptions.
 
 ## Reference
 
