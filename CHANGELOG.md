@@ -46,6 +46,23 @@ that it exists and won't ship a tag without it).
   - Both commands support `--json` for machine-readable output.
   - SQL identifiers are quoted safely using double quotes.
 
+- `rok db query <SQL> [--database-url <URL>] [--server <NAME>] [--json]`
+  (ticket 05, ADR 0028): runs the statements of `SQL` in one transaction
+  that commits only when every one succeeds; the first failure rolls back
+  (DDL included) and exits 1 with PostgreSQL's message. A `;` inside a
+  string, quoted identifier, dollar quote or comment does not split a
+  statement; `COMMIT`, `BEGIN`, `ROLLBACK` and the other statements that
+  would end the transaction early are refused. Result sets print as
+  aligned tables, or with `--json` as
+  `{"statements", "committed", "results": [{"columns", "rows", "row_count"} | {"rows_affected"}]}`
+  (`{"committed": false, "error": {"statement", "message"}}` on failure).
+  Same connection resolution as `create`/`drop`.
+
+**Changed**
+
+- `rok server add --password-prompt`'s help no longer claims hidden
+  input: the password is read from standard input as typed.
+
 ## [0.5.0] — production-ready templates
 
 Not breaking. The runtime and the generated API are unchanged. The

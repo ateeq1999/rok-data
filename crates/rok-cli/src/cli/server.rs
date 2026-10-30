@@ -33,7 +33,7 @@ pub enum ServerAction {
         /// SSL mode: disable, allow, prefer, require, verify-ca, verify-full.
         #[arg(long, value_name = "MODE")]
         sslmode: Option<String>,
-        /// Prompt for password interactively (hidden input).
+        /// Prompt for the password on standard input (the input is not hidden).
         #[arg(long, conflicts_with = "url")]
         password_prompt: bool,
         /// Print machine-readable JSON output.
