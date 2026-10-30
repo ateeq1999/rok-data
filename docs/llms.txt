@@ -44,3 +44,4 @@
 - `../GLOSSARY.md` (+ `GLOSSARY-MAP.md`) — the project's language.
 - `../AGENTS.md` — working rules for agents in this repository.
 - `../crates/rok-data-sqlc/docs/` — the engine's own ADRs (engine ADR 0026 newest) and guides.
+- `../crates/rok-templates/docs/guide/` — the actix/axum templates' guide (accounts, files, jobs, observability, security, AWS) and recipes.

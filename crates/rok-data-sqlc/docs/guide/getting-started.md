@@ -341,7 +341,7 @@ From `rok sqlc generate` on:
 
 3. Make a token as in [step 6](#6-the-first-requests), with
    `"role":"admin"` in its claims (or sign up through `/api/v1/auth`,
-   [Accounts and sign-in](auth.md)). The list starts empty:
+   [Accounts and sign-in](../../../rok-templates/docs/guide/auth.md)). The list starts empty:
 
    ```sh
    curl http://127.0.0.1:8080/api/v1/users -H "Authorization: Bearer $TOKEN"

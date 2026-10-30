@@ -130,6 +130,14 @@ that it exists and won't ship a tag without it).
   `app::configure` wrapped in that middleware; tests build it with
   `test::init_service(app(state))`. It depends on `actix-cors` and
   `futures-util` now.
+- The templates' guide, `crates/rok-templates/docs/guide/`. It has pages
+  on jobs and schedules, observability, security and deploying to AWS,
+  and recipes for Sentry, OTLP metrics, a shared rate limit on Redis,
+  signed outbound webhooks and OIDC sign-in. `auth.md` and `files.md`
+  moved there from the engine's guide; the engine's pages link to them.
+  `tests/guides.rs` checks each sample marked `<!-- source: … -->`
+  against the template file it quotes. The templates' READMEs open with
+  a pointer to the guide.
 
 ## [0.4.0] — typed keys, a runtime-backed data layer, and direct uploads
 

@@ -7,6 +7,11 @@ table, and `rok sqlc check-arch` keeps the architecture. The
 `[api]` configuration. The decisions behind them are in engine ADR 0016
 (`docs/adr/0016-api-features-for-actix-web.md`).
 
+What the `--template` projects ship beyond the generated API (accounts,
+uploads, jobs, observability, security, the AWS deployment) and recipes
+for growing them are in [the templates'
+guide](../../../rok-templates/docs/guide/index.md).
+
 The guide's code samples come from projects that compile, mostly
 [`docs/examples/api`](../examples/api), and a test keeps the two in sync.
 
@@ -29,10 +34,10 @@ How the code is organized:
   which are yours, and what regeneration does to each.
 - [Customizing the generated API](customizing.md): service overrides,
   state, ports, and hand-written features.
-- [Accounts and sign-in](auth.md): the templates' sign-up,
+- [Accounts and sign-in](../../../rok-templates/docs/guide/auth.md): the templates' sign-up,
   sign-in, password and email flows, two-factor sign-in, API keys,
   sessions, mail, and adding a flow.
-- [Files and storage](files.md): the templates' uploads, profile photos,
+- [Files and storage](../../../rok-templates/docs/guide/files.md): the templates' uploads, profile photos,
   the storage port, S3 and the limits.
 
 What the API answers:

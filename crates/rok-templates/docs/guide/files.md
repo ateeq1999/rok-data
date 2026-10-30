@@ -6,7 +6,7 @@ allowed file a signed-in user keeps, and **profile photos**
 (`/api/v1/users/me/avatar`, in the `account` feature), one small JPEG per
 user. Both store their bytes through one port, `Storage`, chosen by
 `STORAGE_URL`. The decisions are in engine ADR 0022
-(`docs/adr/0022-two-factor-api-keys-and-files.md`); the accounts and API
+(`crates/rok-data-sqlc/docs/adr/0022-two-factor-api-keys-and-files.md`); the accounts and API
 keys these routes check are on [Accounts and sign-in](auth.md).
 
 - [Where the code is](#where-the-code-is)
@@ -72,7 +72,7 @@ An empty body is a `400`, one over `MEDIA_MAX_UPLOAD_BYTES` a `413`. The
 type is detected from the file's first bytes (`infer`), never from its
 name or the request's headers, and must be one of `MEDIA_ALLOWED_TYPES`:
 otherwise `415 unsupported_media_type`
-([wire standard](wire-standard.md#415-unsupported-media-type-the-templates)).
+([wire standard](../../../rok-data-sqlc/docs/guide/wire-standard.md#415-unsupported-media-type-the-templates)).
 The bytes are stored first, under a key the server makes
 (`media/<uuid>`), then the row; if the row fails, the bytes are deleted.
 
@@ -138,7 +138,7 @@ framework's body type.
 `AppState::new` opens the store, so every application built from it
 stores where it is configured; a store that can't be opened (a `file://`
 path that is a file, say) stops startup
-([troubleshooting](troubleshooting.md#running-the-application)). A local
+([troubleshooting](../../../rok-data-sqlc/docs/guide/troubleshooting.md#running-the-application)). A local
 store keeps no content type, so it is detected again from the bytes when a
 file is read; S3 and memory keep the one it was put with. To store
 somewhere else, implement `Storage` and pass it to

@@ -7,9 +7,9 @@ keys for their scripts, and are invited by an admin. These flows are
 hand-written features in the template, not generated code:
 `src/features/auth/`, `two_factor/`, `api_keys/` and `account/` are
 yours, like every `service.rs`. The decisions behind them are in engine
-ADR 0020 (`docs/adr/0020-auth-as-template-features.md`) and engine ADR
+ADR 0020 (`crates/rok-data-sqlc/docs/adr/0020-auth-as-template-features.md`) and engine ADR
 0022 (two-factor, API keys, uploads;
-`docs/adr/0022-two-factor-api-keys-and-files.md`).
+`crates/rok-data-sqlc/docs/adr/0022-two-factor-api-keys-and-files.md`).
 Uploads and profile photos have [their own page](files.md).
 A plain `rok sqlc init` has none of this, only the `AuthUser` and
 `AdminUser` checks of a token something else issues.
@@ -52,14 +52,14 @@ shows actix-web wiring, the axum template does the same in axum's terms.
 
 `check-arch` applies in full: `auth` writes through its own query module,
 reads `users` through the data layer, and records audit entries through a
-port onto the `audit_log` service ([architecture](architecture.md#4-the-six-rules)).
+port onto the `audit_log` service ([architecture](../../../rok-data-sqlc/docs/guide/architecture.md#4-the-six-rules)).
 
 ## The flows
 
 Every path is under `/api/v1`, and every `/auth` path is rate-limited.
 A body of the wrong shape (an email that isn't one, a password outside 8 to
 128 characters) is a `422 validation_failed`; a request a flow refuses is a
-`400` with its own code ([wire standard](wire-standard.md#errors)).
+`400` with its own code ([wire standard](../../../rok-data-sqlc/docs/guide/wire-standard.md#errors)).
 
 | Endpoint | Caller | Answers |
 |---|---|---|
@@ -321,7 +321,7 @@ dropped and the wider one added.
 for the page your front end serves. `compose` escapes the HTML body, so
 values go in as they are:
 
-<!-- source: ../rok-templates/templates/actix-api/src/shared/mail/templates.rs -->
+<!-- source: templates/actix-api/src/shared/mail/templates.rs -->
 ```rust
     pub fn verification(&self, to: &str, token: &str) -> Mail {
         compose(
@@ -344,7 +344,7 @@ values go in as they are:
 for in `policy`: each purpose's lifetime and the message that carries it
 (`None` for a token that is never mailed):
 
-<!-- source: ../rok-templates/templates/actix-api/src/shared/security/auth_token.rs -->
+<!-- source: templates/actix-api/src/shared/security/auth_token.rs -->
 ```rust
 pub fn policy(purpose: AuthTokenPurpose) -> (TimeDelta, Option<RenderLink>) {
     match purpose {

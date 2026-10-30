@@ -1211,10 +1211,10 @@ from the first command to production:
   rok-data-sqlc's, which are yours, and what regeneration does to each;
 - [Customizing the generated API](docs/guide/customizing.md): overrides,
   ports and hand-written features;
-- [Accounts and sign-in](docs/guide/auth.md): the templates'
+- [Accounts and sign-in](../rok-templates/docs/guide/auth.md): the templates'
   sign-up, sign-in, password and email flows, two-factor sign-in, API keys,
   sessions and mail;
-- [Files and storage](docs/guide/files.md): the templates' uploads,
+- [Files and storage](../rok-templates/docs/guide/files.md): the templates' uploads,
   profile photos, the storage port and S3;
 - [The wire standard](docs/guide/wire-standard.md): every status, error
   code, body and header;
@@ -1413,8 +1413,8 @@ a mail outbox (SMTP or the log) and a per-IP rate limit on `/auth`; and
 two-factor sign-in (TOTP and recovery codes), API keys, uploads behind a
 storage port (local files or S3) and profile photos. Their `AuthUser`
 checks the account (or the API key) in the database on every request. See
-[Accounts and sign-in](docs/guide/auth.md),
-[Files and storage](docs/guide/files.md), engine ADR 0020 and engine ADR
+[Accounts and sign-in](../rok-templates/docs/guide/auth.md),
+[Files and storage](../rok-templates/docs/guide/files.md), engine ADR 0020 and engine ADR
 0022. Their framework-independent code (services, DTOs, queries,
 migrations, mail, storage, security and the rate limit's counting) is
 byte-identical, and a repository test keeps it so (engine ADR 0021).

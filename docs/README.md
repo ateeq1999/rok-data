@@ -64,4 +64,6 @@ page; edit the source file and re-mark.
 
 The engine's own ADR series and guides live outside this directory, in
 [`crates/rok-data-sqlc/docs/`](../crates/rok-data-sqlc/docs/) — when a
-page says "engine ADR NNNN", that is where it is.
+page says "engine ADR NNNN", that is where it is. The actix and axum
+templates' guide and recipes are in
+[`crates/rok-templates/docs/guide/`](../crates/rok-templates/docs/guide/).

@@ -384,7 +384,7 @@ recovery codes' HMAC key from it, so they don't start without one:
 exactly 32 random bytes, standard base64 (44 characters ending in `=`).
 Generate it once, keep it with `JWT_SECRET`, and never change it on a
 running system: secrets and recovery codes stored under the old key no
-longer match ([Accounts](auth.md#two-factor-sign-in)).
+longer match ([Accounts](../../../rok-templates/docs/guide/auth.md#two-factor-sign-in)).
 
 ```text
 error: environment variable `STORAGE_URL` is `storage`, which is not one of file://<dir>, s3://<bucket>, memory://
@@ -393,7 +393,7 @@ error: environment variable `STORAGE_URL` is `storage`, which is not one of file
 The templates' uploads go where `STORAGE_URL` says: `file://./storage`
 (relative to the working directory), `file:///srv/uploads`,
 `s3://<bucket>` with no path, or `memory://`
-([Files and storage](files.md#storage)).
+([Files and storage](../../../rok-templates/docs/guide/files.md#storage)).
 
 ```text
 error: Generic LocalFileSystem error: Cannot create a file when that file already exists. (os error 183)
@@ -409,7 +409,7 @@ error: environment variable `SMTP_URL` is not set
 ```
 
 `MAIL_TRANSPORT=smtp` needs the relay's URL
-([Accounts](auth.md#sending-real-mail)).
+([Accounts](../../../rok-templates/docs/guide/auth.md#sending-real-mail)).
 
 ```text
 error: pool timed out while waiting for an open connection
@@ -439,7 +439,7 @@ table, it means no middleware put the tenant in the request's extensions
 **Every request is `401` with `the token is no longer valid`.** The token
 is well signed, but its account is deleted or disabled, or its `tv` is
 older than the account's `token_version`: a password change or reset
-signed it out. Sign in again ([Accounts](auth.md#sessions)).
+signed it out. Sign in again ([Accounts](../../../rok-templates/docs/guide/auth.md#sessions)).
 
 **Sign-in answers `403` with `the email address is not verified yet`.**
 `REQUIRE_VERIFIED_EMAIL` is on (the default) and the link wasn't followed.
@@ -448,7 +448,7 @@ each mail's address and subject at `info`, and its body at `debug`
 (`RUST_LOG=debug`). Post the link's token to `/api/v1/auth/email/verify`.
 
 **No mail arrives.** With the default `MAIL_TRANSPORT=log`, nothing is
-sent: set `smtp` ([Accounts](auth.md#sending-real-mail)). With SMTP, the
+sent: set `smtp` ([Accounts](../../../rok-templates/docs/guide/auth.md#sending-real-mail)). With SMTP, the
 log has a `WARN` per failed attempt and an `ERROR` when a mail goes
 `dead`, and each `mail.send` job keeps its `last_error`:
 
@@ -506,7 +506,7 @@ for `Path<Uuid>`, say) is a wiring bug, not the caller's: the log has
 instead`.** Keys never reach `/api/v1/auth/*` or `/api/v1/api-keys`,
 however the path is spelled: sign in for those. `a read API key may only
 GET, HEAD or OPTIONS` means the key's scope is `read`; make a `write` key
-([Accounts](auth.md#api-keys)).
+([Accounts](../../../rok-templates/docs/guide/auth.md#api-keys)).
 
 **An API key answers `401` with `the API key is not valid`.** It is
 unknown, revoked or expired, or its owner is disabled or deleted. A
