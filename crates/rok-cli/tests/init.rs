@@ -359,8 +359,8 @@ fn the_help_lists_the_templates() -> Result<()> {
 #[test]
 fn the_offered_templates_are_the_engines() {
     let offered: Vec<&str> = rok_data_sqlc::init::template_names().collect();
-    assert_eq!(offered, vec!["actix", "axum"]);
-    for template in ["actix-api", "axum-api"] {
+    assert_eq!(offered, vec!["actix", "axum", "monorepo"]);
+    for template in ["actix-api", "axum-api", "monorepo"] {
         assert!(
             common::template_dir(template).is_dir(),
             "the offered template `{template}` is not in rok-templates"

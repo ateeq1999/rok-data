@@ -1,5 +1,6 @@
 //! The report of a `rok gen` run: what was written, what was skipped, what
-//! was refused — as prose, or as one JSON object.
+//! was refused — as prose, or as one JSON object (the App's name beside
+//! it, when the project file named the Apps).
 
 use rok_data_codegen::Staged;
 use rok_data_sqlc::Report;
@@ -102,14 +103,18 @@ pub(super) fn print_report(
     }
 }
 
-/// Prints the run's report as one JSON object.
-pub(super) fn print_json(
+/// The run's report as one JSON object — the App's name beside it, when
+/// the project file named the Apps (and no `app` key for a plain
+/// project's run). Printed by the caller, alone or in the array of a
+/// named-Apps project's run.
+pub(super) fn print_json_body(
     settings: &Settings,
+    app: Option<&str>,
     report: &Report,
     staged: Option<&Staged>,
     pending: Option<&Pending>,
     drift: bool,
-) {
+) -> Value {
     let paths = |paths: &[std::path::PathBuf]| -> Vec<String> {
         paths.iter().map(|path| display_path(path)).collect()
     };
@@ -158,7 +163,7 @@ pub(super) fn print_json(
             "since": pending.base,
         })
     });
-    let body = json!({
+    let mut body = json!({
         "written": paths(&report.written),
         "scaffolded": paths(&report.scaffolded),
         "unchanged": paths(&report.unchanged),
@@ -173,5 +178,8 @@ pub(super) fn print_json(
         "drift": drift,
         "dry_run": settings.engine.dry_run,
     });
-    println!("{body}");
+    if let Some(app) = app {
+        body["app"] = json!(app);
+    }
+    body
 }

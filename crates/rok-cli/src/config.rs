@@ -48,6 +48,11 @@ pub(crate) struct ConfigFile {
     #[serde(default)]
     #[allow(dead_code)]
     pub scaffold: Option<toml::Table>,
+    /// `[apps.<name>]`: the Apps of a monorepo (workspace ADR 0027), owned
+    /// by the front door; the legacy generator reads none of it.
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub apps: Option<toml::Table>,
     /// `[tools.<tool>]`: read by rok-tools (`rok tools …`, ADR 0026).
     #[serde(default)]
     #[allow(dead_code)]

@@ -16,6 +16,7 @@ mod axum_template;
 mod example_api;
 mod fixture_app;
 mod init;
+mod monorepo_template;
 
 use std::path::Path;
 use std::process::Command;
