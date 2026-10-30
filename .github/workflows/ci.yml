@@ -46,10 +46,19 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+    # Two databases: the runtime suites reset their schemas and would race
+    # the engine's fixture suite on a shared one. The engine's database
+    # finds `catalog` on its search path, since the fixture schema names
+    # `catalog.products` unqualified.
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
-      ROK_DATA_SQLC_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      ROK_DATA_SQLC_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/engine
     steps:
+      - name: Create the engine's database
+        run: >-
+          psql postgres://postgres:postgres@localhost:5432/postgres
+          -c 'CREATE DATABASE engine'
+          -c 'ALTER DATABASE engine SET search_path = "$user", public, catalog'
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@master
         with:
