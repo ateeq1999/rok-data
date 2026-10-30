@@ -9,7 +9,7 @@ use std::process::ExitCode;
 
 use rok_data_codegen::{Rename, differences, write};
 
-use crate::cli::{GenerateAction, GenerateOptions};
+use crate::cli::generate::{GenerateAction, GenerateOptions};
 use crate::config;
 use crate::context;
 

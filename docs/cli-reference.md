@@ -1,9 +1,9 @@
 ---
 title: "`rok` — CLI reference"
-description: Every command, flag, output and exit code of the workspace's single binary. Contract: matches crates/rok-cli/src/cli.rs and the engine's grammar.
-updated: 2026-10-29
+description: Every command, flag, output and exit code of the workspace's single binary. Contract: matches crates/rok-cli/src/cli/ and the engine's grammar.
+updated: 2026-10-30
 kind: reference
-source: crates/rok-cli/src/cli.rs, crates/rok-data-sqlc/src/cli.rs (engine grammar)
+source: crates/rok-cli/src/cli/, crates/rok-data-sqlc/src/cli.rs (engine grammar)
 ---
 
 # `rok` — CLI reference
@@ -11,7 +11,7 @@ source: crates/rok-cli/src/cli.rs, crates/rok-data-sqlc/src/cli.rs (engine gramm
 ## Agent notes
 
 - **Contract status:** this page is the user-facing summary; the exact
-  grammar is `crates/rok-cli/src/cli.rs` — and for the `sqlc` subtree the
+  grammar is `crates/rok-cli/src/cli/` — and for the `sqlc` subtree the
   engine's `crates/rok-data-sqlc/src/cli.rs`, which `rok` forwards to
   verbatim. Any grammar change must update this page in the same PR —
   matching the engine's tests — because the CLI's help text and this file
@@ -25,18 +25,16 @@ source: crates/rok-cli/src/cli.rs, crates/rok-data-sqlc/src/cli.rs (engine gramm
   ADR 0012).
 
 The workspace's single binary. Contract text: this file is the user-facing
-summary; the exact grammar lives in `crates/rok-cli/src/cli.rs` and — for
+summary; the exact grammar lives in `crates/rok-cli/src/cli/` and — for
 the `sqlc` subtree — the engine's `crates/rok-data-sqlc/src/cli.rs`, which
 `rok` forwards to verbatim.
 
 ```text
-rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
-rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
 rok init [NAME]                   scaffold a project (skeleton or template)
 rok gen [OPTIONS] [check]         data layer and API features from the schema dir
 rok generate [OPTIONS] [check]      legacy: model-crate generator
 rok migrate <COMMAND>               runs migrations on the database
-rok db <COMMAND>                    connectivity / structure of a database
+rok db <COMMAND>                    a database: check, inspect, create, drop, query
 rok schema <COMMAND>                live schema as DDL; journal-vs-files diff
 rok server <COMMAND>                per-user server registry (ADR 0028)
 rok sqlc <COMMAND>                  legacy: resource-module generator (engine)
@@ -61,8 +59,11 @@ scaffolds), and their removal is deferred to 1.0.
   - `migrate status --json` / `up --json` / `down --json` report
     `{"version": <i64>, "name": "...", "state": "applied|pending|edited|unknown",
     "checksum": "...", "drift": <bool>}` as `{"migrations": [StatusRow…]}`.
-  - `db check --json` reports `{"connected": true, "server_version": "..."}`
-    (or the reason it could not connect).
+  - `db check --json` reports `{"ok": true, "version": "...", "pool": {…}}`;
+    the `db` and `server` subsections give every other shape. A command that
+    fails prints `error: …` on stderr and nothing on stdout, except
+    `db query --json`, which reports the failed statement on stdout too
+    (see its section).
 - Exit codes: `--help`/`--version` = 0; usage errors at the root = 2
   (clap); runtime failures (bad URL, drift, check failures) = 1. Inside
   `rok sqlc …`, usage errors exit 1 — the engine's own historic behavior,
@@ -309,67 +310,127 @@ engine refuses to skip it silently), `unknown` (journal row without a
 matching file). Checksum drift on an applied file is fatal to `up` /
 `down` unless the row is reported through `--json` (`drift` field).
 
-## `rok db` — connectivity and structure
+## `rok db` — a database: connectivity, structure, create, drop, query
 
 ```text
-rok db check   [--database-url] [--json]  connect, ping, server version, pool settings
-rok db inspect [--database-url] [--json] [--table T]  user tables; or one table's
-                                           columns (name, type, length, nullability,
-                                           default, is_pk), indexes and foreign keys
-rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
-rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
+rok db check   [--database-url <URL>] [--json]
+rok db inspect [--table <TABLE>] [--database-url <URL>] [--json]
+rok db create  <NAME> [--database-url <URL>] [--server <NAME>] [--json]
+rok db drop    <NAME> [--database-url <URL>] [--server <NAME>] [-y|--yes] [--force] [--json]
+rok db query   <SQL>  [--database-url <URL>] [--server <NAME>] [--json]
 ```
 
-Both `check` and `inspect` use `information_schema`/`pg_catalog` via
-`rok-data-core::introspect`.
+`check` and `inspect` act on the project's database: `--database-url`,
+else `DATABASE_URL`. `create`, `drop` and `query` act on a server and
+also take `--server` (workspace ADR 0028).
 
+### Connection resolution: `create`, `drop`, `query`
 
-### `rok db create <DBNAME> [OPTIONS]`
+1. `--database-url <URL>` — an ad-hoc connection; wins over the others.
+2. `--server <NAME>` — a registered server (see `rok server`): host,
+   port, user, `sslmode` from `servers.toml`, the password from the OS
+   keychain or `ROK_SERVER_<NAME>_PASSWORD`. The connection goes to the
+   server's `database` field (`postgres` when it has none).
+3. `DATABASE_URL` — the project's database.
 
-Creates a new database on the target server.
+The flags do not conflict: given both, `--database-url` is used. With
+none of the three, the command fails with
+`needs a database: set DATABASE_URL or pass --database-url`. An unknown
+server fails with `server '<NAME>' not found`; a server without a password
+fails naming the variable to set.
 
-| Flag                  | Meaning                                                            |
-| --------------------- | ------------------------------------------------------------------ |
-| `DBNAME`              | Name of the database to create                                     |
-| `--database-url <URL>`| Ad-hoc connection URL (takes precedence over `--server` and `DATABASE_URL`) |
-| `--server <NAME>`     | Use a registered server (mutually exclusive with `--database-url`) |
-| `--json`              | Print machine-readable JSON output                                 |
+### `rok db check [OPTIONS]`
 
-Connection resolution precedence:
-1. `--database-url` (explicit ad-hoc)
-2. `--server <NAME>` (resolved via `servers.toml` + keychain/env)
-3. `DATABASE_URL` (project default)
+Connects, pings, and reports the server version and the pool settings.
 
-When `--server` is used, the connection URL is built from the server config + password from keychain/env. The `database` field from the server config is used as the initial connection database (typically `postgres` for admin ops).
+| Flag                   | Meaning                                         |
+| ---------------------- | ----------------------------------------------- |
+| `--database-url <URL>` | The database to check (default: `DATABASE_URL`) |
+| `--json`               | Print one JSON object instead of prose          |
 
-**Examples:**
-
+```text
+$ rok db check
+ok: connected to postgres://localhost:5432/app
+pool: 1 of 1 connections
+server: PostgreSQL 17.0 on x86_64-pc-linux-musl, compiled by gcc …
 ```
+
+`--json`: `{"ok": true, "version": "<SELECT version()>", "pool":
+{"connections": <n>, "idle": <n>, "max_connections": <n>}}`.
+
+### `rok db inspect [OPTIONS]`
+
+Lists the user tables of schema `public`, or with `--table` one table's
+columns (name, type, primary key, nullability), indexes and foreign keys,
+read through `rok-data-core::introspect` (`information_schema` /
+`pg_catalog`).
+
+| Flag                   | Meaning                                           |
+| ---------------------- | ------------------------------------------------- |
+| `--table <TABLE>`      | Restrict the output to one table                  |
+| `--database-url <URL>` | The database to inspect (default: `DATABASE_URL`) |
+| `--json`               | Print one JSON object                             |
+
+Text output: one table name per line; with `--table`, one line per column
+(`name type[ pk][ null]`). `--json`: `{"tables": ["…"]}`; with `--table`,
+`{"table": "…", "columns": [{"name", "type", "nullable", "default",
+"primary_key"}], "indexes": [{"name", "columns", "unique", "primary"}],
+"foreign_keys": [{"name", "columns", "references": {"table", "columns"}}]}`
+(an unknown table is an error under `--json`).
+
+### `rok db create <NAME> [OPTIONS]`
+
+Creates database `NAME` (`CREATE DATABASE`, the name quoted as an
+identifier) on the target. With neither `--server` nor `--database-url`,
+it creates on the server the project's `DATABASE_URL` names, and says so
+first on stderr:
+`warning: no --server or --database-url; creating on the server DATABASE_URL names (<masked URL>)`.
+
+| Flag                   | Meaning                                                    |
+| ---------------------- | ---------------------------------------------------------- |
+| `NAME`                 | Name of the database to create                             |
+| `--database-url <URL>` | The database to connect to (default: `DATABASE_URL`)       |
+| `--server <NAME>`      | Use a registered server (default: `DATABASE_URL`)          |
+| `--json`               | Print one JSON object                                      |
+
+```text
 $ rok db create myapp_staging --server staging
 Database 'myapp_staging' created on server 'staging'.
 
-$ rok db create test_db --database-url postgres://user:pass@host/db
+$ rok db create test_db --database-url postgres://user:pass@host/postgres
 Database 'test_db' created.
 ```
 
-### `rok db drop <DBNAME> [OPTIONS]`
+`--json`: `{"database": "<NAME>", "created": true}`, plus `"server":
+"<NAME>"` when `--server` was given.
 
-Drops a database on the target server. Requires typed confirmation: the user must type the database name exactly. `--yes` bypasses for scripts. Refuses to drop the database named in the project's `DATABASE_URL` unless `--force` is given.
+### `rok db drop <NAME> [OPTIONS]`
 
-| Flag                  | Meaning                                                            |
-| --------------------- | ------------------------------------------------------------------ |
-| `DBNAME`              | Name of the database to drop                                       |
-| `--database-url <URL>`| Ad-hoc connection URL (takes precedence over `--server` and `DATABASE_URL`) |
-| `--server <NAME>`     | Use a registered server (mutually exclusive with `--database-url`) |
-| `--yes`               | Skip typed-name confirmation prompt (for scripts)                  |
-| `--force`             | Allow dropping the project's own database (from `DATABASE_URL`)    |
-| `--json`              | Print machine-readable JSON output                                 |
+Drops database `NAME` (`DROP DATABASE`, the name quoted as an identifier)
+on the target.
 
-Connection resolution follows the same precedence as `create`.
+| Flag                   | Meaning                                                         |
+| ---------------------- | --------------------------------------------------------------- |
+| `NAME`                 | Name of the database to drop                                    |
+| `--database-url <URL>` | The database to connect to (default: `DATABASE_URL`)            |
+| `--server <NAME>`      | Use a registered server (default: `DATABASE_URL`)               |
+| `-y`, `--yes`          | Skip the typed-name confirmation prompt (for scripts)           |
+| `--force`              | Allow dropping the project's own database (from `DATABASE_URL`) |
+| `--json`               | Print one JSON object                                           |
 
-**Examples:**
+Two guards, checked before anything is dropped:
 
-```
+1. **The project's database.** When `NAME` is the database the
+   environment's `DATABASE_URL` names (compared case-insensitively),
+   the drop is refused unless `--force` — whichever connection
+   (`--database-url`, `--server`) the drop itself uses.
+2. **Typed confirmation.** Without `--yes`, the command prints
+   `Type the database name to confirm: ` on stderr (stdout stays the
+   result's, `--json` included) and reads one line; anything but
+   the exact name fails with
+   `confirmation failed: database name does not match`.
+
+```text
 $ rok db drop old_db --server local
 Type the database name to confirm: old_db
 Database 'old_db' dropped.
@@ -377,18 +438,86 @@ Database 'old_db' dropped.
 $ rok db drop myapp_prod --server prod --yes
 Database 'myapp_prod' dropped.
 
-$ rok db drop myapp --server local   # myapp is the project's DATABASE_URL database
+$ rok db drop myapp --server local --yes   # myapp is the project's DATABASE_URL database
 error: refusing to drop the project's own database (DATABASE_URL). Use --force to override.
 
-$ rok db drop myapp --server local --force --yes
+$ rok db drop myapp --server local --yes --force
 Database 'myapp' dropped.
 ```
+
+`--json`: `{"database": "<NAME>", "dropped": true}`, plus `"server":
+"<NAME>"` when `--server` was given.
+
+### `rok db query <SQL> [OPTIONS]`
+
+Runs `SQL` in **one transaction that commits only when every statement
+succeeds** (workspace ADR 0028): like `psql -c`, with a rollback on any
+error.
+
+| Flag                   | Meaning                                              |
+| ---------------------- | ---------------------------------------------------- |
+| `SQL`                  | The SQL to run; several statements are separated by `;` |
+| `--database-url <URL>` | The database to connect to (default: `DATABASE_URL`) |
+| `--server <NAME>`      | Use a registered server (default: `DATABASE_URL`)    |
+| `--json`               | Print one JSON object                                |
+
+Transaction semantics:
+
+- `SQL` is split into statements at each `;` outside quoted text and
+  comments: `'…'` strings (with `''`), `E'…'` strings (with `\'`),
+  `"…"` identifiers, dollar quotes (`$$…$$`, `$tag$…$tag$`), `--` line
+  comments and nesting `/* … */` comments. Pieces holding only comments
+  or whitespace are not statements; no statement at all is an error
+  (`no SQL statement to run`).
+- One connection; `BEGIN`; each statement in order; `COMMIT` after the
+  last one. The first failing statement rolls the whole transaction back
+  — DDL included — and the command exits 1 with PostgreSQL's message.
+- Statements that would end the transaction early are refused before
+  connecting: `BEGIN`, `START`, `COMMIT`, `END`, `ABORT`, `ROLLBACK`
+  (`ROLLBACK TO SAVEPOINT` is allowed) and `PREPARE TRANSACTION`.
+  Statements PostgreSQL refuses inside a transaction (`CREATE DATABASE`,
+  `VACUUM`, …) fail and roll back like any other error.
+
+Text output: each statement with a result shape (`SELECT`, `… RETURNING`,
+`SHOW`, …) prints an aligned table — header, rule, rows (`NULL` as an empty
+cell), `(N rows)` — and the run ends with the commit line:
+
+```text
+$ rok db query "CREATE TABLE t (id serial PRIMARY KEY); INSERT INTO t DEFAULT VALUES;" --server staging
+OK: 2 statements executed, transaction committed.
+
+$ rok db query "SELECT id, 'a' AS note FROM t" --server staging
+id | note
+---+-----
+1  | a
+(1 row)
+OK: 1 statement executed, transaction committed.
+
+$ rok db query "INSERT INTO t VALUES (2); SELECT 1/0;" --server staging
+error: statement 2 failed: division by zero
+Transaction rolled back.
+```
+
+`--json` on success:
+
+```json
+{"statements": 2, "committed": true, "results": [
+  {"sql": "INSERT INTO t VALUES (2)", "rows_affected": 1},
+  {"sql": "SELECT id, note FROM t", "columns": [{"name": "id", "type": "INT4"}, {"name": "note", "type": "TEXT"}],
+   "rows": [["1", "a"], ["2", null]], "row_count": 2}
+]}
+```
+
+Every value is PostgreSQL's text form of it (a string), `null` for
+`NULL`; `type` is the PostgreSQL type name. A statement without a result
+shape reports `rows_affected`. On failure, stdout holds
+`{"statements": <n>, "committed": false, "error": {"statement": <1-based
+index>, "message": "<PostgreSQL's message>"}}`, stderr the error line, and
+the exit code is 1.
 
 ## `rok schema` — live schema, and journal consistency
 
 ```text
-rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
-rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
 rok schema dump [--database-url]       approximate CREATE TABLE DDL for every user table
 rok schema diff [--database-url] [--dir migrations]
                                        compares the journal's applied migrations with
@@ -400,79 +529,123 @@ rok schema diff [--database-url] [--dir migrations]
 ## `rok server` — per-user server registry (ADR 0028)
 
 ```text
-rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
-rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
-rok server add <NAME> [--url <URL>] [--host <HOST>] [--port <PORT>] [--user <USER>] [--database <DB>] [--sslmode <MODE>] [--password-prompt] [--json]
-rok server list [--json]
-rok server remove <NAME> [--yes] [--json]
+rok server add    <NAME> [--url <URL>] [--host <HOST>] [--port <PORT>] [--user <USER>]
+                         [--database <DB>] [--sslmode <MODE>] [--password-prompt] [--json]
+rok server list   [--json]
+rok server remove <NAME> [-y|--yes] [--json]
 ```
 
-Manages a per-user registry of PostgreSQL servers in `servers.toml` (located in the OS config directory: `$XDG_CONFIG_HOME/rok`, `~/Library/Application Support/rok`, `%APPDATA%\rok`). Passwords are stored in the OS keychain (macOS Keychain, Windows Credential Manager, Linux `libsecret`) under service `rok`, account `<NAME>`. When no keychain is available (headless Linux, CI), the password is read from the environment variable `ROK_SERVER_<NAME>_PASSWORD` (uppercase, hyphens → underscores). `ROK_KEYCHAIN=off` skips the keychain entirely, so passwords come only from that variable (for CI). `ROK_CONFIG_DIR` overrides the directory `servers.toml` lives in.
+A **Server** is a named PostgreSQL connection a user registers once and
+reaches from any project with `rok db create|drop|query --server <NAME>`.
+
+- **Where:** `servers.toml` in the user's config directory —
+  `$XDG_CONFIG_HOME/rok` (or `~/.config/rok`) on Linux,
+  `~/Library/Application Support/rok` on macOS, `%APPDATA%\rok` on
+  Windows. `ROK_CONFIG_DIR` overrides the directory. Each entry holds
+  `name`, `host`, `port`, `user`, and optionally `database` and
+  `sslmode`; never a password.
+- **Passwords:** the OS keychain (macOS Keychain, Windows Credential
+  Manager, Linux Secret Service) under service `rok`, account `<NAME>`.
+  Reading falls back to `ROK_SERVER_<NAME>_PASSWORD` (the name upper-cased,
+  `-` as `_`) when the keychain has no entry or none is reachable
+  (headless Linux, CI). `ROK_KEYCHAIN=off` skips the keychain entirely,
+  so the variable is the only source.
 
 ### `rok server add <NAME> [OPTIONS]`
 
-Registers a new server. The password is extracted from the URL (if present) and stored in the OS keychain. If no keychain is available, a warning is printed and the user is instructed to set the `ROK_SERVER_<NAME>_PASSWORD` environment variable.
+Registers a server, from a URL or from discrete flags.
 
-| Flag                  | Meaning                                                            |
-| --------------------- | ------------------------------------------------------------------ |
-| `NAME`                | Name of the server (used as the keychain account)                  |
-| `--url <URL>`         | Connection URL: `postgres://user:password@host:port/db?sslmode=...`; password extracted and stored in keychain; conflicts with `--host`, `--user`, `--database`, `--sslmode`, `--password-prompt` |
-| `--host <HOST>`       | Hostname or IP address (requires `--user`)                         |
-| `--port <PORT>`       | Port number (default: 5432)                                        |
-| `--user <USER>`       | Database user                                                      |
-| `--database <DB>`     | Default database for admin operations (default: `postgres`)        |
-| `--sslmode <MODE>`    | SSL mode: `disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full` |
-| `--password-prompt`   | Prompt for password interactively (hidden input); conflicts with `--url` |
-| `--json`              | Print machine-readable JSON output                                 |
+| Flag                | Meaning                                                                                       |
+| ------------------- | --------------------------------------------------------------------------------------------- |
+| `NAME`              | Name of the server (used as the keychain account)                                             |
+| `--url <URL>`       | `postgres://user:password@host:port/db?sslmode=…` (`postgresql://` too); conflicts with `--host`, `--port`, `--user`, `--database`, `--sslmode`, `--password-prompt` |
+| `--host <HOST>`     | Hostname or IP address; requires `--user`                                                     |
+| `--port <PORT>`     | Port number (default: 5432)                                                                   |
+| `--user <USER>`     | Database user                                                                                 |
+| `--database <DB>`   | Default database for admin operations (default: `postgres`)                                  |
+| `--sslmode <MODE>`  | SSL mode: `disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full`                 |
+| `--password-prompt` | Prompt for the password on standard input (the input is not hidden)                          |
+| `--json`            | Print one JSON object                                                                         |
 
-**Examples:**
+The URL needs a host and a user; a URL without a port means 5432, without
+a path no default database. The password (from the URL, or from the
+prompt, which `--password-prompt` prints on stderr) is stored in the
+keychain. With no password given, or when storing fails — no keychain, or
+`ROK_KEYCHAIN=off` — a warning on stderr names `ROK_SERVER_<NAME>_PASSWORD`
+and the server is still added, its password to come from that variable. A
+name already registered is an error (`server '<NAME>' already exists`).
 
-```
+```text
 $ rok server add local --url postgres://postgres:secret@localhost:5432/postgres
 Server 'local' added. Password stored in OS keychain (service: rok, account: local).
 
-$ rok server add staging --host staging-db.example.com --user rok --password-prompt
-Server 'staging' added. Password stored in OS keychain (service: rok, account: staging).
+$ ROK_KEYCHAIN=off rok server add ci --url postgres://ci:secret@ci-db.example.com/postgres
+warning: Couldn't access platform secure storage: the OS keychain is off (ROK_KEYCHAIN=off); set ROK_SERVER_CI_PASSWORD instead
+Set ROK_SERVER_CI_PASSWORD in the environment to provide the password.
+Server 'ci' added (password from ROK_SERVER_CI_PASSWORD).
 
-$ rok server add ci --url postgres://user@host/db   # no password in URL
-warning: OS keychain unavailable: ...
+$ rok server add ci --url postgres://ci@ci-db.example.com/postgres   # no password in the URL
+warning: no password given; set ROK_SERVER_CI_PASSWORD instead
 Set ROK_SERVER_CI_PASSWORD in the environment to provide the password.
 Server 'ci' added (password from ROK_SERVER_CI_PASSWORD).
 ```
 
-### `rok server list`
+`--json`: `{"name": "<NAME>", "added": true,
+"password_stored_in_keychain": <bool>}`.
 
-Lists all registered servers, masking passwords. Shows the resolved host:port and whether a password is present in the keychain/env.
+### `rok server list [OPTIONS]`
 
-| Flag    | Meaning                              |
-| ------- | ------------------------------------ |
-| `--json` | Print machine-readable JSON output   |
+Lists the registered servers and where each one's password comes from;
+never the password itself.
 
-```
+| Flag     | Meaning               |
+| -------- | --------------------- |
+| `--json` | Print one JSON object |
+
+```text
 $ rok server list
-NAME     HOST                    PORT  USER   DEFAULT DB  PASSWORD
-local    localhost               5432  postgres  postgres   keychain ✓
-staging  staging-db.example.com  5432  rok       postgres   keychain ✓
-ci       ci-db.example.com       5432  ciuser    postgres   env ROK_SERVER_CI_PASSWORD ✓
+NAME         HOST                            PORT USER         DEFAULT DB   PASSWORD
+------------------------------------------------------------------------------------------
+local        localhost                       5432 postgres     postgres     keychain ✓
+ci           ci-db.example.com               5432 ci           postgres     env ROK_SERVER_CI_PASSWORD ✓
+staging      staging-db.example.com          5432 rok          -            missing ✗
 ```
 
-### `rok server remove <NAME>`
+With none registered it prints `No servers registered.` `--json`:
+`{"servers": [{"name", "host", "port", "user", "database", "sslmode",
+"password": {"source": "keychain|env|none", "present": <bool>}}]}`
+(`database` and `sslmode` are `null` when unset).
 
-Removes the server from `servers.toml` and deletes its password from the keychain (or instructs to unset the env var). Requires confirmation unless `--yes` is given.
+### `rok server remove <NAME> [OPTIONS]`
 
-| Flag    | Meaning                              |
-| ------- | ------------------------------------ |
-| `--yes`  | Skip confirmation prompt             |
-| `--json` | Print machine-readable JSON output   |
+Removes the server from `servers.toml` and deletes its keychain entry.
+When there is no keychain to delete from (none reachable, or
+`ROK_KEYCHAIN=off`), it says to unset the variable instead and reports
+`"password_deleted_from_keychain": false`.
 
-```
+| Flag          | Meaning                  |
+| ------------- | ------------------------ |
+| `NAME`        | Name of the server to remove |
+| `-y`, `--yes` | Skip the confirmation prompt |
+| `--json`      | Print one JSON object    |
+
+Without `--yes` (and without `--json`) the command prints
+`Type the server name to confirm: ` on stderr and needs the exact name. An
+unknown name is an error (`server '<NAME>' not found`).
+
+```text
 $ rok server remove ci
+Type the server name to confirm: ci
 Server 'ci' removed. Password deleted from OS keychain.
 
-$ rok server remove ci   # when keychain unavailable
-warning: OS keychain unavailable: ...
+$ ROK_KEYCHAIN=off rok server remove ci --yes
+warning: Couldn't access platform secure storage: the OS keychain is off (ROK_KEYCHAIN=off); set ROK_SERVER_CI_PASSWORD instead
 Unset ROK_SERVER_CI_PASSWORD if no longer needed.
+Server 'ci' removed. Unset ROK_SERVER_CI_PASSWORD if no longer needed.
 ```
+
+`--json`: `{"name": "<NAME>", "removed": true,
+"password_deleted_from_keychain": <bool>}`.
 
 ## `rok sqlc` — resource-module generator (delegated engine, legacy)
 

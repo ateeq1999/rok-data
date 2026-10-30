@@ -2,7 +2,7 @@
 //!
 //! Per-user server registry with OS keychain password storage.
 
-use crate::cli::ServerAction;
+use crate::cli::server::ServerAction;
 use crate::config::{ServerConfig, read_servers, servers_path, write_servers};
 use crate::keychain::{KeychainError, delete_password, env_var_name, get_password, store_password};
 use crate::output::{PasswordStatus, server_add_json, server_list_json, server_remove_json};
@@ -66,11 +66,16 @@ impl ServerAdd {
             return Err(format!("server '{}' already exists", server.name));
         }
 
-        // Extract password from URL or prompt
-        let password = self.extract_password()?;
-
-        // Try to store password in keychain
-        let keychain_available = match store_password(&server.name, &password) {
+        // Store the password from the URL or the prompt in the keychain;
+        // without one, it can only come from the variable (ADR 0028).
+        let stored = match self.extract_password()? {
+            Some(password) => store_password(&server.name, &password),
+            None => Err(KeychainError::Unavailable(format!(
+                "no password given; set {} instead",
+                env_var_name(&server.name)
+            ))),
+        };
+        let keychain_available = match stored {
             Ok(()) => true,
             Err(KeychainError::Unavailable(msg)) => {
                 // Keychain unavailable - warn and instruct user to use env var
@@ -179,24 +184,21 @@ impl ServerAdd {
         })
     }
 
-    fn extract_password(&self) -> Result<String, String> {
+    /// The password from the URL, else from the prompt; `None` when
+    /// neither gives one (it then comes from `ROK_SERVER_<NAME>_PASSWORD`).
+    fn extract_password(&self) -> Result<Option<String>, String> {
         if let Some(ref url) = self.url {
-            // Try to extract from URL
             let parsed = url::Url::parse(url).map_err(|e| format!("invalid URL: {e}"))?;
             if let Some(pwd) = parsed.password() {
-                return Ok(pwd.to_owned());
+                return Ok(Some(pwd.to_owned()));
             }
         }
 
         if self.password_prompt {
-            return prompt_password();
+            return prompt_password().map(Some);
         }
 
-        // No password provided
-        Err(
-            "password required: provide via --url with password, or use --password-prompt"
-                .to_owned(),
-        )
+        Ok(None)
     }
 }
 
@@ -219,8 +221,9 @@ impl ServerRemove {
 
         // Confirm before removing (unless --yes)
         if !self.yes && !self.json {
-            print!("Type the server name to confirm: ");
-            std::io::stdout().flush().map_err(|e| e.to_string())?;
+            // The prompt goes to stderr: stdout carries only the result.
+            eprint!("Type the server name to confirm: ");
+            std::io::stderr().flush().map_err(|e| e.to_string())?;
             let mut input = String::new();
             std::io::stdin()
                 .read_line(&mut input)
@@ -332,10 +335,11 @@ fn list(json: bool) -> Result<(), String> {
 }
 
 fn prompt_password() -> Result<String, String> {
-    use std::io::{stdin, stdout};
+    use std::io::{stderr, stdin};
 
-    print!("Enter password: ");
-    stdout().flush().map_err(|e| e.to_string())?;
+    // The prompt goes to stderr: stdout carries only the result.
+    eprint!("Enter password: ");
+    stderr().flush().map_err(|e| e.to_string())?;
 
     let mut password = String::new();
     stdin()

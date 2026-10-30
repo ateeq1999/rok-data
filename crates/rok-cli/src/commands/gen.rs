@@ -38,7 +38,7 @@ use rok_data_codegen::{Rename, StageOptions, Staged};
 use rok_data_sqlc::{Config, Report};
 use serde_json::Value;
 
-use crate::cli::{GenAction, GenOptions};
+use crate::cli::r#gen::{GenAction, GenOptions};
 use crate::config::FILE;
 use crate::output::display_path;
 

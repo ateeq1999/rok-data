@@ -1,7 +1,7 @@
 # Ticket 06: Update docs/cli-reference.md for servers and new db commands
 
 **Blocked by:** 03-server-add-list-remove-commands, 04-db-create-drop-with-server, 05-db-query-transaction
-**Status:** ready-for-agent
+**Status:** done
 
 ## Scope
 

@@ -1,7 +1,7 @@
 # Ticket 05: `rok db query` with transaction commit-on-success
 
 **Blocked by:** 01-servers-toml-and-config-dir, 02-keychain-integration
-**Status:** ready-for-agent
+**Status:** done
 
 ## Scope
 

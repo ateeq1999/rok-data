@@ -1,546 +1,476 @@
-//! Binary-level tests for `rok db create|drop` with --server support (ticket 04).
+//! `rok db create|drop` and the connection resolution the server commands
+//! share (`--database-url` > `--server` > `DATABASE_URL`), driven through
+//! the `rok` binary (ADR 0028).
 //!
-//! Spawns the `rok` binary with a temporary config directory, never touching
-//! the real keychain or user config. DB-backed tests read DATABASE_URL and skip
-//! with a printed note when it is unset.
+//! Every database a test creates or drops is its own (`rok_t_…`); the one
+//! `DATABASE_URL` names is never dropped. The "project database" of the
+//! guard tests is a throwaway set as the child's `DATABASE_URL`.
 
-use std::fs;
-use std::path::PathBuf;
-use std::process::Command;
+use std::io::Write;
+use std::process::{Output, Stdio};
 
-use tempfile::TempDir;
+use crate::db_support::{
+    Sandbox, TestDb, assert_error, assert_success, database_exists, database_url_or_skip, json,
+    stderr, stdout, unique_name, url_for,
+};
 
-/// Runs `rok db ...` with a custom config dir and keychain off.
-fn run_db(temp_dir: &TempDir, args: &[&str]) -> Command {
-    let config_dir = temp_dir.path().join("config");
-    fs::create_dir_all(&config_dir).expect("create config dir");
+/// A URL nothing listens on: a command that connects through it fails.
+const NOWHERE: &str = "postgres://nobody:nothing@127.0.0.1:1/none";
 
-    let mut cmd = Command::new(env!("CARGO_BIN_EXE_rok"));
-    cmd.arg("db")
-        .args(args)
-        // ROK_CONFIG_DIR overrides the platform config directory
-        .env("ROK_CONFIG_DIR", &config_dir)
-        // Never the real OS keychain: passwords come from the variables
-        .env("ROK_KEYCHAIN", "off");
-    // Note: server passwords are set by add_test_server via std::env::set_var
-    cmd
+/// Runs `rok <args>` in `sandbox` with `input` on stdin.
+fn run_with_input(sandbox: &Sandbox, args: &[&str], input: &str) -> Output {
+    let mut child = sandbox
+        .rok(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn rok");
+    child
+        .stdin
+        .take()
+        .expect("stdin")
+        .write_all(input.as_bytes())
+        .expect("write stdin");
+    child.wait_with_output().expect("wait for rok")
 }
 
-/// Runs `rok db ...` with server password env var set.
-fn run_db_with_server_pw(
-    temp_dir: &TempDir,
-    server_name: &str,
-    password: &str,
-    args: &[&str],
-) -> Command {
-    let config_dir = temp_dir.path().join("config");
-    fs::create_dir_all(&config_dir).expect("create config dir");
-
-    let env_var = format!(
+/// The variable `rok` reads a server's password from.
+fn password_var(server: &str) -> String {
+    format!(
         "ROK_SERVER_{}_PASSWORD",
-        server_name.to_uppercase().replace('-', "_")
-    );
-    let mut cmd = Command::new(env!("CARGO_BIN_EXE_rok"));
-    cmd.arg("db")
-        .args(args)
-        .env("ROK_CONFIG_DIR", &config_dir)
-        .env("ROK_KEYCHAIN", "off")
-        .env(&env_var, password);
-    cmd
+        server.to_uppercase().replace('-', "_")
+    )
 }
 
-/// Runs `rok db ...` with server password env var set and returns output.
-fn run_db_with_server_pw_output(
-    temp_dir: &TempDir,
-    server_name: &str,
-    password: &str,
-    args: &[&str],
-) -> std::process::Output {
-    run_db_with_server_pw(temp_dir, server_name, password, args)
+/// A sandbox with server `name` registered on `base`'s host, connecting to
+/// the `postgres` maintenance database; the password goes in through the
+/// variable on each command (see [`on_server`]).
+fn sandbox_with_server(base: &url::Url, name: &str) -> Sandbox {
+    let sandbox = Sandbox::new();
+    sandbox.add_server(name, &url_for(base, "postgres"));
+    sandbox
+}
+
+/// `rok <args>` against server `name`, its password from the variable.
+fn on_server(sandbox: &Sandbox, base: &url::Url, name: &str, args: &[&str]) -> Output {
+    sandbox
+        .rok(args)
+        .env(password_var(name), base.password().unwrap_or_default())
         .output()
-        .expect("failed to spawn rok binary")
+        .expect("spawn rok")
 }
 
-/// Runs `rok db ...` and returns the output.
-fn run_db_output(temp_dir: &TempDir, args: &[&str]) -> std::process::Output {
-    run_db(temp_dir, args)
-        .output()
-        .expect("failed to spawn rok binary")
+/// `SELECT current_database()` through `rok db query`, as the command
+/// resolves its connection.
+fn current_database(output: &Output) -> String {
+    assert_success(output);
+    json(output)["results"][0]["rows"][0][0]
+        .as_str()
+        .expect("a database name")
+        .to_owned()
 }
 
-/// Asserts the command succeeded.
-fn assert_success(output: &std::process::Output) {
-    if !output.status.success() {
-        panic!(
-            "command failed (exit code: {}):\nstdout: {}\nstderr: {}",
-            output.status.code().unwrap_or(-1),
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
+#[test]
+fn db_create_and_drop_require_a_name() {
+    let sandbox = Sandbox::new();
+    for command in ["create", "drop"] {
+        let output = sandbox.run(&["db", command]);
+        assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+        assert!(stderr(&output).contains("<NAME>"), "{}", stderr(&output));
+    }
+}
+
+#[test]
+fn db_commands_without_any_connection_say_what_to_set() {
+    let sandbox = Sandbox::new();
+    for args in [
+        &["db", "create", "x"][..],
+        &["db", "drop", "x", "--yes"],
+        &["db", "query", "SELECT 1"],
+    ] {
+        assert_error(
+            &sandbox.run(args),
+            "set DATABASE_URL or pass --database-url",
         );
     }
 }
 
-/// Asserts the command failed with the given message in stderr.
-fn assert_failure(output: &std::process::Output, expected_msg: &str) {
-    assert!(
-        !output.status.success(),
-        "expected failure but command succeeded"
-    );
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains(expected_msg),
-        "expected '{}' in stderr:\n{}",
-        expected_msg,
-        stderr
-    );
+#[test]
+fn db_commands_with_an_unknown_server_fail() {
+    let sandbox = Sandbox::new();
+    for args in [
+        &["db", "create", "x", "--server", "nope"][..],
+        &["db", "drop", "x", "--server", "nope", "--yes"],
+        &["db", "query", "SELECT 1", "--server", "nope"],
+    ] {
+        assert_error(&sandbox.run(args), "server 'nope' not found");
+    }
 }
 
-/// Gets the servers.toml path for a temp dir.
-#[allow(dead_code)]
-fn servers_toml_path(temp_dir: &TempDir) -> PathBuf {
-    let config_dir = temp_dir.path().join("config");
-    config_dir.join("servers.toml")
+#[test]
+fn db_command_on_a_server_without_a_password_names_the_variable() {
+    let sandbox = Sandbox::new();
+    sandbox.add_server("box", NOWHERE);
+    let output = sandbox.run(&["db", "query", "SELECT 1", "--server", "box"]);
+    assert_error(&output, "ROK_SERVER_BOX_PASSWORD not set");
 }
 
-/// Runs `rok server ...` with a custom config dir.
-fn run_server(temp_dir: &TempDir, args: &[&str]) -> Command {
-    let config_dir = temp_dir.path().join("config");
-    fs::create_dir_all(&config_dir).expect("create config dir");
-
-    let mut cmd = Command::new(env!("CARGO_BIN_EXE_rok"));
-    cmd.arg("server")
-        .args(args)
-        // ROK_CONFIG_DIR overrides the platform config directory (see config_dir())
-        .env("ROK_CONFIG_DIR", &config_dir)
-        // Never the real OS keychain: passwords come from the variables
-        .env("ROK_KEYCHAIN", "off")
-        .env_remove("ROK_SERVER_LOCAL_PASSWORD")
-        .env_remove("ROK_SERVER_STAGING_PASSWORD")
-        .env_remove("ROK_SERVER_CI_PASSWORD")
-        .env_remove("ROK_SERVER_TEST_PASSWORD");
-    cmd
-}
-
-/// Runs `rok server ...` and returns the output.
-fn run_server_output(temp_dir: &TempDir, args: &[&str]) -> std::process::Output {
-    run_server(temp_dir, args)
+#[test]
+fn db_errors_never_print_the_password() {
+    let sandbox = Sandbox::new();
+    sandbox.add_server("box", NOWHERE);
+    let output = sandbox
+        .rok(&["db", "create", "x", "--server", "box"])
+        .env("ROK_SERVER_BOX_PASSWORD", "s3cret-pw")
         .output()
-        .expect("failed to spawn rok binary")
+        .expect("spawn rok");
+    assert_error(&output, "can't connect to the database");
+    assert!(
+        !stderr(&output).contains("s3cret-pw"),
+        "{}",
+        stderr(&output)
+    );
+    assert!(
+        !stdout(&output).contains("s3cret-pw"),
+        "{}",
+        stdout(&output)
+    );
 }
 
-/// Adds a server to the temp config for testing.
-fn add_test_server(temp_dir: &TempDir, name: &str, host: &str, password: &str) {
-    let output = run_server_output(
-        temp_dir,
-        &[
-            "add",
-            name,
-            "--url",
-            &format!("postgres://postgres:{}@{}:5432/postgres", password, host),
-        ],
+#[test]
+fn db_drop_without_yes_and_a_wrong_name_drops_nothing() {
+    // Refused at the prompt, before connecting.
+    let output = run_with_input(
+        &Sandbox::new(),
+        &["db", "drop", "kept", "--database-url", NOWHERE],
+        "not-kept\n",
+    );
+    assert_error(&output, "confirmation failed: database name does not match");
+    assert!(
+        !stderr(&output).contains("can't connect"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn db_create_on_server() {
+    let Some(base) = database_url_or_skip("db_create_on_server") else {
+        return;
+    };
+    let sandbox = sandbox_with_server(&base, "qa");
+    let name = unique_name("create_server");
+
+    let output = on_server(
+        &sandbox,
+        &base,
+        "qa",
+        &["db", "create", &name, "--server", "qa"],
     );
     assert_success(&output);
+    assert_eq!(
+        stdout(&output),
+        format!("Database '{name}' created on server 'qa'.\n")
+    );
+    assert!(database_exists(&base, &name));
 
-    // Debug: print servers.toml content
-    let servers_path = temp_dir.path().join("config").join("servers.toml");
-    if servers_path.exists() {
-        let content = fs::read_to_string(&servers_path).expect("read servers.toml");
-        eprintln!("servers.toml content:\n{}", content);
-    } else {
-        eprintln!("servers.toml does not exist at {}", servers_path.display());
-    }
-    // Note: password is set via env var in each test that needs it
-}
-
-/// Helper to check if DATABASE_URL is set for integration tests.
-fn database_url() -> Option<String> {
-    std::env::var("DATABASE_URL").ok().filter(|u| !u.is_empty())
-}
-
-/// Extracts the database name from a DATABASE_URL.
-/// `url` pointed at the `postgres` maintenance database: only the path
-/// changes, so user and password stay as `DATABASE_URL` gives them.
-fn admin_url(url: &str) -> String {
-    let mut admin = url::Url::parse(url).expect("DATABASE_URL is a URL");
-    admin.set_path("/postgres");
-    admin.to_string()
+    let dropped = on_server(
+        &sandbox,
+        &base,
+        "qa",
+        &["db", "drop", &name, "--server", "qa", "--yes"],
+    );
+    assert_success(&dropped);
 }
 
 #[test]
-fn db_create_requires_database_name() {
-    let temp_dir = TempDir::new().expect("temp dir");
+fn db_drop_on_server() {
+    let Some(base) = database_url_or_skip("db_drop_on_server") else {
+        return;
+    };
+    let sandbox = sandbox_with_server(&base, "qa");
+    let name = unique_name("drop_server");
+    assert_success(&on_server(
+        &sandbox,
+        &base,
+        "qa",
+        &["db", "create", &name, "--server", "qa"],
+    ));
 
-    // Missing database name should fail
-    let output = run_db_output(&temp_dir, &["create"]);
-    assert_failure(&output, "required");
+    let output = on_server(
+        &sandbox,
+        &base,
+        "qa",
+        &["db", "drop", &name, "--server", "qa", "--yes"],
+    );
+    assert_success(&output);
+    assert_eq!(stdout(&output), format!("Database '{name}' dropped.\n"));
+    assert!(!database_exists(&base, &name));
 }
 
 #[test]
-fn db_create_with_database_url_flag() {
-    let temp_dir = TempDir::new().expect("temp dir");
+fn db_drop_typed_confirmation() {
+    let Some(base) = database_url_or_skip("db_drop_typed_confirmation") else {
+        return;
+    };
+    let admin = url_for(&base, "postgres");
+    let name = unique_name("typed");
+    let sandbox = Sandbox::new();
+    assert_success(&sandbox.run(&["db", "create", &name, "--database-url", &admin]));
 
-    // Should fail without a real database, but we can test the flag parsing
-    // and that it doesn't crash
-    let output = run_db_output(
-        &temp_dir,
-        &[
-            "create",
-            "test_db",
+    // A different name keeps the database.
+    let refused = run_with_input(
+        &sandbox,
+        &["db", "drop", &name, "--database-url", &admin],
+        "something_else\n",
+    );
+    assert_error(&refused, "confirmation failed");
+    assert!(database_exists(&base, &name));
+
+    // The exact name drops it; the prompt stays off stdout.
+    let output = run_with_input(
+        &sandbox,
+        &["db", "drop", &name, "--database-url", &admin, "--json"],
+        &format!("{name}\n"),
+    );
+    assert_success(&output);
+    assert!(stderr(&output).contains("Type the database name to confirm: "));
+    assert_eq!(
+        json(&output),
+        serde_json::json!({ "database": name, "dropped": true })
+    );
+    assert!(!database_exists(&base, &name));
+}
+
+#[test]
+fn db_drop_yes_flag() {
+    let Some(base) = database_url_or_skip("db_drop_yes_flag") else {
+        return;
+    };
+    let admin = url_for(&base, "postgres");
+    let name = unique_name("yes");
+    let sandbox = Sandbox::new();
+    assert_success(&sandbox.run(&["db", "create", &name, "--database-url", &admin]));
+
+    // `-y` needs no input at all (stdin is closed).
+    let output = sandbox
+        .rok(&["db", "drop", &name, "--database-url", &admin, "-y"])
+        .stdin(Stdio::null())
+        .output()
+        .expect("spawn rok");
+    assert_success(&output);
+    assert!(!stdout(&output).contains("confirm"), "{}", stdout(&output));
+    assert!(!database_exists(&base, &name));
+}
+
+#[test]
+fn db_drop_project_db_refused() {
+    let Some(base) = database_url_or_skip("db_drop_project_db_refused") else {
+        return;
+    };
+    let project = TestDb::create(&base, "project");
+    let sandbox = sandbox_with_server(&base, "qa");
+
+    // Refused through --database-url and through --server alike, even
+    // with --yes and a differently-cased name.
+    let upper = project.name.to_uppercase();
+    for args in [
+        vec![
+            "db",
+            "drop",
+            &project.name,
             "--database-url",
-            "postgres://user:pass@localhost:5432/postgres",
+            NOWHERE,
+            "--yes",
         ],
-    );
-    // The command will fail to connect, but should not be a usage error
-    // We just verify it parses correctly
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    // Should not contain "unexpected argument" or similar usage errors
-    assert!(!stderr.contains("unexpected argument"));
-    assert!(!stderr.contains("usage:"));
-}
-
-#[test]
-fn db_create_with_server_flag() {
-    let temp_dir = TempDir::new().expect("temp dir");
-
-    // Add a test server
-    add_test_server(&temp_dir, "local", "localhost", "secret");
-
-    // Should fail to connect (no real DB), but parse correctly
-    let output = run_db_with_server_pw_output(
-        &temp_dir,
-        "local",
-        "secret",
-        &["create", "test_db", "--server", "local"],
-    );
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    // Should not contain usage errors
-    assert!(
-        !stderr.contains("unexpected argument"),
-        "stderr: {}",
-        stderr
-    );
-    assert!(!stderr.contains("usage:"), "stderr: {}", stderr);
-    // Should fail with connection error
-    if !(stderr.contains("can't connect") || stderr.contains("connection")) {
-        eprintln!("stdout: {}", stdout);
-        eprintln!("stderr: {}", stderr);
-    }
-    assert!(
-        stderr.contains("can't connect") || stderr.contains("connection"),
-        "stderr: {}",
-        stderr
-    );
-}
-
-#[test]
-fn db_create_server_not_found() {
-    let temp_dir = TempDir::new().expect("temp dir");
-
-    let output = run_db_output(&temp_dir, &["create", "test_db", "--server", "nonexistent"]);
-    assert_failure(&output, "server 'nonexistent' not found");
-}
-
-#[test]
-fn db_create_json_output() {
-    let temp_dir = TempDir::new().expect("temp dir");
-    add_test_server(&temp_dir, "local", "localhost", "secret");
-
-    let output = run_db_with_server_pw_output(
-        &temp_dir,
-        "local",
-        "secret",
-        &["create", "test_db", "--server", "local", "--json"],
-    );
-    // Should produce JSON on stdout even on connection failure
-    let _stdout = String::from_utf8_lossy(&output.stdout);
-    // The JSON should be on stdout, errors on stderr
-    // We just verify it doesn't crash
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("can't connect") || stderr.contains("connection"));
-}
-
-#[test]
-fn db_drop_requires_database_name() {
-    let temp_dir = TempDir::new().expect("temp dir");
-
-    let output = run_db_output(&temp_dir, &["drop"]);
-    assert_failure(&output, "required");
-}
-
-#[test]
-fn db_drop_requires_confirmation_without_yes() {
-    let temp_dir = TempDir::new().expect("temp dir");
-    add_test_server(&temp_dir, "local", "localhost", "secret");
-
-    // Try to drop without --yes (should fail in non-interactive test)
-    let mut cmd = run_db_with_server_pw(
-        &temp_dir,
-        "local",
-        "secret",
-        &["drop", "test_db", "--server", "local"],
-    );
-    let output = cmd.output().expect("failed to spawn rok binary");
-
-    // Should fail because stdin is empty and confirmation doesn't match
-    assert!(!output.status.success());
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("confirmation failed") || stderr.contains("does not match"),
-        "stderr: {}",
-        stderr
-    );
-}
-
-#[test]
-fn db_drop_with_yes_skips_confirmation() {
-    let temp_dir = TempDir::new().expect("temp dir");
-    add_test_server(&temp_dir, "local", "localhost", "secret");
-
-    let output = run_db_with_server_pw_output(
-        &temp_dir,
-        "local",
-        "secret",
-        &["drop", "test_db", "--server", "local", "--yes"],
-    );
-    // Should not fail due to confirmation, but may fail due to connection
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    // Should not contain confirmation error
-    assert!(!stderr.contains("confirmation failed"));
-    assert!(!stderr.contains("does not match"));
-    // Should fail with connection error instead
-    assert!(stderr.contains("can't connect") || stderr.contains("connection"));
-}
-
-#[test]
-fn db_drop_server_not_found() {
-    let temp_dir = TempDir::new().expect("temp dir");
-
-    let output = run_db_output(
-        &temp_dir,
-        &["drop", "test_db", "--server", "nonexistent", "--yes"],
-    );
-    assert_failure(&output, "server 'nonexistent' not found");
-}
-
-#[test]
-fn db_drop_json_output() {
-    let temp_dir = TempDir::new().expect("temp dir");
-    add_test_server(&temp_dir, "local", "localhost", "secret");
-
-    let output = run_db_with_server_pw_output(
-        &temp_dir,
-        "local",
-        "secret",
-        &["drop", "test_db", "--server", "local", "--yes", "--json"],
-    );
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("can't connect") || stderr.contains("connection"));
-}
-
-/// Integration test: creates and drops a real database.
-/// Skips with a printed note when DATABASE_URL is not set.
-#[test]
-fn db_create_and_drop_integration() {
-    let Some(database_url) = database_url() else {
-        eprintln!("skipping: DATABASE_URL not set");
-        return;
-    };
-
-    let temp_dir = TempDir::new().expect("temp dir");
-    let admin_url = admin_url(&database_url);
-
-    // Create a test database
-    let db_name = format!("rok_test_{}", std::process::id());
-
-    let output = run_db_output(
-        &temp_dir,
-        &["create", &db_name, "--database-url", &admin_url],
-    );
-    assert_success(&output);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains(&format!("Database '{}' created", db_name)));
-
-    // Drop it with --yes
-    let output = run_db_output(
-        &temp_dir,
-        &["drop", &db_name, "--database-url", &admin_url, "--yes"],
-    );
-    assert_success(&output);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains(&format!("Database '{}' dropped", db_name)));
-}
-
-/// Integration test: the database the project's DATABASE_URL names is
-/// refused without --force, whichever connection the drop uses, and dropped
-/// with it. The "project" database is a throwaway this test creates; the real
-/// DATABASE_URL database is never named.
-/// Skips with a printed note when DATABASE_URL is not set.
-#[test]
-fn db_drop_guards_the_project_database_until_force() {
-    let Some(database_url) = database_url() else {
-        eprintln!("skipping: DATABASE_URL not set");
-        return;
-    };
-
-    let temp_dir = TempDir::new().expect("temp dir");
-    let admin_url = admin_url(&database_url);
-    let project_db = format!("rok_test_project_{}", std::process::id());
-    let mut project_url = url::Url::parse(&database_url).expect("DATABASE_URL is a URL");
-    project_url.set_path(&format!("/{project_db}"));
-    let as_project = |args: &[&str]| {
-        run_db(&temp_dir, args)
-            .env("DATABASE_URL", project_url.as_str())
+        vec!["db", "drop", &upper, "--server", "qa", "--yes"],
+    ] {
+        let output = sandbox
+            .rok(&args)
+            .env("DATABASE_URL", &project.url)
+            .env(password_var("qa"), base.password().unwrap_or_default())
             .output()
-            .expect("failed to spawn rok binary")
-    };
-
-    assert_success(&as_project(&[
-        "create",
-        &project_db,
-        "--database-url",
-        &admin_url,
-    ]));
-
-    // Refused without --force, even through another connection.
-    let output = as_project(&["drop", &project_db, "--database-url", &admin_url, "--yes"]);
-    assert_failure(&output, "refusing to drop the project's own database");
-    assert!(String::from_utf8_lossy(&output.stderr).contains("--force"));
-
-    // Dropped with --force.
-    assert_success(&as_project(&[
-        "drop",
-        &project_db,
-        "--database-url",
-        &admin_url,
-        "--yes",
-        "--force",
-    ]));
+            .expect("spawn rok");
+        assert_error(
+            &output,
+            "refusing to drop the project's own database (DATABASE_URL). Use --force to override.",
+        );
+    }
+    assert!(database_exists(&base, &project.name));
 }
 
-/// Integration test: server-based create and drop.
-/// Skips with a printed note when DATABASE_URL is not set.
 #[test]
-fn db_create_and_drop_with_server_integration() {
-    let Some(database_url) = database_url() else {
-        eprintln!("skipping: DATABASE_URL not set");
+fn db_drop_project_db_force() {
+    let Some(base) = database_url_or_skip("db_drop_project_db_force") else {
         return;
     };
+    // Created here rather than as a `TestDb`: the test itself drops it.
+    let admin = url_for(&base, "postgres");
+    let name = unique_name("project_force");
+    let sandbox = Sandbox::new();
+    assert_success(&sandbox.run(&["db", "create", &name, "--database-url", &admin]));
 
-    let temp_dir = TempDir::new().expect("temp dir");
-
-    // Parse the DATABASE_URL to get host for server config
-    let parsed = url::Url::parse(&database_url).expect("valid DATABASE_URL");
-    let host = parsed.host_str().unwrap_or("localhost");
-    let port = parsed.port().unwrap_or(5432);
-    let user = parsed.username();
-    let _project_db = parsed
-        .path_segments()
-        .and_then(|mut s| s.next())
-        .unwrap_or("postgres");
-    let admin_db = "postgres";
-
-    // Add a server pointing to the same host
-    let server_name = "test_server";
-    let password = std::env::var("ROK_SERVER_TEST_PASSWORD")
-        .ok()
-        .unwrap_or_else(|| {
-            // Try to extract from DATABASE_URL
-            parsed.password().unwrap_or("postgres").to_owned()
-        });
-
-    let server_url = format!(
-        "postgres://{}:{}@{}:{}/{}",
-        user, password, host, port, admin_db
-    );
-    let output = run_server_output(&temp_dir, &["add", server_name, "--url", &server_url]);
-    assert_success(&output);
-
-    // Set the password env var for the server
-    let env_var = format!(
-        "ROK_SERVER_{}_PASSWORD",
-        server_name.to_uppercase().replace('-', "_")
-    );
-
-    let db_name = format!("rok_test_{}", std::process::id());
-
-    // Create via server
-    let output = run_db(&temp_dir, &["create", &db_name, "--server", server_name])
-        .env(&env_var, &password)
-        .output()
-        .expect("failed to spawn rok binary");
-    assert_success(&output);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains(&format!(
-        "Database '{}' created on server '{}'",
-        db_name, server_name
-    )));
-
-    // Drop via server with --yes
-    let output = run_db(
-        &temp_dir,
-        &["drop", &db_name, "--server", server_name, "--yes"],
-    )
-    .env(&env_var, &password)
-    .output()
-    .expect("failed to spawn rok binary");
-    assert_success(&output);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains(&format!("Database '{}' dropped", db_name)));
-}
-
-/// Test connection resolution precedence: --database-url > --server > DATABASE_URL
-#[test]
-fn db_connection_resolution_precedence() {
-    let temp_dir = TempDir::new().expect("temp dir");
-    add_test_server(&temp_dir, "local", "localhost", "secret");
-
-    // When both --database-url and --server are given, --database-url should win
-    // We can't easily test which connection is used without a real DB,
-    // but we can verify the command parses and doesn't error on flag conflicts
-    let output = run_db_with_server_pw_output(
-        &temp_dir,
-        "local",
-        "secret",
-        &[
-            "create",
-            "test_db",
+    let output = sandbox
+        .rok(&[
+            "db",
+            "drop",
+            &name,
             "--database-url",
-            "postgres://user:pass@otherhost:5432/postgres",
-            "--server",
-            "local",
-        ],
+            &admin,
+            "--yes",
+            "--force",
+        ])
+        .env("DATABASE_URL", url_for(&base, &name))
+        .output()
+        .expect("spawn rok");
+    assert_success(&output);
+    assert!(!database_exists(&base, &name));
+}
+
+#[test]
+fn db_create_drop_json() {
+    let Some(base) = database_url_or_skip("db_create_drop_json") else {
+        return;
+    };
+    let sandbox = sandbox_with_server(&base, "qa");
+    let name = unique_name("json");
+
+    let created = on_server(
+        &sandbox,
+        &base,
+        "qa",
+        &["db", "create", &name, "--server", "qa", "--json"],
     );
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    // Should fail to connect to otherhost, not localhost
-    if !(stderr.contains("otherhost") || stderr.contains("can't connect")) {
-        eprintln!("stdout: {}", stdout);
-        eprintln!("stderr: {}", stderr);
-    }
+    assert_success(&created);
+    assert_eq!(
+        json(&created),
+        serde_json::json!({ "database": name, "created": true, "server": "qa" })
+    );
+
+    let dropped = on_server(
+        &sandbox,
+        &base,
+        "qa",
+        &["db", "drop", &name, "--server", "qa", "--yes", "--json"],
+    );
+    assert_success(&dropped);
+    assert_eq!(
+        json(&dropped),
+        serde_json::json!({ "database": name, "dropped": true, "server": "qa" })
+    );
+}
+
+#[test]
+fn db_create_and_drop_quote_the_name() {
+    let Some(base) = database_url_or_skip("db_create_and_drop_quote_the_name") else {
+        return;
+    };
+    let admin = url_for(&base, "postgres");
+    let name = format!("{} we\"ird; name", unique_name("quoted"));
+    let sandbox = Sandbox::new();
+
+    assert_success(&sandbox.run(&["db", "create", &name, "--database-url", &admin]));
+    assert!(database_exists(&base, &name));
+    assert_success(&sandbox.run(&["db", "drop", &name, "--database-url", &admin, "--yes"]));
+    assert!(!database_exists(&base, &name));
+}
+
+#[test]
+fn db_create_warns_when_it_falls_back_to_database_url() {
+    let Some(base) = database_url_or_skip("db_create_warns_when_it_falls_back_to_database_url")
+    else {
+        return;
+    };
+    let name = unique_name("fallback");
+    let sandbox = Sandbox::new();
+
+    let output = sandbox
+        .rok(&["db", "create", &name])
+        .env("DATABASE_URL", url_for(&base, "postgres"))
+        .output()
+        .expect("spawn rok");
+    assert_success(&output);
     assert!(
-        stderr.contains("otherhost") || stderr.contains("can't connect"),
-        "stderr: {}",
-        stderr
+        stderr(&output).starts_with("warning: no --server or --database-url"),
+        "{}",
+        stderr(&output)
     );
+    assert_success(&sandbox.run(&[
+        "db",
+        "drop",
+        &name,
+        "--database-url",
+        &url_for(&base, "postgres"),
+        "--yes",
+    ]));
 }
 
 #[test]
-fn db_drop_typed_confirmation_exact_match() {
-    let temp_dir = TempDir::new().expect("temp dir");
-    add_test_server(&temp_dir, "local", "localhost", "secret");
+fn db_precedence_database_url() {
+    let Some(base) = database_url_or_skip("db_precedence_database_url") else {
+        return;
+    };
+    let db = TestDb::create(&base, "prec_url");
+    // The server points nowhere: success proves it was not used.
+    let sandbox = Sandbox::new();
+    sandbox.add_server("elsewhere", NOWHERE);
 
-    // We can't easily test interactive input in automated tests,
-    // but we verified in db_drop_requires_confirmation_without_yes
-    // that the prompt is shown and empty input fails.
-    // The exact-match logic is tested at the unit level.
+    let output = sandbox
+        .rok(&[
+            "db",
+            "query",
+            "SELECT current_database()",
+            "--database-url",
+            &db.url,
+            "--server",
+            "elsewhere",
+            "--json",
+        ])
+        .env(password_var("elsewhere"), "unused")
+        .env("DATABASE_URL", NOWHERE)
+        .output()
+        .expect("spawn rok");
+    assert_eq!(current_database(&output), db.name);
 }
 
 #[test]
-fn db_create_warns_when_using_project_database_url() {
-    let _temp_dir = TempDir::new().expect("temp dir");
+fn db_precedence_server() {
+    let Some(base) = database_url_or_skip("db_precedence_server") else {
+        return;
+    };
+    let db = TestDb::create(&base, "prec_server");
+    let sandbox = Sandbox::new();
+    sandbox.add_server("qa", &db.url);
 
-    // When using DATABASE_URL (project DB) for create, should warn
-    // We can't easily test this without a real DB, but the logic
-    // should be in the implementation.
+    // DATABASE_URL points nowhere: success proves the server was used.
+    let output = sandbox
+        .rok(&[
+            "db",
+            "query",
+            "SELECT current_database()",
+            "--server",
+            "qa",
+            "--json",
+        ])
+        .env(password_var("qa"), base.password().unwrap_or_default())
+        .env("DATABASE_URL", NOWHERE)
+        .output()
+        .expect("spawn rok");
+    assert_eq!(current_database(&output), db.name);
+}
+
+#[test]
+fn db_precedence_env() {
+    let Some(base) = database_url_or_skip("db_precedence_env") else {
+        return;
+    };
+    let db = TestDb::create(&base, "prec_env");
+
+    let output = Sandbox::new()
+        .rok(&["db", "query", "SELECT current_database()", "--json"])
+        .env("DATABASE_URL", &db.url)
+        .output()
+        .expect("spawn rok");
+    assert_eq!(current_database(&output), db.name);
 }

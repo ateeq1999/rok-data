@@ -1,7 +1,7 @@
 # Ticket 07: Integration tests for servers and db commands
 
 **Blocked by:** 03-server-add-list-remove-commands, 04-db-create-drop-with-server, 05-db-query-transaction
-**Status:** ready-for-agent
+**Status:** done
 
 ## Scope
 
