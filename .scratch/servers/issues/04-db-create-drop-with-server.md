@@ -1,7 +1,7 @@
 # Ticket 04: `rok db create|drop` with --server support
 
 **Blocked by:** 01-servers-toml-and-config-dir, 02-keychain-integration
-**Status:** ready-for-agent
+**Status:** done
 
 ## Scope
 

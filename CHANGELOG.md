@@ -37,6 +37,15 @@ that it exists and won't ship a tag without it).
     Removes server and its password; `--yes` skips confirmation prompt.
   All three commands support `--json` for machine-readable output.
 
+- `rok db create|drop` with `--server` support (ticket 04, ADR 0028).
+  - `rok db create <DBNAME> [--database-url <URL>] [--server <NAME>] [--json]`
+    Creates a database on the target server. Connection resolution: `--database-url` > `--server` > `DATABASE_URL`.
+  - `rok db drop <DBNAME> [--database-url <URL>] [--server <NAME>] [--yes] [--force] [--json]`
+    Drops a database on the target server. Typed-name confirmation required (`--yes` bypasses for scripts).
+    Refuses to drop the project's own database (from `DATABASE_URL`) unless `--force` is given.
+  - Both commands support `--json` for machine-readable output.
+  - SQL identifiers are quoted safely using double quotes.
+
 ## [0.5.0] — production-ready templates
 
 Not breaking. The runtime and the generated API are unchanged. The

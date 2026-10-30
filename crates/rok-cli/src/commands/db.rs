@@ -1,4 +1,4 @@
-//! `rok db check` and `rok db inspect`.
+//! `rok db check`, `inspect`, `create`, `drop`.
 
 use std::process::ExitCode;
 
@@ -109,5 +109,106 @@ pub(crate) async fn inspect(
             }
         }
     }
+    Ok(ExitCode::SUCCESS)
+}
+
+/// `rok db create <DBNAME>`: creates a database on the target server.
+pub(crate) async fn create(
+    name: &str,
+    database_url: Option<&str>,
+    server: Option<&str>,
+    json: bool,
+) -> Result<ExitCode, String> {
+    // Resolve connection: --database-url > --server > DATABASE_URL
+    let connection = if let Some(url) = database_url {
+        context::Connection::resolve(Some(url))?
+    } else if let Some(server_name) = server {
+        context::Connection::resolve_with_server(server_name)?
+    } else {
+        context::Connection::resolve(database_url)?
+    };
+
+    // Connect to the admin database (postgres) to create the new database
+    let db = connection.probe_into_db().await?;
+
+    // CREATE DATABASE needs autocommit (outside transaction)
+    let sql = format!(r#"CREATE DATABASE "{}""#, name);
+    rok_data::raw(&sql)
+        .execute(&db)
+        .await
+        .map_err(|e| format!("failed to create database: {e}"))?;
+
+    if json {
+        json_line(crate::output::db_create_json(name, server));
+    } else if let Some(server_name) = server {
+        println!("Database '{name}' created on server '{server_name}'.");
+    } else {
+        println!("Database '{name}' created.");
+    }
+
+    Ok(ExitCode::SUCCESS)
+}
+
+/// `rok db drop <DBNAME>`: drops a database on the target server.
+pub(crate) async fn drop(
+    name: &str,
+    database_url: Option<&str>,
+    server: Option<&str>,
+    yes: bool,
+    force: bool,
+    json: bool,
+) -> Result<ExitCode, String> {
+    // Resolve connection: --database-url > --server > DATABASE_URL
+    let connection = if let Some(url) = database_url {
+        context::Connection::resolve(Some(url))?
+    } else if let Some(server_name) = server {
+        context::Connection::resolve_with_server(server_name)?
+    } else {
+        context::Connection::resolve(database_url)?
+    };
+
+    // Project database protection: refuse to drop the project's own database
+    // unless --force is given.
+    let project_db = context::extract_project_db_name(database_url);
+    if !force
+        && let Some(ref project_db) = project_db
+        && project_db.eq_ignore_ascii_case(name)
+    {
+        return Err(
+            "refusing to drop the project's own database (DATABASE_URL). Use --force to override."
+                .to_owned(),
+        );
+    }
+
+    // Typed-name confirmation (unless --yes)
+    if !yes {
+        use std::io::{Write, stdin, stdout};
+        print!("Type the database name to confirm: ");
+        stdout().flush().map_err(|e| e.to_string())?;
+
+        let mut input = String::new();
+        stdin().read_line(&mut input).map_err(|e| e.to_string())?;
+
+        if input.trim() != name {
+            return Err("confirmation failed: database name does not match".to_owned());
+        }
+    }
+
+    // Connect to the admin database (postgres) to drop the database
+    let db = connection.probe_into_db().await?;
+
+    // DROP DATABASE needs autocommit (outside transaction)
+    let sql = format!(r#"DROP DATABASE "{}""#, name);
+    rok_data::raw(&sql)
+        .execute(&db)
+        .await
+        .map_err(|e| format!("failed to drop database: {e}"))?;
+
+    if json {
+        json_line(crate::output::db_drop_json(name, server));
+    } else {
+        println!("Database '{name}' dropped.");
+    }
+
     Ok(ExitCode::SUCCESS)
 }

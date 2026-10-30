@@ -30,6 +30,8 @@ the `sqlc` subtree — the engine's `crates/rok-data-sqlc/src/cli.rs`, which
 `rok` forwards to verbatim.
 
 ```text
+rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
+rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
 rok init [NAME]                   scaffold a project (skeleton or template)
 rok gen [OPTIONS] [check]         data layer and API features from the schema dir
 rok generate [OPTIONS] [check]      legacy: model-crate generator
@@ -70,6 +72,8 @@ scaffolds), and their removal is deferred to 1.0.
 ## `rok init` — scaffold a project
 
 ```text
+rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
+rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
 Usage: rok init [OPTIONS] [NAME]
 ```
 
@@ -108,6 +112,8 @@ unreadable `--schema` file) prints `error: …` on stderr and exits 1.
 ## `rok gen` — the front door: the data layer from the schema dir
 
 ```text
+rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
+rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
 Usage: rok gen [OPTIONS] [COMMAND]
 ```
 
@@ -216,6 +222,8 @@ group's; the booleans OR.
 ## `rok generate` — whole-crate generation (legacy)
 
 ```text
+rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
+rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
 Usage: rok generate [OPTIONS] [COMMAND]
 ```
 
@@ -286,16 +294,81 @@ matching file). Checksum drift on an applied file is fatal to `up` /
 ```text
 rok db check   [--database-url] [--json]  connect, ping, server version, pool settings
 rok db inspect [--database-url] [--json] [--table T]  user tables; or one table's
-                                          columns (name, type, length, nullability,
-                                          default, is_pk), indexes and foreign keys
+                                           columns (name, type, length, nullability,
+                                           default, is_pk), indexes and foreign keys
+rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
+rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
 ```
 
-Both commands use `information_schema`/`pg_catalog` via
+Both `check` and `inspect` use `information_schema`/`pg_catalog` via
 `rok-data-core::introspect`.
+
+
+### `rok db create <DBNAME> [OPTIONS]`
+
+Creates a new database on the target server.
+
+| Flag                  | Meaning                                                            |
+| --------------------- | ------------------------------------------------------------------ |
+| `DBNAME`              | Name of the database to create                                     |
+| `--database-url <URL>`| Ad-hoc connection URL (takes precedence over `--server` and `DATABASE_URL`) |
+| `--server <NAME>`     | Use a registered server (mutually exclusive with `--database-url`) |
+| `--json`              | Print machine-readable JSON output                                 |
+
+Connection resolution precedence:
+1. `--database-url` (explicit ad-hoc)
+2. `--server <NAME>` (resolved via `servers.toml` + keychain/env)
+3. `DATABASE_URL` (project default)
+
+When `--server` is used, the connection URL is built from the server config + password from keychain/env. The `database` field from the server config is used as the initial connection database (typically `postgres` for admin ops).
+
+**Examples:**
+
+```
+$ rok db create myapp_staging --server staging
+Database 'myapp_staging' created on server 'staging'.
+
+$ rok db create test_db --database-url postgres://user:pass@host/db
+Database 'test_db' created.
+```
+
+### `rok db drop <DBNAME> [OPTIONS]`
+
+Drops a database on the target server. Requires typed confirmation: the user must type the database name exactly. `--yes` bypasses for scripts. Refuses to drop the database named in the project's `DATABASE_URL` unless `--force` is given.
+
+| Flag                  | Meaning                                                            |
+| --------------------- | ------------------------------------------------------------------ |
+| `DBNAME`              | Name of the database to drop                                       |
+| `--database-url <URL>`| Ad-hoc connection URL (takes precedence over `--server` and `DATABASE_URL`) |
+| `--server <NAME>`     | Use a registered server (mutually exclusive with `--database-url`) |
+| `--yes`               | Skip typed-name confirmation prompt (for scripts)                  |
+| `--force`             | Allow dropping the project's own database (from `DATABASE_URL`)    |
+| `--json`              | Print machine-readable JSON output                                 |
+
+Connection resolution follows the same precedence as `create`.
+
+**Examples:**
+
+```
+$ rok db drop old_db --server local
+Type the database name to confirm: old_db
+Database 'old_db' dropped.
+
+$ rok db drop myapp_prod --server prod --yes
+Database 'myapp_prod' dropped.
+
+$ rok db drop myapp --server local   # myapp is the project's DATABASE_URL database
+error: refusing to drop the project's own database (DATABASE_URL). Use --force to override.
+
+$ rok db drop myapp --server local --force --yes
+Database 'myapp' dropped.
+```
 
 ## `rok schema` — live schema, and journal consistency
 
 ```text
+rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
+rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
 rok schema dump [--database-url]       approximate CREATE TABLE DDL for every user table
 rok schema diff [--database-url] [--dir migrations]
                                        compares the journal's applied migrations with
@@ -307,6 +380,8 @@ rok schema diff [--database-url] [--dir migrations]
 ## `rok server` — per-user server registry (ADR 0028)
 
 ```text
+rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
+rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
 rok server add <NAME> [--url <URL>] [--host <HOST>] [--port <PORT>] [--user <USER>] [--database <DB>] [--sslmode <MODE>] [--password-prompt] [--json]
 rok server list [--json]
 rok server remove <NAME> [--yes] [--json]

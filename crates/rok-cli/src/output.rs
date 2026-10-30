@@ -101,6 +101,30 @@ impl PasswordStatus {
     }
 }
 
+/// JSON output for `rok db create --json`.
+pub(crate) fn db_create_json(name: &str, server: Option<&str>) -> Value {
+    let mut obj = json!({
+        "database": name,
+        "created": true,
+    });
+    if let Some(server) = server {
+        obj["server"] = json!(server);
+    }
+    obj
+}
+
+/// JSON output for `rok db drop --json`.
+pub(crate) fn db_drop_json(name: &str, server: Option<&str>) -> Value {
+    let mut obj = json!({
+        "database": name,
+        "dropped": true,
+    });
+    if let Some(server) = server {
+        obj["server"] = json!(server);
+    }
+    obj
+}
+
 /// Standard machine-readable `ok`/`error` JSON footer used by `--json`
 /// commands: everything the success/exit behavior reports.
 pub(crate) fn json_line(value: Value) {
