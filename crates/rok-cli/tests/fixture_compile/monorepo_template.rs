@@ -143,11 +143,14 @@ fn monorepo_template_checks_in_what_generation_writes() -> Result<()> {
 #[test]
 fn monorepo_api_app_compiles_and_passes_checks() -> Result<()> {
     let project = materialize()?;
-    // `cargo test --workspace` from the root builds and tests the api App.
-    let status = cargo(project.path(), &["test", "--workspace"]).status()?;
+    // `cargo test -p axum-api` from the root builds and tests the api App.
+    // The desktop App, the other Rust member, has its own gate
+    // (`desktop_app.rs`): GPUI's build is slow and needs system libraries
+    // on Linux, so the Rust matrix does not pay for it here.
+    let status = cargo(project.path(), &["test", "-p", "axum-api"]).status()?;
     ensure!(
         status.success(),
-        "`cargo test --workspace` failed: {status}"
+        "`cargo test -p axum-api` failed: {status}"
     );
     Ok(())
 }
