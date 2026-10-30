@@ -19,6 +19,17 @@ that it exists and won't ship a tag without it).
   `config_dir()`, `servers_path()`, `read_servers()`, `write_servers()`,
   `ServerConfig`, `ServersConfig` (ticket 01, ADR 0028).
 
+- OS keychain integration for server passwords (ticket 02, ADR 0028).
+  Uses the `keyring` crate (macOS Keychain, Windows Credential Manager,
+  Linux `libsecret` via `secret-service`). Service name: `rok`.
+  Account name: the server name.
+  Fallback: environment variable `ROK_SERVER_<NAME>_PASSWORD`
+  (uppercase, hyphens → underscores) when no keychain is available (CI/headless).
+  New library API in `rok_data_cli::keychain`:
+  `store_password()`, `get_password()`, `delete_password()`, `env_var_name()`,
+  `KeychainError`.
+  New command group `rok server add|list|remove` for managing the server registry.
+
 ## [0.5.0] — production-ready templates
 
 Not breaking. The runtime and the generated API are unchanged. The

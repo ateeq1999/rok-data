@@ -30,10 +30,13 @@ anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 dirs = "6"
+keyring = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+thiserror = "1"
 tokio = { version = "1", features = ["rt", "macros", "time"] }
 toml = { version = "1", default-features = false, features = ["parse", "serde"] }
+url = "2"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

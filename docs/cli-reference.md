@@ -36,6 +36,7 @@ rok generate [OPTIONS] [check]      legacy: model-crate generator
 rok migrate <COMMAND>               runs migrations on the database
 rok db <COMMAND>                    connectivity / structure of a database
 rok schema <COMMAND>                live schema as DDL; journal-vs-files diff
+rok server <COMMAND>                per-user server registry (ADR 0028)
 rok sqlc <COMMAND>                  legacy: resource-module generator (engine)
 ```
 
@@ -302,6 +303,71 @@ rok schema diff [--database-url] [--dir migrations]
 ```
 
 `diff` is the CI guard: exit 1 when journal and files disagree.
+
+## `rok server` — per-user server registry (ADR 0028)
+
+```text
+rok server add <NAME> [--url <URL>] [--host <HOST>] [--port <PORT>] [--user <USER>] [--database <DB>] [--sslmode <MODE>] [--password-prompt]
+rok server list
+rok server remove <NAME>
+```
+
+Manages a per-user registry of PostgreSQL servers in `servers.toml` (located in the OS config directory: `$XDG_CONFIG_HOME/rok`, `~/Library/Application Support/rok`, `%APPDATA%\rok`). Passwords are stored in the OS keychain (macOS Keychain, Windows Credential Manager, Linux `libsecret`) under service `rok`, account `<NAME>`. When no keychain is available (headless Linux, CI), the password is read from the environment variable `ROK_SERVER_<NAME>_PASSWORD` (uppercase, hyphens → underscores).
+
+### `rok server add <NAME> [OPTIONS]`
+
+Registers a new server. The password is extracted from the URL (if present) and stored in the OS keychain. If no keychain is available, a warning is printed and the user is instructed to set the `ROK_SERVER_<NAME>_PASSWORD` environment variable.
+
+| Flag                  | Meaning                                                            |
+| --------------------- | ------------------------------------------------------------------ |
+| `NAME`                | Name of the server (used as the keychain account)                  |
+| `--url <URL>`         | Connection URL: `postgres://user:password@host:port/db?sslmode=...`; password extracted and stored in keychain; conflicts with `--host`, `--user`, `--database`, `--sslmode`, `--password-prompt` |
+| `--host <HOST>`       | Hostname or IP address (requires `--user`)                         |
+| `--port <PORT>`       | Port number (default: 5432)                                        |
+| `--user <USER>`       | Database user                                                      |
+| `--database <DB>`     | Default database for admin operations (default: `postgres`)        |
+| `--sslmode <MODE>`    | SSL mode: `disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full` |
+| `--password-prompt`   | Prompt for password interactively (hidden input); conflicts with `--url` |
+
+**Examples:**
+
+```
+$ rok server add local --url postgres://postgres:secret@localhost:5432/postgres
+Server 'local' added. Password stored in OS keychain (service: rok, account: local).
+
+$ rok server add staging --host staging-db.example.com --user rok --password-prompt
+Server 'staging' added. Password stored in OS keychain (service: rok, account: staging).
+
+$ rok server add ci --url postgres://user@host/db   # no password in URL
+warning: OS keychain unavailable: ...
+Set ROK_SERVER_CI_PASSWORD in the environment to provide the password.
+Server 'ci' added (password from ROK_SERVER_CI_PASSWORD).
+```
+
+### `rok server list`
+
+Lists all registered servers, masking passwords. Shows the resolved host:port and whether a password is present in the keychain/env.
+
+```
+$ rok server list
+NAME     HOST                    PORT  USER   DEFAULT DB  PASSWORD
+local    localhost               5432  postgres  postgres   keychain ✓
+staging  staging-db.example.com  5432  rok       postgres   keychain ✓
+ci       ci-db.example.com       5432  ciuser    postgres   env ROK_SERVER_CI_PASSWORD ✓
+```
+
+### `rok server remove <NAME>`
+
+Removes the server from `servers.toml` and deletes its password from the keychain (or instructs to unset the env var).
+
+```
+$ rok server remove ci
+Server 'ci' removed. Password deleted from OS keychain.
+
+$ rok server remove ci   # when keychain unavailable
+warning: OS keychain unavailable: ...
+Unset ROK_SERVER_CI_PASSWORD if no longer needed.
+```
 
 ## `rok sqlc` — resource-module generator (delegated engine, legacy)
 

@@ -8,6 +8,7 @@ pub mod generate;
 pub mod init;
 pub mod migrate;
 pub mod schema;
+pub mod server;
 pub mod sqlc;
 #[cfg(rok_tools)]
 pub(crate) mod tools;
@@ -66,5 +67,6 @@ pub(crate) async fn execute(command: Command) -> Result<ExitCode, String> {
                 schema::diff(&dir, database_url.as_deref()).await
             }
         },
+        Command::Server(action) => server::run(action),
     }
 }

@@ -1,7 +1,7 @@
 # Ticket 02: OS keychain integration (password storage)
 
 **Blocked by:** 01-servers-toml-and-config-dir
-**Status:** ready-for-agent
+**Status:** done
 
 ## Scope
 
