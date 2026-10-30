@@ -14,7 +14,7 @@
 //! rok db check|inspect
 //! rok schema dump|diff
 //! rok sqlc generate|init|check-arch   # legacy: forwarded to the engine
-//! rok tools <tool> [ARGS]             # forwarded to rok-tools (`tools` feature)
+//! rok tools <tool> [ARGS]             # forwarded to rok-tools (`tools` feature, not yet available)
 //! ```
 //!
 //! `rok generate` and `rok sqlc …` are the legacy surfaces
@@ -25,6 +25,13 @@
 //! front door, their removal deferred to 1.0.
 
 use std::process::ExitCode;
+
+// `rok tools` needs rok-tools-cli, which is not on crates.io yet (ADR 0026).
+#[cfg(feature = "tools")]
+compile_error!(
+    "the `tools` feature needs rok-tools-cli, which is not published yet: restore its \
+     dependency in crates/rok-cli/Cargo.toml to build `rok tools` locally"
+);
 
 mod cli;
 pub mod commands;
