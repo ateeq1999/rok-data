@@ -46,6 +46,12 @@ that it exists and won't ship a tag without it).
   - Both commands support `--json` for machine-readable output.
   - SQL identifiers are quoted safely using double quotes.
 
+- The monorepo template (`rok init --template monorepo`) ships its web
+  App at `apps/web`: the TanStack Start starter, run with plain bun, its
+  dev server pointed at `apps/api` (`127.0.0.1:8080`). `init --template`
+  now copies a template's binary files (the web App's `favicon.ico` and
+  `logo.png`) byte for byte (0027 ticket 03, workspace ADR 0027).
+
 ## [0.5.0] — production-ready templates
 
 Not breaking. The runtime and the generated API are unchanged. The

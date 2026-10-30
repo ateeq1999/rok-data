@@ -189,8 +189,8 @@ pub fn apply_files(files: &[(PathBuf, String)], dry_run: bool, force: bool) -> R
 
 /// Writes each file that does not exist yet, creating its directory, and
 /// leaves every existing file as it is, whoever wrote it. Returns the files
-/// written.
-pub fn write_absent(files: &[(PathBuf, String)]) -> Result<Vec<PathBuf>> {
+/// written. The contents are text or, for a template's binary files, bytes.
+pub fn write_absent<C: AsRef<[u8]>>(files: &[(PathBuf, C)]) -> Result<Vec<PathBuf>> {
     let mut written = Vec::new();
     for (path, contents) in files {
         if path.exists() {

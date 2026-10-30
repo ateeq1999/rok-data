@@ -7,6 +7,10 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+- `init --template` copies a template's binary files (not UTF-8, such as
+  a web App's `favicon.ico`) byte for byte; text files are copied as
+  before, with `\n` line endings (workspace ADR 0027).
+
 ## Workspace 0.5.0 - 2026-10-30
 
 Published as `rok-data-sqlc` 0.5.0 with the workspace (root `CHANGELOG.md`).
