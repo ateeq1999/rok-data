@@ -312,7 +312,7 @@ rok server list [--json]
 rok server remove <NAME> [--yes] [--json]
 ```
 
-Manages a per-user registry of PostgreSQL servers in `servers.toml` (located in the OS config directory: `$XDG_CONFIG_HOME/rok`, `~/Library/Application Support/rok`, `%APPDATA%\rok`). Passwords are stored in the OS keychain (macOS Keychain, Windows Credential Manager, Linux `libsecret`) under service `rok`, account `<NAME>`. When no keychain is available (headless Linux, CI), the password is read from the environment variable `ROK_SERVER_<NAME>_PASSWORD` (uppercase, hyphens → underscores).
+Manages a per-user registry of PostgreSQL servers in `servers.toml` (located in the OS config directory: `$XDG_CONFIG_HOME/rok`, `~/Library/Application Support/rok`, `%APPDATA%\rok`). Passwords are stored in the OS keychain (macOS Keychain, Windows Credential Manager, Linux `libsecret`) under service `rok`, account `<NAME>`. When no keychain is available (headless Linux, CI), the password is read from the environment variable `ROK_SERVER_<NAME>_PASSWORD` (uppercase, hyphens → underscores). `ROK_KEYCHAIN=off` skips the keychain entirely, so passwords come only from that variable (for CI). `ROK_CONFIG_DIR` overrides the directory `servers.toml` lives in.
 
 ### `rok server add <NAME> [OPTIONS]`
 

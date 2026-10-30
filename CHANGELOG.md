@@ -25,9 +25,8 @@ that it exists and won't ship a tag without it).
   Account name: the server name.
   Fallback: environment variable `ROK_SERVER_<NAME>_PASSWORD`
   (uppercase, hyphens → underscores) when no keychain is available (CI/headless).
-  New library API in `rok_data_cli::keychain`:
-  `store_password()`, `get_password()`, `delete_password()`, `env_var_name()`,
-  `KeychainError`.
+  `ROK_KEYCHAIN=off` skips the keychain entirely, so passwords come only from
+  that variable; `ROK_CONFIG_DIR` overrides where `servers.toml` lives.
 
 - Command group `rok server add|list|remove` for managing the server registry (ticket 03, ADR 0028).
   - `rok server add <NAME> [--url <URL>] [--host <HOST>] [--port <PORT>] [--user <USER>] [--database <DB>] [--sslmode <MODE>] [--password-prompt] [--json]`

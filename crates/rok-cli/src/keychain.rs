@@ -11,7 +11,8 @@
 //!
 //! Nothing probes the keychain: an operation is attempted, and a keychain
 //! that cannot be reached (headless Linux, CI) is reported as `Unavailable`,
-//! naming the variable to set instead.
+//! naming the variable to set instead. `ROK_KEYCHAIN=off` skips the
+//! keychain entirely (CI, tests): passwords then come only from the variable.
 
 use std::env;
 
@@ -75,6 +76,32 @@ impl KeychainStore for OsKeychain {
     }
 }
 
+/// No keychain at all, for `ROK_KEYCHAIN=off`: nothing is stored or read,
+/// so passwords come only from `ROK_SERVER_<NAME>_PASSWORD`.
+struct NoKeychain;
+
+impl KeychainStore for NoKeychain {
+    fn store(&self, _server_name: &str, _password: &str) -> Result<(), keyring::Error> {
+        Err(keyring::Error::NoStorageAccess(
+            "the OS keychain is off (ROK_KEYCHAIN=off)".into(),
+        ))
+    }
+
+    fn get(&self, _server_name: &str) -> Result<Option<String>, keyring::Error> {
+        Ok(None)
+    }
+
+    fn delete(&self, _server_name: &str) -> Result<(), keyring::Error> {
+        Ok(())
+    }
+}
+
+/// The store `ROK_KEYCHAIN` selects: none when it is `off`, else the OS keychain.
+fn os_store() -> &'static dyn KeychainStore {
+    let off = env::var("ROK_KEYCHAIN").is_ok_and(|value| value.eq_ignore_ascii_case("off"));
+    if off { &NoKeychain } else { &OsKeychain }
+}
+
 /// The `Unavailable` error for a keychain failure, naming the fallback variable.
 fn unavailable(server_name: &str, error: &keyring::Error) -> KeychainError {
     KeychainError::Unavailable(format!(
@@ -88,7 +115,7 @@ fn unavailable(server_name: &str, error: &keyring::Error) -> KeychainError {
 /// Returns `KeychainError::Unavailable`, naming the environment variable to
 /// set instead, when the keychain cannot be reached.
 pub(crate) fn store_password(server_name: &str, password: &str) -> Result<(), KeychainError> {
-    store_in(&OsKeychain, server_name, password)
+    store_in(os_store(), server_name, password)
 }
 
 /// Retrieves a password: the OS keychain first, then the environment variable.
@@ -97,14 +124,14 @@ pub(crate) fn store_password(server_name: &str, password: &str) -> Result<(), Ke
 /// works with the variable alone. Returns `KeychainError::NotFound` when
 /// neither has the password.
 pub(crate) fn get_password(server_name: &str) -> Result<String, KeychainError> {
-    get_in(&OsKeychain, server_name, |name| env::var(name).ok())
+    get_in(os_store(), server_name, |name| env::var(name).ok())
 }
 
 /// Deletes a password from the OS keychain; an absent entry is not an error.
 ///
 /// Returns `KeychainError::Unavailable` when the keychain cannot be reached.
 pub(crate) fn delete_password(server_name: &str) -> Result<(), KeychainError> {
-    delete_in(&OsKeychain, server_name)
+    delete_in(os_store(), server_name)
 }
 
 fn store_in(

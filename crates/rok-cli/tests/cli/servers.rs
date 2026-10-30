@@ -19,8 +19,8 @@ fn run_server(temp_dir: &TempDir, args: &[&str]) -> Command {
         .args(args)
         // ROK_CONFIG_DIR overrides the platform config directory (see config_dir())
         .env("ROK_CONFIG_DIR", &config_dir)
-        // Ensure no real keychain is probed
-        .env("ROK_TEST_NO_KEYCHAIN", "1")
+        // Never the real OS keychain: passwords come from the variables
+        .env("ROK_KEYCHAIN", "off")
         .env_remove("ROK_SERVER_LOCAL_PASSWORD")
         .env_remove("ROK_SERVER_STAGING_PASSWORD")
         .env_remove("ROK_SERVER_CI_PASSWORD")
@@ -317,8 +317,12 @@ fn server_add_list_remove_json_output() {
     assert!(stdout.contains("\"added\":true"));
     assert!(stdout.contains("\"password_stored_in_keychain\""));
 
-    // List with --json
-    let output = run_server_output(&temp_dir, &["list", "--json"]);
+    // List with --json: with the keychain off, the password comes from the
+    // variable, as on CI.
+    let output = run_server(&temp_dir, &["list", "--json"])
+        .env("ROK_SERVER_LOCAL_PASSWORD", "from-env")
+        .output()
+        .expect("failed to spawn rok binary");
     assert_success(&output);
 
     let stdout = String::from_utf8_lossy(&output.stdout);
