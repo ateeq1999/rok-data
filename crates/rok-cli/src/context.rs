@@ -33,6 +33,19 @@ impl Connection {
         })
     }
 
+    /// Resolve the connection of a command that acts on a server:
+    /// `--database-url`, else `--server`, else `DATABASE_URL` (ADR 0028).
+    pub(crate) fn resolve_target(
+        database_url: Option<&str>,
+        server: Option<&str>,
+    ) -> Result<Self, String> {
+        match (database_url.filter(|u| !u.is_empty()), server) {
+            (Some(url), _) => Self::resolve(Some(url)),
+            (None, Some(server)) => Self::resolve_with_server(server),
+            (None, None) => Self::resolve(None),
+        }
+    }
+
     /// Resolve connection using a registered server name.
     /// Builds the URL from servers.toml + password from keychain/env.
     pub(crate) fn resolve_with_server(server_name: &str) -> Result<Self, String> {
@@ -67,6 +80,12 @@ impl Connection {
             Some(q) => rest[..q].to_owned(),
             None => rest,
         }
+    }
+
+    /// One un-pooled connection, with the diagnostics every other connect
+    /// gives: for work that needs a single session, such as a transaction.
+    pub(crate) async fn connect(&self) -> Result<rok_data::sqlx::postgres::PgConnection, String> {
+        self.probe().await
     }
 
     /// One un-pooled connection to surface reachability/auth errors fast.

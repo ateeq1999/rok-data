@@ -1,8 +1,8 @@
-//! `rok db check|inspect|create|drop`.
+//! `rok db check|inspect|create|drop|query`.
 
 use clap::Subcommand;
 
-/// `rok db check|inspect|create|drop`.
+/// `rok db check|inspect|create|drop|query`.
 #[derive(Debug, Subcommand)]
 pub(crate) enum DbAction {
     /// Connect, ping, and report server version plus pool settings.
@@ -56,6 +56,21 @@ pub(crate) enum DbAction {
         /// Allow dropping the project's own database (from DATABASE_URL).
         #[arg(long)]
         force: bool,
+        /// Print a machine-readable JSON object.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Run SQL in one transaction that commits only when every statement succeeds.
+    Query {
+        /// The SQL to run; several statements are separated by `;`.
+        #[arg(value_name = "SQL")]
+        sql: String,
+        /// The database to connect to (default: DATABASE_URL).
+        #[arg(long, value_name = "URL")]
+        database_url: Option<String>,
+        /// Use a registered server (default: DATABASE_URL).
+        #[arg(long, value_name = "NAME")]
+        server: Option<String>,
         /// Print a machine-readable JSON object.
         #[arg(long)]
         json: bool,

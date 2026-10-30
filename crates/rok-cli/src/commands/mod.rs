@@ -87,6 +87,12 @@ pub(crate) async fn execute(command: Command) -> Result<ExitCode, String> {
                 )
                 .await
             }
+            DbAction::Query {
+                sql,
+                database_url,
+                server,
+                json,
+            } => db::query(&sql, database_url.as_deref(), server.as_deref(), json).await,
         },
         Command::Schema(action) => match action {
             SchemaAction::Dump { database_url } => schema::dump(database_url.as_deref()).await,

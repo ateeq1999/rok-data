@@ -1,6 +1,11 @@
-//! `rok db check`, `inspect`, `create`, `drop`.
+//! `rok db check`, `inspect`, `create`, `drop`, `query`.
 
 use std::process::ExitCode;
+
+mod query;
+mod split;
+
+pub(crate) use query::query;
 
 use crate::context;
 use crate::output::json_line;
@@ -119,14 +124,7 @@ pub(crate) async fn create(
     server: Option<&str>,
     json: bool,
 ) -> Result<ExitCode, String> {
-    // Resolve connection: --database-url > --server > DATABASE_URL
-    let connection = if let Some(url) = database_url {
-        context::Connection::resolve(Some(url))?
-    } else if let Some(server_name) = server {
-        context::Connection::resolve_with_server(server_name)?
-    } else {
-        context::Connection::resolve(database_url)?
-    };
+    let connection = context::Connection::resolve_target(database_url, server)?;
 
     // Connect to the admin database (postgres) to create the new database
     let db = connection.probe_into_db().await?;
@@ -158,14 +156,7 @@ pub(crate) async fn drop(
     force: bool,
     json: bool,
 ) -> Result<ExitCode, String> {
-    // Resolve connection: --database-url > --server > DATABASE_URL
-    let connection = if let Some(url) = database_url {
-        context::Connection::resolve(Some(url))?
-    } else if let Some(server_name) = server {
-        context::Connection::resolve_with_server(server_name)?
-    } else {
-        context::Connection::resolve(database_url)?
-    };
+    let connection = context::Connection::resolve_target(database_url, server)?;
 
     // Project database protection: refuse to drop the database the project's
     // DATABASE_URL names unless --force is given, whichever connection

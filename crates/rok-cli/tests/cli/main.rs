@@ -21,6 +21,8 @@ mod collisions;
 mod config;
 mod constraint_changes;
 mod db;
+mod db_query;
+mod db_support;
 mod derives;
 mod flags;
 mod generate;
