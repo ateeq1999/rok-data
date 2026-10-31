@@ -1,7 +1,7 @@
 # 01: the template's tokens and fonts, kept in sync by a test
 
 **Blocked by:** none
-**Status:** ready-for-agent
+**Status:** done
 
 Spec: `docs/specs/site-design-system.md`, decisions 1, 3 and 5.
 
