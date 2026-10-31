@@ -9,6 +9,7 @@
 //! [clients]
 //! ts = "clients/ts"
 //! dart = "clients/dart"
+//! rust = "clients/rust"
 //! ```
 //!
 //! `document` is the API's served document, written out; `export` is the
@@ -25,7 +26,7 @@ use super::openapi::Document;
 use crate::report::display_path;
 
 /// The clients rok emits, by their `[clients]` key.
-pub const CLIENTS: &[&str] = &["ts", "dart"];
+pub const CLIENTS: &[&str] = &["ts", "dart", "rust"];
 
 /// A monorepo's contract and Clients.
 #[derive(Debug, Clone, PartialEq, Eq)]
