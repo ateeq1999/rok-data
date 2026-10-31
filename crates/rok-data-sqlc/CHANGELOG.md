@@ -10,6 +10,12 @@ the *generated* API count as breaking (see ADR 0012).
 - `init --template` copies a template's binary files (not UTF-8, such as
   a web App's `favicon.ico`) byte for byte; text files are copied as
   before, with `\n` line endings (workspace ADR 0027).
+- A reader of the OpenAPI 3.1 subset utoipa emits (`clients::openapi`):
+  paths, methods, schemas, request bodies, statuses and the bearer auth
+  marker, the model the Clients are emitted from. A construct outside the
+  subset (a header parameter, a multipart body, `anyOf`, a non-bearer
+  security scheme...) fails the read, naming itself and its JSON pointer
+  (workspace ADR 0027).
 
 ## Workspace 0.5.0 - 2026-10-30
 
