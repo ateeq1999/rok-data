@@ -16,6 +16,13 @@ the *generated* API count as breaking (see ADR 0012).
   subset (a header parameter, a multipart body, `anyOf`, a non-bearer
   security scheme...) fails the read, naming itself and its JSON pointer
   (workspace ADR 0027).
+- The TypeScript Client emitter (`clients::ts`): from that model,
+  `src/types.ts` (a type per schema and per operation's query),
+  `src/calls.ts` (`api.<tag>.<operation>(path params, body, query,
+  options)`), `src/queries.ts` (TanStack Query `queryOptions` for every
+  `GET`, `mutationOptions` for the rest, `keys` per tag) and
+  `src/runtime.ts` (`ApiError`/`FieldIssue`, `configure` for the base URL,
+  the bearer token and a rejected token), each file marked `@generated`.
 
 ## Workspace 0.5.0 - 2026-10-30
 

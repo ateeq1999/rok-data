@@ -5,3 +5,4 @@
 //! into the model every emitter shares.
 
 pub mod openapi;
+pub mod ts;
