@@ -7,7 +7,7 @@ export const Route = createFileRoute('/agents')({
 function AgentsPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <article className="prose dark:prose-invert max-w-none">
+      <article className="prose max-w-none">
         <h1>rok-data for coding agents</h1>
         <p className="lead">
           One truth, one command per step, one JSON document when a program

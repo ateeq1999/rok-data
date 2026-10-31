@@ -7,7 +7,7 @@ export const Route = createFileRoute('/guide/installation')({
 function InstallationGuide() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <article className="prose dark:prose-invert max-w-none">
+      <article className="prose max-w-none">
         <h1>Installation</h1>
         <p className="lead">
           The rok-data toolchain in minutes: one binary (<code>rok</code>),

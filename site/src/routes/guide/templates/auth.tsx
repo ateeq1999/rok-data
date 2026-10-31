@@ -7,7 +7,7 @@ export const Route = createFileRoute('/guide/templates/auth')({
 function TemplatesAuthGuide() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <article className="prose dark:prose-invert max-w-none">
+      <article className="prose max-w-none">
         <h1>Accounts and sign-in (the templates)</h1>
         <p>
           <code>rok sqlc init --template actix</code> (or <code>--template axum</code>) makes an

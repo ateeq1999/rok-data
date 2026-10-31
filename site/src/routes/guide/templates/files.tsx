@@ -7,7 +7,7 @@ export const Route = createFileRoute('/guide/templates/files')({
 function TemplatesFilesGuide() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <article className="prose dark:prose-invert max-w-none">
+      <article className="prose max-w-none">
         <h1>Files and storage (the templates)</h1>
         <p>
           The templates (<code>rok sqlc init --template actix</code> or

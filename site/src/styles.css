@@ -158,11 +158,6 @@
     font-family: var(--font-heading);
   }
 
-  a {
-    color: var(--primary);
-    text-underline-offset: 2px;
-  }
-
   code,
   pre {
     font-family: var(--font-mono);

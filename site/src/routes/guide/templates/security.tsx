@@ -7,7 +7,7 @@ export const Route = createFileRoute('/guide/templates/security')({
 function TemplatesSecurityGuide() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <article className="prose dark:prose-invert max-w-none">
+      <article className="prose max-w-none">
         <h1>Security</h1>
         <p className="lead">
           What the templates do for you, what you set, and what stays yours.

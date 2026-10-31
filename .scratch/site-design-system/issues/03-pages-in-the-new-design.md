@@ -1,7 +1,7 @@
 # 03: every page in the new design
 
 **Blocked by:** 02
-**Status:** ready-for-agent
+**Status:** done
 
 Spec: decision 2 and Done means.
 

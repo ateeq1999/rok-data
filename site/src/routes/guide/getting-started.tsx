@@ -7,7 +7,7 @@ export const Route = createFileRoute('/guide/getting-started')({
 function GettingStarted() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <article className="prose dark:prose-invert max-w-none">
+      <article className="prose max-w-none">
         <h1>Getting started</h1>
         <p className="lead">
           The project's schema directory is the only source of truth: the

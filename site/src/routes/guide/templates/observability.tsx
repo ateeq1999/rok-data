@@ -7,7 +7,7 @@ export const Route = createFileRoute('/guide/templates/observability')({
 function TemplatesObservabilityGuide() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <article className="prose dark:prose-invert max-w-none">
+      <article className="prose max-w-none">
         <h1>Observability</h1>
         <p className="lead">
           What the API tells you about itself: log lines, a span for every

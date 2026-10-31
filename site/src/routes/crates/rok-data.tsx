@@ -1,4 +1,5 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
+import { Badge } from '../../components/ui/badge'
 
 export const Route = createFileRoute('/crates/rok-data')({
   component: RokDataFacadeDocs,
@@ -7,27 +8,25 @@ export const Route = createFileRoute('/crates/rok-data')({
 function RokDataFacadeDocs() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <article className="prose dark:prose-invert max-w-none">
+      <article className="prose max-w-none">
         <h1>rok-data</h1>
-        <p className="text-lg text-[var(--sea-ink-soft)]">
+        <p className="text-lg text-muted-foreground">
           The facade: one crate that re-exports the runtime and the macros —
           the single dependency applications take.
         </p>
 
-        <div className="my-4 flex items-center gap-4">
-          <a
-            href="https://crates.io/crates/rok-data"
-            target="_blank"
-            rel="noreferrer"
-            className="no-underline rounded-full bg-[var(--chip-bg)] border border-[var(--chip-line)] px-3 py-1.5 text-sm font-semibold"
+        <div className="not-prose my-4 flex items-center gap-4">
+          <Badge
+            variant="outline"
+            render={<a href="https://crates.io/crates/rok-data" target="_blank" rel="noreferrer" />}
           >
             crates.io
-          </a>
+          </Badge>
           <a
             href="https://github.com/ateeq1999/rok-data/tree/main/crates/rok-data"
             target="_blank"
             rel="noreferrer"
-            className="text-sm text-[var(--sea-ink-soft)] no-underline hover:underline"
+            className="text-sm text-muted-foreground no-underline hover:underline"
           >
             source: crates/rok-data
           </a>

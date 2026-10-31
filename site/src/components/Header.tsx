@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import ThemeToggle from './ThemeToggle'
+import { cn } from 'cn'
 import { buttonVariants } from './ui/button'
 
 export default function Header() {
@@ -21,7 +22,10 @@ export default function Header() {
             href="https://github.com/ateeq1999/rok-data"
             target="_blank"
             rel="noreferrer"
-            className={`${buttonVariants({ variant: 'ghost', size: 'icon' })} hidden text-muted-foreground sm:inline-flex`}
+            className={cn(
+              buttonVariants({ variant: 'ghost', size: 'icon' }),
+              'hidden text-muted-foreground sm:inline-flex',
+            )}
           >
             <span className="sr-only">Go to rok-data GitHub</span>
             <svg viewBox="0 0 16 16" aria-hidden="true" width="18" height="18">
