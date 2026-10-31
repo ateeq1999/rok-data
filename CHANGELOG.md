@@ -64,6 +64,11 @@ that it exists and won't ship a tag without it).
   now copies a template's binary files (the web App's `favicon.ico` and
   `logo.png`) byte for byte (0027 ticket 03, workspace ADR 0027).
 
+- The monorepo template ships a desktop App at `apps/desktop`: rok-ui
+  0.9.1's bloc-http starter (GPUI 0.2.2), a member of the root workspace
+  (`cargo run -p desktop`), calling `apps/api` at `127.0.0.1:8080` unless
+  `ROK_API_URL` says otherwise (desktop ticket 01, workspace ADR 0031).
+
 **Changed**
 
 - `rok server add --password-prompt`'s help no longer claims hidden

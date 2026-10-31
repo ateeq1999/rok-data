@@ -13,6 +13,7 @@ mod actix_template;
 mod api_app;
 mod axum_app;
 mod axum_template;
+mod desktop_app;
 mod example_api;
 mod fixture_app;
 mod init;
