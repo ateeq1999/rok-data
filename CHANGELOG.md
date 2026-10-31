@@ -117,6 +117,16 @@ that it exists and won't ship a tag without it).
   caches, `local.properties`, keystores); the `mobile_app` gate runs
   `flutter analyze` and `flutter test` on a scaffold where Flutter is
   installed (0027 ticket 06).
+- The generated Rust client (0027 ticket 07, workspace ADR 0027, engine
+  ADR 0027): `[clients] rust = "clients/rust"` has `rok gen` (and `rok init
+  --template monorepo`) emit an async `reqwest` crate's sources from the
+  contract: serde types of its own, one call per operation grouped by tag
+  (`client.users().update(id, &body)`), the session's bearer token and a
+  rejected-token handler, and one `ApiError`. Its `Cargo.toml` is the
+  project's. In the monorepo template, `clients/rust` (package
+  `api-client`) is a root workspace member, and the api App's
+  `tests/client/` drive the flows of its other suites through it over a
+  real socket.
 - The API templates document `GET /api/v1/media/{id}/content`'s `200` as
   bytes (`application/octet-stream`), so a client generated from the
   document reads it as a file.

@@ -4,11 +4,14 @@
 //! (`apps/api/openapi.json`, through the App's `openapi` example) and
 //! emits the Clients from it (workspace ADR 0027). What the template checks
 //! in must be exactly what that writes — the api App's generated files,
-//! its `openapi.json`, `clients/ts` and `clients/dart` (set
-//! `ROK_DATA_SQLC_UPDATE_EXPECTED=1` to rewrite them) — and the project must pass its own checks: rustfmt,
-//! the lint gate, `check-arch`, and `cargo test` (its contract test, its
-//! artifact test, and its API tests against
-//! `ROK_DATA_SQLC_TEST_DATABASE_URL` when set).
+//! its `openapi.json`, `clients/ts`, `clients/dart` and `clients/rust`'s
+//! sources (set `ROK_DATA_SQLC_UPDATE_EXPECTED=1` to rewrite them) — and the
+//! project must pass its own checks: rustfmt, the lint gate, `check-arch`,
+//! and `cargo test` (its contract test, its artifact test, and its API
+//! tests — those driven through the generated Rust client among them —
+//! against `ROK_DATA_SQLC_TEST_DATABASE_URL` when set). The Rust client
+//! passes its own: rustfmt, clippy and its tests, under the template's
+//! `Cargo.lock`.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -143,6 +146,7 @@ fn monorepo_template_checks_in_what_generation_writes() -> Result<()> {
         "apps/api/src/db/http/axum.rs",
         "clients/ts/src/calls.ts",
         "clients/dart/lib/src/client.dart",
+        "clients/rust/src/calls.rs",
     ] {
         ensure!(
             generated.contains_key(Path::new(expected)),
@@ -153,6 +157,7 @@ fn monorepo_template_checks_in_what_generation_writes() -> Result<()> {
     let mut drift = drift_under(project.path(), "apps/api")?;
     drift.extend(drift_under(project.path(), "clients/ts")?);
     drift.extend(drift_under(project.path(), "clients/dart")?);
+    drift.extend(drift_under(project.path(), "clients/rust")?);
     ensure!(
         drift.is_empty(),
         "templates/monorepo drifted from its generation (regenerate with ROK_DATA_SQLC_UPDATE_EXPECTED=1):\n  {}",
@@ -163,6 +168,9 @@ fn monorepo_template_checks_in_what_generation_writes() -> Result<()> {
 
 /// The api App's README lists the dependencies and lints of its
 /// generated crate; the generated crate compiles and passes its checks.
+/// Its tests include `tests/client/`, which drive the API through the
+/// generated `clients/rust`: against PostgreSQL when
+/// `ROK_DATA_SQLC_TEST_DATABASE_URL` is set (they skip otherwise).
 #[test]
 fn monorepo_api_app_compiles_and_passes_checks() -> Result<()> {
     let project = materialize()?;
@@ -170,11 +178,50 @@ fn monorepo_api_app_compiles_and_passes_checks() -> Result<()> {
     // The desktop App, the other Rust member, has its own gate
     // (`desktop_app.rs`): GPUI's build is slow and needs system libraries
     // on Linux, so the Rust matrix does not pay for it here.
-    let status = cargo(project.path(), &["test", "-p", "axum-api"]).status()?;
+    let mut command = cargo(project.path(), &["test", "-p", "axum-api"]);
+    if let Ok(url) = std::env::var("ROK_DATA_SQLC_TEST_DATABASE_URL") {
+        command.env("DATABASE_URL", url);
+    }
+    let status = command.status()?;
     ensure!(
         status.success(),
         "`cargo test -p axum-api` failed: {status}"
     );
+    Ok(())
+}
+
+/// The Rust client `init` emits (`clients/rust`) is a member of the root
+/// workspace the template's `Cargo.lock` covers (`--locked`), formatted
+/// as rustfmt formats it, clean under clippy `-D warnings` with its own
+/// lints, and its tests (doc tests) pass.
+#[test]
+fn monorepo_rust_client_passes_its_checks() -> Result<()> {
+    let project = tempfile::TempDir::new()?;
+    let root = project.path();
+    rok_data_sqlc(root, &["init", "--template", "monorepo"])?;
+    let checks: [&[&str]; 3] = [
+        &["fmt", "-p", "api-client", "--check"],
+        &[
+            "clippy",
+            "-p",
+            "api-client",
+            "--all-targets",
+            "--locked",
+            "--",
+            "-D",
+            "warnings",
+        ],
+        &["test", "-p", "api-client", "--locked"],
+    ];
+    for args in checks {
+        let status = cargo(root, args).status()?;
+        ensure!(
+            status.success(),
+            "`cargo {}` in {} failed: {status}",
+            args.join(" "),
+            common::shown(root)
+        );
+    }
     Ok(())
 }
 
