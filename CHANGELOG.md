@@ -87,6 +87,16 @@ that it exists and won't ship a tag without it).
   The contract is read as the OpenAPI 3.1 subset utoipa emits; anything
   else fails naming the construct.
 
+- The generated Dart Client (0027 ticket 05, workspace ADR 0027, engine
+  ADR 0027): `[clients]` `dart = "clients/dart"` has `rok gen` (and `rok
+  init --template monorepo`) emit the pub package `api_client` for a
+  Flutter App: `ApiClient(baseUrl:, session:)` with typed methods per
+  operation (`api.users.list(page: 2, sort: UserSort.email)`), model
+  classes, sealed classes for a `oneOf`, a `Session` hook for the bearer
+  token, and `ApiException` carrying the status and a `422`'s field
+  issues. It passes `dart analyze --fatal-infos`; the `dart_client` gate
+  runs its tests where `dart` is installed.
+
 - The monorepo's web App calls the API through the generated
   `clients/ts` (`@/lib/client` connects it to the session); the starter's
   `lib/http.ts` and `features/*/api.ts` are gone. Its features whose
