@@ -103,6 +103,20 @@ that it exists and won't ship a tag without it).
   endpoints `apps/api` does not serve are hidden until it does: passkeys,
   QR sign-in, Google/GitHub sign-in and connected accounts, and creating a
   user with a password (0027 ticket 04).
+- The monorepo template ships its mobile App at `apps/mobile`: the Flutter
+  starter (`ateeq1999/Nestjs-Better-Auth-Flutter-Starter`), its data layer
+  ported onto the generated `clients/dart` (sign-in with the two-factor
+  step, sign-up, password reset, email verification, profile and photo,
+  two-factor settings); its NestJS/Better-Auth HTTP code is gone. What
+  `apps/api` does not serve is not in it: organizations, magic-link
+  sign-in, the admin panel, deleting the account, OAuth and push
+  notifications (a written FCM recipe). Firebase configuration ships as a
+  placeholder. Its settings are `--dart-define`s, `API_URL` defaulting to
+  `apps/api` on `127.0.0.1:8080`. The embedding leaves out a Flutter
+  App's tool state and build output (`.dart_tool`, `build`, platform
+  caches, `local.properties`, keystores); the `mobile_app` gate runs
+  `flutter analyze` and `flutter test` on a scaffold where Flutter is
+  installed (0027 ticket 06).
 - The generated Rust client (0027 ticket 07, workspace ADR 0027, engine
   ADR 0027): `[clients] rust = "clients/rust"` has `rok gen` (and `rok init
   --template monorepo`) emit an async `reqwest` crate's sources from the

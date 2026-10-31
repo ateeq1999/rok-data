@@ -18,6 +18,7 @@ mod desktop_app;
 mod example_api;
 mod fixture_app;
 mod init;
+mod mobile_app;
 mod monorepo_template;
 mod web_app;
 

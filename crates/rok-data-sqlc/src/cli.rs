@@ -256,6 +256,7 @@ where
                     "set DATABASE_URL and JWT_SECRET for apps/api (see its .env.example) and apply apps/api/migrations/",
                     "`cargo test` in apps/api, then `cargo run -p axum-api`",
                     "in apps/web, `bun install`, then `bun run dev` (it forwards /api to apps/api)",
+                    "in apps/mobile, `flutter pub get`, then `flutter run` (it calls apps/api at 127.0.0.1:8080)",
                 ]);
             }
             print_next_steps(&steps);
