@@ -87,6 +87,16 @@ that it exists and won't ship a tag without it).
   The contract is read as the OpenAPI 3.1 subset utoipa emits; anything
   else fails naming the construct.
 
+- The monorepo's web App calls the API through the generated
+  `clients/ts` (`@/lib/client` connects it to the session); the starter's
+  `lib/http.ts` and `features/*/api.ts` are gone. Its features whose
+  endpoints `apps/api` does not serve are hidden until it does: passkeys,
+  QR sign-in, Google/GitHub sign-in and connected accounts, and creating a
+  user with a password (0027 ticket 04).
+- The API templates document `GET /api/v1/media/{id}/content`'s `200` as
+  bytes (`application/octet-stream`), so a client generated from the
+  document reads it as a file.
+
 **Changed**
 
 - `rok server add --password-prompt`'s help no longer claims hidden
