@@ -28,6 +28,14 @@ the *generated* API count as breaking (see ADR 0012).
   file rules (missing files only for `init`, up to date for `rok gen`,
   drift only for `rok gen check`). `init --template monorepo` emits
   `clients/ts` from the scaffolded contract (engine ADR 0027).
+- The Rust Client emitter (`clients::rust`, `[clients] rust = "<dir>"`):
+  from the same model, `src/types.rs` (serde types per schema, per query
+  and per inline shape; a request's property that may be left out or
+  `null` is an `Option<Option<_>>`), `src/calls.rs` (an async call per
+  operation, `client.<tag>().<operation>(path params, body, query)`),
+  `src/runtime.rs` (`Client` with the session's bearer token and a
+  rejected-token handler, `ApiError`/`FieldIssue`) and `src/lib.rs`, each
+  marked `@generated`; the crate's `Cargo.toml` is the project's.
 
 ## Workspace 0.5.0 - 2026-10-30
 

@@ -178,6 +178,7 @@ export = ["cargo", "run", "--quiet", "-p", "axum-api", "--example", "openapi", "
 
 [clients]
 ts = "clients/ts"
+rust = "clients/rust"
 ```
 
 - `rok gen` re-exports the contract — it runs `export` from the project
@@ -200,7 +201,11 @@ The contract is read as the OpenAPI 3.1 subset utoipa emits: paths, the
 JSON or `application/octet-stream` bodies, component schemas, statuses and
 an HTTP bearer security scheme. Anything else (a header parameter, a
 multipart body, `anyOf`, another security scheme...) fails the run, naming
-the construct and its JSON pointer. `ts` is the only client so far. Prose
+the construct and its JSON pointer. The clients are `ts` (a TypeScript
+package's `README.md` and `src/`) and `rust` (a crate's `README.md` and
+`src/`; its `Cargo.toml` is the project's, never written, and must give
+the generated code `reqwest` with `json`, `serde` with `derive` and
+`serde_json`). Prose
 output prints a `clients:` banner and `exported <document>`; `--json` adds
 one object per client to the array:
 `{"client", "dir", "document", "exported", "written", "unchanged", "missing", "changed", "stale", "drift"}`.
