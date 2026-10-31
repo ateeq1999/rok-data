@@ -4,7 +4,9 @@
 //! tooling — `bun install --frozen-lockfile` (the template's `bun.lock`
 //! must match its `package.json`), `bun run typecheck` and `bun run test`
 //! (the App's vitest suite; `bun test`, bun's own runner, is not it).
-//! Skips with a printed note when bun is absent.
+//! The App calls the API through the generated `clients/ts`, which init
+//! emits beside it; a contract change is followed through `rok gen` and
+//! the same checks. Skips with a printed note when bun is absent.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -109,6 +111,56 @@ fn monorepo_web_app_installs_typechecks_and_tests() -> Result<()> {
     let project = tempfile::TempDir::new()?;
     rok_data_sqlc(project.path(), &["init", "--template", "monorepo"])?;
     let web = project.path().join("apps/web");
+    run(&bun, &web, &["install", "--frozen-lockfile"])?;
+    run(&bun, &web, &["run", "typecheck"])?;
+    run(&bun, &web, &["run", "test"])?;
+    Ok(())
+}
+
+/// A contract change round-trips through regeneration and the gate: a
+/// change to the api App's source is re-exported by `rok gen` into
+/// `openapi.json`, regenerates `clients/ts`, leaves `rok gen check` clean,
+/// and the web App installs, typechecks and passes its tests with the new
+/// client (workspace ADR 0027).
+#[test]
+fn monorepo_contract_change_round_trips_through_the_web_gate() -> Result<()> {
+    let Some(bun) = bun() else {
+        eprintln!(
+            "note: skipping the contract round trip: `bun` is not installed (https://bun.sh installs it)"
+        );
+        return Ok(());
+    };
+    let project = crate::monorepo_template::materialize()?;
+    let dir = project.path();
+    let before = std::fs::read_to_string(dir.join("clients/ts/src/types.ts"))?;
+
+    // The change: a field of the API's `TotpSetupResponse` documented anew.
+    // The secret's description is the only one of its words in the api
+    // App's sources and in its document.
+    const OLD: &str = "Base32-encoded; lets the user type the secret in by hand if they\n    /// cannot scan the QR code.";
+    const NEW: &str = "The secret, base32-encoded, for typing in by hand.";
+    let dto = dir.join("apps/api/src/features/two_factor/dto.rs");
+    let source = std::fs::read_to_string(&dto)?.replace("\r\n", "\n");
+    ensure!(
+        source.contains(OLD),
+        "the api App's two-factor DTO no longer says `{OLD}`: pick another change"
+    );
+    std::fs::write(&dto, source.replace(OLD, NEW))?;
+
+    crate::monorepo_template::rok_gen_shared(dir, &[])?;
+    let contract = std::fs::read_to_string(dir.join("apps/api/openapi.json"))?;
+    ensure!(
+        contract.contains(NEW),
+        "`rok gen` did not re-export the changed contract"
+    );
+    let after = std::fs::read_to_string(dir.join("clients/ts/src/types.ts"))?;
+    ensure!(
+        after != before && after.contains(NEW),
+        "`rok gen` did not regenerate clients/ts from the changed contract"
+    );
+    crate::monorepo_template::rok_gen_shared(dir, &["check"])?;
+
+    let web = dir.join("apps/web");
     run(&bun, &web, &["install", "--frozen-lockfile"])?;
     run(&bun, &web, &["run", "typecheck"])?;
     run(&bun, &web, &["run", "test"])?;
