@@ -69,6 +69,34 @@ that it exists and won't ship a tag without it).
   (`cargo run -p desktop`), calling `apps/api` at `127.0.0.1:8080` unless
   `ROK_API_URL` says otherwise (desktop ticket 01, workspace ADR 0031).
 
+- The monorepo template's api App ships its contract as
+  `apps/api/openapi.json`: the document it serves, written out by its
+  `openapi` example (`cargo run -p axum-api --example openapi -- <PATH>`).
+  The App's `tests/openapi_artifact.rs` fails when the file is not what it
+  serves (0027 ticket 04, workspace ADR 0027).
+
+- Generated Clients (0027 ticket 04, workspace ADR 0027, engine ADR 0027).
+  A monorepo's `rok.toml` names its contract (`[contract]`: the
+  `openapi.json` and the command that re-exports it) and its Clients
+  (`[clients]`, `ts = "clients/ts"`). `rok gen` re-exports the contract
+  after the Apps and emits the TypeScript client from it: typed calls per
+  operation (`api.users.update(id, body)`), TanStack Query factories
+  (`queries`, `mutations`, `keys`) and the web starter's
+  `ApiError`/`FieldIssue`. `rok gen check` fails on a client out of date
+  with the contract; `rok init --template monorepo` emits `clients/ts`.
+  The contract is read as the OpenAPI 3.1 subset utoipa emits; anything
+  else fails naming the construct.
+
+- The monorepo's web App calls the API through the generated
+  `clients/ts` (`@/lib/client` connects it to the session); the starter's
+  `lib/http.ts` and `features/*/api.ts` are gone. Its features whose
+  endpoints `apps/api` does not serve are hidden until it does: passkeys,
+  QR sign-in, Google/GitHub sign-in and connected accounts, and creating a
+  user with a password (0027 ticket 04).
+- The API templates document `GET /api/v1/media/{id}/content`'s `200` as
+  bytes (`application/octet-stream`), so a client generated from the
+  document reads it as a file.
+
 **Changed**
 
 - `rok server add --password-prompt`'s help no longer claims hidden

@@ -189,7 +189,16 @@ pub fn init_template(dir: &Path, name: &str) -> Result<Scaffolded> {
         fs::remove_file(&main)
             .with_context(|| format!("failed to replace `{}`", display_path(&main)))?;
     }
-    let written = write_absent(&planned)?;
+    let mut written = write_absent(&planned)?;
+    // A Monorepo template's Clients are generated, so the copy left them
+    // out: they are emitted from the contract the copy wrote (or the one
+    // the project holds), each file only when absent, as every file init
+    // writes (workspace ADR 0027).
+    if let Some(project) = crate::clients::Project::load(&dir.join("rok.toml"))? {
+        for outcome in crate::clients::generate(&project, crate::clients::Mode::Absent)? {
+            written.extend(outcome.written);
+        }
+    }
     let manifest = dir.join("Cargo.toml");
     Ok(Scaffolded {
         wrote_manifest: written.contains(&manifest),

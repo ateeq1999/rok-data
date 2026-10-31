@@ -49,6 +49,10 @@ pub mod rule_patterns {
 pub mod check_db;
 #[doc(hidden)]
 pub mod cli;
+// The Clients `rok init` and `rok gen` emit from a monorepo's
+// `openapi.json` (workspace ADR 0027).
+#[doc(hidden)]
+pub mod clients;
 // The scaffolding library behind `rok sqlc init` and the root `rok init`
 // (engine ADR 0012): the skeleton and the ready-made Templates, each file written
 // once and never rewritten.

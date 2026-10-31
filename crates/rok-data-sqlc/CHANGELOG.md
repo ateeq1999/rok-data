@@ -10,6 +10,24 @@ the *generated* API count as breaking (see ADR 0012).
 - `init --template` copies a template's binary files (not UTF-8, such as
   a web App's `favicon.ico`) byte for byte; text files are copied as
   before, with `\n` line endings (workspace ADR 0027).
+- A reader of the OpenAPI 3.1 subset utoipa emits (`clients::openapi`):
+  paths, methods, schemas, request bodies, statuses and the bearer auth
+  marker, the model the Clients are emitted from. A construct outside the
+  subset (a header parameter, a multipart body, `anyOf`, a non-bearer
+  security scheme...) fails the read, naming itself and its JSON pointer
+  (workspace ADR 0027).
+- The TypeScript Client emitter (`clients::ts`): from that model,
+  `src/types.ts` (a type per schema and per operation's query),
+  `src/calls.ts` (`api.<tag>.<operation>(path params, body, query,
+  options)`), `src/queries.ts` (TanStack Query `queryOptions` for every
+  `GET`, `mutationOptions` for the rest, `keys` per tag) and
+  `src/runtime.ts` (`ApiError`/`FieldIssue`, `configure` for the base URL,
+  the bearer token and a rejected token), each file marked `@generated`.
+- `clients::Project` reads a monorepo `rok.toml`'s `[contract]` and
+  `[clients]`; `clients::generate` writes the Clients with the generated
+  file rules (missing files only for `init`, up to date for `rok gen`,
+  drift only for `rok gen check`). `init --template monorepo` emits
+  `clients/ts` from the scaffolded contract (engine ADR 0027).
 
 ## Workspace 0.5.0 - 2026-10-30
 

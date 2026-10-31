@@ -28,6 +28,15 @@ pub(super) struct RawProject {
     #[serde(default)]
     #[allow(dead_code)]
     apps: Option<toml::Table>,
+    /// The `[contract]` and `[clients]` sections of a Monorepo template's
+    /// scaffold: the API's `openapi.json` and the Clients emitted from it,
+    /// read by `clients::Project` (workspace ADR 0027).
+    #[serde(default)]
+    #[allow(dead_code)]
+    contract: Option<toml::Table>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    clients: Option<toml::Table>,
     /// The generation settings.
     #[serde(default)]
     generate: Option<GenerationKeys>,

@@ -166,6 +166,45 @@ an `"app"` field with the App's name. Prose output prints a one-line banner
 (`api:`) before each App's report. `rok gen check` aggregates: the generated
 code is up to date only when every App is clean.
 
+### Monorepo projects: `[contract]` and `[clients]`
+
+A `rok.toml` that also names **Clients** (workspace ADR 0027) has `rok gen`
+emit them after the Apps, from the API's contract:
+
+```toml
+[contract]
+document = "apps/api/openapi.json"
+export = ["cargo", "run", "--quiet", "-p", "axum-api", "--example", "openapi", "--"]
+
+[clients]
+ts = "clients/ts"
+```
+
+- `rok gen` re-exports the contract — it runs `export` from the project
+  file's directory with `document`'s path appended, which builds the api
+  App — then emits each client from the document. A client's files carry
+  the generated marker: changed ones are rewritten, one whose marker is
+  gone is refused (the run fails, writing nothing for that client) unless
+  `--force`, and a marked file no longer emitted is removed as stale. A
+  `--dry-run` neither exports nor writes, and prints `would write`.
+- `rok gen check` builds and writes nothing: each client is emitted in
+  memory from the document as it is, and a missing, changed or stale file
+  fails the check with ``the `ts` client is out of date with <document>``.
+  Whether the document is what the API serves is the api App's own test
+  (`tests/openapi_artifact.rs`).
+- `rok init --template monorepo` emits the clients' missing files from the
+  scaffolded contract.
+
+The contract is read as the OpenAPI 3.1 subset utoipa emits: paths, the
+`get`/`post`/`put`/`patch`/`delete` operations, path and query parameters,
+JSON or `application/octet-stream` bodies, component schemas, statuses and
+an HTTP bearer security scheme. Anything else (a header parameter, a
+multipart body, `anyOf`, another security scheme...) fails the run, naming
+the construct and its JSON pointer. `ts` is the only client so far. Prose
+output prints a `clients:` banner and `exported <document>`; `--json` adds
+one object per client to the array:
+`{"client", "dir", "document", "exported", "written", "unchanged", "missing", "changed", "stale", "drift"}`.
+
 The `[api]` section holds the API features' settings. Its `framework` key
 picks the web framework they are generated for: `actix_web` (the default)
 or `axum`; `--api-framework` sets it from the command line. The framework

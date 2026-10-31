@@ -7,13 +7,14 @@ contract (workspace ADRs 0027 and 0031). The Apps `rok sqlc init
 - `apps/api/` — the axum API, the `axum` template file for file. Its own
   README is its reference; see it there.
 - `apps/web/` — the web app: TanStack Start (React, TypeScript), run with
-  plain bun (no JS monorepo tool). It talks to `apps/api` through its own
-  HTTP layer today.
+  plain bun (no JS monorepo tool). It talks to `apps/api` through the
+  generated `clients/ts`.
 - `apps/desktop/` — the desktop app: rok-ui's bloc-http starter (GPUI), a
   member of the root workspace. It talks to `apps/api` through its own
   HTTP layer today; its README is its reference.
-- `clients/` — the typed Clients for the API's contract, generated from
-  the API's `openapi.json` (added as the template grows them).
+- `clients/ts/` — the TypeScript Client for the API's contract, generated
+  from `apps/api/openapi.json` (the Dart and Rust Clients follow). Its
+  files are rok's: never edit them.
 
 Start one:
 
@@ -22,14 +23,32 @@ rok init --template monorepo my-app
 cd my-app
 ```
 
-## Regenerating the Apps
+## Regenerating
 
 `rok gen` from the root regenerates every Rust App the `[apps]` section
-of `rok.toml` names, reading each App's settings from inside it:
+of `rok.toml` names, reading each App's settings from inside it; then it
+re-exports the API's contract (`[contract]`, which builds `apps/api`) and
+regenerates every Client `[clients]` names from it:
 
 ```sh
 rok gen
 ```
+
+`rok gen check` fails when a generated file, a Client included, is out
+of date with its source; it builds nothing.
+
+## The contract
+
+`apps/api/openapi.json` is the OpenAPI document the API serves at
+`/api-docs/openapi.json`, written out by its `openapi` example (what `rok
+gen` runs):
+
+```sh
+cargo run -p axum-api --example openapi -- apps/api/openapi.json
+```
+
+The Clients are generated from it. Never edit it by hand: the api's
+`tests/openapi_artifact.rs` fails when it is not what the API serves.
 
 ## Running the API
 

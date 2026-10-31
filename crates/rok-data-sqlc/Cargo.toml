@@ -20,6 +20,7 @@ categories = ["database", "development-tools", "command-line-utilities"]
 include = [
     "/src/**/*.rs",
     "/src/init/scaffold/*",
+    "/src/clients/ts/*.ts",
     "/Cargo.toml",
     "/README.md",
     "/CHANGELOG.md",

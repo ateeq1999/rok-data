@@ -28,7 +28,7 @@ pub(crate) struct GenConfig {
 
 /// The full config file. Each section's schema belongs to the reader of
 /// that section: the generator validates only `[generate]` (legacy
-/// spelling `[gen]`); the other five sections exist here as file-level
+/// spelling `[gen]`); the other sections exist here as file-level
 /// schema names so a typo'd section is an error — their owning engine's
 /// config reader applies them directly from the file.
 #[derive(Debug, Default, serde::Deserialize)]
@@ -53,6 +53,17 @@ pub(crate) struct ConfigFile {
     #[serde(default)]
     #[allow(dead_code)]
     pub apps: Option<toml::Table>,
+    /// `[contract]`: a monorepo's `openapi.json` and the command that
+    /// re-exports it (workspace ADR 0027), read by the engine's
+    /// `clients::Project`.
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub contract: Option<toml::Table>,
+    /// `[clients]`: the Clients `rok gen` emits from the contract, read by
+    /// the engine's `clients::Project`.
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub clients: Option<toml::Table>,
     /// `[tools.<tool>]`: read by rok-tools (`rok tools …`, ADR 0026).
     #[serde(default)]
     #[allow(dead_code)]
