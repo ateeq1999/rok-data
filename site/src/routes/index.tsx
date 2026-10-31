@@ -1,18 +1,19 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
+import { cn } from 'cn'
+import { buttonVariants } from '../components/ui/button'
+import { Card, CardDescription, CardHeader } from '../components/ui/card'
 
 export const Route = createFileRoute('/')({ component: HomePage })
 
 function HomePage() {
   return (
     <main className="page-wrap px-4 pb-8 pt-14">
-      <section className="island-shell rise-in relative overflow-hidden rounded-[2rem] px-6 py-10 sm:px-10 sm:py-14">
-        <div className="pointer-events-none absolute -left-20 -top-24 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(6,182,212,0.28),transparent_66%)]" />
-        <div className="pointer-events-none absolute -bottom-20 -right-20 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(16,185,129,0.18),transparent_66%)]" />
-        <p className="island-kicker mb-3">rok-data Documentation</p>
-        <h1 className="display-title gradient-text mb-5 max-w-3xl text-4xl leading-[1.02] font-bold tracking-tight sm:text-6xl">
+      <Card className="gap-0 px-6 py-10 sm:px-10 sm:py-14">
+        <p className="kicker mb-3">rok-data Documentation</p>
+        <h1 className="mb-5 max-w-3xl text-4xl leading-[1.02] font-bold tracking-tight text-foreground sm:text-6xl">
           One schema. All changes.
         </h1>
-        <p className="mb-8 max-w-2xl text-base text-[var(--sea-ink-soft)] sm:text-lg">
+        <p className="mb-8 max-w-2xl text-base text-muted-foreground sm:text-lg">
           PostgreSQL data tooling for Rust, consolidated from the rok
           ecosystem. The project's schema directory is the only source of
           truth — <code>rok init</code> scaffolds it, <code>rok gen</code>{' '}
@@ -22,19 +23,19 @@ function HomePage() {
         <div className="flex flex-wrap gap-3">
           <Link
             to="/guide/installation"
-            className="btn-primary rounded-full px-5 py-2.5 text-sm no-underline"
+            className={cn(buttonVariants({ size: 'lg' }), 'no-underline')}
           >
             Get Started
           </Link>
           <Link
             to="/guide/getting-started"
-            className="btn-secondary rounded-full px-5 py-2.5 text-sm no-underline"
+            className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'no-underline')}
           >
             Quick Start
           </Link>
           <Link
             to="/agents"
-            className="btn-secondary rounded-full px-5 py-2.5 text-sm no-underline"
+            className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'no-underline')}
           >
             For Agents
           </Link>
@@ -42,12 +43,12 @@ function HomePage() {
             href="https://github.com/ateeq1999/rok-data"
             target="_blank"
             rel="noopener noreferrer"
-            className="btn-secondary rounded-full px-5 py-2.5 text-sm no-underline"
+            className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'no-underline')}
           >
             GitHub
           </a>
         </div>
-      </section>
+      </Card>
 
       <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {[
@@ -75,56 +76,54 @@ function HomePage() {
             'Agent-native contracts',
             '--json shapes, exit codes, --dry-run and check modes — plus in-repo agent skills under .agents/skills/rok-data*/.',
           ],
-        ].map(([title, desc], index) => (
-          <article
-            key={title}
-            className="island-shell feature-card rise-in rounded-2xl p-5"
-            style={{ animationDelay: `${index * 90 + 80}ms` }}
-          >
-            <h2 className="mb-2 text-base font-semibold text-[var(--sea-ink)]">
-              {title}
-            </h2>
-            <p className="m-0 text-sm text-[var(--sea-ink-soft)]">{desc}</p>
-          </article>
+        ].map(([title, desc]) => (
+          <Card key={title}>
+            <CardHeader>
+              <h2 className="m-0 text-base font-semibold text-card-foreground">
+                {title}
+              </h2>
+              <CardDescription className="text-sm">{desc}</CardDescription>
+            </CardHeader>
+          </Card>
         ))}
       </section>
 
-      <section className="island-shell mt-8 grid gap-6 md:grid-cols-2">
-        <div className="rounded-2xl p-6">
-          <p className="island-kicker mb-2">The workspace</p>
-          <h2 className="mb-4 text-xl font-semibold text-[var(--sea-ink)]">
+      <Card className="mt-8 grid gap-0 py-0 md:grid-cols-2">
+        <div className="p-6">
+          <p className="kicker mb-2">The workspace</p>
+          <h2 className="mb-4 text-xl font-semibold text-foreground">
             Core Crates
           </h2>
-          <ul className="m-0 space-y-2 text-sm text-[var(--sea-ink-soft)]">
-            <li><Link to="/crates/rok-data" className="hover:underline">rok-data</Link> — the facade applications depend on</li>
-            <li><Link to="/crates/rok-data-core" className="hover:underline">rok-data-core</Link> — Db, Expr/Select, migrations, introspect</li>
-            <li><Link to="/crates/rok-data-macros" className="hover:underline">rok-data-macros</Link> — derives + #[rok_data::test]</li>
-            <li><Link to="/crates/rok-data-codegen" className="hover:underline">rok-data-codegen</Link> — whole-crate generator</li>
-            <li><Link to="/crates/rok-data-sqlc" className="hover:underline">rok-data-sqlc</Link> — resource-module engine</li>
-            <li><Link to="/crates/rok-templates" className="hover:underline">rok-templates</Link> — production actix/axum templates</li>
-            <li><Link to="/crates/rok-cli" className="hover:underline">rok (rok-data-cli)</Link> — the one binary</li>
+          <ul className="m-0 space-y-2 text-sm text-muted-foreground">
+            <li><Link to="/crates/rok-data" className="text-primary hover:underline">rok-data</Link> — the facade applications depend on</li>
+            <li><Link to="/crates/rok-data-core" className="text-primary hover:underline">rok-data-core</Link> — Db, Expr/Select, migrations, introspect</li>
+            <li><Link to="/crates/rok-data-macros" className="text-primary hover:underline">rok-data-macros</Link> — derives + #[rok_data::test]</li>
+            <li><Link to="/crates/rok-data-codegen" className="text-primary hover:underline">rok-data-codegen</Link> — whole-crate generator</li>
+            <li><Link to="/crates/rok-data-sqlc" className="text-primary hover:underline">rok-data-sqlc</Link> — resource-module engine</li>
+            <li><Link to="/crates/rok-templates" className="text-primary hover:underline">rok-templates</Link> — production actix/axum templates</li>
+            <li><Link to="/crates/rok-cli" className="text-primary hover:underline">rok (rok-data-cli)</Link> — the one binary</li>
           </ul>
         </div>
 
-        <div className="rounded-2xl p-6">
-          <p className="island-kicker mb-2">Quick Links</p>
-          <h2 className="mb-4 text-xl font-semibold text-[var(--sea-ink)]">
+        <div className="p-6">
+          <p className="kicker mb-2">Quick Links</p>
+          <h2 className="mb-4 text-xl font-semibold text-foreground">
             Resources
           </h2>
-          <ul className="m-0 space-y-2 text-sm text-[var(--sea-ink-soft)]">
-            <li><Link to="/guide/getting-started" className="hover:underline">Getting Started</Link></li>
-            <li><Link to="/guide/templates" className="hover:underline">Templates Guide</Link></li>
-            <li><Link to="/agents" className="hover:underline">Coding Agents (JSON contracts)</Link></li>
-            <li><a href="https://github.com/ateeq1999/rok-data/tree/main/docs" className="hover:underline" target="_blank" rel="noreferrer">docs/ (AI-friendly markdown)</a></li>
-            <li><a href="https://raw.githubusercontent.com/ateeq1999/rok-data/main/docs/llms.txt" className="hover:underline" target="_blank" rel="noreferrer">docs/llms.txt</a></li>
-            <li><a href="https://crates.io/crates/rok-data-cli" className="hover:underline" target="_blank" rel="noreferrer">crates.io</a></li>
+          <ul className="m-0 space-y-2 text-sm text-muted-foreground">
+            <li><Link to="/guide/getting-started" className="text-primary hover:underline">Getting Started</Link></li>
+            <li><Link to="/guide/templates" className="text-primary hover:underline">Templates Guide</Link></li>
+            <li><Link to="/agents" className="text-primary hover:underline">Coding Agents (JSON contracts)</Link></li>
+            <li><a href="https://github.com/ateeq1999/rok-data/tree/main/docs" className="text-primary hover:underline" target="_blank" rel="noreferrer">docs/ (AI-friendly markdown)</a></li>
+            <li><a href="https://raw.githubusercontent.com/ateeq1999/rok-data/main/docs/llms.txt" className="text-primary hover:underline" target="_blank" rel="noreferrer">docs/llms.txt</a></li>
+            <li><a href="https://crates.io/crates/rok-data-cli" className="text-primary hover:underline" target="_blank" rel="noreferrer">crates.io</a></li>
           </ul>
         </div>
-      </section>
+      </Card>
 
-      <section className="island-shell mt-8 rounded-2xl p-6">
-        <p className="island-kicker mb-2">Example</p>
-        <h2 className="mb-4 text-xl font-semibold text-[var(--sea-ink)]">
+      <Card className="mt-8 gap-0 p-6">
+        <p className="kicker mb-2">Example</p>
+        <h2 className="mb-4 text-xl font-semibold text-foreground">
           One schema. All changes.
         </h2>
         <pre className="text-xs"><code>{`$ rok init my-api --schema schema.sql
@@ -132,7 +131,7 @@ $ cd my-api && rok gen          # src/db/** + src/features/**
 $ rok gen --migration add_posts # stages 0002_add_posts.{up,down}.sql
 $ rok gen check                 # CI: exit 1 when the code is stale
 $ rok migrate up                # apply, journal-checked`}</code></pre>
-      </section>
+      </Card>
     </main>
   )
 }

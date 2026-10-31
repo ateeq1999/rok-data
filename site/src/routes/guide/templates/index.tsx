@@ -7,7 +7,7 @@ export const Route = createFileRoute('/guide/templates/')({
 function TemplatesGuideIndex() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <article className="prose dark:prose-invert max-w-none">
+      <article className="prose max-w-none">
         <h1>The templates' guide</h1>
         <p className="lead">
           <code>rok sqlc init --template axum</code> (or <code>--template actix</code>)

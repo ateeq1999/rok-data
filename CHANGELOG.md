@@ -84,6 +84,11 @@ that it exists and won't ship a tag without it).
   entry as deleted; it says to unset the variable.
 - `rok db create` with neither `--server` nor `--database-url` warns that
   it creates on the server `DATABASE_URL` names.
+- The documentation site (`site/`) takes the monorepo template's web App
+  design system in place of its own cyan/teal theme: the template's tokens
+  (copied from `apps/web/src/styles.css`, with a test that fails when the
+  copy drifts), its bundled Outfit and Oxanium fonts, and its Button, Badge
+  and Card components.
 
 ## [0.5.0] — production-ready templates
 
