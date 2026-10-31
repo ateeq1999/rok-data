@@ -8,3 +8,17 @@ Rules:
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
 - A committed graphify-out/graph.json is rewritten whole on every build, so a large diff to it in a pull request is expected. Do not flag it as churn or suggest skipping the graph rebuild or its hooks.
+
+## Agent skills
+
+### Issue tracker
+
+Local markdown: specs in `docs/specs/` or `.scratch/<feature>/`, one ticket per file in `.scratch/<feature>/issues/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default roles, written on each ticket's `**Status:**` line (plus `blocked` and `done`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Multi-context: `GLOSSARY-MAP.md` and its three glossaries; ADRs in `docs/decisions/` and `crates/rok-data-sqlc/docs/adr/`. See `docs/agents/domain.md`.
