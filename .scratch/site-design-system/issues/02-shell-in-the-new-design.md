@@ -1,7 +1,7 @@
 # 02: the shell in the new design
 
 **Blocked by:** 01
-**Status:** ready-for-agent
+**Status:** done
 
 Spec: decisions 2, 4 and 5.
 
