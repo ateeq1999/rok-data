@@ -4,13 +4,14 @@
 //! (`apps/api/openapi.json`, through the App's `openapi` example) and
 //! emits the Clients from it (workspace ADR 0027). What the template checks
 //! in must be exactly what that writes — the api App's generated files,
-//! its `openapi.json`, `clients/ts` and `clients/rust`'s sources (set
-//! `ROK_DATA_SQLC_UPDATE_EXPECTED=1` to rewrite them) — and the project must
-//! pass its own checks: rustfmt, the lint gate, `check-arch`, and `cargo
-//! test` (its contract test, its artifact test, and its API tests — those
-//! driven through the generated Rust client among them — against
-//! `ROK_DATA_SQLC_TEST_DATABASE_URL` when set). The Rust client passes its
-//! own: rustfmt, clippy and its tests, under the template's `Cargo.lock`.
+//! its `openapi.json`, `clients/ts`, `clients/dart` and `clients/rust`'s
+//! sources (set `ROK_DATA_SQLC_UPDATE_EXPECTED=1` to rewrite them) — and the
+//! project must pass its own checks: rustfmt, the lint gate, `check-arch`,
+//! and `cargo test` (its contract test, its artifact test, and its API
+//! tests — those driven through the generated Rust client among them —
+//! against `ROK_DATA_SQLC_TEST_DATABASE_URL` when set). The Rust client
+//! passes its own: rustfmt, clippy and its tests, under the template's
+//! `Cargo.lock`.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -133,8 +134,8 @@ fn drift_under(project: &Path, sub: &str) -> Result<Vec<String>> {
 }
 
 /// The template checks in exactly the files `rok gen` generates: the api
-/// App's, from its schema and `rok-data-sqlc.toml`, and the TS client's,
-/// from the contract. With `ROK_DATA_SQLC_UPDATE_EXPECTED` set, it
+/// App's, from its schema and `rok-data-sqlc.toml`, and the TS and Dart
+/// clients', from the contract. With `ROK_DATA_SQLC_UPDATE_EXPECTED` set, it
 /// rewrites them instead.
 #[test]
 fn monorepo_template_checks_in_what_generation_writes() -> Result<()> {
@@ -144,6 +145,7 @@ fn monorepo_template_checks_in_what_generation_writes() -> Result<()> {
         "apps/api/src/features/users/dto.rs",
         "apps/api/src/db/http/axum.rs",
         "clients/ts/src/calls.ts",
+        "clients/dart/lib/src/client.dart",
         "clients/rust/src/calls.rs",
     ] {
         ensure!(
@@ -154,6 +156,7 @@ fn monorepo_template_checks_in_what_generation_writes() -> Result<()> {
     }
     let mut drift = drift_under(project.path(), "apps/api")?;
     drift.extend(drift_under(project.path(), "clients/ts")?);
+    drift.extend(drift_under(project.path(), "clients/dart")?);
     drift.extend(drift_under(project.path(), "clients/rust")?);
     ensure!(
         drift.is_empty(),

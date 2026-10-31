@@ -81,6 +81,7 @@ pub fn generate(project: &Project, mode: Mode) -> Result<Vec<Outcome>> {
 pub fn emit_client(document: &Document, client: &Client, mode: Mode) -> Result<Outcome> {
     let files: Vec<(PathBuf, String)> = match client.name.as_str() {
         "ts" => super::ts::emit(document)?,
+        "dart" => super::dart::emit(document)?,
         "rust" => super::rust::emit(document)?,
         other => bail!("rok emits no `{other}` client"),
     }

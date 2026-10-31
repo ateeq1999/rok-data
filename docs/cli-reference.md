@@ -178,6 +178,7 @@ export = ["cargo", "run", "--quiet", "-p", "axum-api", "--example", "openapi", "
 
 [clients]
 ts = "clients/ts"
+dart = "clients/dart"
 rust = "clients/rust"
 ```
 
@@ -201,11 +202,15 @@ The contract is read as the OpenAPI 3.1 subset utoipa emits: paths, the
 JSON or `application/octet-stream` bodies, component schemas, statuses and
 an HTTP bearer security scheme. Anything else (a header parameter, a
 multipart body, `anyOf`, another security scheme...) fails the run, naming
-the construct and its JSON pointer. The clients are `ts` (a TypeScript
-package's `README.md` and `src/`) and `rust` (a crate's `README.md` and
-`src/`; its `Cargo.toml` is the project's, never written, and must give
-the generated code `reqwest` with `json`, `serde` with `derive` and
-`serde_json`). Prose
+the construct and its JSON pointer; what a client cannot type (the Dart
+client: an object with both properties and `additionalProperties`, a
+`oneOf` of non-objects, a query parameter that is not a scalar; the Rust
+client: a query parameter that is an array or an object) fails the run the
+same way. The clients are `ts` (TypeScript), `dart` (a pub package for a
+Flutter App, its YAML files marked in a `# @generated` line) and `rust` (a
+crate's `README.md` and `src/`; its `Cargo.toml` is the project's, never
+written, and must give the generated code `reqwest` with `json`, `serde`
+with `derive` and `serde_json`). Prose
 output prints a `clients:` banner and `exported <document>`; `--json` adds
 one object per client to the array:
 `{"client", "dir", "document", "exported", "written", "unchanged", "missing", "changed", "stale", "drift"}`.
