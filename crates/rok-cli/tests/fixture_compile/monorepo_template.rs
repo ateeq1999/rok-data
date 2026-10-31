@@ -2,10 +2,12 @@
 //! --template monorepo` into a scratch directory, then `rok gen` from
 //! the root. The generated files the template checks in under
 //! `apps/api/` must be exactly what `g` writes (set
-//! `ROK_DATA_SQLC_UPDATE_EXPECTED=1` to rewrite them), and the project
-//! must pass its own checks: rustfmt, the lint gate, `check-arch`, and
-//! `cargo test` (its contract test, and its API tests against
-//! `ROK_DATA_SQLC_TEST_DATABASE_URL` when set).
+//! `ROK_DATA_SQLC_UPDATE_EXPECTED=1` to rewrite them), so must the api
+//! App's `openapi.json` be what its `openapi` example exports (the
+//! contract the Clients are generated from, workspace ADR 0027), and the
+//! project must pass its own checks: rustfmt, the lint gate, `check-arch`,
+//! and `cargo test` (its contract test, its artifact test, and its API
+//! tests against `ROK_DATA_SQLC_TEST_DATABASE_URL` when set).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -151,6 +153,48 @@ fn monorepo_api_app_compiles_and_passes_checks() -> Result<()> {
     ensure!(
         status.success(),
         "`cargo test -p axum-api` failed: {status}"
+    );
+    Ok(())
+}
+
+/// The api App's `openapi.json` is the document the App serves, exported
+/// by its `openapi` example: a contract change re-exports it, nobody edits
+/// it. With `ROK_DATA_SQLC_UPDATE_EXPECTED` set, it rewrites the
+/// template's copy instead.
+#[test]
+fn monorepo_template_checks_in_the_exported_contract() -> Result<()> {
+    let project = materialize()?;
+    let exported = project.path().join("exported-openapi.json");
+    let exported_arg = exported.to_string_lossy().into_owned();
+    let status = cargo(
+        project.path(),
+        &[
+            "run",
+            "--quiet",
+            "-p",
+            "axum-api",
+            "--example",
+            "openapi",
+            "--",
+            &exported_arg,
+        ],
+    )
+    .status()?;
+    ensure!(
+        status.success(),
+        "the api App's `openapi` example failed: {status}"
+    );
+    let text = std::fs::read_to_string(&exported)?;
+    let artifact = template_dir().join("apps/api/openapi.json");
+    if std::env::var_os("ROK_DATA_SQLC_UPDATE_EXPECTED").is_some() {
+        std::fs::write(&artifact, &text)?;
+        return Ok(());
+    }
+    let checked_in = std::fs::read_to_string(&artifact)?.replace("\r\n", "\n");
+    ensure!(
+        checked_in == text,
+        "templates/monorepo/apps/api/openapi.json is not what the api App exports \
+         (regenerate with ROK_DATA_SQLC_UPDATE_EXPECTED=1; never edit it by hand)"
     );
     Ok(())
 }
