@@ -1,18 +1,20 @@
 //! `templates/monorepo`, made the way a user makes it: `rok init
 //! --template monorepo` into a scratch directory, then `rok gen` from
-//! the root. The generated files the template checks in under
-//! `apps/api/` must be exactly what `g` writes (set
-//! `ROK_DATA_SQLC_UPDATE_EXPECTED=1` to rewrite them), so must the api
-//! App's `openapi.json` be what its `openapi` example exports (the
-//! contract the Clients are generated from, workspace ADR 0027), and the
-//! project must pass its own checks: rustfmt, the lint gate, `check-arch`,
-//! and `cargo test` (its contract test, its artifact test, and its API
-//! tests against `ROK_DATA_SQLC_TEST_DATABASE_URL` when set).
+//! the root, which regenerates the api App, re-exports its contract
+//! (`apps/api/openapi.json`, through the App's `openapi` example) and
+//! emits the Clients from it (workspace ADR 0027). What the template checks
+//! in must be exactly what that writes — the api App's generated files,
+//! its `openapi.json` and `clients/ts` (set `ROK_DATA_SQLC_UPDATE_EXPECTED=1`
+//! to rewrite them) — and the project must pass its own checks: rustfmt,
+//! the lint gate, `check-arch`, and `cargo test` (its contract test, its
+//! artifact test, and its API tests against
+//! `ROK_DATA_SQLC_TEST_DATABASE_URL` when set).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 
 use crate::common::{self, cargo};
 use crate::rok_data_sqlc;
@@ -22,10 +24,31 @@ fn template_dir() -> PathBuf {
     common::template_dir("monorepo")
 }
 
+/// `rok gen` in `dir`, which must succeed. The contract's export builds
+/// the api App: it builds in the gates' shared target directory, with
+/// [`cargo`]'s environment.
+pub(crate) fn rok_gen_shared(dir: &Path, args: &[&str]) -> Result<String> {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_rok"));
+    command.arg("gen").args(args).current_dir(dir);
+    for (key, value) in cargo(dir, &[]).get_envs() {
+        if let Some(value) = value {
+            command.env(key, value);
+        }
+    }
+    let output = command.output().context("failed to run rok gen")?;
+    ensure!(
+        output.status.success(),
+        "rok gen {args:?} failed:\n{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
 /// A project made from the monorepo template: `init --template monorepo`
 /// (which copies the template's `Cargo.lock`, so builds resolve as the
 /// template's do), then `rok gen` from the root.
-fn materialize() -> Result<tempfile::TempDir> {
+pub(crate) fn materialize() -> Result<tempfile::TempDir> {
     let project = tempfile::TempDir::new()?;
     let dir = project.path();
     rok_data_sqlc(dir, &["init", "--template", "monorepo"])?;
@@ -33,16 +56,17 @@ fn materialize() -> Result<tempfile::TempDir> {
     // the workspace crate; cargo substitutes it for crates.io while the
     // tests run. The patch shim goes at the workspace root.
     common::rok_data_patch_shim(dir)?;
-    // `rok gen` from the root regenerates the Apps the `[apps]` section names.
-    common::rok_gen(dir, &[])?;
+    rok_gen_shared(dir, &[])?;
     Ok(project)
 }
 
 /// rok-data-sqlc's generated files under `root` (a build's `target/`
-/// aside), by relative path, with `\n` line endings. We only care about
-/// the Rust files under `apps/api/` (the monorepo's api App).
+/// aside), by path relative to `root`, with `\n` line endings.
 fn generated_files(root: &Path) -> Result<BTreeMap<PathBuf, String>> {
     fn walk(root: &Path, dir: &Path, files: &mut BTreeMap<PathBuf, String>) -> Result<()> {
+        if !dir.is_dir() {
+            return Ok(());
+        }
         for entry in std::fs::read_dir(dir)? {
             let path = entry?.path();
             let relative = path.strip_prefix(root)?.to_path_buf();
@@ -66,75 +90,70 @@ fn generated_files(root: &Path) -> Result<BTreeMap<PathBuf, String>> {
     Ok(files)
 }
 
-/// The template checks in exactly the files `rok gen` generates from the
-/// api App's schema and `rok-data-sqlc.toml`. With
-/// `ROK_DATA_SQLC_UPDATE_EXPECTED` set, it rewrites them instead.
-#[test]
-fn monorepo_template_checks_in_what_generation_writes() -> Result<()> {
-    let project = materialize()?;
-    let generated = generated_files(project.path())?;
-    // The api App's generated files live under `apps/api/`.
-    ensure!(
-        generated
-            .keys()
-            .any(|p| p.starts_with("apps/api/src/features/users/dto.rs")),
-        "`rok gen` generated no users feature under apps/api/: {:?}",
-        generated.keys()
-    );
-    ensure!(
-        generated
-            .keys()
-            .any(|p| p.starts_with("apps/api/src/db/http/axum.rs")),
-        "`rok gen` generated no axum extractor under apps/api/: {:?}",
-        generated.keys()
-    );
-    // Filter generated files to the api App, stripping the `apps/api/` prefix.
-    let generated_api: BTreeMap<PathBuf, String> = generated
-        .into_iter()
-        .filter(|(path, _)| path.starts_with("apps/api/"))
-        .map(|(path, text)| {
-            let stripped = path.strip_prefix("apps/api/").unwrap();
-            (stripped.to_path_buf(), text)
-        })
-        .collect();
-    // Compare against what the template checks in under apps/api/.
-    let checked_in = generated_files(&template_dir().join("apps/api"))?;
+/// The drift between the generated files under `sub` of the project and
+/// of the template, each a line; with `ROK_DATA_SQLC_UPDATE_EXPECTED` set,
+/// the template's are rewritten instead, and there is none.
+fn drift_under(project: &Path, sub: &str) -> Result<Vec<String>> {
+    let generated = generated_files(&project.join(sub))?;
+    let template = template_dir().join(sub);
+    let checked_in = generated_files(&template)?;
     if std::env::var_os("ROK_DATA_SQLC_UPDATE_EXPECTED").is_some() {
         for path in checked_in
             .keys()
-            .filter(|path| !generated_api.contains_key(*path))
+            .filter(|path| !generated.contains_key(*path))
         {
-            std::fs::remove_file(template_dir().join("apps/api").join(path))?;
+            std::fs::remove_file(template.join(path))?;
         }
-        for (path, text) in &generated_api {
-            let target = template_dir().join("apps/api").join(path);
+        for (path, text) in &generated {
+            let target = template.join(path);
             if let Some(parent) = target.parent() {
                 std::fs::create_dir_all(parent)?;
             }
             std::fs::write(target, text)?;
         }
-        return Ok(());
+        return Ok(Vec::new());
     }
-    let drift: Vec<String> = generated_api
+    Ok(generated
         .keys()
         .chain(checked_in.keys())
-        .collect::<std::collections::BTreeSet<_>>()
+        .collect::<BTreeSet<_>>()
         .into_iter()
-        .filter(|path| generated_api.get(*path) != checked_in.get(*path))
+        .filter(|path| generated.get(*path) != checked_in.get(*path))
         .map(|path| {
-            match (
-                generated_api.contains_key(path),
-                checked_in.contains_key(path),
-            ) {
-                (true, false) => format!("{}: generated, not checked in", path.display()),
-                (false, true) => format!("{}: checked in, no longer generated", path.display()),
-                _ => format!("{}: differs", path.display()),
+            let shown = format!("{sub}/{}", common::shown(path));
+            match (generated.contains_key(path), checked_in.contains_key(path)) {
+                (true, false) => format!("{shown}: generated, not checked in"),
+                (false, true) => format!("{shown}: checked in, no longer generated"),
+                _ => format!("{shown}: differs"),
             }
         })
-        .collect();
+        .collect())
+}
+
+/// The template checks in exactly the files `rok gen` generates: the api
+/// App's, from its schema and `rok-data-sqlc.toml`, and the TS client's,
+/// from the contract. With `ROK_DATA_SQLC_UPDATE_EXPECTED` set, it
+/// rewrites them instead.
+#[test]
+fn monorepo_template_checks_in_what_generation_writes() -> Result<()> {
+    let project = materialize()?;
+    let generated = generated_files(project.path())?;
+    for expected in [
+        "apps/api/src/features/users/dto.rs",
+        "apps/api/src/db/http/axum.rs",
+        "clients/ts/src/calls.ts",
+    ] {
+        ensure!(
+            generated.contains_key(Path::new(expected)),
+            "`rok gen` generated no {expected}: {:?}",
+            generated.keys()
+        );
+    }
+    let mut drift = drift_under(project.path(), "apps/api")?;
+    drift.extend(drift_under(project.path(), "clients/ts")?);
     ensure!(
         drift.is_empty(),
-        "templates/monorepo/apps/api drifted from its generation (regenerate with ROK_DATA_SQLC_UPDATE_EXPECTED=1):\n  {}",
+        "templates/monorepo drifted from its generation (regenerate with ROK_DATA_SQLC_UPDATE_EXPECTED=1):\n  {}",
         drift.join("\n  ")
     );
     Ok(())
@@ -157,43 +176,23 @@ fn monorepo_api_app_compiles_and_passes_checks() -> Result<()> {
     Ok(())
 }
 
-/// The api App's `openapi.json` is the document the App serves, exported
-/// by its `openapi` example: a contract change re-exports it, nobody edits
-/// it. With `ROK_DATA_SQLC_UPDATE_EXPECTED` set, it rewrites the
-/// template's copy instead.
+/// The api App's `openapi.json` is the document the App serves, as `rok
+/// gen` re-exported it: a contract change re-exports it, nobody edits it.
+/// With `ROK_DATA_SQLC_UPDATE_EXPECTED` set, it rewrites the template's
+/// copy instead.
 #[test]
 fn monorepo_template_checks_in_the_exported_contract() -> Result<()> {
     let project = materialize()?;
-    let exported = project.path().join("exported-openapi.json");
-    let exported_arg = exported.to_string_lossy().into_owned();
-    let status = cargo(
-        project.path(),
-        &[
-            "run",
-            "--quiet",
-            "-p",
-            "axum-api",
-            "--example",
-            "openapi",
-            "--",
-            &exported_arg,
-        ],
-    )
-    .status()?;
-    ensure!(
-        status.success(),
-        "the api App's `openapi` example failed: {status}"
-    );
-    let text = std::fs::read_to_string(&exported)?;
+    let exported = std::fs::read_to_string(project.path().join("apps/api/openapi.json"))?;
     let artifact = template_dir().join("apps/api/openapi.json");
     if std::env::var_os("ROK_DATA_SQLC_UPDATE_EXPECTED").is_some() {
-        std::fs::write(&artifact, &text)?;
+        std::fs::write(&artifact, &exported)?;
         return Ok(());
     }
     let checked_in = std::fs::read_to_string(&artifact)?.replace("\r\n", "\n");
     ensure!(
-        checked_in == text,
-        "templates/monorepo/apps/api/openapi.json is not what the api App exports \
+        checked_in == exported.replace("\r\n", "\n"),
+        "templates/monorepo/apps/api/openapi.json is not what `rok gen` exports \
          (regenerate with ROK_DATA_SQLC_UPDATE_EXPECTED=1; never edit it by hand)"
     );
     Ok(())

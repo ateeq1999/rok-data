@@ -13,15 +13,20 @@ use crate::cli::r#gen::GenOptions;
 use crate::config::FILE;
 use crate::output::display_path;
 
-/// The runs a `rok gen` does: one per App a project file named, or the
-/// one run of a plain project.
-pub(super) fn resolve(options: &GenOptions, check: bool) -> Result<Vec<Run>, String> {
-    let file = match options.config.as_deref() {
+/// The project file a run reads: `--config`, or the nearest one.
+pub(super) fn project_file(options: &GenOptions) -> Option<PathBuf> {
+    match options.config.as_deref() {
         Some(path) => Some(path.to_path_buf()),
         None => std::env::current_dir()
             .ok()
             .and_then(|dir| rok_data_sqlc::discover_config(&dir)),
-    };
+    }
+}
+
+/// The runs a `rok gen` does: one per App a project file named, or the
+/// one run of a plain project.
+pub(super) fn resolve(options: &GenOptions, check: bool) -> Result<Vec<Run>, String> {
+    let file = project_file(options);
     if let Some(path) = file.as_deref()
         && let Some(apps) = apps_section(path)?
     {

@@ -23,6 +23,11 @@ the *generated* API count as breaking (see ADR 0012).
   `GET`, `mutationOptions` for the rest, `keys` per tag) and
   `src/runtime.ts` (`ApiError`/`FieldIssue`, `configure` for the base URL,
   the bearer token and a rejected token), each file marked `@generated`.
+- `clients::Project` reads a monorepo `rok.toml`'s `[contract]` and
+  `[clients]`; `clients::generate` writes the Clients with the generated
+  file rules (missing files only for `init`, up to date for `rok gen`,
+  drift only for `rok gen check`). `init --template monorepo` emits
+  `clients/ts` from the scaffolded contract (engine ADR 0027).
 
 ## Workspace 0.5.0 - 2026-10-30
 

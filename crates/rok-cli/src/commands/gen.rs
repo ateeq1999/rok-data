@@ -40,6 +40,7 @@ use serde_json::Value;
 use crate::cli::r#gen::{GenAction, GenOptions};
 use crate::output::display_path;
 
+mod clients;
 mod report;
 mod resolve;
 
@@ -88,7 +89,8 @@ struct Run {
 /// each run stages when `--migration NAME` is given.
 fn generate(options: GenOptions) -> Result<ExitCode, String> {
     let runs = resolve(&options, false)?;
-    let multi = runs.iter().any(|run| run.app.is_some());
+    let clients = clients::load(&options)?;
+    let multi = runs.iter().any(|run| run.app.is_some()) || clients.is_some();
     let mut bodies: Vec<Value> = Vec::new();
     for run in &runs {
         heading(run, multi);
@@ -135,6 +137,13 @@ fn generate(options: GenOptions) -> Result<ExitCode, String> {
             }
         }
     }
+    // A monorepo's Clients follow its Apps: the contract is re-exported
+    // from the regenerated api, then each client is emitted from it.
+    if let Some(project) = &clients
+        && let Err(message) = clients::generate(project, &options, &mut bodies)
+    {
+        return print_bodies_then(bodies, multi, Err(message));
+    }
     print_bodies_then(bodies, multi, Ok(ExitCode::SUCCESS))
 }
 
@@ -143,7 +152,8 @@ fn generate(options: GenOptions) -> Result<ExitCode, String> {
 /// ([`staged_drift`]) are reported, and either fails the run.
 fn check(options: GenOptions) -> Result<ExitCode, String> {
     let runs = resolve(&options, true)?;
-    let multi = runs.iter().any(|run| run.app.is_some());
+    let clients = clients::load(&options)?;
+    let multi = runs.iter().any(|run| run.app.is_some()) || clients.is_some();
     let mut bodies: Vec<Value> = Vec::new();
     let mut findings: Vec<String> = Vec::new();
     for run in &runs {
@@ -196,6 +206,12 @@ fn check(options: GenOptions) -> Result<ExitCode, String> {
         }
         if pending.is_some() {
             findings.push(pending_message(run));
+        }
+    }
+    if let Some(project) = &clients {
+        match clients::check(project, &options, &mut bodies) {
+            Ok(found) => findings.extend(found),
+            Err(message) => return print_bodies_then(bodies, multi, Err(message)),
         }
     }
     print_bodies(bodies, multi);

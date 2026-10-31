@@ -252,7 +252,7 @@ where
                 ]);
             } else {
                 steps.extend([
-                    "run `rok gen` from the root to generate every named App from its own schema",
+                    "run `rok gen` from the root to generate every named App from its own schema, re-export apps/api/openapi.json and regenerate clients/ts from it",
                     "set DATABASE_URL and JWT_SECRET for apps/api (see its .env.example) and apply apps/api/migrations/",
                     "`cargo test` in apps/api, then `cargo run -p axum-api`",
                     "in apps/web, `bun install`, then `bun run dev` (it forwards /api to apps/api)",
