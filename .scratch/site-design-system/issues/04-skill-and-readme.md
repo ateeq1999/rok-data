@@ -1,7 +1,7 @@
 # 04: the docs-site skill and the site README
 
 **Blocked by:** 03
-**Status:** ready-for-agent
+**Status:** done
 
 Update `.agents/skills/rok-data-docs-site/SKILL.md` where the markup it asks a
 sync to follow changed (token classes, the ui components), keeping its JSX
