@@ -78,7 +78,10 @@ jobs:
           RUSTDOCFLAGS: -D warnings
         run: cargo doc --workspace --no-deps --all-features --locked
       - name: Test (including PostgreSQL and module fixture suites)
-        run: cargo test --workspace --all-targets --locked -- --skip desktop_app
+        run: cargo test --workspace --lib --bins --tests --examples --locked -- --skip desktop_app
+      # Benches run apart: criterion refuses the test harness's --skip.
+      - name: Benches
+        run: cargo test --workspace --benches --locked
 
   # Build and test without PostgreSQL: the database-backed tests print
   # "skipping" and pass when the database URLs are unset.
@@ -102,7 +105,10 @@ jobs:
       # The desktop App's gate builds GPUI; it runs in its own `desktop`
       # job (workspace ADR 0031), so this matrix stays as fast as it was.
       - name: Test
-        run: cargo test --workspace --all-targets --locked -- --skip desktop_app
+        run: cargo test --workspace --lib --bins --tests --examples --locked -- --skip desktop_app
+      # Benches run apart: criterion refuses the test harness's --skip.
+      - name: Benches
+        run: cargo test --workspace --benches --locked
 
   # The monorepo template's web App (workspace ADR 0027), with its own
   # tooling: the fixture gate scaffolds a monorepo with `rok` and runs
