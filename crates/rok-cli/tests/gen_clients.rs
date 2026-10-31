@@ -315,3 +315,35 @@ fn init_emits_the_ts_client_from_the_scaffolded_contract() -> Result<()> {
     }
     Ok(())
 }
+
+/// `rok init --template monorepo` emits `clients/rust`'s sources from the
+/// contract it scaffolds — the files the template checks in as `rok gen`'s
+/// — beside the manifest it copies, a member of the root workspace.
+#[test]
+fn init_emits_the_rust_client_from_the_scaffolded_contract() -> Result<()> {
+    let project = TempDir::new()?;
+    let output = rok(project.path(), &["init", "--template", "monorepo", "app"])?;
+    assert_success(&output);
+    let app = project.path().join("app");
+    let template = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../rok-templates/templates/monorepo/clients/rust");
+    for file in [
+        "README.md",
+        "src/calls.rs",
+        "src/lib.rs",
+        "src/runtime.rs",
+        "src/types.rs",
+    ] {
+        let scaffolded = fs::read_to_string(app.join("clients/rust").join(file))?;
+        let checked_in = fs::read_to_string(template.join(file))?.replace("\r\n", "\n");
+        assert!(
+            scaffolded == checked_in,
+            "the scaffolded clients/rust/{file} is not the template's"
+        );
+    }
+    let manifest = fs::read_to_string(app.join("clients/rust/Cargo.toml"))?;
+    assert!(manifest.contains("name = \"api-client\""), "{manifest}");
+    let root = fs::read_to_string(app.join("Cargo.toml"))?;
+    assert!(root.contains("\"clients/rust\""), "{root}");
+    Ok(())
+}
