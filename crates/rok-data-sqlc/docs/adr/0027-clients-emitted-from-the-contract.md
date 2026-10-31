@@ -9,8 +9,8 @@ This ADR records where that lives and the shape of what it emits.
 **The engine emits them.**
 
 - **Where:** `clients::openapi` reads the document into one model;
-  `clients::ts` emits the TypeScript Client from it (the Dart and Rust
-  Clients will read the same model). `clients::Project` reads the
+  `clients::ts` emits the TypeScript Client from it, `clients::dart` the
+  Dart Client (the Rust Client will read the same model). `clients::Project` reads the
   `[contract]` and `[clients]` sections of the monorepo's `rok.toml`, and
   `clients::generate` writes a Client in one of three modes: missing files
   only (`init`), up to date (`rok gen`), or drift only (`rok gen check`).
@@ -51,6 +51,46 @@ or without them, and the server checks them.
   one is rewritten, one whose marker is gone is refused without `--force`,
   one no longer emitted is stale.
 
+**The Dart Client's shape** (`clients/dart`, the pub package
+`api_client`, for the Flutter App of ticket 06).
+
+- **Calls:** `ApiClient(baseUrl:, session:, httpClient:)`, a getter per
+  tag (`api.users`, a `UsersApi`) and a method per operation, named as the
+  TypeScript calls are: path parameters, then the body, positionally; the
+  query parameters by name (`list(page: 2, sort: UserSort.email)`,
+  `required` when the document says so); then `options`. Raw bodies and
+  answers are `Bytes` (the data and its media type).
+- **Models:** a `final class` per object schema with `fromJson`/`toJson`
+  (an `allOf` flattened into one class), an `enum` per string enum (its
+  wire value kept), a `sealed class` per `oneOf` of objects whose variants
+  `implements` it, so an App `switch`es over an answer such as
+  `LoginResponse`. The variants are told apart by the keys they require;
+  two requiring the same keys are refused. An inline object of the same
+  shape as a component (a page's items) is that component's class.
+- **Three-state request fields:** a request schema's optional, nullable
+  field (the API's `Option<Option<T>>`, "keep" versus "clear") is
+  `Nullable<T>?`: left out sends nothing, `Nullable(null)` sends `null`.
+  Only schemas no response reaches get it; a response's optional, nullable
+  field reads as a plain `T?`.
+- **Session:** an interface, `token()` and `expired(token)`, that a Flutter
+  App implements on its session store (or builds from two functions). As
+  in TypeScript, the token goes only to operations carrying the bearer
+  marker, and only a `401` to one of them calls `expired` (unless the call
+  says `keepSession`).
+- **Errors:** every failure throws `ApiException` (`status`, `code`,
+  `message`, and a `422`'s `details` of `FieldIssue`s by field path); no
+  answer is status 0 (`network_error`, `timeout`), an unreadable success
+  is `invalid_response`.
+- **Refused:** what Dart cannot type without guessing fails the emission,
+  naming it and where: an object with both properties and
+  `additionalProperties`, a `oneOf` of non-objects, a query or path
+  parameter that is not a scalar, a name the client takes already.
+- **Files:** the Dart files carry `// @generated`, `pubspec.yaml`,
+  `analysis_options.yaml` and `.gitignore` a `# @generated` line, which
+  the writer's marker check now accepts (legacy words included). The
+  package is held to `dart analyze --fatal-infos` under strict casts,
+  inference and raw types.
+
 ## Considered Options
 
 - **The emitter in `rok-cli`:** the CLI would own generated output and
@@ -63,3 +103,13 @@ or without them, and the server checks them.
   ordered by the path), the query stays one object.
 - **Exporting the contract in `rok gen check`:** the check would build the
   API. The api App's own test keeps the document honest instead.
+- **Dart models through `json_serializable` or `freezed`:** a
+  `build_runner` step in every App that uses the client, for code rok
+  already generates. The models are plain classes with hand-shaped
+  `fromJson`/`toJson`, and the package depends on `http` alone.
+- **Dart query parameters as one object per call (as in TypeScript):**
+  Dart's named parameters already make each optional and named at the
+  call site, without a type per operation.
+- **`T?` for every optional, nullable request field:** leaving a field out
+  and clearing it could not be told apart, and the API's `PATCH`es tell
+  them apart.
