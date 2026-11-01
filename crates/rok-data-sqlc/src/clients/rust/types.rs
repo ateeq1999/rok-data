@@ -209,12 +209,21 @@ impl<'d> Types<'d> {
         }
     }
 
-    /// The component schema an inline object has the shape of, if any.
+    /// The component schema an inline object has the shape of, if any: the
+    /// one it equals, descriptions included, before one of the same shape
+    /// (components of one shape differ by what they document: a page's
+    /// items are the `users` feature's `UserResponse`, not the account
+    /// routes' `AccountResponse`).
     fn same_as_component(&self, schema: &Schema) -> Option<String> {
-        self.document
-            .schemas
+        let schemas = &self.document.schemas;
+        schemas
             .iter()
-            .find(|(_, component)| same_shape(component, schema))
+            .find(|(_, component)| *component == schema)
+            .or_else(|| {
+                schemas
+                    .iter()
+                    .find(|(_, component)| same_shape(component, schema))
+            })
             .map(|(name, _)| self.named(name))
     }
 

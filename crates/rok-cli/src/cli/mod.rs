@@ -73,6 +73,7 @@ pub(crate) enum Command {
             )
         )]
         template: Option<String>,
+        // The engine's `rok sqlc init --org` (`rok_data_sqlc::cli`) says the same, naming DIR.
         /// The org a Monorepo template's Apps are named under, with the
         /// project's name (NAME's): the mobile App's `applicationId` and
         /// iOS bundle id are `<ORG>.<project>`. A reverse-domain name;

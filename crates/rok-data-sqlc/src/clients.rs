@@ -11,11 +11,12 @@
 //! their drift (engine ADR 0027).
 
 pub mod dart;
+mod emit;
 pub mod openapi;
 mod project;
 pub mod rust;
 pub mod ts;
 mod write;
 
-pub use project::{CLIENTS, Client, Project};
+pub use project::{Client, ClientKind, Project};
 pub use write::{Mode, Outcome, emit_client, generate};

@@ -150,7 +150,8 @@ is kept, never overwritten, and the run says that it kept it.
 The run prints what it wrote and the next steps, which name the front door:
 `rok gen` turns the truth directory into `src/db/` and `src/features/`. A
 Monorepo template's next steps are its Apps' (the same ones `rok sqlc init
---template monorepo` prints):
+--template monorepo` prints: both doors name `rok gen`, the only command
+that regenerates the Apps and their Clients):
 
 ```text
 Next steps:

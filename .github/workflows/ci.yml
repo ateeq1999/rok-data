@@ -171,8 +171,10 @@ jobs:
         run: cargo test -p rok-data-cli --test fixture_compile --locked -- desktop --test-threads=1
 
   # The monorepo template's mobile App (workspace ADR 0027): the fixture
-  # gate scaffolds a monorepo with `rok`, then runs `flutter pub get`
-  # (resolving the generated `clients/dart` by path), `flutter analyze
+  # gate scaffolds a monorepo with `rok`, then runs `flutter pub get
+  # --enforce-lockfile` (the App's pinned `pubspec.lock`, like the web App's
+  # `--frozen-lockfile`; it resolves the generated `clients/dart` by path),
+  # `flutter analyze
   # --fatal-infos` and `flutter test` in its `apps/mobile`. The Rust
   # matrices above skip it; Flutter is pinned to the release the App's
   # `pubspec.lock` was resolved with.

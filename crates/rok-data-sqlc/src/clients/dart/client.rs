@@ -6,8 +6,8 @@
 
 use heck::ToUpperCamelCase;
 
+use super::super::emit::Named;
 use super::super::openapi::{Body, Response};
-use super::super::ts::Named;
 use super::Error;
 use super::models::Models;
 use super::names::{doc, member_name, string};

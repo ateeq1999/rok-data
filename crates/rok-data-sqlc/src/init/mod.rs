@@ -174,12 +174,18 @@ pub struct Scaffolded {
 
 impl Scaffolded {
     /// The next steps after [`init_template`] scaffolded `template`, as
-    /// `rok init` and `rok sqlc init` number them. `generate` is the command
-    /// that generates a single-app Template (`rok gen`, or the legacy `rok
-    /// sqlc generate`); a Monorepo template's is `rok gen` from its root,
-    /// the one that reads `[apps]`, `[contract]` and `[clients]`.
+    /// `rok init` and `rok sqlc init` number them.
+    ///
+    /// `crate_generate` is the command that generates one crate, which a
+    /// single-app Template's steps name: `rok gen` from `rok init`, the
+    /// legacy `rok sqlc generate` from `rok sqlc init`. A Monorepo
+    /// template's steps name `rok gen` from its root whichever door
+    /// scaffolded it: it is the only command that reads `[apps]`,
+    /// `[contract]` and `[clients]` (`rok sqlc generate` generates one
+    /// crate, not the Apps and their Clients), so `crate_generate` is not
+    /// theirs to name.
     #[must_use]
-    pub fn template_next_steps(&self, template: &str, generate: &str) -> Vec<String> {
+    pub fn template_next_steps(&self, template: &str, crate_generate: &str) -> Vec<String> {
         let monorepo = !rok_templates::catalog::apps(template).is_empty();
         let mut steps = Vec::new();
         if !self.wrote_manifest {
@@ -201,7 +207,7 @@ impl Scaffolded {
         } else {
             steps.extend([
                 format!(
-                    "run `{generate}` to generate src/db/, src/shared/ and src/features/ from schema/"
+                    "run `{crate_generate}` to generate src/db/, src/shared/ and src/features/ from schema/"
                 ),
                 "set DATABASE_URL and JWT_SECRET (see .env.example) and apply migrations/".to_owned(),
                 "`cargo test`, then `cargo run`".to_owned(),

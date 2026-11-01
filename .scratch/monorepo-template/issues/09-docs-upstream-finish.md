@@ -10,7 +10,7 @@
 - [x] `docs/getting-started.md`: the monorepo quickstart (init → api → web → mobile → regen) with compiled-sample discipline respected; the templates' guide page + recipes/ FCM (placeholder→real path) following the repo's working-page conventions
 - [x] rok-templates README + crate docs describe the catalog and the Apps; `llms.txt` and docs map refreshed in the same change
 - [x] Upstream pointers: both starter repos' READMEs prepared (with a pointer here), noted for archive; the vendored trees' own READMEs name rok-templates as home
-- [ ] The whole suite is green for release-range purposes: fmt, clippy `-D warnings`, workspace tests, engine unit suite, rok-cli CLI suites, fixture gates (Rust + bun + flutter paths with their skip notes) locally where toolchains exist, plus a fresh monorepo scaffold end-to-end check (init all Apps, gen round-trip, api tests through the client)
+- [x] The whole suite is green for release-range purposes: fmt, clippy `-D warnings`, workspace tests, engine unit suite, rok-cli CLI suites, fixture gates (Rust + bun + flutter paths with their skip notes) locally where toolchains exist, plus a fresh monorepo scaffold end-to-end check (init all Apps, gen round-trip, api tests through the client)
 
 ## Comments
 
@@ -30,3 +30,14 @@
 **End-to-end check** (a scaffold outside the repo, throwaway PostgreSQL 17): `rok init` → `rok gen` (exported the contract; every client file `unchanged`) → `rok gen check` "the generated code is up to date" → `cargo test -p my-shop-api` with `DATABASE_URL`: every suite green, `tests/client` 11 passed → `rok migrate up --dir apps/api/migrations` applied 8 → the `bio` round trip (`rok gen --migration add_bio` changed the contract and all three clients, `rok gen check` clean; the api's tests then needed `bio` in three `NewUser` literals and hit the `UserResponse` finding above).
 
 **Suite** (Windows; bun 1.3.14, Flutter 3.47.1, Dart 3.13.1; DB envs set): fmt, clippy `-D warnings`, `rok-templates`, `rok-data --test docs`, `rok-data-cli --test readme --test init --test gen` and `--test cli init` green; fixture gates `monorepo_*`, `web_app`, `mobile_app`, `dart_client`: 10 passed; workspace `--lib --bins --tests` (skipping those and `desktop_app`): one failure, `fixture_compile::api_app::api_app_generated_code_is_rustfmt_clean` ("The filename or extension is too long", os error 206: the rustfmt command line over the long worktree path; ticket 06 saw it too). The last checkbox stays open for that failure and the unrun `desktop_app` gate.
+
+**Review fixes and the last box (0027 review, branch `impl/0027-review-fixes`).** The `UserResponse` finding above is fixed. The account routes answer `AccountResponse`, sign-up and invitations answer `NewAccountResponse`, and the generated users `UserResponse` is the only schema of that name. Two guards keep it that way: `schema_names` (rok-templates) and each template's `tests/openapi_schemas.rs`. Checked on a scratch scaffold: `rok init my-shop --template monorepo --org com.acme`, `rok gen`, a `bio TEXT` column, then `rok gen --migration add_bio`. The scaffold now regenerates `UserResponse` with `bio` and types the list's items `Vec<UserResponse>`. With `bio: None` added to the three `NewUser` literals, `cargo test -p my-shop-api --test client` passes 11 of 11 against PostgreSQL. In that run two tests fail, as any added column makes them fail: the template's `contract` test (the target spec has no `bio`) and `users::an_admin_gets_a_user_without_its_hidden_columns` (it lists the exact columns). The os error 206 failure is fixed: rustfmt now runs in batches. Suite (Windows; bun, Dart and Flutter installed; a throwaway PostgreSQL 17 for `DATABASE_URL` and `ROK_DATA_SQLC_TEST_DATABASE_URL`):
+
+- fmt and clippy `-D warnings`: clean.
+- `rok-data-sqlc --lib`: 383 passed.
+- `rok-templates`: all green.
+- `rok-data-cli` suites: `cli` 207, `gen` 35, `gen_clients` 11 and `init` 17 passed; `readme` green.
+- Fixtures `monorepo web_app dart mobile api_app axum_template actix_template --skip desktop_app`: 21 passed.
+- `desktop_app`: 1 passed.
+- Workspace `--lib --bins --tests --no-fail-fast -- --skip desktop_app`: 1557 passed, 0 failed (123 test binaries).
+- `--benches`: 545 passed.
