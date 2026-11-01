@@ -60,6 +60,19 @@ enum Command {
         )]
         template: Option<String>,
 
+        /// The org a Monorepo template's Apps are named under, with the
+        /// project's name (DIR's): the mobile App's `applicationId` and iOS
+        /// bundle id are `<ORG>.<project>`. A reverse-domain name; default
+        /// `com.example`
+        #[arg(
+            short,
+            long,
+            value_name = "ORG",
+            requires = "template",
+            value_parser = crate::init::parse_org
+        )]
+        org: Option<String>,
+
         /// The web framework the skeleton is written for: `actix_web` (the
         /// default) or `axum`. A template has its own, so this doesn't
         /// combine with `--template`
@@ -227,9 +240,14 @@ where
         Command::Init {
             dir,
             template: Some(template),
+            org,
             ..
         } => {
-            let scaffolded = crate::init::init_template(&dir, &template)?;
+            let scaffolded = crate::init::init_template(&dir, &template, org.as_deref())?;
+            let run_api = format!(
+                "`cargo test` in apps/api, then `cargo run -p {}`",
+                scaffolded.api_package.as_deref().unwrap_or("<api>")
+            );
             let monorepo = rok_templates::catalog::apps(&template)
                 .iter()
                 .map(|app| app.name)
@@ -254,7 +272,7 @@ where
                 steps.extend([
                     "run `rok gen` from the root to generate every named App from its own schema, re-export apps/api/openapi.json and regenerate clients/ts and clients/dart from it",
                     "set DATABASE_URL and JWT_SECRET for apps/api (see its .env.example) and apply apps/api/migrations/",
-                    "`cargo test` in apps/api, then `cargo run -p axum-api`",
+                    &run_api,
                     "in apps/web, `bun install`, then `bun run dev` (it forwards /api to apps/api)",
                     "in apps/mobile, `flutter pub get`, then `flutter run` (it calls apps/api at 127.0.0.1:8080)",
                 ]);
@@ -266,6 +284,7 @@ where
             dir,
             template: None,
             api_framework,
+            ..
         } => {
             let framework = api_framework.map_or(ApiFramework::ActixWeb, ApiFramework::from);
             print_scaffolded(crate::init::init(&dir, framework)?);

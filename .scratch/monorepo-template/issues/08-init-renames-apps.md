@@ -4,10 +4,16 @@
 
 **Blocked by:** 06 (mobile App ported — every App's rename surface exists).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `--org` exists on both front doors (`rok init`, engine's init grammar — tokens forwarded verbatim), defaulting to `com.example`, validated to look like a reverse-domain name
-- [ ] Scaffold with a project name + org renames every App in one pass: api crate/package, web package, mobile package + `applicationId` + iOS bundle id + deep-link scheme + display name; the rename rules are unit-tested per App (segment-matching conventions for the code files, whole-identifier renames for manifests)
-- [ ] The rename respects everything init already respects: files-if-absent, marker rules, generated files untouched; `--org` with a name that would break an identifier is rejected cleanly
-- [ ] The non-Rust gates stay green with a renamed project (analyze/tests/typecheck run on the renamed scaffold), proving the renames didn't break any App
-- [ ] `docs/cli-reference.md` updated in the same change (the init contract: `--org`, which names derive); format/clippy/test suites green
+- [x] `--org` exists on both front doors (`rok init`, engine's init grammar — tokens forwarded verbatim), defaulting to `com.example`, validated to look like a reverse-domain name
+- [x] Scaffold with a project name + org renames every App in one pass: api crate/package, web package, mobile package + `applicationId` + iOS bundle id + deep-link scheme + display name; the rename rules are unit-tested per App (segment-matching conventions for the code files, whole-identifier renames for manifests)
+- [x] The rename respects everything init already respects: files-if-absent, marker rules, generated files untouched; `--org` with a name that would break an identifier is rejected cleanly
+- [x] The non-Rust gates stay green with a renamed project (analyze/tests/typecheck run on the renamed scaffold), proving the renames didn't break any App
+- [x] `docs/cli-reference.md` updated in the same change (the init contract: `--org`, which names derive); format/clippy/test suites green
+
+## Comments
+
+**Done (t08).** `--org` (`-o`) is on both front doors, `requires = "template"`, validated by one value parser (`rok_data_sqlc::init::parse_org`): two or more dot-separated segments, each `[a-z][a-z0-9]*`, no Java/Kotlin reserved word. The project name is the project directory's name, split at every non-alphanumeric character and lowercased; one that starts with a digit, has no letter or digit, or is a reserved word is rejected before anything is written. The rules live in `rok-templates` (`names.rs`, `rename.rs`, beside the files they rename); the engine's `init_template` applies them in its file plan, so files-if-absent, the marker rules and the generated-file skip are unchanged. Renames, for `my-shop --org com.acme`: api package `my-shop-api` (Rust paths `my_shop_api::` through the engine's existing crate rename, driven by the renamed manifest; `rok.toml`'s export, the root `Cargo.lock`, the docs' `-p`, the contract title); desktop (workspace ADR 0031) `my-shop-desktop`; web `my-shop-web`; mobile Dart package `my_shop_mobile` and its `package:` imports, Android `applicationId`/namespace, Linux id, Kotlin package and its directory `com.acme.my_shop`, iOS/macOS bundle ids `com.acme.myShop` (Flutter's own `--org` convention), display name `My Shop`, platform binary names `my_shop`, scheme `myshop`, the org in copyright and company lines. An App manifest the project already holds still wins.
+
+**Judgement calls.** Without `--org` the Apps are still renamed after the project (default org `com.example`): "works exactly as today" is read as "works without the flag". `--org` with a single-app template is an error (it has no Apps). The web App's visible brand ("Starter" in its copy) and the desktop App's `H1::new("desktop")` are prose, not identifiers, and are not renamed; `apps/web/bun.lock`'s workspace name stays as shipped (bun does not check it). The gates now scaffold `shop --org com.acme`; the contract-artifact test maps the scaffold's title back to the template's `axum-api` before comparing (and when rewriting).

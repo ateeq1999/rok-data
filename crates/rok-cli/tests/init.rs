@@ -355,6 +355,57 @@ fn the_help_lists_the_templates() -> Result<()> {
     Ok(())
 }
 
+/// `rok init NAME --template monorepo --org ORG` names every App after
+/// NAME and ORG, as the engine's `init` does (workspace ADR 0027).
+#[test]
+fn init_monorepo_names_the_apps_after_the_project_and_org() -> Result<()> {
+    let dir = TempDir::new()?;
+    let output = run_in(
+        dir.path(),
+        &[
+            "init",
+            "shop",
+            "--template",
+            "monorepo",
+            "--org",
+            "com.acme",
+        ],
+    )?;
+    assert_success(&output);
+    let project = dir.path().join("shop");
+    let manifest = fs::read_to_string(project.join("apps/api/Cargo.toml"))?;
+    assert!(manifest.contains("name = \"shop-api\""), "{manifest}");
+    let pubspec = fs::read_to_string(project.join("apps/mobile/pubspec.yaml"))?;
+    assert!(pubspec.starts_with("name: shop_mobile\n"), "{pubspec}");
+    let plist = fs::read_to_string(project.join("apps/mobile/ios/Runner/Info.plist"))?;
+    assert!(plist.contains("<string>Shop</string>"), "{plist}");
+    Ok(())
+}
+
+/// A malformed `--org` is a usage error that writes nothing; `--org`
+/// without `--template` is one too.
+#[test]
+fn init_rejects_a_malformed_org_and_an_org_without_a_template() -> Result<()> {
+    let dir = TempDir::new()?;
+    let output = run_in(
+        dir.path(),
+        &["init", "shop", "--template", "monorepo", "--org", "com"],
+    )?;
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("is not a reverse-domain name"),
+        "{}",
+        stderr(&output)
+    );
+    let output = run_in(dir.path(), &["init", "shop", "--org", "com.acme"])?;
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    assert!(
+        !dir.path().join("shop").exists(),
+        "a usage error wrote files"
+    );
+    Ok(())
+}
+
 /// The templates the engine offers are the ones rok-templates holds.
 #[test]
 fn the_offered_templates_are_the_engines() {

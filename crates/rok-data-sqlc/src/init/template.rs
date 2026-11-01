@@ -16,6 +16,8 @@ use anyhow::{Context, Result, bail};
 use super::{Scaffolded, crate_name, declared_crate, is_cargo_default_main};
 use rok_templates::File;
 use rok_templates::catalog;
+use rok_templates::names::{DEFAULT_ORG, Names};
+use rok_templates::rename::Renames;
 
 use crate::output::write_absent;
 use crate::report::display_path;
@@ -121,23 +123,38 @@ fn crate_under(dir: &Path) -> Option<String> {
 /// `favicon.ico`) is copied byte for byte.
 /// When the project's library crate is `krate` and a template subtree's
 /// (its `Cargo.toml`'s) another, the Rust files of that subtree name
-/// `krate` instead.
-fn plan(dir: &Path, files: &[File], krate: Option<&str>) -> Result<Vec<(PathBuf, Vec<u8>)>> {
+/// `krate` instead. `names` renames a Monorepo template's Apps after the
+/// project (workspace ADR 0027): each text file and path as
+/// [`Renames`] says, and each App's Rust files after its renamed crate.
+fn plan(
+    dir: &Path,
+    files: &[File],
+    krate: Option<&str>,
+    names: &Renames,
+) -> Result<Vec<(PathBuf, Vec<u8>)>> {
     let crates = declared_crates(files);
+    // The crate an App's manifest declares once renamed.
+    let renamed_crate = |prefix: &str| -> Option<String> {
+        let manifest = files.iter().find(|file| {
+            catalog::destination(file.path) == format!("{prefix}/Cargo.toml").as_str()
+        })?;
+        let text = String::from_utf8_lossy(manifest.bytes);
+        declared_crate(&names.text(manifest.path, &text))
+    };
     // Each subtree's rename target: a template root's is the project's
     // crate (`krate`, the crate the project's own manifest declares), an
     // App's within a Monorepo template is the crate the App's manifest
     // already names — when the project holds the manifest, the template's
     // is not copied, and the App's files must name what its manifest
-    // declares. A subtree with no existing manifest keeps its template
-    // crate: its manifest is copied beside the files.
+    // declares. A subtree with no existing manifest takes the crate its
+    // renamed manifest, copied beside the files, declares.
     let renames: Vec<(String, String, Option<String>)> = crates
         .into_iter()
         .map(|(prefix, from)| {
             let to = if prefix.is_empty() {
                 krate.map(str::to_owned)
             } else {
-                crate_under(&dir.join(&prefix))
+                crate_under(&dir.join(&prefix)).or_else(|| renamed_crate(&prefix))
             };
             (prefix, from, to)
         })
@@ -152,7 +169,7 @@ fn plan(dir: &Path, files: &[File], krate: Option<&str>) -> Result<Vec<(PathBuf,
     };
     let mut planned = Vec::new();
     for file in files {
-        let destination = dir.join(catalog::destination(file.path));
+        let destination = dir.join(names.path(catalog::destination(file.path)).as_ref());
         let Ok(text) = std::str::from_utf8(file.bytes) else {
             planned.push((destination, file.bytes.to_vec()));
             continue;
@@ -167,6 +184,7 @@ fn plan(dir: &Path, files: &[File], krate: Option<&str>) -> Result<Vec<(PathBuf,
         if catalog::destination(file.path) == "src/db/schema.json" {
             continue;
         }
+        let text = names.text(file.path, &text).into_owned();
         let text = match &renamed(file) {
             Some((from, to)) if file.path.ends_with(".rs") => rename_crate(&text, from, to),
             _ => text,
@@ -176,12 +194,63 @@ fn plan(dir: &Path, files: &[File], krate: Option<&str>) -> Result<Vec<(PathBuf,
     Ok(planned)
 }
 
+/// The project's name: its directory's, as the user typed it or, for `.`
+/// and the like, as the file system resolves it.
+fn project_name(dir: &Path) -> String {
+    fs::canonicalize(dir)
+        .ok()
+        .and_then(|dir| {
+            dir.file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+        })
+        .or_else(|| {
+            dir.file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+        })
+        .unwrap_or_default()
+}
+
+/// `--org`'s value parser: `org` when it is a reverse-domain name that can
+/// name the Apps, the reason it cannot otherwise (a usage error).
+///
+/// # Errors
+///
+/// When `org` would break an Android or iOS identifier.
+pub fn parse_org(org: &str) -> std::result::Result<String, String> {
+    // Any valid project name will do: only the org is checked.
+    Names::new("app", org)
+        .map(|names| names.org().to_owned())
+        .map_err(|err| err.to_string())
+}
+
+/// The names a Monorepo template's Apps take in `dir` under `org` (the
+/// default org when `None`); a single-app template takes none, so an
+/// `org` for one is an error.
+fn names_for(dir: &Path, template: &str, org: Option<&str>) -> Result<Option<Names>> {
+    if catalog::apps(template).is_empty() {
+        if let Some(org) = org {
+            bail!(
+                "`--org {org}` names a Monorepo template's Apps; the `{template}` template has none"
+            );
+        }
+        return Ok(None);
+    }
+    let names = Names::new(&project_name(dir), org.unwrap_or(DEFAULT_ORG))?;
+    Ok(Some(names))
+}
+
 /// Copies the template `name` into `dir`, keeping every file that exists
-/// but cargo's untouched default `src/main.rs`.
-pub fn init_template(dir: &Path, name: &str) -> Result<Scaffolded> {
+/// but cargo's untouched default `src/main.rs`. A Monorepo template's Apps
+/// are named after the project (`dir`'s name) and `org` (`com.example`
+/// when `None`), workspace ADR 0027.
+pub fn init_template(dir: &Path, name: &str, org: Option<&str>) -> Result<Scaffolded> {
     let files = files(name)?;
+    let names = names_for(dir, name, org)?;
+    let renames = names
+        .as_ref()
+        .map_or_else(Renames::none, |names| Renames::new(name, names));
     let krate = dir.join("Cargo.toml").is_file().then(|| crate_name(dir));
-    let planned = plan(dir, files, krate.as_deref())?;
+    let planned = plan(dir, files, krate.as_deref(), &renames)?;
     let main = dir.join("src/main.rs");
     let replaced_default_main = planned.iter().any(|(path, _)| *path == main)
         && fs::read_to_string(&main).is_ok_and(|text| is_cargo_default_main(&text));
@@ -204,228 +273,9 @@ pub fn init_template(dir: &Path, name: &str) -> Result<Scaffolded> {
         wrote_manifest: written.contains(&manifest),
         written,
         replaced_default_main,
+        api_package: names.map(|names| names.api_package()),
     })
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn every_template_is_embedded() {
-        for name in names() {
-            let files = files(name).unwrap_or_else(|err| panic!("{err}"));
-            assert!(!files.is_empty(), "template `{name}` has no files");
-        }
-    }
-
-    /// Every template's configuration selects the backend its code is
-    /// written for: the axum template extracts and generates for axum.
-    #[test]
-    fn every_template_selects_its_own_backend() -> Result<()> {
-        for (name, framework) in [("actix", "actix_web"), ("axum", "axum")] {
-            let files = files(name)?;
-            let config = files
-                .iter()
-                .find(|file| file.path == "rok-data-sqlc.toml")
-                .map(|file| String::from_utf8_lossy(file.bytes).into_owned())
-                .ok_or_else(|| anyhow::anyhow!("template `{name}` has no configuration"))?;
-            assert!(
-                config.contains(&format!("extractors = [\"{framework}\"]")),
-                "template `{name}` does not extract for {framework}:\n{config}"
-            );
-        }
-        // actix-web is the default backend; the axum template names it.
-        let files = files("axum")?;
-        let config = files
-            .iter()
-            .find(|file| file.path == "rok-data-sqlc.toml")
-            .map(|file| String::from_utf8_lossy(file.bytes).into_owned())
-            .unwrap_or_default();
-        assert!(
-            config.contains("framework = \"axum\""),
-            "the axum template does not generate for axum:\n{config}"
-        );
-        Ok(())
-    }
-
-    /// Every template's `AGENTS.md` states the framework its code is written
-    /// for: its rules section is what `check-arch` renders for that
-    /// template's own backend, so the rule it states is the one
-    /// `check-arch` checks the template's project against.
-    #[test]
-    fn every_template_states_its_own_framework_in_agents_md() -> Result<()> {
-        for (name, framework) in [
-            ("actix", crate::ApiFramework::ActixWeb),
-            ("axum", crate::ApiFramework::Axum),
-        ] {
-            let files = files(name)?;
-            let agents = files
-                .iter()
-                .find(|file| file.path == "AGENTS.md")
-                .map(|file| String::from_utf8_lossy(file.bytes).into_owned())
-                .ok_or_else(|| anyhow::anyhow!("template `{name}` has no `AGENTS.md`"))?;
-            let rules = crate::check_arch::rules_markdown(framework);
-            assert!(
-                agents.contains(&format!("## The six rules\n\n{rules}\n\n")),
-                "template `{name}`'s `AGENTS.md` rules section is not check-arch's \
-                 for `{framework:?}`:\n{agents}"
-            );
-        }
-        Ok(())
-    }
-
-    /// rok-data-sqlc's generated files are left out, including the JSON
-    /// schema artifact (engine ADR 0010), which carries no marker; cargo's
-    /// `Cargo.lock`, also `@generated`, is the template's pinned lock and is
-    /// copied.
-    #[test]
-    fn rok_data_sqlcs_generated_files_are_left_out_and_line_endings_normalized() -> Result<()> {
-        let files = &[
-            File {
-                path: "Cargo.lock",
-                bytes: b"# This file is automatically @generated by Cargo.\n",
-            },
-            File {
-                path: "src/db/mod.rs",
-                bytes: b"// @generated by rok-data-sqlc. Do not edit by hand.\n",
-            },
-            File {
-                path: "src/db/schema.json",
-                bytes: b"{\n\n}\n",
-            },
-            File {
-                path: "src/features/README.md",
-                bytes: b"<!-- @generated by rok-data-sqlc. Do not edit by hand. -->\n",
-            },
-            File {
-                path: "README.md",
-                bytes: b"# App\r\n\r\nFiles marked @generated are rok-data-sqlc's.\r\n",
-            },
-        ];
-        let planned = plan(Path::new("p"), files, None)?;
-        assert_eq!(
-            planned,
-            [
-                (
-                    PathBuf::from("p/Cargo.lock"),
-                    b"# This file is automatically @generated by Cargo.\n".to_vec()
-                ),
-                (
-                    PathBuf::from("p/README.md"),
-                    b"# App\n\nFiles marked @generated are rok-data-sqlc's.\n".to_vec()
-                ),
-            ]
-        );
-        Ok(())
-    }
-
-    /// A binary file (not UTF-8, like a web App's `favicon.ico`) is copied
-    /// byte for byte: no line-ending normalization, no marker check.
-    #[test]
-    fn binary_files_are_copied_byte_for_byte() -> Result<()> {
-        let icon: &[u8] = &[0x00, 0x00, 0x01, 0x00, 0xff, b'\r', b'\n', 0x80];
-        let files = &[File {
-            path: "apps/web/public/favicon.ico",
-            bytes: icon,
-        }];
-        let planned = plan(Path::new("p"), files, None)?;
-        assert_eq!(
-            planned,
-            [(
-                PathBuf::from("p/apps/web/public/favicon.ico"),
-                icon.to_vec()
-            )]
-        );
-        Ok(())
-    }
-
-    /// The template's Rust files name its library crate; copied into a
-    /// project with a crate of its own, they name the project's. Its
-    /// manifest is copied as `Cargo.toml`.
-    #[test]
-    fn rust_files_name_the_projects_crate() -> Result<()> {
-        let files = &[
-            File {
-                path: "Cargo.toml.template",
-                bytes: b"[package]\nname = \"actix-api\"\n",
-            },
-            File {
-                path: "src/main.rs",
-                bytes: b"use actix_api::{app, config};\n",
-            },
-            File {
-                path: "README.md",
-                bytes: b"`actix_api::app`\n",
-            },
-        ];
-        let planned = plan(Path::new("p"), files, Some("shop"))?;
-        assert_eq!(planned[1].1, b"use shop::{app, config};\n");
-        assert_eq!(planned[2].1, b"`actix_api::app`\n");
-        let planned = plan(Path::new("p"), files, None)?;
-        assert_eq!(planned[0].0, Path::new("p/Cargo.toml"));
-        assert_eq!(planned[1].1, b"use actix_api::{app, config};\n");
-        Ok(())
-    }
-
-    /// Only a whole path segment naming the crate is renamed: a crate whose
-    /// name merely ends with it is another crate.
-    #[test]
-    fn the_crate_rename_matches_whole_path_segments_only() {
-        assert_eq!(
-            rename_crate(
-                "use actix_api::app;\nuse my_actix_api::x;\nlet y = ::actix_api::y;\n",
-                "actix_api",
-                "shop"
-            ),
-            "use shop::app;\nuse my_actix_api::x;\nlet y = ::shop::y;\n"
-        );
-    }
-
-    /// A Monorepo template's Apps rename within their own subtree: the
-    /// root workspace manifest (virtual, `[workspace]` alone) declares
-    /// none, a fresh scaffold's App keeps its template crate (its
-    /// manifest is copied beside the files), and into a project that
-    /// holds the App's manifest already, the App's files name what that
-    /// manifest declares.
-    #[test]
-    fn a_monorepo_renames_each_app_within_its_subtree() -> Result<()> {
-        let files = &[
-            File {
-                path: "Cargo.toml.template",
-                bytes: b"[workspace]\nmembers = [\"apps/api\"]\n",
-            },
-            File {
-                path: "apps/api/Cargo.toml.template",
-                bytes: b"[package]\nname = \"axum-api\"\n[lib]\nname = \"axum_api\"\n",
-            },
-            File {
-                path: "apps/api/src/main.rs",
-                bytes: b"use axum_api::{app, config};\n",
-            },
-        ];
-        // A fresh scaffold: nothing renames.
-        let planned = plan(Path::new("p"), files, None)?;
-        assert_eq!(planned[2].1, b"use axum_api::{app, config};\n");
-        // The App's manifest held by the project: its crate is the
-        // project's for the App's files.
-        let project = tempfile::tempdir()?;
-        fs::create_dir_all(project.path().join("apps/api"))?;
-        fs::write(
-            project.path().join("apps/api/Cargo.toml"),
-            "[package]\nname = \"my-api\"\n[lib]\nname = \"my_api\"\n",
-        )?;
-        let planned = plan(project.path(), files, None)?;
-        assert_eq!(planned[2].1, b"use my_api::{app, config};\n");
-        Ok(())
-    }
-
-    #[test]
-    fn an_unknown_template_lists_the_valid_ones() {
-        let err = files("rocket").err().map(|err| err.to_string());
-        assert_eq!(
-            err.as_deref(),
-            Some("unknown template `rocket`; the templates are: actix, axum, monorepo")
-        );
-    }
-}
+mod tests;

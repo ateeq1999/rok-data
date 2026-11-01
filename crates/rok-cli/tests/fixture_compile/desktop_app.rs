@@ -1,16 +1,20 @@
 //! The `apps/desktop` App of the monorepo template (workspace ADR 0031),
-//! made the way a user makes it: `rok init --template monorepo` into a
-//! scratch directory, then, from its root, `cargo build -p desktop` and
-//! `cargo test -p desktop` (the App's bloc tests; GPUI's test support, no
-//! window). Skips with a printed note on Linux without the system
-//! libraries GPUI builds against.
+//! made the way a user makes it: `rok init shop --template monorepo --org
+//! com.acme` into a scratch directory, then, from its root, `cargo build -p
+//! shop-desktop` and `cargo test -p shop-desktop` (the App, renamed after
+//! the project; its bloc tests run on GPUI's test support, no window).
+//! Skips with a printed note on Linux without the system libraries GPUI
+//! builds against.
 
 use std::process::Command;
 
 use anyhow::{Result, ensure};
 
 use crate::common::{self, cargo};
-use crate::rok_data_sqlc;
+
+/// The desktop App's package in the gates' scaffold, renamed after the
+/// project.
+const DESKTOP_PACKAGE: &str = "shop-desktop";
 
 /// The Debian packages that give GPUI's Linux build what it links against
 /// (what the `desktop` CI job installs).
@@ -54,9 +58,8 @@ fn monorepo_desktop_app_builds_and_tests() -> Result<()> {
         eprintln!("note: skipping the desktop App gate: {reason}");
         return Ok(());
     }
-    let project = tempfile::TempDir::new()?;
+    let project = crate::monorepo_template::scaffold()?;
     let root = project.path();
-    rok_data_sqlc(root, &["init", "--template", "monorepo"])?;
     ensure!(
         root.join("apps/desktop/Cargo.toml").is_file(),
         "the scaffold has no apps/desktop/Cargo.toml"
@@ -64,8 +67,8 @@ fn monorepo_desktop_app_builds_and_tests() -> Result<()> {
     // The root `Cargo.lock` the template ships covers the desktop App:
     // `--locked` fails if resolving it would change the lock.
     for args in [
-        ["build", "-p", "desktop", "--locked"],
-        ["test", "-p", "desktop", "--locked"],
+        ["build", "-p", DESKTOP_PACKAGE, "--locked"],
+        ["test", "-p", DESKTOP_PACKAGE, "--locked"],
     ] {
         let status = cargo(root, &args).status()?;
         ensure!(

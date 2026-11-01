@@ -73,6 +73,18 @@ pub(crate) enum Command {
             )
         )]
         template: Option<String>,
+        /// The org a Monorepo template's Apps are named under, with the
+        /// project's name (NAME's): the mobile App's `applicationId` and
+        /// iOS bundle id are `<ORG>.<project>`. A reverse-domain name;
+        /// default `com.example`.
+        #[arg(
+            short,
+            long,
+            value_name = "ORG",
+            requires = "template",
+            value_parser = rok_data_sqlc::init::parse_org
+        )]
+        org: Option<String>,
         /// The web framework the skeleton is written for: `actix_web` (the
         /// default) or `axum`. A template has its own, so this doesn't
         /// combine with `--template`.

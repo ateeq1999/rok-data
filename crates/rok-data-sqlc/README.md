@@ -1388,7 +1388,8 @@ newline aside), and prints `replaced cargo's default src/main.rs`. Any other
 
 | Flag | Meaning |
 |---|---|
-| `-t`, `--template <NAME>` | Copy this ready-made project instead of the skeleton. The templates are `actix` and `axum`; any other name fails and lists the valid ones. |
+| `-t`, `--template <NAME>` | Copy this ready-made project instead of the skeleton. The templates are `actix`, `axum` and `monorepo`; any other name fails and lists the valid ones. |
+| `-o`, `--org <ORG>` | The org a Monorepo template's Apps are named under, with the project's name (`DIR`'s): a reverse-domain name, `com.example` by default. Only with `--template`; a single-app template has no Apps to name. The renames are listed in `docs/cli-reference.md` (`rok init`). |
 
 `rok sqlc init --template actix [DIR]` copies a complete actix-web project
 (its configuration, migrations, scaffolded files, tests and README) into

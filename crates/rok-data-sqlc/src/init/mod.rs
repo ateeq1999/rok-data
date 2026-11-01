@@ -167,6 +167,9 @@ pub struct Scaffolded {
     /// Whether a `Cargo.toml` was written: `init --template` copies the
     /// template's when the project has none.
     pub wrote_manifest: bool,
+    /// A Monorepo template's api App package, as init named it after the
+    /// project: what `cargo run -p` takes from the root. `None` otherwise.
+    pub api_package: Option<String>,
 }
 
 /// The `src/main.rs` `cargo new` writes. It is not the user's code, so the
@@ -197,12 +200,13 @@ pub fn init(dir: &Path, framework: ApiFramework) -> Result<Scaffolded> {
         written: write_absent(&plan(dir, &crate_name(dir), framework))?,
         replaced_default_main,
         wrote_manifest: false,
+        api_package: None,
     })
 }
 
 mod template;
 
-pub use template::{init_template, names as template_names};
+pub use template::{init_template, names as template_names, parse_org};
 
 #[cfg(test)]
 mod tests;

@@ -22,10 +22,11 @@ const SCHEMA_DIR: &str = "schema";
 /// The file a seeded schema is written as.
 const SCHEMA_FILE: &str = "0001_init.sql";
 
-/// `rok init [NAME] [--template <NAME> | --api-framework <FW>] [--schema <PATH>]`.
+/// `rok init [NAME] [--template <NAME> [--org <ORG>] | --api-framework <FW>] [--schema <PATH>]`.
 pub(crate) fn run(
     name: Option<PathBuf>,
     template: Option<String>,
+    org: Option<&str>,
     api_framework: Option<&str>,
     schema: Option<PathBuf>,
 ) -> Result<ExitCode, String> {
@@ -38,7 +39,7 @@ pub(crate) fn run(
         None => None,
     };
     let scaffolded = match template {
-        Some(template) => init_template(&dir, &template).map_err(|err| format!("{err:#}"))?,
+        Some(template) => init_template(&dir, &template, org).map_err(|err| format!("{err:#}"))?,
         None => {
             let framework = match api_framework {
                 Some("axum") => ApiFramework::Axum,
