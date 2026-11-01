@@ -12,7 +12,7 @@
 - [Docs map](README.md): what every file under docs/ is for, and the paste-to-agent conventions.
 - [rok-data overview](overview.md): what rok-data is, its crates at a glance, its scope vs. the rok family's sibling project, and the rok-cli/rok-data-cli naming trap.
 - [Installation](installation.md): `cargo install rok-data-cli` (binary `rok`), `cargo add rok-data`, platform notes.
-- [Getting started](getting-started.md): the front door (`rok init`, `rok gen`, staged migration pairs, CI drift check), the runtime by hand, the legacy generators.
+- [Getting started](getting-started.md): the front door (`rok init`, `rok gen`, staged migration pairs, CI drift check), the monorepo template (`rok init --template monorepo --org`: api, web, desktop and mobile Apps on generated TS/Dart/Rust clients), the runtime by hand, the legacy generators.
 
 ## For agents
 
@@ -45,4 +45,4 @@
 - `../GLOSSARY.md` (+ `GLOSSARY-MAP.md`) — the project's language.
 - `../AGENTS.md` — working rules for agents in this repository.
 - `../crates/rok-data-sqlc/docs/` — the engine's own ADRs (engine ADR 0027 newest) and guides.
-- `../crates/rok-templates/docs/guide/` — the actix/axum templates' guide (accounts, files, jobs, observability, security, AWS) and recipes.
+- `../crates/rok-templates/docs/guide/` — the templates' guide: the monorepo template (`monorepo.md`: its Apps, the one contract, the clients, the `rok gen` loop, what is hidden), the API's parts (accounts, files, jobs, observability, security, AWS) and recipes (Sentry, OTLP metrics, Redis rate limit, webhooks, OIDC, FCM push notifications).

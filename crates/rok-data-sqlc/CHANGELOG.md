@@ -7,6 +7,10 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+- `Scaffolded::template_next_steps`: the next steps after `init_template`,
+  which `rok sqlc init --template` and the front door's `rok init
+  --template` both print; a Monorepo template's name `clients/rust` beside
+  `clients/ts` and `clients/dart` (workspace ADR 0027).
 - `init --template` copies a template's binary files (not UTF-8, such as
   a web App's `favicon.ico`) byte for byte; text files are copied as
   before, with `\n` line endings (workspace ADR 0027).

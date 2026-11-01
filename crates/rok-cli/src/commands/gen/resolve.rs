@@ -188,10 +188,16 @@ fn settings(
                 .ok_or_else(|| format!("--rename `{spec}`: expected `old=new` or `table.old=new`"))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let migrations_dir = options
-        .migrations_dir
-        .clone()
-        .unwrap_or_else(|| engine.migrations.clone());
+    // A path the file sets is already resolved against the file's
+    // directory; the engine's bare default resolves against the base, so
+    // an App's pairs land in the App's history dir.
+    let migrations_dir = options.migrations_dir.clone().unwrap_or_else(|| {
+        if engine.migrations == Config::default().migrations {
+            join_default(base, &engine.migrations.to_string_lossy())
+        } else {
+            engine.migrations.clone()
+        }
+    });
     Ok(Settings {
         engine,
         schema_dir,

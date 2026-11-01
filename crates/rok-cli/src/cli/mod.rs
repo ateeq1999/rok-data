@@ -96,7 +96,7 @@ pub(crate) enum Command {
             value_parser = ["actix_web", "axum"]
         )]
         api_framework: Option<String>,
-        /// Seed the schema directory (migrations/) with this file's content.
+        /// Seed the schema directory with this file's content, as `schema/0001_init.sql`.
         #[arg(short, long, value_name = "PATH")]
         schema: Option<PathBuf>,
     },

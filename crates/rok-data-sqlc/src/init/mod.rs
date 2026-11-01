@@ -172,6 +172,45 @@ pub struct Scaffolded {
     pub api_package: Option<String>,
 }
 
+impl Scaffolded {
+    /// The next steps after [`init_template`] scaffolded `template`, as
+    /// `rok init` and `rok sqlc init` number them. `generate` is the command
+    /// that generates a single-app Template (`rok gen`, or the legacy `rok
+    /// sqlc generate`); a Monorepo template's is `rok gen` from its root,
+    /// the one that reads `[apps]`, `[contract]` and `[clients]`.
+    #[must_use]
+    pub fn template_next_steps(&self, template: &str, generate: &str) -> Vec<String> {
+        let monorepo = !rok_templates::catalog::apps(template).is_empty();
+        let mut steps = Vec::new();
+        if !self.wrote_manifest {
+            steps.push(if monorepo {
+                "add the apps' dependencies and lints (each app's README.md lists them) to its manifest".to_owned()
+            } else {
+                "add the template's dependencies and lints (its README.md lists them) to Cargo.toml".to_owned()
+            });
+        }
+        if monorepo {
+            let api = self.api_package.as_deref().unwrap_or("<api>");
+            steps.extend([
+                "run `rok gen` from the root to generate every named App from its own schema, re-export apps/api/openapi.json and regenerate clients/ts, clients/dart and clients/rust from it".to_owned(),
+                "set DATABASE_URL and JWT_SECRET for apps/api (see its .env.example) and apply apps/api/migrations/".to_owned(),
+                format!("`cargo test` in apps/api, then `cargo run -p {api}`"),
+                "in apps/web, `bun install`, then `bun run dev` (it forwards /api to apps/api)".to_owned(),
+                "in apps/mobile, `flutter pub get`, then `flutter run` (it calls apps/api at 127.0.0.1:8080)".to_owned(),
+            ]);
+        } else {
+            steps.extend([
+                format!(
+                    "run `{generate}` to generate src/db/, src/shared/ and src/features/ from schema/"
+                ),
+                "set DATABASE_URL and JWT_SECRET (see .env.example) and apply migrations/".to_owned(),
+                "`cargo test`, then `cargo run`".to_owned(),
+            ]);
+        }
+        steps
+    }
+}
+
 /// The `src/main.rs` `cargo new` writes. It is not the user's code, so the
 /// scaffolded `main.rs` replaces it.
 const CARGO_DEFAULT_MAIN: &str = "fn main() {\n    println!(\"Hello, world!\");\n}";
