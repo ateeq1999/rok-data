@@ -281,15 +281,63 @@ fn api_app_generated_code_is_rustfmt_clean() -> Result<()> {
         .collect();
     ensure!(!files.is_empty(), "the API fixture generated no files");
 
-    let output = Command::new("rustfmt")
-        .args(["--edition", "2024", "--check"])
-        .args(&files)
-        .output()
-        .context("failed to run rustfmt (install it with `rustup component add rustfmt`)")?;
+    // In batches: every path on one command line passes Windows' limit
+    // (os error 206) once the checkout's path is long.
+    let mut unformatted = String::new();
+    for batch in command_line_batches(&files, RUSTFMT_BATCH_CHARS) {
+        let output = Command::new("rustfmt")
+            .args(["--edition", "2024", "--check"])
+            .args(&batch)
+            .output()
+            .context("failed to run rustfmt (install it with `rustup component add rustfmt`)")?;
+        if !output.status.success() {
+            unformatted.push_str(&String::from_utf8_lossy(&output.stdout));
+            unformatted.push_str(&String::from_utf8_lossy(&output.stderr));
+        }
+    }
     ensure!(
-        output.status.success(),
-        "generated API code is not rustfmt-clean:\n{}",
-        String::from_utf8_lossy(&output.stdout)
+        unformatted.is_empty(),
+        "generated API code is not rustfmt-clean:\n{unformatted}"
     );
     Ok(())
+}
+
+/// The most characters of paths one rustfmt command line carries: well
+/// under Windows' 32,767 for the whole command line.
+const RUSTFMT_BATCH_CHARS: usize = 8_000;
+
+/// `files` in order, cut into batches whose paths (each with a separating
+/// space) add up to at most `limit` characters; a longer path is a batch
+/// of its own.
+fn command_line_batches<'a>(files: &[&'a PathBuf], limit: usize) -> Vec<Vec<&'a PathBuf>> {
+    let mut batches: Vec<Vec<&PathBuf>> = Vec::new();
+    let mut length = 0;
+    for file in files {
+        let size = file.as_os_str().len() + 1;
+        match batches.last_mut() {
+            Some(batch) if length + size <= limit => {
+                batch.push(file);
+                length += size;
+            }
+            _ => {
+                batches.push(vec![file]);
+                length = size;
+            }
+        }
+    }
+    batches
+}
+
+#[test]
+fn rustfmt_batches_stay_under_the_limit_and_keep_every_file() {
+    let files: Vec<PathBuf> = (0..10)
+        .map(|n| PathBuf::from(format!("{}{n}.rs", "d/".repeat(10))))
+        .collect();
+    let refs: Vec<&PathBuf> = files.iter().collect();
+    let batches = command_line_batches(&refs, 50);
+    // Each path is 24 characters plus a space: two fit in 50.
+    assert_eq!(batches.iter().map(Vec::len).collect::<Vec<_>>(), [2; 5]);
+    assert_eq!(batches.concat(), refs);
+    let long = PathBuf::from("x".repeat(80));
+    assert_eq!(command_line_batches(&[&long], 50), [vec![&long]]);
 }
