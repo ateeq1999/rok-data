@@ -60,6 +60,7 @@ enum Command {
         )]
         template: Option<String>,
 
+        // `rok init --org` (rok-cli's `cli/mod.rs`) says the same, naming NAME.
         /// The org a Monorepo template's Apps are named under, with the
         /// project's name (DIR's): the mobile App's `applicationId` and iOS
         /// bundle id are `<ORG>.<project>`. A reverse-domain name; default
