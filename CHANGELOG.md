@@ -142,6 +142,9 @@ that it exists and won't ship a tag without it).
   rok-templates' `schema_names` test, fail when two schemas collide; the
   Rust and Dart Clients type an inline object as the component it equals
   before one of the same shape (0027 review).
+- The monorepo's mobile App pins every dependency to the version its
+  `pubspec.lock` resolves, and its gate installs with `flutter pub get
+  --enforce-lockfile` (workspace ADR 0027; 0027 review).
 - `rok server add --password-prompt`'s help no longer claims hidden
   input: the password is read from standard input as typed.
 - `rok server add` without a password (none in `--url`, no

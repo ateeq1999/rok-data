@@ -3,7 +3,8 @@
 //! scratch directory writes it whole — its platform folders' binary files
 //! byte for byte, its `.env.example`, and Firebase's placeholders, never a
 //! real project's configuration. Then, in the scaffolded `apps/mobile`,
-//! the App's own checks with Flutter's tooling: `flutter pub get` (it
+//! the App's own checks with Flutter's tooling: `flutter pub get
+//! --enforce-lockfile` (its pinned `pubspec.lock`, never a new resolution; it
 //! resolves the generated `clients/dart` by path), `flutter analyze` and
 //! `flutter test`. Skips with a printed note when `flutter` is absent.
 
@@ -75,13 +76,18 @@ fn monorepo_mobile_app_analyzes_and_tests() -> Result<()> {
     };
     let project = crate::monorepo_template::scaffold()?;
     let mobile = project.path().join("apps/mobile");
-    // Resolve from pub.dev, or from the local cache when offline.
-    let (online, output) = run(&flutter, &mobile, &["pub", "get"])?;
+    // Install what `pubspec.lock` pins (it fails rather than resolve anew),
+    // from pub.dev, or from the local cache when offline.
+    let (online, output) = run(&flutter, &mobile, &["pub", "get", "--enforce-lockfile"])?;
     if !online {
-        let (offline, offline_output) = run(&flutter, &mobile, &["pub", "get", "--offline"])?;
+        let (offline, offline_output) = run(
+            &flutter,
+            &mobile,
+            &["pub", "get", "--offline", "--enforce-lockfile"],
+        )?;
         ensure!(
             offline,
-            "flutter pub get failed online and offline:\n{output}\n{offline_output}"
+            "flutter pub get --enforce-lockfile failed online and offline:\n{output}\n{offline_output}"
         );
     }
     check(&flutter, &mobile, &["analyze", "--fatal-infos"])?;
