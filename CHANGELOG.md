@@ -151,6 +151,21 @@ that it exists and won't ship a tag without it).
   (copied from `apps/web/src/styles.css`, with a test that fails when the
   copy drifts), its bundled Outfit and Oxanium fonts, and its Button, Badge
   and Card components.
+- `rok init --template monorepo` prints the monorepo's next steps (`rok
+  gen` from the root, the api App by its package name, the web and mobile
+  Apps), the ones `rok sqlc init --template monorepo` prints, instead of a
+  single crate's `src/db/` steps; both now name `clients/rust` too.
+- `rok gen --migration <name>` in a monorepo stages each App's pair in
+  the App's own `migrations/` when its settings leave `migrations` unset;
+  it wrote them to the root's, as a first migration of the whole schema.
+- `rok init --help` names `schema/` as the directory `--schema` seeds.
+- The monorepo's `apps/api` is checked to be the `axum` template file for
+  file (`rok-templates`' `tests/template_drift.rs`), and two doc comments
+  that had drifted from it are the template's again.
+- The templates' guide gains the monorepo template's page (its Apps, the
+  one contract, the clients, the `rok gen` loop, what is hidden and why)
+  and the push-notifications (FCM) recipe, moved from the mobile App's
+  docs; getting started and the CLI reference walk the monorepo path.
 
 ## [0.5.0] — production-ready templates
 

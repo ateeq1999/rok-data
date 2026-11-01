@@ -1,7 +1,7 @@
 ---
 title: docs/ — the map
 description: What every file under docs/ is for, the reading order, and how to hand pages to a coding agent.
-updated: 2026-10-29
+updated: 2026-11-01
 kind: index
 ---
 
@@ -17,7 +17,7 @@ contents for everything else.
 | - | ---- | ---------- |
 | 1 | [`overview.md`](overview.md) | what rok-data is, its crates at a glance, the scope of these docs, and the one naming trap |
 | 2 | [`installation.md`](installation.md) | the CLI (`rok`), the runtime crate (`rok-data`), platform notes |
-| 3 | [`getting-started.md`](getting-started.md) | the front door (`rok init` / `rok gen`) and the older paths behind it |
+| 3 | [`getting-started.md`](getting-started.md) | the front door (`rok init` / `rok gen`), the monorepo template, and the older paths behind it |
 | 4 | [`coding-agents.md`](coding-agents.md) | the machine contracts (JSON, exit codes) agents drive the CLI with |
 | 5 | [`cli-reference.md`](cli-reference.md) | every command, flag, output and exit code — **contract** |
 
@@ -64,6 +64,8 @@ page; edit the source file and re-mark.
 
 The engine's own ADR series and guides live outside this directory, in
 [`crates/rok-data-sqlc/docs/`](../crates/rok-data-sqlc/docs/) — when a
-page says "engine ADR NNNN", that is where it is. The actix and axum
-templates' guide and recipes are in
+page says "engine ADR NNNN", that is where it is. The templates' guide
+and recipes — the actix and axum APIs, and the monorepo template with its
+api, web, desktop and mobile Apps
+([`monorepo.md`](../crates/rok-templates/docs/guide/monorepo.md)) — are in
 [`crates/rok-templates/docs/guide/`](../crates/rok-templates/docs/guide/).
