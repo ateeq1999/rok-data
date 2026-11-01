@@ -25,8 +25,57 @@ use anyhow::{Context, Result, bail};
 use super::openapi::Document;
 use crate::report::display_path;
 
-/// The clients rok emits, by their `[clients]` key.
-pub const CLIENTS: &[&str] = &["ts", "dart", "rust"];
+/// A client rok emits. Adding one is a variant here: its `[clients]` key
+/// and its emitter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ClientKind {
+    /// The TypeScript Client (`ts`).
+    Ts,
+    /// The Dart Client (`dart`).
+    Dart,
+    /// The Rust Client (`rust`).
+    Rust,
+}
+
+impl ClientKind {
+    /// Every client rok emits, in the order its errors list them.
+    pub const ALL: [ClientKind; 3] = [ClientKind::Ts, ClientKind::Dart, ClientKind::Rust];
+
+    /// Its `[clients]` key, such as `ts`.
+    #[must_use]
+    pub fn key(self) -> &'static str {
+        match self {
+            ClientKind::Ts => "ts",
+            ClientKind::Dart => "dart",
+            ClientKind::Rust => "rust",
+        }
+    }
+
+    /// The client whose `[clients]` key is `key`.
+    #[must_use]
+    pub fn from_key(key: &str) -> Option<ClientKind> {
+        ClientKind::ALL.into_iter().find(|kind| kind.key() == key)
+    }
+
+    /// Its files for `document`, each its path relative to its directory.
+    ///
+    /// # Errors
+    ///
+    /// When its emitter refuses the document.
+    pub fn emit(self, document: &Document) -> Result<Vec<(PathBuf, String)>, super::emit::Error> {
+        match self {
+            ClientKind::Ts => super::ts::emit(document),
+            ClientKind::Dart => super::dart::emit(document),
+            ClientKind::Rust => super::rust::emit(document),
+        }
+    }
+}
+
+impl std::fmt::Display for ClientKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.key())
+    }
+}
 
 /// A monorepo's contract and Clients.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,11 +92,11 @@ pub struct Project {
     pub clients: Vec<Client>,
 }
 
-/// One Client: its kind (its `[clients]` key) and its directory.
+/// One Client: its kind (named by its `[clients]` key) and its directory.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Client {
-    /// Its key, such as `ts`.
-    pub name: String,
+    /// Its kind.
+    pub kind: ClientKind,
     /// Its directory.
     pub dir: PathBuf,
 }
@@ -76,17 +125,18 @@ impl Project {
             .with_context(|| format!("{shown}: `clients` is not a table"))?
             .iter()
             .map(|(name, dir)| {
-                if !CLIENTS.contains(&name.as_str()) {
+                let Some(kind) = ClientKind::from_key(name) else {
+                    let keys: Vec<&str> = ClientKind::ALL.iter().map(|kind| kind.key()).collect();
                     bail!(
                         "{shown}: `clients.{name}`: rok emits the {} client(s) (workspace ADR 0027)",
-                        CLIENTS.join(", ")
+                        keys.join(", ")
                     );
-                }
+                };
                 let dir = dir
                     .as_str()
                     .with_context(|| format!("{shown}: `clients.{name}` names no directory"))?;
                 Ok(Client {
-                    name: name.clone(),
+                    kind,
                     dir: root.join(dir),
                 })
             })
@@ -177,5 +227,19 @@ impl Project {
         let text = std::fs::read_to_string(&self.document)
             .with_context(|| format!("reading the contract {shown}"))?;
         Document::parse(&text).with_context(|| format!("reading the contract {shown}"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ClientKind;
+
+    #[test]
+    fn each_client_is_named_by_its_key() {
+        for kind in ClientKind::ALL {
+            assert_eq!(ClientKind::from_key(kind.key()), Some(kind));
+            assert_eq!(kind.to_string(), kind.key());
+        }
+        assert_eq!(ClientKind::from_key("swift"), None);
     }
 }

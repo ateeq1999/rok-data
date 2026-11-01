@@ -127,7 +127,7 @@ fn body(project: &Project, outcome: &Outcome, exported: Option<&Path>) -> Value 
         paths.iter().map(|path| display_path(path)).collect()
     };
     json!({
-        "client": outcome.client,
+        "client": outcome.client.key(),
         "dir": display_path(&outcome.dir),
         "document": display_path(&project.document),
         "exported": exported.map(display_path),

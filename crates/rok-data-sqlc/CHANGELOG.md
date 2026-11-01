@@ -11,6 +11,10 @@ the *generated* API count as breaking (see ADR 0012).
   component schema it equals, descriptions included, before falling back
   to one of the same shape: a page of `users` is `Vec<UserResponse>`, not
   the account routes' `AccountResponse` of the same fields.
+- `clients::ClientKind` names the clients rok emits (`ts`, `dart`,
+  `rust`), replacing `clients::CLIENTS`; `Client::kind` and
+  `Outcome::client` are a `ClientKind` (its `key()` is the `[clients]`
+  key).
 - `Scaffolded::template_next_steps`: the next steps after `init_template`,
   which `rok sqlc init --template` and the front door's `rok init
   --template` both print; a Monorepo template's name `clients/rust` beside

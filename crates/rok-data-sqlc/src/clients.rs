@@ -18,5 +18,5 @@ pub mod rust;
 pub mod ts;
 mod write;
 
-pub use project::{CLIENTS, Client, Project};
+pub use project::{Client, ClientKind, Project};
 pub use write::{Mode, Outcome, emit_client, generate};
