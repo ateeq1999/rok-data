@@ -1,5 +1,5 @@
 //! The monorepo's generated Dart client (`clients/dart`, workspace ADR
-//! 0027), made the way a user makes it: `rok init --template monorepo`
+//! 0027), made the way a user makes it: `rok init shop --template monorepo`
 //! into a scratch directory emits it from the scaffolded contract; then,
 //! in it, the package's own checks with Dart's own tooling — `dart pub
 //! get`, `dart analyze --fatal-infos` (its `analysis_options.yaml`'s
@@ -13,7 +13,6 @@ use std::process::Command;
 use anyhow::{Context, Result, ensure};
 
 use crate::common;
-use crate::rok_data_sqlc;
 
 /// The `dart` to run: the one on `PATH` (on Windows, Flutter's
 /// `dart.bat` too); `None` when none runs.
@@ -70,8 +69,7 @@ fn monorepo_dart_client_analyzes_and_tests() -> Result<()> {
         );
         return Ok(());
     };
-    let project = tempfile::TempDir::new()?;
-    rok_data_sqlc(project.path(), &["init", "--template", "monorepo"])?;
+    let project = crate::monorepo_template::scaffold()?;
     let client = project.path().join("clients/dart");
     ensure!(
         client.join("pubspec.yaml").is_file(),

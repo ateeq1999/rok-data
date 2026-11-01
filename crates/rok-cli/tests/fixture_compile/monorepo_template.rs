@@ -1,5 +1,6 @@
-//! `templates/monorepo`, made the way a user makes it: `rok init
-//! --template monorepo` into a scratch directory, then `rok gen` from
+//! `templates/monorepo`, made the way a user makes it: `rok init shop
+//! --template monorepo --org com.acme` into a scratch directory (every App
+//! renamed after the project), then `rok gen` from
 //! the root, which regenerates the api App, re-exports its contract
 //! (`apps/api/openapi.json`, through the App's `openapi` example) and
 //! emits the Clients from it (workspace ADR 0027). What the template checks
@@ -48,13 +49,52 @@ pub(crate) fn rok_gen_shared(dir: &Path, args: &[&str]) -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
-/// A project made from the monorepo template: `init --template monorepo`
-/// (which copies the template's `Cargo.lock`, so builds resolve as the
-/// template's do), then `rok gen` from the root.
-pub(crate) fn materialize() -> Result<tempfile::TempDir> {
-    let project = tempfile::TempDir::new()?;
+/// The project name the gates scaffold the monorepo as: init names every
+/// App after it (workspace ADR 0027), so every gate checks the renamed
+/// Apps.
+pub(crate) const PROJECT: &str = "shop";
+
+/// The org the gates scaffold the monorepo under.
+pub(crate) const ORG: &str = "com.acme";
+
+/// The api App's package in a scaffold named [`PROJECT`].
+pub(crate) const API_PACKAGE: &str = "shop-api";
+
+/// A scaffolded monorepo: the project directory [`PROJECT`] in a scratch
+/// directory removed on drop.
+pub(crate) struct Scaffold {
+    _scratch: tempfile::TempDir,
+    root: PathBuf,
+}
+
+impl Scaffold {
+    /// The project's root.
+    pub(crate) fn path(&self) -> &Path {
+        &self.root
+    }
+}
+
+/// `init <PROJECT> --template monorepo --org <ORG>` in a scratch
+/// directory, the way a user makes the project (it copies the template's
+/// `Cargo.lock`, so builds resolve as the template's do).
+pub(crate) fn scaffold() -> Result<Scaffold> {
+    let scratch = tempfile::TempDir::new()?;
+    rok_data_sqlc(
+        scratch.path(),
+        &["init", PROJECT, "--template", "monorepo", "--org", ORG],
+    )?;
+    let root = scratch.path().join(PROJECT);
+    Ok(Scaffold {
+        _scratch: scratch,
+        root,
+    })
+}
+
+/// A project made from the monorepo template: [`scaffold`], then `rok
+/// gen` from the root.
+pub(crate) fn materialize() -> Result<Scaffold> {
+    let project = scaffold()?;
     let dir = project.path();
-    rok_data_sqlc(dir, &["init", "--template", "monorepo"])?;
     // Inside the repository the template's `rok-data = "0.5"` resolves to
     // the workspace crate; cargo substitutes it for crates.io while the
     // tests run. The patch shim goes at the workspace root.
@@ -174,18 +214,19 @@ fn monorepo_template_checks_in_what_generation_writes() -> Result<()> {
 #[test]
 fn monorepo_api_app_compiles_and_passes_checks() -> Result<()> {
     let project = materialize()?;
-    // `cargo test -p axum-api` from the root builds and tests the api App.
-    // The desktop App, the other Rust member, has its own gate
-    // (`desktop_app.rs`): GPUI's build is slow and needs system libraries
-    // on Linux, so the Rust matrix does not pay for it here.
-    let mut command = cargo(project.path(), &["test", "-p", "axum-api"]);
+    // `cargo test -p shop-api` from the root builds and tests the api App,
+    // renamed after the project. The desktop App, the other Rust member,
+    // has its own gate (`desktop_app.rs`): GPUI's build is slow and needs
+    // system libraries on Linux, so the Rust matrix does not pay for it
+    // here.
+    let mut command = cargo(project.path(), &["test", "-p", API_PACKAGE]);
     if let Ok(url) = std::env::var("ROK_DATA_SQLC_TEST_DATABASE_URL") {
         command.env("DATABASE_URL", url);
     }
     let status = command.status()?;
     ensure!(
         status.success(),
-        "`cargo test -p axum-api` failed: {status}"
+        "`cargo test -p {API_PACKAGE}` failed: {status}"
     );
     Ok(())
 }
@@ -196,9 +237,8 @@ fn monorepo_api_app_compiles_and_passes_checks() -> Result<()> {
 /// lints, and its tests (doc tests) pass.
 #[test]
 fn monorepo_rust_client_passes_its_checks() -> Result<()> {
-    let project = tempfile::TempDir::new()?;
+    let project = scaffold()?;
     let root = project.path();
-    rok_data_sqlc(root, &["init", "--template", "monorepo"])?;
     let checks: [&[&str]; 3] = [
         &["fmt", "-p", "api-client", "--check"],
         &[
@@ -227,12 +267,22 @@ fn monorepo_rust_client_passes_its_checks() -> Result<()> {
 
 /// The api App's `openapi.json` is the document the App serves, as `rok
 /// gen` re-exported it: a contract change re-exports it, nobody edits it.
-/// With `ROK_DATA_SQLC_UPDATE_EXPECTED` set, it rewrites the template's
-/// copy instead.
+/// The document is titled after the api App's package (`CARGO_PKG_NAME`):
+/// the template's `axum-api`, the scaffold's renamed one. With
+/// `ROK_DATA_SQLC_UPDATE_EXPECTED` set, it rewrites the template's copy
+/// instead.
 #[test]
 fn monorepo_template_checks_in_the_exported_contract() -> Result<()> {
+    const SHIPPED_TITLE: &str = "\"title\": \"axum-api\",";
+    let renamed_title = format!("\"title\": \"{API_PACKAGE}\",");
     let project = materialize()?;
-    let exported = std::fs::read_to_string(project.path().join("apps/api/openapi.json"))?;
+    let exported = std::fs::read_to_string(project.path().join("apps/api/openapi.json"))?
+        .replace("\r\n", "\n");
+    ensure!(
+        exported.contains(&renamed_title),
+        "the scaffold's contract is not titled `{API_PACKAGE}`"
+    );
+    let exported = exported.replacen(&renamed_title, SHIPPED_TITLE, 1);
     let artifact = template_dir().join("apps/api/openapi.json");
     if std::env::var_os("ROK_DATA_SQLC_UPDATE_EXPECTED").is_some() {
         std::fs::write(&artifact, &exported)?;
@@ -240,7 +290,7 @@ fn monorepo_template_checks_in_the_exported_contract() -> Result<()> {
     }
     let checked_in = std::fs::read_to_string(&artifact)?.replace("\r\n", "\n");
     ensure!(
-        checked_in == exported.replace("\r\n", "\n"),
+        checked_in == exported,
         "templates/monorepo/apps/api/openapi.json is not what `rok gen` exports \
          (regenerate with ROK_DATA_SQLC_UPDATE_EXPECTED=1; never edit it by hand)"
     );

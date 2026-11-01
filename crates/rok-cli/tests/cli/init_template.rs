@@ -179,3 +179,57 @@ fn init_template_into_a_package_asks_for_the_templates_dependencies() -> Result<
     assert_eq!(steps.len(), 4, "{stdout}");
     Ok(())
 }
+
+/// A Monorepo scaffold names every App after the project and `--org`, and
+/// its next steps run the api App by its renamed package.
+#[test]
+fn init_monorepo_names_the_apps_after_the_project_and_org() -> Result<()> {
+    let dir = TempDir::new()?;
+    let output = run_binary_in(
+        dir.path(),
+        &["init", "my-shop", "-t", "monorepo", "--org", "com.acme"],
+    );
+    assert_success(&output);
+    let project = dir.path().join("my-shop");
+    let gradle = fs::read_to_string(project.join("apps/mobile/android/app/build.gradle.kts"))?;
+    assert!(
+        gradle.contains("applicationId = \"com.acme.my_shop\""),
+        "{gradle}"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        next_steps(&stdout)
+            .contains(&"  3. `cargo test` in apps/api, then `cargo run -p my-shop-api`"),
+        "{stdout}"
+    );
+    Ok(())
+}
+
+/// `--org` takes a reverse-domain name; anything else is a usage error
+/// that writes nothing.
+#[test]
+fn init_rejects_an_org_that_is_not_a_reverse_domain_name() -> Result<()> {
+    let dir = TempDir::new()?;
+    let output = run_binary_in(dir.path(), &["init", "-t", "monorepo", "--org", "Acme Inc"]);
+    assert!(!output.status.success(), "a malformed org must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("is not a reverse-domain name"), "{stderr}");
+    assert!(read_tree(dir.path())?.is_empty(), "nothing written");
+    Ok(())
+}
+
+/// `--org` names a template's Apps: without `--template` it is a usage
+/// error.
+#[test]
+fn init_org_requires_a_template() -> Result<()> {
+    let dir = TempDir::new()?;
+    let output = run_binary_in(dir.path(), &["init", "--org", "com.acme"]);
+    assert!(
+        !output.status.success(),
+        "an org without a template must fail"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("--template"), "{stderr}");
+    assert!(read_tree(dir.path())?.is_empty(), "nothing written");
+    Ok(())
+}

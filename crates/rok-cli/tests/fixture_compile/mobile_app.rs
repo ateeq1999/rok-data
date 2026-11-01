@@ -1,5 +1,5 @@
 //! The `apps/mobile` App of the monorepo template (workspace ADR 0027),
-//! made the way a user makes it: `rok init --template monorepo` into a
+//! made the way a user makes it: `rok init shop --template monorepo` into a
 //! scratch directory writes it whole — its platform folders' binary files
 //! byte for byte, its `.env.example`, and Firebase's placeholders, never a
 //! real project's configuration. Then, in the scaffolded `apps/mobile`,
@@ -13,7 +13,6 @@ use std::process::Command;
 use anyhow::{Context, Result, ensure};
 
 use crate::common;
-use crate::rok_data_sqlc;
 
 /// The `flutter` to run: the one on `PATH` (on Windows, its
 /// `flutter.bat`); `None` when none runs.
@@ -74,8 +73,7 @@ fn monorepo_mobile_app_analyzes_and_tests() -> Result<()> {
         );
         return Ok(());
     };
-    let project = tempfile::TempDir::new()?;
-    rok_data_sqlc(project.path(), &["init", "--template", "monorepo"])?;
+    let project = crate::monorepo_template::scaffold()?;
     let mobile = project.path().join("apps/mobile");
     // Resolve from pub.dev, or from the local cache when offline.
     let (online, output) = run(&flutter, &mobile, &["pub", "get"])?;
@@ -95,8 +93,7 @@ fn monorepo_mobile_app_analyzes_and_tests() -> Result<()> {
 /// `.env.example`, and the Firebase placeholders.
 #[test]
 fn monorepo_scaffold_writes_the_mobile_app_whole() -> Result<()> {
-    let project = tempfile::TempDir::new()?;
-    rok_data_sqlc(project.path(), &["init", "--template", "monorepo"])?;
+    let project = crate::monorepo_template::scaffold()?;
     let template = common::template_dir("monorepo").join("apps/mobile");
     let mobile = project.path().join("apps/mobile");
     for file in [

@@ -87,8 +87,38 @@ schema seeding and the report.
 | Flag                  | Meaning                                                            |
 | --------------------- | ------------------------------------------------------------------ |
 | `-t, --template NAME` | copy this Template instead of the skeleton (`actix`, `axum`, or `monorepo`)      |
+| `-o, --org ORG`       | the org a Monorepo template's Apps are named under (default `com.example`); a reverse-domain name; only with `--template` |
 | `-w, --api-framework FW` | the skeleton's web framework: `actix_web` (the default) or `axum`; not with `--template`, which has its own |
 | `-s, --schema PATH`   | seed the truth directory (`schema/`) with this file's content       |
+
+**Renaming a Monorepo template's Apps.** `--template monorepo` names every
+App after the project — the project directory's name, split into words at
+every character that is not an ASCII letter or digit and lowercased (`My
+Shop`, `my_shop` and `my-shop` are all the words `my shop`) — and `--org`:
+
+| What                                   | Becomes (`my-shop`, `--org com.acme`) |
+| -------------------------------------- | ------------------------------------- |
+| the api App's package (`axum-api`), its crate's Rust paths, `rok.toml`'s export, the root `Cargo.lock`, the contract's title | `my-shop-api` (`my_shop_api::`) |
+| the desktop App's package (`desktop`) and its crate's Rust paths | `my-shop-desktop` (`my_shop_desktop::`) |
+| the web App's package (`web`)          | `my-shop-web`                         |
+| the mobile App's Dart package (`mobile`) and its `package:` imports | `my_shop_mobile`          |
+| the Android `applicationId` and namespace, the Linux application id, the Kotlin package and its directory | `com.acme.my_shop` |
+| the iOS and macOS bundle ids           | `com.acme.myShop`                     |
+| the display name (Android label, iOS display name, the app's title) | `My Shop`                |
+| the binary and product names of each Flutter platform | `my_shop`              |
+| the deep-link scheme                   | `myshop`                              |
+| the org in copyright and company lines | `com.acme`                            |
+
+A project name with no letter or digit, one that starts with a digit, or a
+word Java, Kotlin or Dart reserves (`new`, `class`, …) is an error, as is an
+org that is not two or more dot-separated segments of lowercase letters and
+digits each starting with a letter (a usage error, exit 2) or that has a
+reserved word as a segment. Renames follow the scaffolded-file rules: a file
+the project holds is kept as it is (an App's existing `Cargo.toml` names
+the crate its Rust files use), and generated files are not copied. Firebase
+configuration stays a placeholder (`apps/mobile/docs/push-notifications.md`).
+A single-app template has no Apps to name: `--org` with `actix` or `axum` is
+an error.
 
 `NAME` is the project directory: it is created when missing, and the current
 directory is the project when `NAME` is left out. Every file it writes is a
@@ -709,7 +739,7 @@ is a library; `rok` forwards the tokens verbatim). Subcommand set:
 | Command        | Alias | One-liner                                                                 |
 | -------------- | ----- | ------------------------------------------------------------------------- |
 | `generate`     | `g`   | parse the schema and emit `src/db/<table>/{…}` modules, optional api/openapi |
-| `init`         | `i`   | scaffold a project (engine ADR 0016 skeleton, `-w axum` for axum, or `--template actix`/`axum`/`monorepo`), files-if-absent |
+| `init`         | `i`   | scaffold a project (engine ADR 0016 skeleton, `-w axum` for axum, or `--template actix`/`axum`/`monorepo`; `-o, --org ORG` names a Monorepo's Apps under ORG, as `rok init` does), files-if-absent |
 | `check`        | `c`   | the generated code is up to date; with `--db`, every annotated query agrees with the database; any difference → exit 1 |
 | `check-arch`   | `a`   | check `src/` layout against the engine's ADR 0016 rules; violations → exit 1 |
 | `query add`    | `q a` | append one annotated query to a query file and generate; kept only if it generates |

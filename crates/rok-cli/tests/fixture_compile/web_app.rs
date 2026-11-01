@@ -1,5 +1,5 @@
 //! The `apps/web` App of the monorepo template, made the way a user makes
-//! it: `rok init --template monorepo` into a scratch directory, then, in
+//! it: `rok init shop --template monorepo` into a scratch directory, then, in
 //! the scaffolded `apps/web`, the web App's own checks with its own
 //! tooling — `bun install --frozen-lockfile` (the template's `bun.lock`
 //! must match its `package.json`), `bun run typecheck` and `bun run test`
@@ -14,7 +14,6 @@ use std::process::Command;
 use anyhow::{Context, Result, ensure};
 
 use crate::common;
-use crate::rok_data_sqlc;
 
 /// The `bun` to run: the one on `PATH`, else the one bun's installer puts
 /// under `~/.bun/bin`; `None` when neither runs.
@@ -74,8 +73,7 @@ fn run(bun: &Path, dir: &Path, args: &[&str]) -> Result<()> {
 /// `.env.example`.
 #[test]
 fn monorepo_scaffold_writes_the_web_app_whole() -> Result<()> {
-    let project = tempfile::TempDir::new()?;
-    rok_data_sqlc(project.path(), &["init", "--template", "monorepo"])?;
+    let project = crate::monorepo_template::scaffold()?;
     let template = common::template_dir("monorepo").join("apps/web");
     let web = project.path().join("apps/web");
     for file in ["public/favicon.ico", "public/logo.png"] {
@@ -108,8 +106,7 @@ fn monorepo_web_app_installs_typechecks_and_tests() -> Result<()> {
         );
         return Ok(());
     };
-    let project = tempfile::TempDir::new()?;
-    rok_data_sqlc(project.path(), &["init", "--template", "monorepo"])?;
+    let project = crate::monorepo_template::scaffold()?;
     let web = project.path().join("apps/web");
     run(&bun, &web, &["install", "--frozen-lockfile"])?;
     run(&bun, &web, &["run", "typecheck"])?;
