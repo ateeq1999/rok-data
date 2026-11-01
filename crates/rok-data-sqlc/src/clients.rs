@@ -11,6 +11,7 @@
 //! their drift (engine ADR 0027).
 
 pub mod dart;
+mod emit;
 pub mod openapi;
 mod project;
 pub mod rust;
