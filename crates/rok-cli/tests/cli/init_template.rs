@@ -197,11 +197,21 @@ fn init_monorepo_names_the_apps_after_the_project_and_org() -> Result<()> {
         "{gradle}"
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
+    let steps = next_steps(&stdout);
     assert!(
-        next_steps(&stdout)
-            .contains(&"  3. `cargo test` in apps/api, then `cargo run -p my-shop-api`"),
+        steps.contains(&"  3. `cargo test` in apps/api, then `cargo run -p my-shop-api`"),
         "{stdout}"
     );
+    // Only `rok gen` regenerates the Apps and the Clients: the engine's door
+    // names it too, not its own one-crate `rok sqlc generate`.
+    assert!(
+        steps
+            .first()
+            .is_some_and(|step| step
+                .starts_with("  1. run `rok gen` from the root to generate every named App")),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("rok sqlc generate"), "{stdout}");
     Ok(())
 }
 
