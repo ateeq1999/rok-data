@@ -750,3 +750,32 @@ fn the_legacy_generator_names_the_front_doors_section() -> Result<()> {
     assert!(stderr.contains("[gen]"), "{stderr}");
     Ok(())
 }
+
+/// In a monorepo, an App whose settings file leaves `migrations` unset
+/// stages its pair into its own `migrations/`, not the root's: the
+/// default resolves against the App's directory, as `schema` does.
+#[test]
+fn gen_stages_an_apps_migration_in_the_apps_history_dir() -> Result<()> {
+    let dir = TempDir::new()?;
+    fs::write(dir.path().join("rok.toml"), "[apps]\napi = \"apps/api\"\n")?;
+    let app = dir.path().join("apps/api");
+    fs::create_dir_all(app.join("schema"))?;
+    fs::write(app.join("rok-data-sqlc.toml"), "schema = \"schema\"\n")?;
+    fs::write(app.join("schema/0001_init.sql"), SCHEMA)?;
+
+    let output = run_in(dir.path(), &["gen", "--migration", "init"])?;
+    assert_success(&output);
+
+    assert!(
+        app.join("migrations/0001_init.up.sql").is_file(),
+        "{}",
+        stdout(&output)
+    );
+    assert!(app.join("migrations/0001_init.down.sql").is_file());
+    assert!(
+        !dir.path().join("migrations").exists(),
+        "the pair was staged at the root: {}",
+        stdout(&output)
+    );
+    Ok(())
+}

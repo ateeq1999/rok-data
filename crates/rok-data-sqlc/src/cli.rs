@@ -244,39 +244,8 @@ where
             ..
         } => {
             let scaffolded = crate::init::init_template(&dir, &template, org.as_deref())?;
-            let run_api = format!(
-                "`cargo test` in apps/api, then `cargo run -p {}`",
-                scaffolded.api_package.as_deref().unwrap_or("<api>")
-            );
-            let monorepo = rok_templates::catalog::apps(&template)
-                .iter()
-                .map(|app| app.name)
-                .collect::<Vec<_>>();
-            let mut steps = Vec::new();
-            if !scaffolded.wrote_manifest {
-                let step = if monorepo.is_empty() {
-                    "add the template's dependencies and lints (its README.md lists them) to Cargo.toml"
-                } else {
-                    "add the apps' dependencies and lints (each app's README.md lists them) to its manifest"
-                };
-                steps.push(step);
-            }
+            let steps = scaffolded.template_next_steps(&template, "rok sqlc generate");
             print_scaffolded(scaffolded);
-            if monorepo.is_empty() {
-                steps.extend([
-                    "run `rok sqlc generate` to generate src/db/, src/shared/ and src/features/ from schema/",
-                    "set DATABASE_URL and JWT_SECRET (see .env.example) and apply migrations/",
-                    "`cargo test`, then `cargo run`",
-                ]);
-            } else {
-                steps.extend([
-                    "run `rok gen` from the root to generate every named App from its own schema, re-export apps/api/openapi.json and regenerate clients/ts and clients/dart from it",
-                    "set DATABASE_URL and JWT_SECRET for apps/api (see its .env.example) and apply apps/api/migrations/",
-                    &run_api,
-                    "in apps/web, `bun install`, then `bun run dev` (it forwards /api to apps/api)",
-                    "in apps/mobile, `flutter pub get`, then `flutter run` (it calls apps/api at 127.0.0.1:8080)",
-                ]);
-            }
             print_next_steps(&steps);
             Ok(())
         }

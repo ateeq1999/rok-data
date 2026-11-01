@@ -15,10 +15,10 @@ pub(super) fn print_scaffolded(scaffolded: crate::init::Scaffolded) {
 }
 
 /// Prints `init`'s numbered next steps.
-pub(super) fn print_next_steps(steps: &[&str]) {
+pub(super) fn print_next_steps<S: AsRef<str>>(steps: &[S]) {
     println!("\nNext steps:");
     for (number, step) in steps.iter().enumerate() {
-        println!("  {}. {step}", number + 1);
+        println!("  {}. {}", number + 1, step.as_ref());
     }
 }
 

@@ -1,7 +1,7 @@
 ---
 title: "`rok` — CLI reference"
 description: Every command, flag, output and exit code of the workspace's single binary. Contract: matches crates/rok-cli/src/cli/ and the engine's grammar.
-updated: 2026-10-30
+updated: 2026-11-01
 kind: reference
 source: crates/rok-cli/src/cli/, crates/rok-data-sqlc/src/cli.rs (engine grammar)
 ---
@@ -73,8 +73,6 @@ scaffolds), and their removal is deferred to 1.0.
 ## `rok init` — scaffold a project
 
 ```text
-rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
-rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
 Usage: rok init [OPTIONS] [NAME]
 ```
 
@@ -116,9 +114,25 @@ digits each starting with a letter (a usage error, exit 2) or that has a
 reserved word as a segment. Renames follow the scaffolded-file rules: a file
 the project holds is kept as it is (an App's existing `Cargo.toml` names
 the crate its Rust files use), and generated files are not copied. Firebase
-configuration stays a placeholder (`apps/mobile/docs/push-notifications.md`).
+configuration stays a placeholder (`apps/mobile/docs/push-notifications.md`
+points to the recipe in `crates/rok-templates/docs/guide/recipes/`).
 A single-app template has no Apps to name: `--org` with `actix` or `axum` is
 an error.
+
+**What a Monorepo scaffold writes.** `--template monorepo` writes the root
+(`Cargo.toml`, a workspace of `apps/api`, `apps/desktop` and
+`clients/rust`; `Cargo.lock`; `rok.toml` with `[apps]`, `[contract]` and
+`[clients]`; `README.md`; `AGENTS.md`), the four Apps under `apps/` (`api`,
+`web`, `desktop`, `mobile`), the contract `apps/api/openapi.json`, and the
+three clients emitted from it: `clients/ts`, `clients/dart` and
+`clients/rust` (whose `Cargo.toml` is a scaffolded file, the user's; every
+other client file is generated). The api App's own generated code
+(`src/db/`, `src/shared/`, `src/features/`) is not copied: the first `rok
+gen` from the root writes it. The regeneration paths are
+[`[apps]`](#monorepo-projects-apps) and
+[`[contract]` and `[clients]`](#monorepo-projects-contract-and-clients)
+under `rok gen`. The templates' guide (`crates/rok-templates/docs/guide/monorepo.md`)
+walks the whole project.
 
 `NAME` is the project directory: it is created when missing, and the current
 directory is the project when `NAME` is left out. Every file it writes is a
@@ -134,7 +148,18 @@ appears with the first staged pair. An existing `schema/0001_init.sql`
 is kept, never overwritten, and the run says that it kept it.
 
 The run prints what it wrote and the next steps, which name the front door:
-`rok gen` turns the truth directory into `src/db/` and `src/features/`.
+`rok gen` turns the truth directory into `src/db/` and `src/features/`. A
+Monorepo template's next steps are its Apps' (the same ones `rok sqlc init
+--template monorepo` prints):
+
+```text
+Next steps:
+  1. run `rok gen` from the root to generate every named App from its own schema, re-export apps/api/openapi.json and regenerate clients/ts, clients/dart and clients/rust from it
+  2. set DATABASE_URL and JWT_SECRET for apps/api (see its .env.example) and apply apps/api/migrations/
+  3. `cargo test` in apps/api, then `cargo run -p my-shop-api`
+  4. in apps/web, `bun install`, then `bun run dev` (it forwards /api to apps/api)
+  5. in apps/mobile, `flutter pub get`, then `flutter run` (it calls apps/api at 127.0.0.1:8080)
+```
 
 An unknown `--template` is a usage error (exit 2) and names the valid
 templates. A failure while scaffolding (an unwritable directory, an
@@ -143,8 +168,6 @@ unreadable `--schema` file) prints `error: …` on stderr and exits 1.
 ## `rok gen` — the front door: the data layer from the schema dir
 
 ```text
-rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
-rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
 Usage: rok gen [OPTIONS] [COMMAND]
 ```
 
@@ -181,7 +204,10 @@ top level, is read as well. Flags beat the file.
 A `rok.toml` whose `[apps]` section names the Apps of a monorepo (workspace
 ADR 0027) changes `rok gen`'s behavior: it regenerates every named App from
 its own settings file inside the App's directory, and stages each App's
-migrations into its own history dir. The flags that shape one project
+migrations into its own history dir (`--migration add_bio` from the root
+writes `apps/api/migrations/NNNN_add_bio.{up,down}.sql`: an App's
+settings that leave `migrations` unset mean the App's `migrations/`, not
+the root's). The flags that shape one project
 (`--schema`, `--output`, `--queries`, `--resource`, `--migrations-dir`,
 `--api-framework`) are refused — they belong to one App, and saying them in
 that App's directory does.
@@ -322,8 +348,6 @@ group's; the booleans OR.
 ## `rok generate` — whole-crate generation (legacy)
 
 ```text
-rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
-rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
 Usage: rok generate [OPTIONS] [COMMAND]
 ```
 
