@@ -7,6 +7,10 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+- The Rust and Dart Clients type an inline object (a page's items) as the
+  component schema it equals, descriptions included, before falling back
+  to one of the same shape: a page of `users` is `Vec<UserResponse>`, not
+  the account routes' `AccountResponse` of the same fields.
 - `Scaffolded::template_next_steps`: the next steps after `init_template`,
   which `rok sqlc init --template` and the front door's `rok init
   --template` both print; a Monorepo template's name `clients/rust` beside

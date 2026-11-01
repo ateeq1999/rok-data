@@ -133,6 +133,15 @@ that it exists and won't ship a tag without it).
 
 **Changed**
 
+- The API templates' account routes answer `AccountResponse`
+  (`/auth/me`, `/users/me`, the profile photo) and `NewAccountResponse`
+  (sign-up, invitations) instead of their own `UserResponse`: utoipa kept
+  one schema per name, so `GET /users/{id}` documented the account shape
+  and a column added to `users` went missing from the contract and the
+  generated Clients. `tests/openapi_schemas.rs` in each template, and
+  rok-templates' `schema_names` test, fail when two schemas collide; the
+  Rust and Dart Clients type an inline object as the component it equals
+  before one of the same shape (0027 review).
 - `rok server add --password-prompt`'s help no longer claims hidden
   input: the password is read from standard input as typed.
 - `rok server add` without a password (none in `--url`, no

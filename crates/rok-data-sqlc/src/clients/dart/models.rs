@@ -263,12 +263,21 @@ impl<'a> Models<'a> {
 
     /// The component of the same shape as the inline `schema`, ignoring
     /// descriptions: utoipa inlines a generic's argument (a page's items).
+    /// The component it equals, descriptions included, comes first:
+    /// components of one shape differ by what they document (a page's
+    /// items are the `users` feature's `UserResponse`, not the account
+    /// routes' `AccountResponse`).
     fn component_like(&self, schema: &Schema) -> Option<String> {
         let shape = undocumented(schema);
-        self.document
-            .schemas
+        let schemas = &self.document.schemas;
+        schemas
             .iter()
-            .find(|(_, component)| undocumented(component) == shape)
+            .find(|(_, component)| *component == schema)
+            .or_else(|| {
+                schemas
+                    .iter()
+                    .find(|(_, component)| undocumented(component) == shape)
+            })
             .map(|(name, _)| self.components[name].0.clone())
     }
 
