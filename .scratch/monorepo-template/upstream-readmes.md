@@ -10,8 +10,9 @@ prepares the text; the owner does the rest:
 2. Archive the repository (Settings → General → Danger Zone → Archive this
    repository).
 
-Neither step has been done from this repository: both are owner actions on
-GitHub.
+Both steps are done (2026-11-02): the README below was pushed to each
+repository (`ateeq1999/tanstack-starter-axum` 0f9a2d5,
+`ateeq1999/Nestjs-Better-Auth-Flutter-Starter` 1a23114) and both are archived.
 
 Imported at:
 
