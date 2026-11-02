@@ -273,7 +273,8 @@ pub fn init_template(dir: &Path, name: &str, org: Option<&str>) -> Result<Scaffo
         wrote_manifest: written.contains(&manifest),
         written,
         replaced_default_main,
-        api_package: names.map(|names| names.api_package()),
+        api_package: names.as_ref().map(Names::api_package),
+        desktop_package: names.as_ref().map(Names::desktop_package),
     })
 }
 
