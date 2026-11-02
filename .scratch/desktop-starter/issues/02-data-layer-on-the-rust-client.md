@@ -1,7 +1,7 @@
 # 02: the data layer on the generated Rust client
 
 **Blocked by:** 01, and ADR 0027's ticket 07 (`clients/rust`)
-**Status:** blocked
+**Status:** ready-for-agent
 
 Spec: What ships (the data layer).
 
