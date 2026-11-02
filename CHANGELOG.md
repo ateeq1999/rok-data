@@ -73,7 +73,17 @@ that it exists and won't ship a tag without it).
   page the users through it, a 422's broken rules land on form fields,
   and a 401 to the session's token expires the session. The starter's
   hand-written HTTP providers and its notes feature, which the API does
-  not serve, are gone (desktop ticket 02).
+  not serve, are gone (desktop ticket 02). It signs up on the API's
+  `POST /auth/register`, signs in (asking for the two-factor code when the
+  account has one) and out, and keeps the session's token in the OS
+  keychain (`keyring`, behind a `TokenStore` trait whose in-memory store
+  the tests use), so it starts signed in; signing out or a 401 deletes
+  the token (desktop ticket 03). The signed-in shell is rok-ui's
+  `AdaptiveScaffold` with the users list (paged as the API pages it) and a
+  user's detail, the Rok theme and a light/dark toggle (desktop ticket
+  04). The monorepo's README and AGENTS.md say how to run, build and
+  check it, verify an account and make one an admin for the users screens
+  (desktop ticket 05, `docs/specs/desktop-starter.md`).
 
 - The monorepo template's api App ships its contract as
   `apps/api/openapi.json`: the document it serves, written out by its
@@ -173,6 +183,15 @@ that it exists and won't ship a tag without it).
   gen` from the root, the api App by its package name, the web and mobile
   Apps), the ones `rok sqlc init --template monorepo` prints, instead of a
   single crate's `src/db/` steps; both now name `clients/rust` too.
+  They now name the desktop App (`cargo run -p <project>-desktop`), and
+  every template's steps name `TOTP_ENCRYPTION_KEY` beside
+  `DATABASE_URL` and `JWT_SECRET`: the API does not start without it
+  (desktop ticket 05).
+- The monorepo's README runs `rok gen` right after `rok init`: the
+  scaffold leaves `apps/api`'s generated data layer and features to it,
+  so `cargo build -p <project>-api` failed (140 errors) when the README
+  was followed as written. A `rok-templates` test keeps it first (desktop
+  ticket 05).
 - `rok gen --migration <name>` in a monorepo stages each App's pair in
   the App's own `migrations/` when its settings leave `migrations` unset;
   it wrote them to the root's, as a first migration of the whole schema.

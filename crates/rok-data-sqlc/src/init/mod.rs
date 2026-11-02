@@ -170,6 +170,9 @@ pub struct Scaffolded {
     /// A Monorepo template's api App package, as init named it after the
     /// project: what `cargo run -p` takes from the root. `None` otherwise.
     pub api_package: Option<String>,
+    /// A Monorepo template's desktop App package, named the same way.
+    /// `None` otherwise.
+    pub desktop_package: Option<String>,
 }
 
 impl Scaffolded {
@@ -197,11 +200,13 @@ impl Scaffolded {
         }
         if monorepo {
             let api = self.api_package.as_deref().unwrap_or("<api>");
+            let desktop = self.desktop_package.as_deref().unwrap_or("<desktop>");
             steps.extend([
                 "run `rok gen` from the root to generate every named App from its own schema, re-export apps/api/openapi.json and regenerate clients/ts, clients/dart and clients/rust from it".to_owned(),
-                "set DATABASE_URL and JWT_SECRET for apps/api (see its .env.example) and apply apps/api/migrations/".to_owned(),
+                "set DATABASE_URL, JWT_SECRET and TOTP_ENCRYPTION_KEY for apps/api (see its .env.example) and apply apps/api/migrations/".to_owned(),
                 format!("`cargo test` in apps/api, then `cargo run -p {api}`"),
                 "in apps/web, `bun install`, then `bun run dev` (it forwards /api to apps/api)".to_owned(),
+                format!("`cargo run -p {desktop}` from the root (it calls apps/api at 127.0.0.1:8080; ROK_API_URL points it elsewhere)"),
                 "in apps/mobile, `flutter pub get`, then `flutter run` (it calls apps/api at 127.0.0.1:8080)".to_owned(),
             ]);
         } else {
@@ -209,7 +214,7 @@ impl Scaffolded {
                 format!(
                     "run `{crate_generate}` to generate src/db/, src/shared/ and src/features/ from schema/"
                 ),
-                "set DATABASE_URL and JWT_SECRET (see .env.example) and apply migrations/".to_owned(),
+                "set DATABASE_URL, JWT_SECRET and TOTP_ENCRYPTION_KEY (see .env.example) and apply migrations/".to_owned(),
                 "`cargo test`, then `cargo run`".to_owned(),
             ]);
         }
@@ -246,6 +251,7 @@ pub fn init(dir: &Path, framework: ApiFramework) -> Result<Scaffolded> {
         replaced_default_main,
         wrote_manifest: false,
         api_package: None,
+        desktop_package: None,
     })
 }
 

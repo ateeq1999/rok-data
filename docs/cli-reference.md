@@ -1,7 +1,7 @@
 ---
 title: "`rok` — CLI reference"
 description: Every command, flag, output and exit code of the workspace's single binary. Contract: matches crates/rok-cli/src/cli/ and the engine's grammar.
-updated: 2026-11-01
+updated: 2026-11-02
 kind: reference
 source: crates/rok-cli/src/cli/, crates/rok-data-sqlc/src/cli.rs (engine grammar)
 ---
@@ -156,10 +156,11 @@ that regenerates the Apps and their Clients):
 ```text
 Next steps:
   1. run `rok gen` from the root to generate every named App from its own schema, re-export apps/api/openapi.json and regenerate clients/ts, clients/dart and clients/rust from it
-  2. set DATABASE_URL and JWT_SECRET for apps/api (see its .env.example) and apply apps/api/migrations/
+  2. set DATABASE_URL, JWT_SECRET and TOTP_ENCRYPTION_KEY for apps/api (see its .env.example) and apply apps/api/migrations/
   3. `cargo test` in apps/api, then `cargo run -p my-shop-api`
   4. in apps/web, `bun install`, then `bun run dev` (it forwards /api to apps/api)
-  5. in apps/mobile, `flutter pub get`, then `flutter run` (it calls apps/api at 127.0.0.1:8080)
+  5. `cargo run -p my-shop-desktop` from the root (it calls apps/api at 127.0.0.1:8080; ROK_API_URL points it elsewhere)
+  6. in apps/mobile, `flutter pub get`, then `flutter run` (it calls apps/api at 127.0.0.1:8080)
 ```
 
 An unknown `--template` is a usage error (exit 2) and names the valid

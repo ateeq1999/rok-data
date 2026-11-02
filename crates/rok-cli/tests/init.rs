@@ -384,7 +384,7 @@ fn init_monorepo_names_the_apps_after_the_project_and_org() -> Result<()> {
 
 /// A Monorepo template's next steps are about its Apps, not a single
 /// crate's `src/`: `rok gen` from the root, the api App by its package
-/// name, then the web and mobile Apps.
+/// name, then the web, desktop and mobile Apps.
 #[test]
 fn init_monorepo_prints_the_apps_next_steps() -> Result<()> {
     let dir = TempDir::new()?;
@@ -395,10 +395,11 @@ fn init_monorepo_prints_the_apps_next_steps() -> Result<()> {
         steps,
         [
             "1. run `rok gen` from the root to generate every named App from its own schema, re-export apps/api/openapi.json and regenerate clients/ts, clients/dart and clients/rust from it",
-            "2. set DATABASE_URL and JWT_SECRET for apps/api (see its .env.example) and apply apps/api/migrations/",
+            "2. set DATABASE_URL, JWT_SECRET and TOTP_ENCRYPTION_KEY for apps/api (see its .env.example) and apply apps/api/migrations/",
             "3. `cargo test` in apps/api, then `cargo run -p shop-api`",
             "4. in apps/web, `bun install`, then `bun run dev` (it forwards /api to apps/api)",
-            "5. in apps/mobile, `flutter pub get`, then `flutter run` (it calls apps/api at 127.0.0.1:8080)",
+            "5. `cargo run -p shop-desktop` from the root (it calls apps/api at 127.0.0.1:8080; ROK_API_URL points it elsewhere)",
+            "6. in apps/mobile, `flutter pub get`, then `flutter run` (it calls apps/api at 127.0.0.1:8080)",
         ],
         "{}",
         stdout(&output)
