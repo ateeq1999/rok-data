@@ -23,10 +23,16 @@ Rust client.
   is told to verify its email, the message `apps/api` answers.
   Tests never touch the real keychain: the store is a trait with an in-memory
   implementation, as `rok-cli`'s keychain does.
+- **My account**: every signed-in user's own account (`auth().me()`: email,
+  display name, whether the email is verified, role), where Home points.
 - **Users**: a list (paged as the API pages it) and a detail screen, in place
-  of the starter's notes.
-- **The shell**: rok-ui's `AdaptiveScaffold` with navigation, the Rok theme,
-  and a light/dark toggle.
+  of the starter's notes. They are `apps/api`'s admin routes, so the
+  navigation shows them only to an admin, and anyone else opening `/users` is
+  told it needs the admin role (the owner's decision, 2026-11-02: a user who
+  just signed up could not finish the walk below while the users screens
+  were its only destination).
+- **The shell**: rok-ui's `AdaptiveScaffold` with navigation (Home, My
+  account, and Users for an admin), the Rok theme, and a light/dark toggle.
 
 ## Gates
 
@@ -44,5 +50,6 @@ Rust client.
 
 A fresh `rok init --template monorepo` project builds `apps/desktop`; with
 `apps/api` running against PostgreSQL, a user signs up, verifies, signs in,
-sees the users list and a user's detail, restarts the App still signed in,
-and signs out. The README of the monorepo says how.
+sees their account, restarts the App still signed in, and signs out; an
+admin also sees the users list and a user's detail. The README of the
+monorepo says how.
