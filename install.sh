@@ -1,5 +1,5 @@
 #!/bin/sh
-# Install rok from a GitHub release on Linux or macOS.
+# Install rok-data from a GitHub release on Linux or macOS.
 #
 #   curl -fsSL https://raw.githubusercontent.com/ateeq1999/rok-data/main/install.sh | sh
 #   curl -fsSL https://raw.githubusercontent.com/ateeq1999/rok-data/main/install.sh | sh -s -- --version v0.1.0
@@ -9,7 +9,7 @@
 #   --to <dir>        ROK_INSTALL_DIR  install directory (default: ~/.local/bin)
 #
 # The script downloads the archive for this platform, checks it against the
-# release's SHA-256 checksum, and copies the `rok` binary into the
+# release's SHA-256 checksum, and copies the `rok-data` binary into the
 # install directory. It needs curl or wget, tar, and sha256sum or shasum.
 # On Windows, use install.ps1.
 
@@ -30,7 +30,7 @@ err() {
 
 usage() {
     cat << 'EOF'
-Install rok from a GitHub release.
+Install rok-data from a GitHub release.
 
 Usage: install.sh [--version <tag>] [--to <dir>]
 
@@ -66,7 +66,7 @@ if command -v curl > /dev/null 2>&1; then
 elif command -v wget > /dev/null 2>&1; then
     download() { wget -q "$1" -O "$2"; }
 else
-    err "need curl or wget to download rok"
+    err "need curl or wget to download rok-data"
 fi
 
 if command -v sha256sum > /dev/null 2>&1; then
@@ -99,7 +99,7 @@ detect_target() {
     case "$arch" in
         x86_64 | amd64) arch_part="x86_64" ;;
         aarch64 | arm64) arch_part="aarch64" ;;
-        *) err "unsupported architecture: $arch (build from source with cargo install rok-cli)" ;;
+        *) err "unsupported architecture: $arch (build from source with cargo install rok-data-cli)" ;;
     esac
     echo "$arch_part-$os_part"
 }
@@ -118,7 +118,7 @@ resolve_latest() {
     tag="${effective##*/}"
     case "$tag" in
         v[0-9]*) echo "$tag" ;;
-        *) err "could not find a published release of rok" ;;
+        *) err "could not find a published release of rok-data" ;;
     esac
 }
 
@@ -132,13 +132,13 @@ else
     esac
 fi
 version="${tag#v}"
-name="rok-$version-$target"
+name="rok-data-$version-$target"
 archive="$name.tar.gz"
 
 tmp="$(mktemp -d 2> /dev/null || mktemp -d -t rok)"
 trap 'rm -rf "$tmp"' EXIT INT TERM
 
-say "downloading rok $version for $target"
+say "downloading rok-data $version for $target"
 download "$BASE_URL/$tag/$archive" "$tmp/$archive" ||
     err "download failed: $BASE_URL/$tag/$archive (is $tag a release with a $target build?)"
 download "$BASE_URL/$tag/$archive.sha256" "$tmp/$archive.sha256" ||
@@ -150,16 +150,16 @@ actual="$(sha256 "$tmp/$archive")"
     err "checksum mismatch for $archive (expected $expected, got $actual)"
 
 tar -xzf "$tmp/$archive" -C "$tmp"
-[ -f "$tmp/$name/rok" ] || err "$archive does not contain rok"
+[ -f "$tmp/$name/rok-data" ] || err "$archive does not contain rok-data"
 
 mkdir -p "$INSTALL_DIR"
-# Copy beside the destination, then rename, so a running rok is never
+# Copy beside the destination, then rename, so a running rok-data is never
 # left half-written.
-cp "$tmp/$name/rok" "$INSTALL_DIR/.rok.tmp"
-chmod 755 "$INSTALL_DIR/.rok.tmp"
-mv -f "$INSTALL_DIR/.rok.tmp" "$INSTALL_DIR/rok"
+cp "$tmp/$name/rok-data" "$INSTALL_DIR/.rok-data.tmp"
+chmod 755 "$INSTALL_DIR/.rok-data.tmp"
+mv -f "$INSTALL_DIR/.rok-data.tmp" "$INSTALL_DIR/rok-data"
 
-say "installed $("$INSTALL_DIR/rok" --version) to $INSTALL_DIR/rok"
+say "installed $("$INSTALL_DIR/rok-data" --version) to $INSTALL_DIR/rok-data"
 
 case ":${PATH:-}:" in
     *":$INSTALL_DIR:"*) ;;

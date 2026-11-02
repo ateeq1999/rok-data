@@ -30,7 +30,7 @@ use anyhow::{Context, Result, ensure};
 /// Runs `rok-data-sqlc <args>` in `dir`, which must succeed, and returns its
 /// stderr.
 fn rok_data_sqlc(dir: &Path, args: &[&str]) -> Result<String> {
-    let output = Command::new(env!("CARGO_BIN_EXE_rok"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rok-data"))
         .arg("sqlc")
         .args(args)
         .current_dir(dir)

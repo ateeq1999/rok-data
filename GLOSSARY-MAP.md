@@ -6,6 +6,11 @@
 - [rok-data-sqlc](./crates/rok-data-sqlc/GLOSSARY.md): the resource-module/OpenAPI generator engine's internal vocabulary (Table, Resource, API feature, Scaffolded file, Drift …)
 - [rok-templates](./crates/rok-templates/GLOSSARY.md): the starter projects `init --template` copies and what they ship (Template, Capability, Shared file)
 
+The toolchain around this repository — member repos, the meta-repo,
+Subcommand CLIs — is defined in the meta-repo's
+[GLOSSARY-MAP.md](https://github.com/ateeq1999/rok-workspace/blob/main/GLOSSARY-MAP.md)
+(workspace ADR 0032).
+
 ## Relationships
 
 - **Workspace → rok-data-sqlc**: the workspace pipeline consumes the engine's vocabulary unchanged (Resource, API feature, Convention/Preset, Drift); the two-engine split from ADR 0006 collapses into one data layer, so conflicts resolve in favor of the engine glossary's engine-internal terms and this glossary's pipeline terms.

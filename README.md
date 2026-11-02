@@ -13,10 +13,15 @@ PostgreSQL data tooling for Rust, consolidated from the rok ecosystem:
 ## Install
 
 ```sh
-cargo install rok-data-cli    # provides the `rok` binary
+cargo install rok-data-cli    # provides the `rok-data` binary
 ```
 
-Or take a prebuilt `rok` binary: the GitHub releases carry checksummed
+The commands below are written `rok …`: the `rok` command of
+[rok-v2](https://github.com/ateeq1999/rok-v2) links this CLI and is the
+toolchain's front door ([ADR 0032](docs/decisions/0032-member-repos-and-subcommand-clis.md)).
+Until it ships, `rok-data …` runs every one of them unchanged.
+
+Or take a prebuilt `rok-data` binary: the GitHub releases carry checksummed
 archives for Linux (musl), macOS, and Windows, x86_64 and ARM64, and the
 repository's `install.sh` / `install.ps1` download, verify and install
 them:
@@ -107,7 +112,7 @@ Crate-by-crate docs: [docs/README.md](docs/README.md) (the map),
 | [`rok-data-macros`](crates/rok-data-macros) | derives + `#[rok::test]`      |
 | [`rok-data-codegen`](crates/rok-data-codegen) | whole-crate generator       |
 | [`rok-data-sqlc`](crates/rok-data-sqlc) | resource-module generator engine  |
-| [`rok-cli`](crates/rok-cli) | the `rok` binary                               |
+| [`rok-cli`](crates/rok-cli) | the `rok-data` binary (linked into `rok`)      |
 
 Browse from [docs/architecture.md](docs/architecture.md), read the
 [migration audit](docs/migration-audit.md) for why this workspace exists,

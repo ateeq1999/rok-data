@@ -1,4 +1,4 @@
-# Install rok from a GitHub release on Windows.
+# Install rok-data from a GitHub release on Windows.
 #
 #   irm https://raw.githubusercontent.com/ateeq1999/rok-data/main/install.ps1 | iex
 #
@@ -9,7 +9,7 @@
 #   $env:ROK_NO_MODIFY_PATH = "1"                    # leave the user PATH alone
 #
 # The script downloads the archive for this machine's architecture, checks
-# it against the release's SHA-256 checksum, copies rok.exe into the
+# it against the release's SHA-256 checksum, copies rok-data.exe into the
 # install directory, and adds that directory to the user PATH.
 
 # Everything runs inside a function so that, under `irm | iex`, the script's
@@ -38,7 +38,7 @@ function Install-Rok {
     switch ($Arch) {
         "AMD64" { $Target = "x86_64-pc-windows-msvc" }
         "ARM64" { $Target = "aarch64-pc-windows-msvc" }
-        default { Fail "unsupported architecture: $Arch (build from source with cargo install rok-cli)" }
+        default { Fail "unsupported architecture: $Arch (build from source with cargo install rok-data-cli)" }
     }
 
     if ($Version -eq "latest") {
@@ -54,20 +54,20 @@ function Install-Rok {
             Fail "could not look up the latest release: $_"
         }
         $Tag = ($Location -split "/")[-1]
-        if ($Tag -notmatch "^v[0-9]") { Fail "could not find a published release of rok" }
+        if ($Tag -notmatch "^v[0-9]") { Fail "could not find a published release of rok-data" }
     } elseif ($Version.StartsWith("v")) {
         $Tag = $Version
     } else {
         $Tag = "v$Version"
     }
 
-    $Name = "rok-$($Tag.Substring(1))-$Target"
+    $Name = "rok-data-$($Tag.Substring(1))-$Target"
     $Archive = "$Name.zip"
     $Temp = Join-Path ([IO.Path]::GetTempPath()) ("rok-" + [Guid]::NewGuid())
     New-Item -ItemType Directory -Force $Temp | Out-Null
 
     try {
-        Write-Output "rok-install: downloading rok $($Tag.Substring(1)) for $Target"
+        Write-Output "rok-install: downloading rok-data $($Tag.Substring(1)) for $Target"
         try {
             Invoke-WebRequest -UseBasicParsing "$BaseUrl/$Tag/$Archive" -OutFile "$Temp\$Archive"
             Invoke-WebRequest -UseBasicParsing "$BaseUrl/$Tag/$Archive.sha256" -OutFile "$Temp\$Archive.sha256"
@@ -82,16 +82,16 @@ function Install-Rok {
         }
 
         Expand-Archive -Force "$Temp\$Archive" -DestinationPath $Temp
-        $Exe = Join-Path $Temp "$Name\rok.exe"
-        if (-not (Test-Path $Exe)) { Fail "$Archive does not contain rok.exe" }
+        $Exe = Join-Path $Temp "$Name\rok-data.exe"
+        if (-not (Test-Path $Exe)) { Fail "$Archive does not contain rok-data.exe" }
 
         New-Item -ItemType Directory -Force $InstallDir | Out-Null
-        Copy-Item -Force $Exe (Join-Path $InstallDir "rok.exe")
+        Copy-Item -Force $Exe (Join-Path $InstallDir "rok-data.exe")
     } finally {
         Remove-Item -Recurse -Force $Temp -ErrorAction SilentlyContinue
     }
 
-    $Installed = Join-Path $InstallDir "rok.exe"
+    $Installed = Join-Path $InstallDir "rok-data.exe"
     Write-Output "rok-install: installed $(& $Installed --version) to $Installed"
 
     if ($env:ROK_NO_MODIFY_PATH) { return }

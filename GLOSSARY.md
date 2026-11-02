@@ -142,20 +142,6 @@ the write is tried.
 _Avoid_: lookup rule, async rule, DB constraint (the constraint is the
 table's, the rule is the input's)
 
-### Toolchain
-
-**Member repo**:
-One repository of the rok toolchain, released on its own.
-_Avoid_: project (that is a user's app), package, sub-repo
-
-**Meta-repo**:
-The repository that lists every member repo and links their checkouts so they build together during development; it releases nothing.
-_Avoid_: monorepo (that is a Template), umbrella repo, superproject
-
-**Subcommand CLI**:
-A specialized command line that `rok` dispatches to — linked into `rok`, or found on the `PATH` as `rok-<name>` — and that also runs on its own.
-_Avoid_: plugin, sub-CLI, extension
-
 ### Pipeline pieces (deferred from the engine context)
 
 The terms **Table**, **Resource**, **API feature**,

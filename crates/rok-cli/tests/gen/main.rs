@@ -17,7 +17,7 @@ const SCHEMA: &str =
 const SCHEMA_WITH_POSTS: &str = "CREATE TABLE users (\n    id UUID PRIMARY KEY,\n    email TEXT NOT NULL\n);\n\nCREATE TABLE posts (\n    id UUID PRIMARY KEY,\n    title TEXT NOT NULL\n);\n";
 
 fn rok() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_rok"))
+    Command::new(env!("CARGO_BIN_EXE_rok-data"))
 }
 
 fn run_in(dir: &Path, args: &[&str]) -> Result<Output> {

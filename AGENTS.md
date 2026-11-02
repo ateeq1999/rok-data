@@ -12,7 +12,10 @@ belongs.
 crate generator in `rok-data-codegen`, the resource-module generator
 engine in `rok-data-sqlc`, the actix and axum project templates its
 `init --template` copies in `rok-templates`, and the only binary is
-`rok` in `rok-cli`.
+`rok-data` in `rok-cli`. Users reach it as `rok`: rok-v2's binary links
+this CLI (workspace ADR 0032), which is why help text and hints say
+`rok …`. rok-data is one member repo of the rok toolchain; the
+meta-repo `rok-workspace` is the folder around it.
 Libraries never depend on `rok-data-cli`; the CLI delegates to library
 functions; sqlx is depended on only by `rok-data-core`.
 
@@ -37,13 +40,16 @@ functions; sqlx is depended on only by `rok-data-core`.
    warnings` clean. The engine's `Cargo.toml` spells its lint set out
    (it does not inherit the workspace lints; see workspace ADR 0007) — keep the
    two consistent when changing either.
-2. Only one binary target in the whole workspace: `rok`. Regenerating
-   the example is `cargo run -p rok-data-codegen --example regenerate`.
+2. Only one binary target in the whole workspace: `rok-data`. The `rok`
+   binary is rok-v2's, which links `rok_data_cli::run` and
+   `rok_data_cli::command()` (workspace ADR 0032); never name a binary
+   here `rok`. Regenerating the example is
+   `cargo run -p rok-data-codegen --example regenerate`.
 3. `rok sqlc` tokens are forwarded verbatim to
    `rok_data_sqlc::cli::run_from`. Never re-declare that grammar in
    rok-cli; the help text the user sees must match the engine's tests.
 4. Test suites that drove the old `rok-data-sqlc` binary live in
-   `rok-cli/tests` and spawn `CARGO_BIN_EXE_rok` with `"sqlc"`
+   `rok-cli/tests` and spawn `CARGO_BIN_EXE_rok-data` with `"sqlc"`
    prepended (workspace ADR 0003). Library suites stay in the engine crate. Do
    not "fix" this by re-adding a binary to rok-data-sqlc.
 5. Generated/scaffolded content is recognized by marker headers; every
@@ -75,7 +81,7 @@ functions; sqlx is depended on only by `rok-data-core`.
 ```console
 $ cargo test --workspace --all-targets        # everything, ~2-3 min
 $ cargo test -p rok-data-sqlc --lib           # engine unit suite (330)
-$ cargo test -p rok-data-cli --test cli        # sqlc CLI suites via the rok binary
+$ cargo test -p rok-data-cli --test cli        # sqlc CLI suites via the rok-data binary
 $ cargo test -p rok-data-sqlc --test module_fixtures   # corpus (needs rustc ≥ fixture MSRV)
 ```
 
@@ -104,9 +110,10 @@ heading — a tag without one fails the release. See workspace ADR 0008.
 Before the tag, check that the crates.io names are free: a name that is
 taken cannot be published, and the workflow's publish step fails on it.
 `rok-data`, `rok-data-core`, `rok-data-macros`, `rok-data-codegen` and
-`rok-data-sqlc` are ours since 0.2.0. `rok-cli` is taken by another crate
-(the CLI of `axum-rok-http`), so the CLI publishes as `rok-data-cli`; the
-directory and the `rok` binary keep their names. crates.io limits how many
+`rok-data-sqlc` are ours since 0.2.0. The CLI publishes as `rok-data-cli`
+(binary `rok-data`; the directory keeps its name `rok-cli`). `rok-cli` on
+crates.io is ours too: our old task runner up to 0.6.1, then rok-v2's
+`rok` from 0.7.0 (workspace ADR 0032). crates.io limits how many
 *new* crates one account publishes in a short time: v0.2.0's run published
 five and was refused the sixth (`429`), so `rok-data-cli` first publishes
 with 0.3.0. `rok-templates` (workspace ADR 0022) first publishes with

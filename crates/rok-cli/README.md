@@ -9,11 +9,13 @@ output.
 
 ```sh
 cargo install rok-data-cli
-rok --help
+rok-data --help
 ```
 
-The package installs under `rok-data-cli` (`rok-cli` is taken on
-crates.io); the binary it installs is `rok`.
+The binary it installs is `rok-data`. The toolchain's `rok` command
+([rok-v2](https://github.com/ateeq1999/rok-v2)) links this crate
+(`rok_data_cli::run`, `rok_data_cli::command()`), so every command below
+also runs as `rok …`, and help shows whichever name you called it by.
 
 ```text
 rok init [NAME]                   scaffold a project (skeleton or template)
@@ -29,7 +31,7 @@ Most commands read the database from `DATABASE_URL` (or
 `--database-url`), PostgreSQL 12+, and offer `--json` for a stable
 machine-readable contract. The `rok sqlc …` subtree is the
 `rok-data-sqlc` engine's own clap grammar, forwarded verbatim — so its
-tests drive the `rok` binary exactly as a user would.
+tests drive the `rok-data` binary exactly as a user would.
 
 `rok generate` and `rok sqlc …` are the legacy surfaces: still supported,
 still forwarded verbatim, superseded by the front door (`rok init`,

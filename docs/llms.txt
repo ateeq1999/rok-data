@@ -37,7 +37,7 @@
 - [Workspace ADRs](decisions/0001-runtime-lineage.md): deliberate cross-crate decisions, 0001–0032 (see the directory `docs/decisions/` for all); the latest, [0032](decisions/0032-member-repos-and-subcommand-clis.md), splits rok-data into member repos under one `rok`.
 - [Engine specs](specs/0.3.0-model-shaped-data-layer.md): per-release specs (0.4.0 everyday verbs, sqlc absorption, input validation, 0.5.0 production templates) under `docs/specs/`.
 - [Desktop starter spec](specs/desktop-starter.md): the monorepo's desktop App (ADR 0031) on `clients/rust`: sign-up, the keychain session, My account, and the users screens for an admin.
-- [Toolchain split runbook](specs/toolchain-split/plan.md): the PowerShell + `gh` steps that split rok-data into member repos (ADR 0032): backups, the `rok-workspace` meta-repo, `rok-templates` out, `rok-v2` owning `rok`.
+- [Toolchain split runbook](https://github.com/ateeq1999/rok-workspace/blob/main/docs/plan.md): the PowerShell + `gh` steps that split rok-data into member repos (ADR 0032): backups, the `rok-workspace` meta-repo, `rok-templates` out, `rok-v2` owning `rok`.
 - [Toasty patterns research](research/toasty-patterns.md): the study behind With-loading's shape.
 
 ## Nearby (root)

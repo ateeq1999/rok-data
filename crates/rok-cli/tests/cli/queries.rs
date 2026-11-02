@@ -280,7 +280,7 @@ fn printed_paths_use_slashes_and_stay_relative() -> Result<()> {
         "schema = [\"migrations\"]\noutput = \"src/db\"\n",
     )?;
     let rok_data_sqlc = |args: &[&str]| {
-        Command::new(env!("CARGO_BIN_EXE_rok"))
+        Command::new(env!("CARGO_BIN_EXE_rok-data"))
             .arg("sqlc")
             .args(args)
             .current_dir(dir.path())

@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 use tempfile::TempDir;
 
 fn rok(dir: &Path, args: &[&str]) -> Result<Output> {
-    Ok(Command::new(env!("CARGO_BIN_EXE_rok"))
+    Ok(Command::new(env!("CARGO_BIN_EXE_rok-data"))
         .current_dir(dir)
         .args(args)
         .output()?)

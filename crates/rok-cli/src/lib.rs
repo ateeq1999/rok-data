@@ -1,6 +1,8 @@
-//! `rok` — the single command-line interface for the rok-data ecosystem.
+//! `rok-data` — the command-line interface for the rok-data ecosystem,
+//! run on its own or linked into rok-v2's `rok` (workspace ADR 0032), which
+//! is how users reach it and why the commands below read `rok …`.
 //!
-//! Every user-facing command of the consolidated workspace lives here; the
+//! Every user-facing command of the workspace lives here; the
 //! crates it drives expose the same operations as reusable library APIs
 //! (`rok-data`, `rok-data-codegen`, `rok-data-sqlc`), so scripts and tests can
 //! call them without a shell.
@@ -36,18 +38,41 @@ mod output;
 /// Run the CLI with `args` (including the program name, like
 /// `std::env::args().collect()`), returning the process exit code.
 ///
-/// Public so the integration tests can drive the CLI as a library call and so
-/// `main` delegates to exactly this behavior.
+/// The program name is what help and usage errors display: the `rok-data`
+/// binary passes its own path, and rok-v2's `rok` passes `"rok"` (workspace
+/// ADR 0032).
+///
+/// Public so the integration tests can drive the CLI as a library call, so
+/// `main` delegates to exactly this behavior, and so `rok` links it.
 pub fn run<I, T>(args: I) -> ExitCode
 where
     I: IntoIterator<Item = T>,
     T: Into<String> + Clone,
 {
     let args: Vec<String> = args.into_iter().map(Into::into).collect();
-    match route_sqlc(&args) {
+    let program = program_name(&args);
+    match route_sqlc(&program, &args) {
         Outcome::Handled(code) => code,
-        Outcome::Continue => run_root(args),
+        Outcome::Continue => run_root(&program, args),
     }
+}
+
+/// Every command, with its help, as `rok-data` displays it — what a caller
+/// linking this CLI (rok-v2's `rok`) embeds in its own help.
+#[must_use]
+pub fn command() -> clap::Command {
+    cli::command("rok-data")
+}
+
+/// The name to display: the file stem of `args[0]` (`rok-data` from
+/// `C:\…\rok-data.exe`), or `rok-data` when there is none.
+fn program_name(args: &[String]) -> String {
+    args.first()
+        .and_then(|arg| std::path::Path::new(arg).file_stem())
+        .and_then(|stem| stem.to_str())
+        .filter(|stem| !stem.is_empty())
+        .unwrap_or("rok-data")
+        .to_owned()
 }
 
 /// What `route_sqlc` (the sqlc-token router below) decided.
@@ -66,9 +91,9 @@ use Outcome::{Continue, Handled};
 /// that crate. Everything else is parsed here.
 ///
 /// `rok tools …` is routed the same way to rok-tools (ADR 0026).
-fn route_sqlc(args: &[String]) -> Outcome {
+fn route_sqlc(program: &str, args: &[String]) -> Outcome {
     if args.len() >= 2 && args[1] == "sqlc" {
-        return Handled(commands::sqlc::run(&args[2..]));
+        return Handled(commands::sqlc::run(program, &args[2..]));
     }
     #[cfg(rok_tools)]
     if args.len() >= 2 && args[1] == "tools" {
@@ -77,7 +102,7 @@ fn route_sqlc(args: &[String]) -> Outcome {
     Continue
 }
 
-fn run_root(args: Vec<String>) -> ExitCode {
+fn run_root(program: &str, args: Vec<String>) -> ExitCode {
     let runtime = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -88,7 +113,7 @@ fn run_root(args: Vec<String>) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    match cli::parse(&args[1..]) {
+    match cli::parse(program, &args[1..]) {
         cli::ParseOutcome::Informational => ExitCode::SUCCESS,
         cli::ParseOutcome::Usage => ExitCode::from(2),
         cli::ParseOutcome::Command(command) => {

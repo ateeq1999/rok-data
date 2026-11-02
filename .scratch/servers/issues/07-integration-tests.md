@@ -50,7 +50,7 @@
 
 ## Notes
 
-- Follow existing test pattern: `tokio::test`, `Command::new(env!("CARGO_BIN_EXE_rok"))`
+- Follow existing test pattern: `tokio::test`, `Command::new(env!("CARGO_BIN_EXE_rok-data"))`
 - Use unique database names per test (include test name + random suffix)
 - Set `ROK_SERVER_TEST_PASSWORD` in CI for the test server
 - The existing `migrate` tests in `cli.rs` are the model

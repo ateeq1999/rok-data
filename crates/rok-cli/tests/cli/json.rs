@@ -56,7 +56,7 @@ fn json_payload_is_read_from_stdin_with_a_dash() -> Result<()> {
 
     let dir = TempDir::new()?;
     fs::write(dir.path().join("schema.sql"), SIMPLE_SCHEMA)?;
-    let mut child = Command::new(env!("CARGO_BIN_EXE_rok"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_rok-data"))
         .arg("sqlc")
         .current_dir(dir.path())
         .args(["generate", "--json", "-"])

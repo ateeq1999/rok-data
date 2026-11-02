@@ -59,7 +59,7 @@ page; edit the source file and re-mark.
 | [`migration-audit.md`](migration-audit.md) | what was audited out of the four source repositories before consolidation |
 | [`migration-plan.md`](migration-plan.md) | the original consolidation plan |
 | [`unified-pipeline-plan.md`](unified-pipeline-plan.md) | the 0.2.0 pipeline plan (schema-dir truth, front door, templates) |
-| [`specs/`](specs/) | per-release specs (0.3.0 model-shaped layer, 0.4.0 everyday verbs, the sqlc absorption, input validation, 0.5.0 production templates) and feature specs, among them [the desktop starter](specs/desktop-starter.md) (ADR 0031) and [the toolchain split runbook](specs/toolchain-split/plan.md) (ADR 0032) |
+| [`specs/`](specs/) | per-release specs (0.3.0 model-shaped layer, 0.4.0 everyday verbs, the sqlc absorption, input validation, 0.5.0 production templates) and feature specs, among them [the desktop starter](specs/desktop-starter.md) (ADR 0031) and [the toolchain split runbook](https://github.com/ateeq1999/rok-workspace/blob/main/docs/plan.md) (ADR 0032) |
 | [`research/toasty-patterns.md`](research/toasty-patterns.md) | the toasty study behind With-loading's shape |
 
 The engine's own ADR series and guides live outside this directory, in

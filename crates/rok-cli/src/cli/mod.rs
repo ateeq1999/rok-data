@@ -31,7 +31,7 @@ use server::ServerAction;
 /// Root of the command line.
 #[derive(Debug, Parser)]
 #[command(
-    name = "rok",
+    name = "rok-data",
     about = "Database tooling for the rok-data ecosystem",
     version,
     arg_required_else_help = true,
@@ -150,18 +150,20 @@ pub(crate) enum ParseOutcome {
     Usage,
 }
 
-/// Parse `args` (which must NOT include the program name) into a command.
+/// The whole command tree, displayed as `program` (`rok-data` standalone,
+/// `rok` when rok-v2 links it).
 ///
-/// The `sqlc` subtree (owned by the `rok-data-sqlc` engine) is injected into
-/// the command tree only so the root help lists it; tokens after `rok sqlc`
-/// never reach this parser (see [`crate::route_sqlc`]).
-pub(crate) fn parse(args: &[String]) -> ParseOutcome {
-    // The `sqlc` subtree (defined by the engine) is only injected so the root
-    // help lists it; `rok sqlc …` tokens are routed before this parser runs.
-    let command = Cli::command().subcommand(rok_data_sqlc::cli::command().name("sqlc").about(
-        "Legacy: generate SQLx Rust modules from SQL schema files \
+/// The `sqlc` subtree (owned by the `rok-data-sqlc` engine) is injected
+/// only so the root help lists it; tokens after `sqlc` never reach this
+/// parser (see [`crate::route_sqlc`]).
+pub(crate) fn command(program: &str) -> clap::Command {
+    let command = Cli::command()
+        .bin_name(program.to_owned())
+        .display_name(program.to_owned())
+        .subcommand(rok_data_sqlc::cli::command().name("sqlc").about(
+            "Legacy: generate SQLx Rust modules from SQL schema files \
                  (generate|init|check-arch); superseded by `rok gen`",
-    ));
+        ));
     // Likewise `rok tools …` is routed to rok-tools before this parser (ADR 0026).
     #[cfg(rok_tools)]
     let command = command.subcommand(
@@ -169,7 +171,13 @@ pub(crate) fn parse(args: &[String]) -> ParseOutcome {
             .name("tools")
             .about("Developer tools: grep, replace, loc, refactor, … (`rok tools list`)"),
     );
-    match command.try_get_matches_from(inputs(args)) {
+    command
+}
+
+/// Parse `args` (which must NOT include the program name) into a command,
+/// displayed as `program`.
+pub(crate) fn parse(program: &str, args: &[String]) -> ParseOutcome {
+    match command(program).try_get_matches_from(inputs(program, args)) {
         Ok(matches) => match Command::from_arg_matches(&matches) {
             Ok(command) => ParseOutcome::Command(command),
             Err(_) => ParseOutcome::Usage,
@@ -194,8 +202,8 @@ pub(crate) fn parse(args: &[String]) -> ParseOutcome {
 }
 
 /// The tokens behind parse: the program name, then everything the user typed.
-fn inputs(args: &[String]) -> Vec<String> {
-    let mut all = vec!["rok".to_owned()];
+fn inputs(program: &str, args: &[String]) -> Vec<String> {
+    let mut all = vec![program.to_owned()];
     all.extend(args.iter().cloned());
     all
 }

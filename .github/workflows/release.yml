@@ -1,6 +1,6 @@
 name: Release
 
-# Builds the rok binary for every supported platform and publishes the
+# Builds the rok-data binary for every supported platform and publishes the
 # archives, with SHA-256 checksums, as a GitHub release. The install scripts
 # (install.sh, install.ps1) download from these releases. Once the binaries
 # build, it also publishes the workspace's library crates to crates.io with
@@ -115,9 +115,9 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          name="rok-${{ needs.prepare.outputs.version }}-${{ matrix.target }}"
+          name="rok-data-${{ needs.prepare.outputs.version }}-${{ matrix.target }}"
           mkdir -p "dist/$name"
-          cp "target/${{ matrix.target }}/release/rok" "dist/$name/"
+          cp "target/${{ matrix.target }}/release/rok-data" "dist/$name/"
           cp README.md CHANGELOG.md LICENSE-MIT LICENSE-APACHE "dist/$name/"
           tar -C dist -czf "dist/$name.tar.gz" "$name"
           cd dist && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
@@ -125,9 +125,9 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $name = "rok-${{ needs.prepare.outputs.version }}-${{ matrix.target }}"
+          $name = "rok-data-${{ needs.prepare.outputs.version }}-${{ matrix.target }}"
           New-Item -ItemType Directory -Force "dist/$name" | Out-Null
-          Copy-Item "target/${{ matrix.target }}/release/rok.exe" "dist/$name/"
+          Copy-Item "target/${{ matrix.target }}/release/rok-data.exe" "dist/$name/"
           Copy-Item README.md, CHANGELOG.md, LICENSE-MIT, LICENSE-APACHE "dist/$name/"
           Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.zip"
           $hash = (Get-FileHash -Algorithm SHA256 "dist/$name.zip").Hash.ToLower()
@@ -144,7 +144,7 @@ jobs:
             [ "$(uname -m)" = "arm64" ]; then
             sudo softwareupdate --install-rosetta --agree-to-license || true
           fi
-          bin="target/${{ matrix.target }}/release/rok"
+          bin="target/${{ matrix.target }}/release/rok-data"
           [ -f "$bin.exe" ] && bin="$bin.exe"
           "$bin" --version
       - uses: actions/upload-artifact@v4
@@ -182,7 +182,7 @@ jobs:
             prerelease=""
             case "$TAG" in *-*) prerelease="--prerelease" ;; esac
             gh release create "$TAG" dist/* \
-              --title "rok ${{ needs.prepare.outputs.version }}" \
+              --title "rok-data ${{ needs.prepare.outputs.version }}" \
               --notes-file artifacts/release-notes/release-notes.md \
               --verify-tag $prerelease
           fi
@@ -250,7 +250,7 @@ jobs:
           ROK_INSTALL_DIR: ${{ runner.temp }}/bin
         run: |
           sh install.sh
-          "$ROK_INSTALL_DIR/rok" --version | grep -F "${{ needs.prepare.outputs.version }}"
+          "$ROK_INSTALL_DIR/rok-data" --version | grep -F "${{ needs.prepare.outputs.version }}"
       - name: install.ps1
         if: runner.os == 'Windows'
         shell: pwsh
@@ -260,6 +260,6 @@ jobs:
           ROK_NO_MODIFY_PATH: "1"
         run: |
           ./install.ps1
-          $out = & "$env:ROK_INSTALL_DIR\rok.exe" --version
+          $out = & "$env:ROK_INSTALL_DIR\rok-data.exe" --version
           Write-Output $out
           if ($out -notlike "*${{ needs.prepare.outputs.version }}*") { exit 1 }

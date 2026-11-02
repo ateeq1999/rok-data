@@ -17,15 +17,15 @@ use std::process::ExitCode;
 
 use rok_data_sqlc::check_db::{Described, DescribedColumn, Describer};
 
-/// Run the `sqlc` subcommand with `args` (not including the `rok sqlc`
-/// program tokens). Mirrors the pre-consolidation `rok-sqlc` main binary:
+/// Run the `sqlc` subcommand with `args` (not including the `<program> sqlc`
+/// tokens). Mirrors the pre-consolidation `rok-sqlc` main binary:
 /// `--help`/`--version` succeed, clap usage errors exit 1 with clap's own
 /// message, engine errors exit 1.
-pub(crate) fn run(args: &[String]) -> ExitCode {
+pub(crate) fn run(program: &str, args: &[String]) -> ExitCode {
     // The engine's derive parses [program, subcommand…]; the program token
-    // doubles as the displayed bin name, so it says `rok sqlc` the way the
-    // consolidated CLI presents this group.
-    let mut full: Vec<String> = vec!["rok sqlc".into()];
+    // doubles as the displayed bin name, so it says `<program> sqlc` the way
+    // the CLI presents this group.
+    let mut full: Vec<String> = vec![format!("{program} sqlc")];
     full.extend(args.iter().cloned());
     match rok_data_sqlc::cli::run_with(full, &connect) {
         Ok(()) => ExitCode::SUCCESS,
@@ -84,13 +84,13 @@ mod tests {
 
     #[test]
     fn help_exits_successfully() {
-        let code = run(&["--help".to_owned()]);
+        let code = run("rok-data", &["--help".to_owned()]);
         assert_eq!(code, ExitCode::SUCCESS);
     }
 
     #[test]
     fn usage_errors_exit_one() {
-        let code = run(&["nope".to_owned()]);
+        let code = run("rok-data", &["nope".to_owned()]);
         assert_eq!(code, ExitCode::FAILURE);
     }
 }

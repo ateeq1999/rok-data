@@ -14,7 +14,7 @@ keywords = ["database", "cli", "orm", "postgres", "migrations"]
 categories = ["database", "development-tools", "command-line-utilities"]
 
 [[bin]]
-name = "rok"
+name = "rok-data"
 path = "src/main.rs"
 
 [dependencies]

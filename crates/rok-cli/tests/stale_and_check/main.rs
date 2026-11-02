@@ -62,7 +62,7 @@ impl Project {
     }
 
     fn binary(&self, extra: &[&str]) -> Output {
-        Command::new(env!("CARGO_BIN_EXE_rok"))
+        Command::new(env!("CARGO_BIN_EXE_rok-data"))
             .arg("sqlc")
             .args(self.args(extra))
             .output()
