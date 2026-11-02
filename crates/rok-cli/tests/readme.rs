@@ -6,7 +6,8 @@
 //! Conventions these tests read, in the README and every guide page:
 //!
 //! - A fenced block right after `<!-- source: <path> -->` must appear
-//!   verbatim in that file (repository-relative). Every `rust` block needs
+//!   verbatim in that file (repository-relative; `rok-templates:<template>/<path>`
+//!   names a file of the templates the engine embeds). Every `rust` block needs
 //!   one, so no Rust sample is hand-written.
 //! - A fenced block right after `<!-- tree: <dir> -->` must be the file tree
 //!   of that directory.
@@ -333,6 +334,23 @@ fn check_config_samples(name: &str, text: &str, dir: &Path) -> Result<usize> {
     Ok(checked)
 }
 
+/// `<template>/<path>` (`axum-api/tests/support/mod.rs`) as the
+/// rok-templates crate embeds it: the templates live in their own
+/// repository (workspace ADR 0032), and this is the copy `init` writes.
+fn embedded_template_file(path: &str) -> Result<String> {
+    let (template, file) = path
+        .split_once('/')
+        .with_context(|| format!("`rok-templates:{path}` names no template"))?;
+    let embedded = rok_templates::find(template)
+        .with_context(|| format!("rok-templates embeds no `{template}`"))?;
+    let found = embedded
+        .files
+        .iter()
+        .find(|candidate| candidate.path == file)
+        .with_context(|| format!("rok-templates' `{template}` has no `{file}`"))?;
+    Ok(String::from_utf8_lossy(found.bytes).replace("\r\n", "\n"))
+}
+
 #[test]
 fn every_code_sample_comes_from_its_source() -> Result<()> {
     let mut problems = Vec::new();
@@ -352,7 +370,10 @@ fn every_code_sample_comes_from_its_source() -> Result<()> {
                 }
                 continue;
             };
-            let text = read_text(&manifest_dir().join(source))?;
+            let text = match source.strip_prefix("rok-templates:") {
+                Some(path) => embedded_template_file(path)?,
+                None => read_text(&manifest_dir().join(source))?,
+            };
             if !text.contains(&block.body) {
                 problems.push(format!(
                     "{name}:{}: the block is not in {source}:\n{}",

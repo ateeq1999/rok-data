@@ -67,5 +67,5 @@ The engine's own ADR series and guides live outside this directory, in
 page says "engine ADR NNNN", that is where it is. The templates' guide
 and recipes — the actix and axum APIs, and the monorepo template with its
 api, web, desktop and mobile Apps
-([`monorepo.md`](../crates/rok-templates/docs/guide/monorepo.md)) — are in
-[`crates/rok-templates/docs/guide/`](../crates/rok-templates/docs/guide/).
+([`monorepo.md`](https://github.com/ateeq1999/rok-templates/blob/main/docs/guide/monorepo.md)) — are in
+[`rok-templates/docs/guide/`](https://github.com/ateeq1999/rok-templates/blob/main/docs/guide/).

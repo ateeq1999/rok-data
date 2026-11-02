@@ -148,5 +148,5 @@ The terms **Table**, **Resource**, **API feature**,
 **Scaffolded file**, **Drift**, **Convention**, **Preset**, and the
 relationship vocabulary are owned by the engine context's glossary at
 `crates/rok-data-sqlc/GLOSSARY.md`, and **Template** and **Capability**
-by the templates context's at `crates/rok-templates/GLOSSARY.md`; this
+by the templates context's at `rok-templates/GLOSSARY.md`; this
 context reuses them with the same meaning rather than redefining them.

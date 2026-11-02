@@ -9,7 +9,7 @@ exploring the codebase. rok-data is **multi-context**.
   context; read each one relevant to the topic:
   - `GLOSSARY.md` (the workspace: the `rok` CLI, the pipeline, product terms)
   - `crates/rok-data-sqlc/GLOSSARY.md` (the generator engine)
-  - `crates/rok-templates/GLOSSARY.md` (the starter projects: Template,
+  - rok-templates' `GLOSSARY.md`, in its own repository (the starter projects: Template,
     Capability, Shared file)
 - **ADRs** that touch the area you're about to work in. This repo keeps them in
   two series, not in `docs/adr/`:
@@ -31,11 +31,9 @@ creates them lazily when terms or decisions actually get resolved.
 ├── GLOSSARY.md                       ← the workspace context
 ├── docs/decisions/                   ← workspace ADRs
 └── crates/
-    ├── rok-data-sqlc/
-    │   ├── GLOSSARY.md
-    │   └── docs/adr/                 ← engine ADRs
-    └── rok-templates/
-        └── GLOSSARY.md
+    └── rok-data-sqlc/
+        ├── GLOSSARY.md
+        └── docs/adr/                 ← engine ADRs
 ```
 
 ## Use the glossary's vocabulary

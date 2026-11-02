@@ -438,7 +438,7 @@ fn the_offered_templates_are_the_engines() {
     assert_eq!(offered, vec!["actix", "axum", "monorepo"]);
     for template in ["actix-api", "axum-api", "monorepo"] {
         assert!(
-            common::template_dir(template).is_dir(),
+            rok_templates::find(template).is_some(),
             "the offered template `{template}` is not in rok-templates"
         );
     }

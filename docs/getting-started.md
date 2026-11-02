@@ -141,7 +141,7 @@ client gains the field; `bun run typecheck`, `flutter analyze` and `cargo
 test` show where the hand-written code must follow. In CI, `rok gen check`
 fails when an App's generated code or a client is out of date. The
 templates' guide has the whole project: [the monorepo
-template](../crates/rok-templates/docs/guide/monorepo.md).
+template](https://github.com/ateeq1999/rok-templates/blob/main/docs/guide/monorepo.md).
 
 The whole chain in one crate: [`examples/api`](../examples/api) holds a
 schema of two files, the generated data layer and API features beside it,
@@ -401,4 +401,4 @@ $ rok sqlc check-arch
 - Engine-side guides (API features, OpenAPI, conventions):
   `crates/rok-data-sqlc/docs/`
 - The templates (the actix and axum APIs, the monorepo and its apps) and
-  their recipes: `crates/rok-templates/docs/guide/`
+  their recipes: `rok-templates/docs/guide/`

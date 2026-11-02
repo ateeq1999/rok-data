@@ -17,6 +17,13 @@ that it exists and won't ship a tag without it).
   called by; every command and flag is unchanged. The release archives
   and `install.sh` / `install.ps1` install `rok-data` until rok-v2 ships
   its own.
+- The templates have their own repository,
+  [rok-templates](https://github.com/ateeq1999/rok-templates), history
+  included (workspace ADR 0032); the engine takes `rok-templates` 0.6
+  from crates.io. Their gates (each template generated, compiled and
+  tested; the monorepo's web, mobile, desktop and Dart Apps) moved with
+  them. The tests here that check what `init` copies read the embedded
+  crate instead of the files on disk.
 
 **Added**
 

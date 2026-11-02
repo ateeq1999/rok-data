@@ -298,12 +298,12 @@ cd myapi
 rok sqlc g
 ```
 
-`--template actix` copies [`templates/actix-api/`](../../../rok-templates/templates/actix-api)
-(`--template axum`, [`templates/axum-api/`](../../../rok-templates/templates/axum-api))
+`--template actix` copies [`templates/actix-api/`](https://github.com/ateeq1999/rok-templates/blob/main/templates/actix-api)
+(`--template axum`, [`templates/axum-api/`](https://github.com/ateeq1999/rok-templates/blob/main/templates/axum-api))
 into the directory instead of the bare skeleton: its `Cargo.toml` and
 pinned `Cargo.lock`, its configuration, its migration, the scaffolded
 files, its tests and its README. `--template axum` copies its twin,
-[`templates/axum-api/`](../../../rok-templates/templates/axum-api): the same application,
+[`templates/axum-api/`](https://github.com/ateeq1999/rok-templates/blob/main/templates/axum-api): the same application,
 written for axum (`[api] framework = "axum"`). rok-data-sqlc's generated
 files are not copied; `rok sqlc generate` generates them, as the printed
 next steps say.
@@ -316,7 +316,7 @@ name your library crate instead of the template's `actix_api` or
 `axum_api` (`use myapi::{app, config};`). The two templates serve the
 same API, account flows included, and pass the same contract test. Add the template's dependencies and lints to your
 `Cargo.toml` then, as the first printed step says; the template's
-[README](../../../rok-templates/templates/actix-api/README.md) lists them and describes the
+[README](https://github.com/ateeq1999/rok-templates/blob/main/templates/actix-api/README.md) lists them and describes the
 project.
 
 The template is not the `projects` and `tasks` example of steps 3 to 7: it
@@ -341,7 +341,7 @@ From `rok sqlc generate` on:
 
 3. Make a token as in [step 6](#6-the-first-requests), with
    `"role":"admin"` in its claims (or sign up through `/api/v1/auth`,
-   [Accounts and sign-in](../../../rok-templates/docs/guide/auth.md)). The list starts empty:
+   [Accounts and sign-in](https://github.com/ateeq1999/rok-templates/blob/main/docs/guide/auth.md)). The list starts empty:
 
    ```sh
    curl http://127.0.0.1:8080/api/v1/users -H "Authorization: Bearer $TOKEN"
