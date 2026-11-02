@@ -83,7 +83,11 @@ that it exists and won't ship a tag without it).
   user's detail, the Rok theme and a light/dark toggle (desktop ticket
   04). The monorepo's README and AGENTS.md say how to run, build and
   check it, verify an account and make one an admin for the users screens
-  (desktop ticket 05, `docs/specs/desktop-starter.md`).
+  (desktop ticket 05, `docs/specs/desktop-starter.md`). Every signed-in
+  user reaches a My account screen (their email, display name, verified
+  state and role), where Home points; the users screens, `apps/api`'s
+  admin routes, show in the navigation only for an admin, and anyone else
+  opening `/users` is told it needs the admin role (the desktop review).
 
 - The monorepo template's api App ships its contract as
   `apps/api/openapi.json`: the document it serves, written out by its

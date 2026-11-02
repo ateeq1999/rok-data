@@ -7,6 +7,13 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+- `init`'s next steps name `TOTP_ENCRYPTION_KEY` beside `DATABASE_URL`
+  and `JWT_SECRET` (the API exits at start without it), for an API project
+  and a Monorepo's `apps/api` alike; a Monorepo's also say how to run its
+  desktop App (`cargo run -p <project>-desktop` from the root, `ROK_API_URL`
+  to call another address). `Scaffolded::desktop_package` is that App's
+  package, as init named it, `None` outside a Monorepo (desktop ticket 05,
+  workspace ADR 0031).
 - The Rust and Dart Clients type an inline object (a page's items) as the
   component schema it equals, descriptions included, before falling back
   to one of the same shape: a page of `users` is `Vec<UserResponse>`, not

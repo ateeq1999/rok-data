@@ -4,7 +4,7 @@ use crate::data::models::user::User;
 use crate::features::users::bloc::user_bloc::UserBloc;
 use crate::features::users::bloc::user_event::UserEvent;
 use crate::features::users::bloc::user_state::{UserState, UserStatus};
-use crate::shared::widgets::PageFrame;
+use crate::shared::widgets::{field, PageFrame};
 use rok_ui::bloc::BlocBuilder;
 use rok_ui::prelude::*;
 
@@ -15,7 +15,7 @@ pub fn UserPage(id: SharedString, cx: &mut Cx) -> impl IntoElement {
     let shown = cx.use_state(|| None::<SharedString>);
     if shown.get(cx).as_ref() != Some(&id) {
         shown.set(Some(id.clone()), cx);
-        bloc.add(UserEvent::Requested { id: id.to_string() });
+        bloc.add(UserEvent::Opened { id: id.to_string() });
     }
     PageFrame::new("User")
         .child(div().child(Link::new("back-to-users", "/users").child(Muted::new("← All users"))))
@@ -54,18 +54,8 @@ fn detail(user: &User) -> impl IntoElement {
             .child(
                 CardContent::new()
                     .child(field("Email", user.email.clone()))
+                    .child(field("Role", user.role.as_str()))
                     .child(field("Id", user.id.clone())),
             ),
     )
-}
-
-/// A label over its value.
-fn field(label: &'static str, value: String) -> impl IntoElement {
-    div()
-        .flex()
-        .flex_col()
-        .gap_1()
-        .py_2()
-        .child(Muted::new(label))
-        .child(value)
 }

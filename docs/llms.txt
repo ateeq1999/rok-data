@@ -36,7 +36,7 @@
 - [Unified pipeline plan](unified-pipeline-plan.md): the 0.2.0 pipeline plan — schema-dir truth, front door, templates.
 - [Workspace ADRs](decisions/0001-runtime-lineage.md): deliberate cross-crate decisions, 0001–0031 (see the directory `docs/decisions/` for all); the latest, [0031](decisions/0031-desktop-app-in-the-monorepo-template.md), puts the desktop App in the monorepo template.
 - [Engine specs](specs/0.3.0-model-shaped-data-layer.md): per-release specs (0.4.0 everyday verbs, sqlc absorption, input validation, 0.5.0 production templates) under `docs/specs/`.
-- [Desktop starter spec](specs/desktop-starter.md): the monorepo's desktop App (ADR 0031) on `clients/rust`: sign-up, the keychain session, the users screens.
+- [Desktop starter spec](specs/desktop-starter.md): the monorepo's desktop App (ADR 0031) on `clients/rust`: sign-up, the keychain session, My account, and the users screens for an admin.
 - [Toasty patterns research](research/toasty-patterns.md): the study behind With-loading's shape.
 
 ## Nearby (root)
