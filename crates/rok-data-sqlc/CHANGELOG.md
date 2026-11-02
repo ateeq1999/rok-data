@@ -7,6 +7,13 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+## Workspace 0.6.0 - 2026-11-02
+
+Published as `rok-data-sqlc` 0.6.0 with the workspace (root `CHANGELOG.md`).
+The templates come from the `rok-templates` crate's own repository, 0.6
+on crates.io (workspace ADR 0032); `init --template` copies the same
+files.
+
 - `init`'s next steps name `TOTP_ENCRYPTION_KEY` beside `DATABASE_URL`
   and `JWT_SECRET` (the API exits at start without it), for an API project
   and a Monorepo's `apps/api` alike; a Monorepo's also say how to run its
