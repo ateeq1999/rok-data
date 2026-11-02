@@ -1,7 +1,7 @@
 ---
 title: Getting started with rok-data
 description: The front door (rok init / rok gen, a single API or the monorepo template), the runtime by hand, and the two legacy generators.
-updated: 2026-11-01
+updated: 2026-11-02
 kind: guide
 source: README.md, docs/cli-reference.md, crates/rok-data/tests/docs/getting_started.rs (compiled samples)
 ---
@@ -116,8 +116,9 @@ $ rok gen
 (`apps/api/openapi.json`) by building the api, and rewrites the three
 clients from it: `clients/ts`, `clients/dart` and `clients/rust`.
 
-Run the API (it needs PostgreSQL: set `DATABASE_URL` and `JWT_SECRET` as
-`apps/api/.env.example` shows), then the apps against it:
+Run the API (it needs PostgreSQL: set `DATABASE_URL`, `JWT_SECRET` and
+`TOTP_ENCRYPTION_KEY` as `apps/api/.env.example` shows), then the apps
+against it:
 
 ```console
 $ rok migrate up --dir apps/api/migrations
