@@ -47,4 +47,4 @@
 - `../GLOSSARY.md` (+ `GLOSSARY-MAP.md`) — the project's language.
 - `../AGENTS.md` — working rules for agents in this repository.
 - `../crates/rok-data-sqlc/docs/` — the engine's own ADRs (engine ADR 0027 newest) and guides.
-- `../crates/rok-templates/docs/guide/` — the templates' guide: the monorepo template (`monorepo.md`: its Apps, the one contract, the clients, the `rok gen` loop, what is hidden), the API's parts (accounts, files, jobs, observability, security, AWS) and recipes (Sentry, OTLP metrics, Redis rate limit, webhooks, OIDC, FCM push notifications).
+- `rok-templates/docs/guide/` (its own repository, https://github.com/ateeq1999/rok-templates/blob/main/docs/guide) — the templates' guide: the monorepo template (`monorepo.md`: its Apps, the one contract, the clients, the `rok gen` loop, what is hidden), the API's parts (accounts, files, jobs, observability, security, AWS) and recipes (Sentry, OTLP metrics, Redis rate limit, webhooks, OIDC, FCM push notifications).

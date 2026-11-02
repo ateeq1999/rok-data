@@ -4,7 +4,7 @@
 
 - [Workspace](./GLOSSARY.md): the `rok` CLI surface, the unified pipeline (schema dir → data layer → running API), and its product terms
 - [rok-data-sqlc](./crates/rok-data-sqlc/GLOSSARY.md): the resource-module/OpenAPI generator engine's internal vocabulary (Table, Resource, API feature, Scaffolded file, Drift …)
-- [rok-templates](./crates/rok-templates/GLOSSARY.md): the starter projects `init --template` copies and what they ship (Template, Capability, Shared file)
+- [rok-templates](https://github.com/ateeq1999/rok-templates/blob/main/GLOSSARY.md): the starter projects `init --template` copies and what they ship (Template, Capability, Shared file)
 
 The toolchain around this repository — member repos, the meta-repo,
 Subcommand CLIs — is defined in the meta-repo's

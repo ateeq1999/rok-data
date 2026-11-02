@@ -1693,6 +1693,7 @@ dependencies = [
  "rok-data",
  "rok-data-codegen",
  "rok-data-sqlc",
+ "rok-templates",
  "serde",
  "serde_json",
  "tempfile",
@@ -1774,11 +1775,9 @@ dependencies = [
 
 [[package]]
 name = "rok-templates"
-version = "0.5.0"
-dependencies = [
- "anyhow",
- "tempfile",
-]
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4feac0bccedcd41fc311cc779845483c709b35c0b3fc4576f60be3cccaa37d3a"
 
 [[package]]
 name = "rust_decimal"

@@ -31,7 +31,7 @@ PORT=3917 node .output/server/index.mjs
 ## Design
 
 The site uses the design system of the web App in the monorepo template
-(`crates/rok-templates/templates/monorepo/apps/web`, shadcn style `base-lyra`,
+(`rok-templates/templates/monorepo/apps/web`, shadcn style `base-lyra`,
 base color `stone`), so the documentation and the apps rok generates look
 like one product (`docs/specs/site-design-system.md`):
 

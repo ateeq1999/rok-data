@@ -50,7 +50,7 @@ CI and `deploy/terraform/`. They live in scaffolded files, which are
 yours, so a project made from an earlier template doesn't get them by
 regenerating. To take one, make a fresh project with `rok sqlc init
 --template actix` (or `axum`) and copy it in. Each page of the
-[templates' guide](../crates/rok-templates/docs/guide/index.md) names its
+[templates' guide](https://github.com/ateeq1999/rok-templates/blob/main/docs/guide/index.md) names its
 files:
 
 - **Jobs** (`src/shared/jobs/`, the `jobs` feature, `app/run.rs`'s

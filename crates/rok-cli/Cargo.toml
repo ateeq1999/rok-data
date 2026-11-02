@@ -39,6 +39,8 @@ toml = { version = "1", default-features = false, features = ["parse", "serde"] 
 url = "2"
 
 [dev-dependencies]
+# The templates `init` embeds, read by the tests that check what it copies.
+rok-templates = { workspace = true }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tempfile = "3"
 

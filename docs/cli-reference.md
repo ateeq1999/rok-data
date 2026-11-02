@@ -118,7 +118,7 @@ reserved word as a segment. Renames follow the scaffolded-file rules: a file
 the project holds is kept as it is (an App's existing `Cargo.toml` names
 the crate its Rust files use), and generated files are not copied. Firebase
 configuration stays a placeholder (`apps/mobile/docs/push-notifications.md`
-points to the recipe in `crates/rok-templates/docs/guide/recipes/`).
+points to the recipe in `rok-templates/docs/guide/recipes/`).
 A single-app template has no Apps to name: `--org` with `actix` or `axum` is
 an error.
 
@@ -134,7 +134,7 @@ other client file is generated). The api App's own generated code
 gen` from the root writes it. The regeneration paths are
 [`[apps]`](#monorepo-projects-apps) and
 [`[contract]` and `[clients]`](#monorepo-projects-contract-and-clients)
-under `rok gen`. The templates' guide (`crates/rok-templates/docs/guide/monorepo.md`)
+under `rok gen`. The templates' guide (`rok-templates/docs/guide/monorepo.md`)
 walks the whole project.
 
 `NAME` is the project directory: it is created when missing, and the current

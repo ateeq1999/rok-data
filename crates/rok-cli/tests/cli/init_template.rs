@@ -5,21 +5,11 @@
 
 use super::*;
 
-/// The template `actix`'s directory in the repository.
-fn actix_template() -> PathBuf {
-    common::template_dir("actix-api")
-}
-
-/// The template `axum`'s directory in the repository.
-fn axum_template() -> PathBuf {
-    common::template_dir("axum-api")
-}
-
 /// The template's files as `init` copies them: every one but
 /// rok-data-sqlc's generated ones and a build's `target/`, with `\n` line endings, and
 /// `<path>.template` (its `Cargo.toml`) as `<path>`.
-fn copied_files(template: &Path) -> Result<BTreeMap<PathBuf, String>> {
-    Ok(read_tree(template)?
+fn copied_files(template: &str) -> Result<BTreeMap<PathBuf, String>> {
+    Ok(common::embedded_template(template)
         .into_iter()
         .filter(|(path, text)| {
             !path.starts_with("target")
@@ -43,14 +33,14 @@ fn init_template_copies_the_templates_files_but_the_generated_ones() -> Result<(
     let output = run_binary(&["init", "-t", "actix", project.to_str().unwrap_or_default()]);
     assert_success(&output);
 
-    let expected = copied_files(&actix_template())?;
+    let expected = copied_files("actix-api")?;
     assert!(
         expected.contains_key(Path::new("rok-data-sqlc.toml"))
             && expected.contains_key(Path::new("Cargo.lock")),
         "{expected:?}"
     );
     assert!(
-        read_tree(&actix_template())?
+        common::embedded_template("actix-api")
             .values()
             .any(|text| common::is_generated(text)),
         "the template holds generated files to leave out"
@@ -83,7 +73,7 @@ fn init_template_copies_the_axum_templates_files_but_the_generated_ones() -> Res
     let output = run_binary(&["init", "-t", "axum", project.to_str().unwrap_or_default()]);
     assert_success(&output);
 
-    let expected = copied_files(&axum_template())?;
+    let expected = copied_files("axum-api")?;
     assert!(
         expected.contains_key(Path::new("rok-data-sqlc.toml"))
             && expected.contains_key(Path::new("Cargo.lock")),

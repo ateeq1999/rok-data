@@ -16,16 +16,23 @@ pub(crate) fn sqlc_manifest_dir() -> PathBuf {
         .expect("the rok-data-sqlc crate is next to rok-cli")
 }
 
-/// The template directory `dir` (such as `axum-api`) of the rok-templates
-/// crate, which `rok sqlc init --template` copies (workspace ADR 0022).
-pub(crate) fn template_dir(dir: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join("rok-templates")
-        .join("templates")
-        .join(dir)
-        .canonicalize()
-        .expect("the rok-templates crate is next to rok-cli")
+/// The template directory `dir` (such as `axum-api`) as the rok-templates
+/// crate embeds it — what `rok sqlc init --template` copies from (workspace
+/// ADRs 0022 and 0032): each file's path and text. The templates live in
+/// their own repository; the binary and this read the same crates.io
+/// version.
+pub(crate) fn embedded_template(dir: &str) -> std::collections::BTreeMap<PathBuf, String> {
+    rok_templates::find(dir)
+        .unwrap_or_else(|| panic!("rok-templates embeds no `{dir}`"))
+        .files
+        .iter()
+        .map(|file| {
+            (
+                PathBuf::from(file.path),
+                String::from_utf8_lossy(file.bytes).into_owned(),
+            )
+        })
+        .collect()
 }
 
 /// The rok-data-sqlc crate's root, for code that still calls it that way.

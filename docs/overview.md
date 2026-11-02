@@ -44,7 +44,7 @@ fails the build when the generated code goes stale.
 | `rok-data-macros` | the derives + `#[rok_data::test]` | site `/crates/rok-data-macros` |
 | `rok-data-codegen` | whole-crate generator + migration diff | site `/crates/rok-data-codegen` |
 | `rok-data-sqlc` | resource-module engine, init, check-arch | site `/crates/rok-data-sqlc` |
-| `rok-templates` | the actix and axum starter templates | `crates/rok-templates/README.md` |
+| `rok-templates` | the actix, axum and monorepo starter templates — [their own repository](https://github.com/ateeq1999/rok-templates) (workspace ADR 0032) | its README |
 | `rok-data-cli` | the `rok-data` binary, linked into rok-v2's `rok` | site `/crates/rok-cli` |
 
 ## Scope of this documentation
