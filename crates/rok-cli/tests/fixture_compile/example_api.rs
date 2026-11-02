@@ -38,7 +38,7 @@ fn example_dir() -> PathBuf {
 
 /// `rok <args>` in `dir`, which must succeed.
 fn rok(dir: &Path, args: &[&str]) -> Result<std::process::Output> {
-    let output = Command::new(env!("CARGO_BIN_EXE_rok"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rok-data"))
         .args(args)
         .current_dir(dir)
         .output()

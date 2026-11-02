@@ -126,7 +126,7 @@ fn axum_app_passes_check_arch() -> Result<()> {
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     generate_axum_app()?;
 
-    let output = Command::new(env!("CARGO_BIN_EXE_rok"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rok-data"))
         .arg("sqlc")
         .arg("check-arch")
         .current_dir(axum_app_dir())

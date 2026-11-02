@@ -32,7 +32,7 @@ fn generate_api_app() -> Result<Vec<PathBuf>> {
         api_app_dir().join("Cargo.toml"),
         scratch.path().join("Cargo.toml"),
     )?;
-    let output = Command::new(env!("CARGO_BIN_EXE_rok"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rok-data"))
         .arg("sqlc")
         .arg("init")
         .arg(scratch.path())
@@ -253,7 +253,7 @@ fn api_app_passes_check_arch() -> Result<()> {
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     generate_api_app()?;
 
-    let output = Command::new(env!("CARGO_BIN_EXE_rok"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rok-data"))
         .arg("sqlc")
         .arg("check-arch")
         .current_dir(api_app_dir())

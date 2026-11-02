@@ -17,15 +17,18 @@ The rok-data toolchain in minutes: one binary (`rok`), one runtime crate
 - A PostgreSQL **12+** server for anything that touches a database
   (generation itself does not need one).
 - Ledger of names: the CLI crate publishes as **`rok-data-cli`**; the
-  binary it provides is **`rok`**. (`cargo install rok-cli` installs the
-  *platform family's* CLI — a different project.)
+  binary it provides is **`rok-data`**. The **`rok`** command comes from
+  [rok-v2](https://github.com/ateeq1999/rok-v2) (crate `rok-cli` from
+  0.7.0), which links this CLI, so `rok migrate up` and
+  `rok-data migrate up` are the same command (workspace ADR 0032).
+  `rok-cli` up to 0.6.1 is our old task runner, a different tool.
 
 ## Install the CLI
 
 From crates.io:
 
 ```sh
-cargo install rok-data-cli        # provides the `rok` binary
+cargo install rok-data-cli        # provides the `rok-data` binary
 ```
 
 Or from a checkout of this repository:

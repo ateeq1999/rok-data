@@ -123,7 +123,7 @@ pub(crate) fn is_generated(text: &str) -> bool {
 
 /// `rok gen <args>` in `dir`, which must succeed, and returns its stderr.
 pub(crate) fn rok_gen(dir: &Path, args: &[&str]) -> Result<String> {
-    let output = Command::new(env!("CARGO_BIN_EXE_rok"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rok-data"))
         .arg("gen")
         .args(args)
         .current_dir(dir)

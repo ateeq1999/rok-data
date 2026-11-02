@@ -24,7 +24,10 @@ source: crates/rok-cli/src/cli/, crates/rok-data-sqlc/src/cli.rs (engine grammar
   output and exit codes unchanged; removal is deferred to 1.0 (engine
   ADR 0012).
 
-The workspace's single binary. Contract text: this file is the user-facing
+The workspace's single binary, `rok-data`. Users run it as `rok`: rok-v2's
+binary links this CLI and forwards these words to it unchanged
+(workspace ADR 0032), so every line below works as `rok …` there and as
+`rok-data …` here; help shows whichever name was called. Contract text: this file is the user-facing
 summary; the exact grammar lives in `crates/rok-cli/src/cli/` and — for
 the `sqlc` subtree — the engine's `crates/rok-data-sqlc/src/cli.rs`, which
 `rok` forwards to verbatim.

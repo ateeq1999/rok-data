@@ -423,7 +423,7 @@ fn without_openapi_the_output_is_milestone_1s() -> Result<()> {
         let name = path.file_name().expect("a file name");
         fs::copy(&path, dir.path().join("migrations").join(name))?;
     }
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_rok"))
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_rok-data"))
         .arg("sqlc")
         .arg("g")
         .current_dir(dir.path())

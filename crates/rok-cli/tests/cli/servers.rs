@@ -14,7 +14,7 @@ fn run_server(temp_dir: &TempDir, args: &[&str]) -> Command {
     let config_dir = temp_dir.path().join("config");
     fs::create_dir_all(&config_dir).expect("create config dir");
 
-    let mut cmd = Command::new(env!("CARGO_BIN_EXE_rok"));
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_rok-data"));
     cmd.arg("server")
         .args(args)
         // ROK_CONFIG_DIR overrides the platform config directory (see config_dir())

@@ -19,7 +19,7 @@ fn generate_migrations(dir: &TempDir, files: &[&str], lenient: bool) -> Result<(
     if lenient {
         args.push("--lenient");
     }
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_rok"))
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_rok-data"))
         .arg("sqlc")
         .current_dir(dir.path())
         .args(&args)

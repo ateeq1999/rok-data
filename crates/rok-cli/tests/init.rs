@@ -29,7 +29,7 @@ const SKELETON: &[&str] = &[
 ];
 
 fn rok() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_rok"))
+    Command::new(env!("CARGO_BIN_EXE_rok-data"))
 }
 
 fn run_in(dir: &Path, args: &[&str]) -> Result<Output> {

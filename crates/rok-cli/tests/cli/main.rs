@@ -65,7 +65,7 @@ DELETE FROM users WHERE id = $1;
 ";
 
 fn run_binary(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_rok"))
+    Command::new(env!("CARGO_BIN_EXE_rok-data"))
         .arg("sqlc")
         .args(args)
         .output()
@@ -91,7 +91,7 @@ fn read_tree(root: &Path) -> Result<BTreeMap<PathBuf, String>> {
 }
 
 fn run_binary_in(cwd: &Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_rok"))
+    Command::new(env!("CARGO_BIN_EXE_rok-data"))
         .arg("sqlc")
         .current_dir(cwd)
         .args(args)

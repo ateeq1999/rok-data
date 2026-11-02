@@ -21,7 +21,7 @@ fn project(queries: &str) -> Result<TempDir> {
 }
 
 fn check(dir: &Path, args: &[&str], database_url: Option<&str>) -> Output {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_rok"));
+    let mut command = Command::new(env!("CARGO_BIN_EXE_rok-data"));
     command.current_dir(dir).arg("sqlc").arg("check").args(args);
     match database_url {
         Some(url) => command.env("DATABASE_URL", url),

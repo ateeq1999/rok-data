@@ -167,7 +167,7 @@ fn binary_dry_run_lists_planned_files() -> Result<()> {
     let schema = dir.path().join("schema.sql");
     fs::write(&schema, SIMPLE_SCHEMA)?;
 
-    let output = Command::new(env!("CARGO_BIN_EXE_rok"))
+    let output = Command::new(env!("CARGO_BIN_EXE_rok-data"))
         .arg("sqlc")
         .args([
             "generate",

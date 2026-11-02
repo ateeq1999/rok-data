@@ -131,7 +131,7 @@ fn blocks(text: &str) -> Vec<Block> {
 }
 
 fn rok_data_sqlc(dir: &Path, args: &[&str]) -> Result<Output> {
-    Command::new(env!("CARGO_BIN_EXE_rok"))
+    Command::new(env!("CARGO_BIN_EXE_rok-data"))
         .arg("sqlc")
         .args(args)
         .current_dir(dir)

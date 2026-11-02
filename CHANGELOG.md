@@ -9,7 +9,19 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+**Changed**
+
+- The CLI's binary is `rok-data` (was `rok`): the `rok` command moves to
+  [rok-v2](https://github.com/ateeq1999/rok-v2), which links this CLI
+  (workspace ADR 0032). Help and usage errors show the name the CLI was
+  called by; every command and flag is unchanged. The release archives
+  and `install.sh` / `install.ps1` install `rok-data` until rok-v2 ships
+  its own.
+
 **Added**
+
+- `rok_data_cli::command()`: the whole command tree with its help, for a
+  CLI that links this one (rok-v2's `rok`).
 
 - Per-user server registry (`servers.toml`) in the OS config directory
   (`$XDG_CONFIG_HOME/rok`, `~/Library/Application Support/rok`, `%APPDATA%\rok`),

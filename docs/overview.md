@@ -45,7 +45,7 @@ fails the build when the generated code goes stale.
 | `rok-data-codegen` | whole-crate generator + migration diff | site `/crates/rok-data-codegen` |
 | `rok-data-sqlc` | resource-module engine, init, check-arch | site `/crates/rok-data-sqlc` |
 | `rok-templates` | the actix and axum starter templates | `crates/rok-templates/README.md` |
-| `rok-data-cli` | the `rok` binary | site `/crates/rok-cli` |
+| `rok-data-cli` | the `rok-data` binary, linked into rok-v2's `rok` | site `/crates/rok-cli` |
 
 ## Scope of this documentation
 
@@ -61,14 +61,13 @@ notes, the capability ledger), see
 
 ## The one naming trap
 
-Two "rok" CLIs share the world — both by the same author:
+The crates.io crate `rok-cli` changes hands at 0.7.0 (workspace ADR 0032):
 
-- **the platform family's CLI** is the crates.io crate `rok-cli` (the
-  execution-engine CLI, "Run One. Know All.");
-- **this workspace's CLI** is the crates.io crate `rok-data-cli`, whose
-  *binary* is `rok`.
+- **up to 0.6.1** it is the old execution-engine CLI ("Run One. Know
+  All."), now archived;
+- **from 0.7.0** it is [rok-v2](https://github.com/ateeq1999/rok-v2),
+  whose `rok` binary links this workspace's CLI.
 
-So: `cargo install rok-data-cli` installs this workspace's tooling;
-`cargo install rok-cli` installs the sibling project's. Everything documented in
-[`docs/cli-reference.md`](cli-reference.md) is the `rok-data-cli`
-binary.
+This workspace's CLI is the crate `rok-data-cli`, binary `rok-data`.
+Everything documented in [`docs/cli-reference.md`](cli-reference.md)
+runs as `rok …` through rok-v2 or as `rok-data …` on its own.

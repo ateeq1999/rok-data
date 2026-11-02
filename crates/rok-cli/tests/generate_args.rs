@@ -10,7 +10,7 @@ use std::process::Command;
 use tempfile::TempDir;
 
 fn rok() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_rok"))
+    Command::new(env!("CARGO_BIN_EXE_rok-data"))
 }
 
 const DECISIONS: &str = "CREATE TABLE decisions (\n    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),\n    text TEXT NOT NULL DEFAULT '' ::text\n);\n";

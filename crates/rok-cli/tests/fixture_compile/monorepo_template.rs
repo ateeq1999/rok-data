@@ -32,7 +32,7 @@ fn template_dir() -> PathBuf {
 /// the api App: it builds in the gates' shared target directory, with
 /// [`cargo`]'s environment.
 pub(crate) fn rok_gen_shared(dir: &Path, args: &[&str]) -> Result<String> {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_rok"));
+    let mut command = Command::new(env!("CARGO_BIN_EXE_rok-data"));
     command.arg("gen").args(args).current_dir(dir);
     for (key, value) in cargo(dir, &[]).get_envs() {
         if let Some(value) = value {

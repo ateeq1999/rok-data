@@ -16,7 +16,7 @@ struct Watch {
 
 impl Watch {
     fn start(dir: &Path) -> Result<Self> {
-        let mut child = Command::new(env!("CARGO_BIN_EXE_rok"))
+        let mut child = Command::new(env!("CARGO_BIN_EXE_rok-data"))
             .current_dir(dir)
             .args(["sqlc", "g", "--watch"])
             .stdout(Stdio::piped())

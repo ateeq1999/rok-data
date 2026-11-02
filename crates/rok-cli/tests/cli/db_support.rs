@@ -29,7 +29,7 @@ impl Sandbox {
 
     /// `rok <args>` in the sandbox, with no inherited database settings.
     pub(crate) fn rok(&self, args: &[&str]) -> Command {
-        let mut cmd = Command::new(env!("CARGO_BIN_EXE_rok"));
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_rok-data"));
         cmd.args(args)
             .env("ROK_CONFIG_DIR", self.dir.path().join("config"))
             .env("ROK_KEYCHAIN", "off")
