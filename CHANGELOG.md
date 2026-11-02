@@ -9,6 +9,18 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+## [0.6.1] — the engine's package ships its client runtimes
+
+**Fixed**
+
+- `rok-data-sqlc`'s package ships `src/clients/dart/runtime.dart` and
+  `src/clients/rust/runtime.rs.in`, which it embeds: the 0.6.0 release
+  published `rok-data-macros`, `rok-data-core`, `rok-data` and
+  `rok-data-codegen`, then stopped at `rok-data-sqlc`, so
+  `rok-data-sqlc` and `rok-data-cli` were never published at 0.6.0. All
+  six crates publish at 0.6.1; nothing else changes from 0.6.0.
+- A test checks that every file the engine embeds is in its package.
+
 ## [0.6.0] — the toolchain split: `rok-data`, `rok-templates`, and the per-user servers
 
 **Changed**
