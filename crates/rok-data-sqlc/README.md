@@ -85,33 +85,34 @@ sync.
 
 ## Install
 
-The generator ships inside the workspace's single CLI binary, `rok`
-(this engine is its legacy `rok sqlc …` subtree and also a library — see
-[Using it from `build.rs`](#using-it-from-buildrs)).
+The generator ships inside the toolchain's `rok` command, rok-v2's, which
+links rok-data's CLI (`rok-data` on its own). This engine is that CLI's
+legacy `rok sqlc …` subtree and also a library — see
+[Using it from `build.rs`](#using-it-from-buildrs).
 
 **From crates.io** with Cargo:
 
 ```sh
-cargo install rok-data-cli
+cargo install rok-cli          # `rok`; or rok-data-cli for `rok-data` alone
 ```
 
 **Prebuilt binaries** for Linux, macOS, and Windows (x86_64 and ARM64)
 are attached to every
-[GitHub release](https://github.com/ateeq1999/rok-data/releases). The
-install scripts at the repository root pick the right one, check its
+[GitHub release](https://github.com/ateeq1999/rok-v2/releases) of rok-v2. The
+install scripts in rok-v2 pick the right one, check its
 SHA-256 checksum, and put `rok` on your machine.
 
 **Linux and macOS** (installs to `~/.local/bin`):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/ateeq1999/rok-data/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/ateeq1999/rok-v2/main/install.sh | sh
 ```
 
 **Windows** (PowerShell; installs to `~\.rok\bin` and adds it to your
 user `PATH`):
 
 ```powershell
-irm https://raw.githubusercontent.com/ateeq1999/rok-data/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/ateeq1999/rok-v2/main/install.ps1 | iex
 ```
 
 To pin a release or choose the directory, pass

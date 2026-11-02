@@ -19,25 +19,25 @@ function InstallationGuide() {
           <li>Rust <strong>1.94</strong> or later — edition 2024</li>
           <li>PostgreSQL <strong>12+</strong> for anything that touches a
             database (generation itself needs no database)</li>
-          <li>Name note: the CLI crate publishes as
-            <strong> rok-data-cli</strong>; the binary it provides is
-            <strong> rok</strong></li>
+          <li>Name note: the <strong>rok</strong> command is the crate
+            <strong> rok-cli</strong> (rok-v2), which links this CLI; the
+            CLI on its own is <strong> rok-data-cli</strong>, binary
+            <strong> rok-data</strong></li>
         </ul>
 
         <h2>Install the CLI</h2>
-        <pre><code>cargo install rok-data-cli</code></pre>
-        <p>From a checkout of this repository instead:</p>
-        <pre><code>cargo install --path crates/rok-cli</code></pre>
+        <pre><code>cargo install rok-cli</code></pre>
         <p>
-          Or take a prebuilt binary: GitHub releases carry checksummed
-          archives for Linux (musl), macOS and Windows, x86_64 and ARM64,
-          and the repo's <code>install.sh</code> / <code>install.ps1</code>
-          download, verify and install them.
+          Or take a prebuilt binary: rok-v2's GitHub releases carry
+          checksummed archives for Linux (musl), macOS and Windows, x86_64
+          and ARM64, and its <code>install.sh</code> /{" "}
+          <code>install.ps1</code> download, verify and install them. This
+          CLI alone is <code>cargo install rok-data-cli</code>.
         </p>
 
         <h2>Verify</h2>
         <pre><code>rok --version</code></pre>
-        <p>Should print <code>rok 0.3.0</code> or later.</p>
+        <p>Should print <code>rok 0.7.0</code> or later.</p>
 
         <h2>Add the runtime</h2>
         <pre><code>{`cargo new my-app && cd my-app

@@ -12,30 +12,29 @@ PostgreSQL data tooling for Rust, consolidated from the rok ecosystem:
 
 ## Install
 
-```sh
-cargo install rok-data-cli    # provides the `rok-data` binary
-```
-
 The commands below are written `rok …`: the `rok` command of
 [rok-v2](https://github.com/ateeq1999/rok-v2) links this CLI and is the
 toolchain's front door ([ADR 0032](docs/decisions/0032-member-repos-and-subcommand-clis.md)).
-Until it ships, `rok-data …` runs every one of them unchanged.
-
-Or take a prebuilt `rok-data` binary: the GitHub releases carry checksummed
-archives for Linux (musl), macOS, and Windows, x86_64 and ARM64, and the
-repository's `install.sh` / `install.ps1` download, verify and install
-them:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/ateeq1999/rok-data/main/install.sh | sh
+cargo install rok-cli         # provides `rok` (rok-v2)
+```
+
+Its releases carry prebuilt, checksummed `rok` archives for Linux (musl),
+macOS and Windows, x86_64 and ARM64, with installers:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ateeq1999/rok-v2/main/install.sh | sh
 ```
 
 ```powershell
-irm https://raw.githubusercontent.com/ateeq1999/rok-data/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/ateeq1999/rok-v2/main/install.ps1 | iex
 ```
 
-(See [ADR 0008](docs/decisions/0008-release-policy.md) for the whole
-release story.) The crates need Rust 1.94 or newer.
+This CLI on its own is `cargo install rok-data-cli` (binary `rok-data`;
+every command runs as `rok-data …`). The crates need Rust 1.94 or newer;
+see [ADR 0008](docs/decisions/0008-release-policy.md) for how they are
+released.
 
 ## Quick start
 

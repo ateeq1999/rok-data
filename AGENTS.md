@@ -103,11 +103,15 @@ concern — not by line range.
 
 ## Releasing
 
-Tag `vX.Y.Z` (must equal the workspace version) to run
-`.github/workflows/release.yml`: binary bundles with checksums,
-`install.sh`/`install.ps1`, then crates.io publishing in dependency
-order. Release notes live in root `CHANGELOG.md` under a `## [X.Y.Z]`
-heading — a tag without one fails the release. See workspace ADR 0008.
+Tag `vX.Y.Z` (must equal the workspace version) **on the release PR's
+merge commit** to run `.github/workflows/release.yml`, which publishes the
+crates to crates.io in dependency order. Binaries and the installers are
+rok-v2's (workspace ADR 0032): its `rok` links `rok-data-cli`, so a CLI
+change reaches users when rok-v2 releases with the new version. Release
+notes live in root `CHANGELOG.md` under a `## [X.Y.Z]` heading — a tag
+without one fails the release. A run stopped partway is finished by
+running the workflow by hand with the same tag; published versions are
+skipped. See workspace ADR 0008.
 
 Before the tag, check that the crates.io names are free: a name that is
 taken cannot be published, and the workflow's publish step fails on it.

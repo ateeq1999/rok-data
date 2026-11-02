@@ -13,7 +13,7 @@ repository. Its pages are hand-written TSX under `site/src/routes/`.
 | Site page | Its sources |
 | --- | --- |
 | `routes/crates/<crate>.tsx` (one per published crate) | `crates/<crate>/README.md`, its `docs/`, CHANGELOG entries naming it |
-| `routes/guide/installation.tsx` | `README.md`'s install section, `install.sh`/`install.ps1` |
+| `routes/guide/installation.tsx` | `README.md`'s install section, `docs/installation.md` (the installers are rok-v2's) |
 | `routes/guide/getting-started.tsx` | `docs/getting-started.md` |
 | `routes/agents.tsx` | `.agents/skills/*/SKILL.md` descriptions |
 | `routes/index.tsx`, `components/Header.tsx` | the crate list and navigation: every page above |

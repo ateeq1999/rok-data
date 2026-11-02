@@ -10,8 +10,6 @@ pub mod migrate;
 pub mod schema;
 pub mod server;
 pub mod sqlc;
-#[cfg(rok_tools)]
-pub(crate) mod tools;
 
 use crate::cli::Command;
 use crate::cli::db::DbAction;
