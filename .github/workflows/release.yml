@@ -90,10 +90,6 @@ jobs:
             os: ubuntu-latest
           - target: aarch64-unknown-linux-musl
             os: ubuntu-24.04-arm
-          - target: x86_64-apple-darwin
-            os: macos-latest
-          - target: aarch64-apple-darwin
-            os: macos-latest
           - target: x86_64-pc-windows-msvc
             os: windows-latest
           - target: aarch64-pc-windows-msvc
@@ -134,16 +130,10 @@ jobs:
           # Same format as shasum: "<hash>  <file>", LF line ending.
           [IO.File]::WriteAllText("dist/$name.zip.sha256", "$hash  $name.zip`n")
       - name: Smoke test the native binary
-        # The x86_64 macOS binary runs under Rosetta on the arm64 runner —
-        # make sure Rosetta exists first (the runner image hasn't always
-        # shipped it). aarch64 Windows cannot run on the x86_64 runner.
+        # aarch64 Windows cannot run on the x86_64 runner.
         if: matrix.target != 'aarch64-pc-windows-msvc'
         shell: bash
         run: |
-          if [ "${{ matrix.target }}" = "x86_64-apple-darwin" ] &&
-            [ "$(uname -m)" = "arm64" ]; then
-            sudo softwareupdate --install-rosetta --agree-to-license || true
-          fi
           bin="target/${{ matrix.target }}/release/rok-data"
           [ -f "$bin.exe" ] && bin="$bin.exe"
           "$bin" --version
@@ -155,9 +145,62 @@ jobs:
             dist/*.zip
             dist/*.sha256
 
+  # Both macOS binaries on one runner: aarch64 natively and x86_64
+  # cross-compiled, smoke-tested under Rosetta. macOS runners are scarce, and
+  # a release whose two macOS builds each wait for one was cancelled twice
+  # ("not acquired by Runner ... after multiple attempts"), skipping every
+  # publish step. The artifacts keep their per-target names.
+  build-macos:
+    name: Build aarch64-apple-darwin + x86_64-apple-darwin
+    needs: prepare
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - name: Build
+        run: |
+          cargo build --workspace --release --locked --target aarch64-apple-darwin
+          cargo build --workspace --release --locked --target x86_64-apple-darwin
+      - name: Package
+        shell: bash
+        run: |
+          for target in aarch64-apple-darwin x86_64-apple-darwin; do
+            name="rok-data-${{ needs.prepare.outputs.version }}-$target"
+            mkdir -p "dist/$target/$name"
+            cp "target/$target/release/rok-data" "dist/$target/$name/"
+            cp README.md CHANGELOG.md LICENSE-MIT LICENSE-APACHE "dist/$target/$name/"
+            tar -C "dist/$target" -czf "dist/$target/$name.tar.gz" "$name"
+            (cd "dist/$target" && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256")
+          done
+      - name: Smoke test both binaries
+        # The x86_64 binary runs under Rosetta; make sure it exists first
+        # (the runner image hasn't always shipped it).
+        shell: bash
+        run: |
+          sudo softwareupdate --install-rosetta --agree-to-license || true
+          target/aarch64-apple-darwin/release/rok-data --version
+          target/x86_64-apple-darwin/release/rok-data --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-aarch64-apple-darwin
+          path: |
+            dist/aarch64-apple-darwin/*.tar.gz
+            dist/aarch64-apple-darwin/*.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-x86_64-apple-darwin
+          path: |
+            dist/x86_64-apple-darwin/*.tar.gz
+            dist/x86_64-apple-darwin/*.sha256
+
   publish:
     name: Publish GitHub release
-    needs: [prepare, build]
+    needs: [prepare, build, build-macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -195,7 +238,7 @@ jobs:
   # hand) is skipped, not an error.
   crates-io:
     name: Publish to crates.io
-    needs: [prepare, build]
+    needs: [prepare, build, build-macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
