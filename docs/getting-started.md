@@ -1,7 +1,7 @@
 ---
 title: Getting started with rok-data
-description: The front door (rok init / rok gen), the runtime by hand, and the two legacy generators.
-updated: 2026-10-29
+description: The front door (rok init / rok gen, a single API or the monorepo template), the runtime by hand, and the two legacy generators.
+updated: 2026-11-02
 kind: guide
 source: README.md, docs/cli-reference.md, crates/rok-data/tests/docs/getting_started.rs (compiled samples)
 ---
@@ -13,7 +13,9 @@ source: README.md, docs/cli-reference.md, crates/rok-data/tests/docs/getting_sta
 - **What this page does:** walks the front door (`rok init`, `rok gen`),
   the runtime by hand (`rok-data` facade, `rok migrate`), and the two
   legacy generators (`rok generate`, `rok sqlc …`).
-- **Start here:** `rok init my-api --schema schema.sql && cd my-api && rok gen`.
+- **Start here:** `rok init my-api --schema schema.sql && cd my-api && rok gen`;
+  for an API with web, desktop and mobile apps,
+  `rok init my-shop --template monorepo --org com.acme && cd my-shop && rok gen`.
 - **Environment:** Rust ≥ 1.94, PostgreSQL 12+; `DATABASE_URL` (or
   `--database-url`) for anything database-touching; generation itself
   needs no database.
@@ -92,6 +94,54 @@ $ cd my-api && rok gen
 The `axum` template is a complete axum application — the app, its `users`
 and `audit-log` features, the OpenAPI document and the tests — and the
 `actix` template is its actix-web twin.
+
+### A backend and its apps: the monorepo template
+
+The `monorepo` template puts the `axum` API beside a web app (TanStack
+Start, run with bun), a desktop app (rok-ui on GPUI) and a mobile app
+(Flutter), all calling it through clients generated from its OpenAPI
+document (workspace ADRs 0027 and 0031). `--org` and the project's name
+name every App (`my-shop --org com.acme`: the api package `my-shop-api`,
+the Android `applicationId` `com.acme.my_shop`, the iOS bundle id
+`com.acme.myShop`):
+
+```console
+$ rok init my-shop --template monorepo --org com.acme
+$ cd my-shop
+$ rok gen
+```
+
+`rok gen` from the root regenerates every App `rok.toml`'s `[apps]` names
+(the api's data layer and features), re-exports the contract
+(`apps/api/openapi.json`) by building the api, and rewrites the three
+clients from it: `clients/ts`, `clients/dart` and `clients/rust`.
+
+Run the API (it needs PostgreSQL: set `DATABASE_URL`, `JWT_SECRET` and
+`TOTP_ENCRYPTION_KEY` as `apps/api/.env.example` shows), then the apps
+against it:
+
+```console
+$ rok migrate up --dir apps/api/migrations
+$ cargo run -p my-shop-api
+$ cd apps/web && bun install --frozen-lockfile && bun run dev
+$ cd apps/mobile && flutter pub get && flutter run
+$ cargo run -p my-shop-desktop
+```
+
+(each from the project's root, in its own terminal). Change the API —
+here, a column in `apps/api/schema/` — and the same command carries it
+everywhere, staging the migration into the api's own history:
+
+```console
+$ rok gen --migration add_bio
+```
+
+The api's migration pair lands in `apps/api/migrations/`, and every
+client gains the field; `bun run typecheck`, `flutter analyze` and `cargo
+test` show where the hand-written code must follow. In CI, `rok gen check`
+fails when an App's generated code or a client is out of date. The
+templates' guide has the whole project: [the monorepo
+template](../crates/rok-templates/docs/guide/monorepo.md).
 
 The whole chain in one crate: [`examples/api`](../examples/api) holds a
 schema of two files, the generated data layer and API features beside it,
@@ -350,3 +400,5 @@ $ rok sqlc check-arch
   `docs/decisions/*.md`
 - Engine-side guides (API features, OpenAPI, conventions):
   `crates/rok-data-sqlc/docs/`
+- The templates (the actix and axum APIs, the monorepo and its apps) and
+  their recipes: `crates/rok-templates/docs/guide/`

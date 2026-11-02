@@ -1,14 +1,28 @@
-//! The project templates `rok sqlc init --template` copies: each directory
-//! of `templates/`, embedded in the crate by `build.rs` so `init` works
-//! from `cargo install`.
+//! The project templates `rok init --template` (and the legacy `rok sqlc
+//! init --template`) writes: each directory of `templates/`, embedded in
+//! the crate by `build.rs` so `init` works from `cargo install`.
+//!
+//! - `axum` and `actix`: a complete API on one web framework.
+//! - `monorepo`: one backend and three apps sharing one API contract
+//!   (workspace ADRs 0027 and 0031) — the axum API (`apps/api`), a web app
+//!   (`apps/web`, TanStack Start), a desktop app (`apps/desktop`, rok-ui)
+//!   and a mobile app (`apps/mobile`, Flutter) — and the TypeScript, Dart
+//!   and Rust clients the engine emits from the API's OpenAPI document
+//!   (`clients/`).
 //!
 //! The [`catalog`] owns the template names, their manifests and the
 //! destination paths a project gets their files at (workspace ADR 0027).
 //! Which name the grammar takes, and the write policy — copy when absent,
 //! skip files marked `@generated` — stay the engine's (`rok-data-sqlc`'s
 //! `init`), so the marker rules stay with the engine.
+//!
+//! A Monorepo template's Apps are named after the project at scaffold
+//! time: [`names`] derives each name from the project and its org,
+//! [`rename`] says where in the template's files each one goes.
 
 pub mod catalog;
+pub mod names;
+pub mod rename;
 
 /// A template file, as `build.rs` embeds it.
 #[derive(Debug)]
@@ -97,6 +111,98 @@ mod tests {
                 .iter()
                 .any(|file| file.path == "apps/web/.env.example"),
             "the web App's `.env.example` is not embedded"
+        );
+    }
+
+    /// A Flutter App resolved, analyzed, run or built in place leaves its
+    /// tool state and build output (`.dart_tool/`, `build/`, Gradle's and
+    /// CocoaPods' directories, the platforms' `ephemeral/` folders) and
+    /// machine files (`local.properties`, the generated Xcode settings, a
+    /// release keystore) behind: none of it reaches the embedding.
+    #[test]
+    fn no_flutter_tool_state_build_output_or_machine_file_is_embedded() {
+        const DIRS: &[&str] = &[
+            ".dart_tool",
+            "build",
+            ".gradle",
+            ".kotlin",
+            ".cxx",
+            "Pods",
+            ".symlinks",
+            "ephemeral",
+            ".pub-cache",
+        ];
+        const FILES: &[&str] = &[
+            ".flutter-plugins",
+            ".flutter-plugins-dependencies",
+            "local.properties",
+            "key.properties",
+            "Generated.xcconfig",
+            "flutter_export_environment.sh",
+            "gradlew",
+            "gradlew.bat",
+            "gradle-wrapper.jar",
+            "GeneratedPluginRegistrant.java",
+            "GeneratedPluginRegistrant.h",
+            "GeneratedPluginRegistrant.m",
+        ];
+        for embedded in EMBEDDED {
+            for file in embedded.files {
+                let parts: Vec<&str> = file.path.split('/').collect();
+                let (name, dirs) = parts.split_last().unwrap_or((&"", &[]));
+                assert!(
+                    !dirs.iter().any(|dir| DIRS.contains(dir))
+                        && !FILES.contains(name)
+                        && !name.ends_with(".jks")
+                        && !name.ends_with(".keystore"),
+                    "`{}` embeds `{}`",
+                    embedded.dir,
+                    file.path
+                );
+            }
+        }
+        let monorepo = find("monorepo").unwrap_or_else(|| panic!("`monorepo` is not embedded"));
+        assert!(
+            monorepo
+                .files
+                .iter()
+                .any(|file| file.path == "apps/mobile/.env.example"),
+            "the mobile App's `.env.example` is not embedded"
+        );
+    }
+
+    /// The Firebase files a template ships are placeholders: Firebase
+    /// configuration names one Firebase project, so a real one never ships
+    /// (workspace ADR 0027). A placeholder names the project
+    /// `your-firebase-project`.
+    #[test]
+    fn firebase_configuration_ships_as_a_placeholder() {
+        const FIREBASE: &[&str] = &[
+            "google-services.json",
+            "GoogleService-Info.plist",
+            "firebase_options.dart",
+            "firebase.json",
+        ];
+        let mut shipped = 0;
+        for embedded in EMBEDDED {
+            for file in embedded.files {
+                let name = file.path.rsplit('/').next().unwrap_or_default();
+                if !FIREBASE.contains(&name) {
+                    continue;
+                }
+                shipped += 1;
+                let text = String::from_utf8_lossy(file.bytes);
+                assert!(
+                    text.contains("your-firebase-project"),
+                    "`{}/{}` is not the placeholder",
+                    embedded.dir,
+                    file.path
+                );
+            }
+        }
+        assert!(
+            shipped > 0,
+            "no Firebase placeholder is embedded (the mobile App ships one)"
         );
     }
 }

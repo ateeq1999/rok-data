@@ -1,8 +1,9 @@
 # The monorepo's project file (workspace ADR 0027): the Apps `rok gen`
 # regenerates from the root. Each App keeps its own configuration file --
 # `apps/api`'s is `apps/api/rok-data-sqlc.toml` -- so root generation reads
-# the App's settings from inside the App. `apps/web` and `apps/desktop` have
-# nothing generated of their own, so they are not named here.
+# the App's settings from inside the App. `apps/web`, `apps/desktop` and
+# `apps/mobile` have nothing generated of their own, so they are not named
+# here.
 [apps]
 api = "apps/api"
 
@@ -18,5 +19,8 @@ export = ["cargo", "run", "--quiet", "-p", "axum-api", "--example", "openapi", "
 
 # The Clients generated from the contract, each its directory. Their files
 # are rok's (marked `@generated`): `rok gen` rewrites them, never edit them.
+# The Rust client's `Cargo.toml` is the exception: it is yours.
 [clients]
 ts = "clients/ts"
+dart = "clients/dart"
+rust = "clients/rust"

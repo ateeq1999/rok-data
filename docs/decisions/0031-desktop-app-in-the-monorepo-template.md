@@ -29,9 +29,16 @@ Date: 2026-10-30 · Status: accepted (amends ADR 0027)
 
 - **The first version: auth and one resource.** Sign-up, sign-in and
   sign-out against `apps/api`, the session kept in the OS keychain, a
-  signed-in shell (navigation, the Rok theme with a light/dark toggle), and
-  the users list and detail. Further screens follow `apps/web`'s, as the
-  API serves them.
+  signed-in shell (navigation, the Rok theme with a light/dark toggle), a
+  "My account" screen every signed-in user reaches, and the users list and
+  detail for an admin. Further screens follow `apps/web`'s, as the API
+  serves them.
+
+  The users routes are admin-only on `apps/api`, so a user who had just
+  signed up met a `403` on the App's only destination. The owner's decision
+  (2026-11-02, the desktop review): everyone gets My account (their own
+  profile, from `auth().me()`), and the navigation shows Users only to an
+  admin; anyone else opening `/users` is told it needs the admin role.
 
 - **Gated in CI by its own job.** A `desktop` job, like the `web` job,
   installs GPUI's Linux libraries, scaffolds the monorepo, builds
@@ -58,3 +65,9 @@ Date: 2026-10-30 · Status: accepted (amends ADR 0027)
   everything past the import.
 - rok-ui becomes a dependency of a rok-data template, not of any rok-data
   crate: the workspace's own crates never depend on it.
+- Signing out forgets the token on the App's side only (the session, the
+  client, the keychain entry): `apps/api` has no logout route, so the
+  bearer token stays valid on the API until it expires.
+- On Linux the session lives in the kernel keyring (the `keyring` crate's
+  `linux-native` store, which needs no system library), which forgets it
+  when the machine restarts: the user signs in again after a reboot.

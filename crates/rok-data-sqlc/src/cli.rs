@@ -60,6 +60,20 @@ enum Command {
         )]
         template: Option<String>,
 
+        // `rok init --org` (rok-cli's `cli/mod.rs`) says the same, naming NAME.
+        /// The org a Monorepo template's Apps are named under, with the
+        /// project's name (DIR's): the mobile App's `applicationId` and iOS
+        /// bundle id are `<ORG>.<project>`. A reverse-domain name; default
+        /// `com.example`
+        #[arg(
+            short,
+            long,
+            value_name = "ORG",
+            requires = "template",
+            value_parser = crate::init::parse_org
+        )]
+        org: Option<String>,
+
         /// The web framework the skeleton is written for: `actix_web` (the
         /// default) or `axum`. A template has its own, so this doesn't
         /// combine with `--template`
@@ -227,37 +241,12 @@ where
         Command::Init {
             dir,
             template: Some(template),
+            org,
             ..
         } => {
-            let scaffolded = crate::init::init_template(&dir, &template)?;
-            let monorepo = rok_templates::catalog::apps(&template)
-                .iter()
-                .map(|app| app.name)
-                .collect::<Vec<_>>();
-            let mut steps = Vec::new();
-            if !scaffolded.wrote_manifest {
-                let step = if monorepo.is_empty() {
-                    "add the template's dependencies and lints (its README.md lists them) to Cargo.toml"
-                } else {
-                    "add the apps' dependencies and lints (each app's README.md lists them) to its manifest"
-                };
-                steps.push(step);
-            }
+            let scaffolded = crate::init::init_template(&dir, &template, org.as_deref())?;
+            let steps = scaffolded.template_next_steps(&template, "rok sqlc generate");
             print_scaffolded(scaffolded);
-            if monorepo.is_empty() {
-                steps.extend([
-                    "run `rok sqlc generate` to generate src/db/, src/shared/ and src/features/ from schema/",
-                    "set DATABASE_URL and JWT_SECRET (see .env.example) and apply migrations/",
-                    "`cargo test`, then `cargo run`",
-                ]);
-            } else {
-                steps.extend([
-                    "run `rok gen` from the root to generate every named App from its own schema, re-export apps/api/openapi.json and regenerate clients/ts from it",
-                    "set DATABASE_URL and JWT_SECRET for apps/api (see its .env.example) and apply apps/api/migrations/",
-                    "`cargo test` in apps/api, then `cargo run -p axum-api`",
-                    "in apps/web, `bun install`, then `bun run dev` (it forwards /api to apps/api)",
-                ]);
-            }
             print_next_steps(&steps);
             Ok(())
         }
@@ -265,6 +254,7 @@ where
             dir,
             template: None,
             api_framework,
+            ..
         } => {
             let framework = api_framework.map_or(ApiFramework::ActixWeb, ApiFramework::from);
             print_scaffolded(crate::init::init(&dir, framework)?);

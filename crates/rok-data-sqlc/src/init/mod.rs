@@ -167,6 +167,59 @@ pub struct Scaffolded {
     /// Whether a `Cargo.toml` was written: `init --template` copies the
     /// template's when the project has none.
     pub wrote_manifest: bool,
+    /// A Monorepo template's api App package, as init named it after the
+    /// project: what `cargo run -p` takes from the root. `None` otherwise.
+    pub api_package: Option<String>,
+    /// A Monorepo template's desktop App package, named the same way.
+    /// `None` otherwise.
+    pub desktop_package: Option<String>,
+}
+
+impl Scaffolded {
+    /// The next steps after [`init_template`] scaffolded `template`, as
+    /// `rok init` and `rok sqlc init` number them.
+    ///
+    /// `crate_generate` is the command that generates one crate, which a
+    /// single-app Template's steps name: `rok gen` from `rok init`, the
+    /// legacy `rok sqlc generate` from `rok sqlc init`. A Monorepo
+    /// template's steps name `rok gen` from its root whichever door
+    /// scaffolded it: it is the only command that reads `[apps]`,
+    /// `[contract]` and `[clients]` (`rok sqlc generate` generates one
+    /// crate, not the Apps and their Clients), so `crate_generate` is not
+    /// theirs to name.
+    #[must_use]
+    pub fn template_next_steps(&self, template: &str, crate_generate: &str) -> Vec<String> {
+        let monorepo = !rok_templates::catalog::apps(template).is_empty();
+        let mut steps = Vec::new();
+        if !self.wrote_manifest {
+            steps.push(if monorepo {
+                "add the apps' dependencies and lints (each app's README.md lists them) to its manifest".to_owned()
+            } else {
+                "add the template's dependencies and lints (its README.md lists them) to Cargo.toml".to_owned()
+            });
+        }
+        if monorepo {
+            let api = self.api_package.as_deref().unwrap_or("<api>");
+            let desktop = self.desktop_package.as_deref().unwrap_or("<desktop>");
+            steps.extend([
+                "run `rok gen` from the root to generate every named App from its own schema, re-export apps/api/openapi.json and regenerate clients/ts, clients/dart and clients/rust from it".to_owned(),
+                "set DATABASE_URL, JWT_SECRET and TOTP_ENCRYPTION_KEY for apps/api (see its .env.example) and apply apps/api/migrations/".to_owned(),
+                format!("`cargo test` in apps/api, then `cargo run -p {api}`"),
+                "in apps/web, `bun install`, then `bun run dev` (it forwards /api to apps/api)".to_owned(),
+                format!("`cargo run -p {desktop}` from the root (it calls apps/api at 127.0.0.1:8080; ROK_API_URL points it elsewhere)"),
+                "in apps/mobile, `flutter pub get`, then `flutter run` (it calls apps/api at 127.0.0.1:8080)".to_owned(),
+            ]);
+        } else {
+            steps.extend([
+                format!(
+                    "run `{crate_generate}` to generate src/db/, src/shared/ and src/features/ from schema/"
+                ),
+                "set DATABASE_URL, JWT_SECRET and TOTP_ENCRYPTION_KEY (see .env.example) and apply migrations/".to_owned(),
+                "`cargo test`, then `cargo run`".to_owned(),
+            ]);
+        }
+        steps
+    }
 }
 
 /// The `src/main.rs` `cargo new` writes. It is not the user's code, so the
@@ -197,12 +250,14 @@ pub fn init(dir: &Path, framework: ApiFramework) -> Result<Scaffolded> {
         written: write_absent(&plan(dir, &crate_name(dir), framework))?,
         replaced_default_main,
         wrote_manifest: false,
+        api_package: None,
+        desktop_package: None,
     })
 }
 
 mod template;
 
-pub use template::{init_template, names as template_names};
+pub use template::{init_template, names as template_names, parse_org};
 
 #[cfg(test)]
 mod tests;

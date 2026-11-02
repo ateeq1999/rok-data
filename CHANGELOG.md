@@ -68,6 +68,26 @@ that it exists and won't ship a tag without it).
   0.9.1's bloc-http starter (GPUI 0.2.2), a member of the root workspace
   (`cargo run -p desktop`), calling `apps/api` at `127.0.0.1:8080` unless
   `ROK_API_URL` says otherwise (desktop ticket 01, workspace ADR 0031).
+  Its data layer is the generated `clients/rust` (a path dependency on
+  `api-client`): the repositories sign in, read the signed-in account and
+  page the users through it, a 422's broken rules land on form fields,
+  and a 401 to the session's token expires the session. The starter's
+  hand-written HTTP providers and its notes feature, which the API does
+  not serve, are gone (desktop ticket 02). It signs up on the API's
+  `POST /auth/register`, signs in (asking for the two-factor code when the
+  account has one) and out, and keeps the session's token in the OS
+  keychain (`keyring`, behind a `TokenStore` trait whose in-memory store
+  the tests use), so it starts signed in; signing out or a 401 deletes
+  the token (desktop ticket 03). The signed-in shell is rok-ui's
+  `AdaptiveScaffold` with the users list (paged as the API pages it) and a
+  user's detail, the Rok theme and a light/dark toggle (desktop ticket
+  04). The monorepo's README and AGENTS.md say how to run, build and
+  check it, verify an account and make one an admin for the users screens
+  (desktop ticket 05, `docs/specs/desktop-starter.md`). Every signed-in
+  user reaches a My account screen (their email, display name, verified
+  state and role), where Home points; the users screens, `apps/api`'s
+  admin routes, show in the navigation only for an admin, and anyone else
+  opening `/users` is told it needs the admin role (the desktop review).
 
 - The monorepo template's api App ships its contract as
   `apps/api/openapi.json`: the document it serves, written out by its
@@ -87,18 +107,64 @@ that it exists and won't ship a tag without it).
   The contract is read as the OpenAPI 3.1 subset utoipa emits; anything
   else fails naming the construct.
 
+- The generated Dart Client (0027 ticket 05, workspace ADR 0027, engine
+  ADR 0027): `[clients]` `dart = "clients/dart"` has `rok gen` (and `rok
+  init --template monorepo`) emit the pub package `api_client` for a
+  Flutter App: `ApiClient(baseUrl:, session:)` with typed methods per
+  operation (`api.users.list(page: 2, sort: UserSort.email)`), model
+  classes, sealed classes for a `oneOf`, a `Session` hook for the bearer
+  token, and `ApiException` carrying the status and a `422`'s field
+  issues. It passes `dart analyze --fatal-infos`; the `dart_client` gate
+  runs its tests where `dart` is installed.
+
 - The monorepo's web App calls the API through the generated
   `clients/ts` (`@/lib/client` connects it to the session); the starter's
   `lib/http.ts` and `features/*/api.ts` are gone. Its features whose
   endpoints `apps/api` does not serve are hidden until it does: passkeys,
   QR sign-in, Google/GitHub sign-in and connected accounts, and creating a
   user with a password (0027 ticket 04).
+- The monorepo template ships its mobile App at `apps/mobile`: the Flutter
+  starter (`ateeq1999/Nestjs-Better-Auth-Flutter-Starter`), its data layer
+  ported onto the generated `clients/dart` (sign-in with the two-factor
+  step, sign-up, password reset, email verification, profile and photo,
+  two-factor settings); its NestJS/Better-Auth HTTP code is gone. What
+  `apps/api` does not serve is not in it: organizations, magic-link
+  sign-in, the admin panel, deleting the account, OAuth and push
+  notifications (a written FCM recipe). Firebase configuration ships as a
+  placeholder. Its settings are `--dart-define`s, `API_URL` defaulting to
+  `apps/api` on `127.0.0.1:8080`. The embedding leaves out a Flutter
+  App's tool state and build output (`.dart_tool`, `build`, platform
+  caches, `local.properties`, keystores); the `mobile_app` gate runs
+  `flutter analyze` and `flutter test` on a scaffold where Flutter is
+  installed (0027 ticket 06).
+- The generated Rust client (0027 ticket 07, workspace ADR 0027, engine
+  ADR 0027): `[clients] rust = "clients/rust"` has `rok gen` (and `rok init
+  --template monorepo`) emit an async `reqwest` crate's sources from the
+  contract: serde types of its own, one call per operation grouped by tag
+  (`client.users().update(id, &body)`), the session's bearer token and a
+  rejected-token handler, and one `ApiError`. Its `Cargo.toml` is the
+  project's. In the monorepo template, `clients/rust` (package
+  `api-client`) is a root workspace member, and the api App's
+  `tests/client/` drive the flows of its other suites through it over a
+  real socket.
 - The API templates document `GET /api/v1/media/{id}/content`'s `200` as
   bytes (`application/octet-stream`), so a client generated from the
   document reads it as a file.
 
 **Changed**
 
+- The API templates' account routes answer `AccountResponse`
+  (`/auth/me`, `/users/me`, the profile photo) and `NewAccountResponse`
+  (sign-up, invitations) instead of their own `UserResponse`: utoipa kept
+  one schema per name, so `GET /users/{id}` documented the account shape
+  and a column added to `users` went missing from the contract and the
+  generated Clients. `tests/openapi_schemas.rs` in each template, and
+  rok-templates' `schema_names` test, fail when two schemas collide; the
+  Rust and Dart Clients type an inline object as the component it equals
+  before one of the same shape (0027 review).
+- The monorepo's mobile App pins every dependency to the version its
+  `pubspec.lock` resolves, and its gate installs with `flutter pub get
+  --enforce-lockfile` (workspace ADR 0027; 0027 review).
 - `rok server add --password-prompt`'s help no longer claims hidden
   input: the password is read from standard input as typed.
 - `rok server add` without a password (none in `--url`, no
@@ -117,6 +183,30 @@ that it exists and won't ship a tag without it).
   (copied from `apps/web/src/styles.css`, with a test that fails when the
   copy drifts), its bundled Outfit and Oxanium fonts, and its Button, Badge
   and Card components.
+- `rok init --template monorepo` prints the monorepo's next steps (`rok
+  gen` from the root, the api App by its package name, the web and mobile
+  Apps), the ones `rok sqlc init --template monorepo` prints, instead of a
+  single crate's `src/db/` steps; both now name `clients/rust` too.
+  They now name the desktop App (`cargo run -p <project>-desktop`), and
+  every template's steps name `TOTP_ENCRYPTION_KEY` beside
+  `DATABASE_URL` and `JWT_SECRET`: the API does not start without it
+  (desktop ticket 05).
+- The monorepo's README runs `rok gen` right after `rok init`: the
+  scaffold leaves `apps/api`'s generated data layer and features to it,
+  so `cargo build -p <project>-api` failed (140 errors) when the README
+  was followed as written. A `rok-templates` test keeps it first (desktop
+  ticket 05).
+- `rok gen --migration <name>` in a monorepo stages each App's pair in
+  the App's own `migrations/` when its settings leave `migrations` unset;
+  it wrote them to the root's, as a first migration of the whole schema.
+- `rok init --help` names `schema/` as the directory `--schema` seeds.
+- The monorepo's `apps/api` is checked to be the `axum` template file for
+  file (`rok-templates`' `tests/template_drift.rs`), and two doc comments
+  that had drifted from it are the template's again.
+- The templates' guide gains the monorepo template's page (its Apps, the
+  one contract, the clients, the `rok gen` loop, what is hidden and why)
+  and the push-notifications (FCM) recipe, moved from the mobile App's
+  docs; getting started and the CLI reference walk the monorepo path.
 
 ## [0.5.0] — production-ready templates
 

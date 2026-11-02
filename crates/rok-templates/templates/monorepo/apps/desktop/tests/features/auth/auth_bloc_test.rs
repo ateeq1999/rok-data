@@ -1,5 +1,6 @@
 //! `AuthBloc`: events in, states out, with a fake repository.
 
+use desktop::data::models::sign_in::{PendingSignIn, SignIn};
 use desktop::data::models::user::User;
 use desktop::data::repositories::auth_repository::AuthRepository;
 use desktop::features::auth::bloc::auth_bloc::AuthBloc;
@@ -14,7 +15,23 @@ use std::sync::Arc;
 struct FakeAuthRepository;
 
 impl AuthRepository for FakeAuthRepository {
-    fn sign_in(&self, _email: String, _password: String) -> BoxFuture<'_, Result<User, ApiError>> {
+    fn sign_up(&self, email: String, _password: String) -> BoxFuture<'_, Result<String, ApiError>> {
+        Box::pin(async { Ok(email) })
+    }
+
+    fn sign_in(
+        &self,
+        _email: String,
+        _password: String,
+    ) -> BoxFuture<'_, Result<SignIn, ApiError>> {
+        Box::pin(async { Ok(SignIn::SignedIn(User::default())) })
+    }
+
+    fn verify_code(
+        &self,
+        _pending: PendingSignIn,
+        _code: String,
+    ) -> BoxFuture<'_, Result<User, ApiError>> {
         Box::pin(async { Ok(User::default()) })
     }
 
@@ -43,6 +60,17 @@ fn sign_in_submitted() {
 }
 
 #[test]
+fn a_code_without_a_pending_sign_in_is_ignored() {
+    let states = test::run(
+        AuthBloc::new(Arc::new(FakeAuthRepository)),
+        [AuthEvent::CodeSubmitted {
+            code: "123456".into(),
+        }],
+    );
+    assert!(states.is_empty(), "{states:?}");
+}
+
+#[test]
 fn sign_out_requested() {
     let states = test::run(
         AuthBloc::new(Arc::new(FakeAuthRepository)),
@@ -64,4 +92,30 @@ fn profile_requested() {
         states.last().map(|state| state.status),
         Some(AuthStatus::Success)
     );
+}
+
+/// Events reach logs through `Debug` (rok-ui's `LogObserver`): a password or a code must not.
+#[test]
+fn an_event_never_shows_a_password_or_a_code() {
+    let events = [
+        AuthEvent::SignUpSubmitted {
+            email: "grace@example.com".into(),
+            password: "sign-up-s3cret".into(),
+        },
+        AuthEvent::SignInSubmitted {
+            email: "grace@example.com".into(),
+            password: "sign-in-s3cret".into(),
+        },
+        AuthEvent::CodeSubmitted {
+            code: "424242".into(),
+        },
+    ];
+
+    for event in events {
+        let shown = format!("{event:?}");
+        for secret in ["sign-up-s3cret", "sign-in-s3cret", "424242"] {
+            assert!(!shown.contains(secret), "{shown} shows a secret");
+        }
+        assert!(shown.contains("<redacted>"), "{shown} says what it hides");
+    }
 }

@@ -1,7 +1,7 @@
 ---
 title: "`rok` — CLI reference"
 description: Every command, flag, output and exit code of the workspace's single binary. Contract: matches crates/rok-cli/src/cli/ and the engine's grammar.
-updated: 2026-10-30
+updated: 2026-11-02
 kind: reference
 source: crates/rok-cli/src/cli/, crates/rok-data-sqlc/src/cli.rs (engine grammar)
 ---
@@ -73,8 +73,6 @@ scaffolds), and their removal is deferred to 1.0.
 ## `rok init` — scaffold a project
 
 ```text
-rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
-rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
 Usage: rok init [OPTIONS] [NAME]
 ```
 
@@ -87,8 +85,54 @@ schema seeding and the report.
 | Flag                  | Meaning                                                            |
 | --------------------- | ------------------------------------------------------------------ |
 | `-t, --template NAME` | copy this Template instead of the skeleton (`actix`, `axum`, or `monorepo`)      |
+| `-o, --org ORG`       | the org a Monorepo template's Apps are named under (default `com.example`); a reverse-domain name; only with `--template` |
 | `-w, --api-framework FW` | the skeleton's web framework: `actix_web` (the default) or `axum`; not with `--template`, which has its own |
 | `-s, --schema PATH`   | seed the truth directory (`schema/`) with this file's content       |
+
+**Renaming a Monorepo template's Apps.** `--template monorepo` names every
+App after the project — the project directory's name, split into words at
+every character that is not an ASCII letter or digit and lowercased (`My
+Shop`, `my_shop` and `my-shop` are all the words `my shop`) — and `--org`:
+
+| What                                   | Becomes (`my-shop`, `--org com.acme`) |
+| -------------------------------------- | ------------------------------------- |
+| the api App's package (`axum-api`), its crate's Rust paths, `rok.toml`'s export, the root `Cargo.lock`, the contract's title | `my-shop-api` (`my_shop_api::`) |
+| the desktop App's package (`desktop`) and its crate's Rust paths | `my-shop-desktop` (`my_shop_desktop::`) |
+| the web App's package (`web`)          | `my-shop-web`                         |
+| the mobile App's Dart package (`mobile`) and its `package:` imports | `my_shop_mobile`          |
+| the Android `applicationId` and namespace, the Linux application id, the Kotlin package and its directory | `com.acme.my_shop` |
+| the iOS and macOS bundle ids           | `com.acme.myShop`                     |
+| the display name (Android label, iOS display name, the app's title) | `My Shop`                |
+| the binary and product names of each Flutter platform | `my_shop`              |
+| the deep-link scheme                   | `myshop`                              |
+| the org in copyright and company lines | `com.acme`                            |
+
+A project name with no letter or digit, one that starts with a digit, or a
+word Java, Kotlin or Dart reserves (`new`, `class`, …) is an error, as is an
+org that is not two or more dot-separated segments of lowercase letters and
+digits each starting with a letter (a usage error, exit 2) or that has a
+reserved word as a segment. Renames follow the scaffolded-file rules: a file
+the project holds is kept as it is (an App's existing `Cargo.toml` names
+the crate its Rust files use), and generated files are not copied. Firebase
+configuration stays a placeholder (`apps/mobile/docs/push-notifications.md`
+points to the recipe in `crates/rok-templates/docs/guide/recipes/`).
+A single-app template has no Apps to name: `--org` with `actix` or `axum` is
+an error.
+
+**What a Monorepo scaffold writes.** `--template monorepo` writes the root
+(`Cargo.toml`, a workspace of `apps/api`, `apps/desktop` and
+`clients/rust`; `Cargo.lock`; `rok.toml` with `[apps]`, `[contract]` and
+`[clients]`; `README.md`; `AGENTS.md`), the four Apps under `apps/` (`api`,
+`web`, `desktop`, `mobile`), the contract `apps/api/openapi.json`, and the
+three clients emitted from it: `clients/ts`, `clients/dart` and
+`clients/rust` (whose `Cargo.toml` is a scaffolded file, the user's; every
+other client file is generated). The api App's own generated code
+(`src/db/`, `src/shared/`, `src/features/`) is not copied: the first `rok
+gen` from the root writes it. The regeneration paths are
+[`[apps]`](#monorepo-projects-apps) and
+[`[contract]` and `[clients]`](#monorepo-projects-contract-and-clients)
+under `rok gen`. The templates' guide (`crates/rok-templates/docs/guide/monorepo.md`)
+walks the whole project.
 
 `NAME` is the project directory: it is created when missing, and the current
 directory is the project when `NAME` is left out. Every file it writes is a
@@ -104,7 +148,20 @@ appears with the first staged pair. An existing `schema/0001_init.sql`
 is kept, never overwritten, and the run says that it kept it.
 
 The run prints what it wrote and the next steps, which name the front door:
-`rok gen` turns the truth directory into `src/db/` and `src/features/`.
+`rok gen` turns the truth directory into `src/db/` and `src/features/`. A
+Monorepo template's next steps are its Apps' (the same ones `rok sqlc init
+--template monorepo` prints: both doors name `rok gen`, the only command
+that regenerates the Apps and their Clients):
+
+```text
+Next steps:
+  1. run `rok gen` from the root to generate every named App from its own schema, re-export apps/api/openapi.json and regenerate clients/ts, clients/dart and clients/rust from it
+  2. set DATABASE_URL, JWT_SECRET and TOTP_ENCRYPTION_KEY for apps/api (see its .env.example) and apply apps/api/migrations/
+  3. `cargo test` in apps/api, then `cargo run -p my-shop-api`
+  4. in apps/web, `bun install`, then `bun run dev` (it forwards /api to apps/api)
+  5. `cargo run -p my-shop-desktop` from the root (it calls apps/api at 127.0.0.1:8080; ROK_API_URL points it elsewhere)
+  6. in apps/mobile, `flutter pub get`, then `flutter run` (it calls apps/api at 127.0.0.1:8080)
+```
 
 An unknown `--template` is a usage error (exit 2) and names the valid
 templates. A failure while scaffolding (an unwritable directory, an
@@ -113,8 +170,6 @@ unreadable `--schema` file) prints `error: …` on stderr and exits 1.
 ## `rok gen` — the front door: the data layer from the schema dir
 
 ```text
-rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
-rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
 Usage: rok gen [OPTIONS] [COMMAND]
 ```
 
@@ -151,7 +206,10 @@ top level, is read as well. Flags beat the file.
 A `rok.toml` whose `[apps]` section names the Apps of a monorepo (workspace
 ADR 0027) changes `rok gen`'s behavior: it regenerates every named App from
 its own settings file inside the App's directory, and stages each App's
-migrations into its own history dir. The flags that shape one project
+migrations into its own history dir (`--migration add_bio` from the root
+writes `apps/api/migrations/NNNN_add_bio.{up,down}.sql`: an App's
+settings that leave `migrations` unset mean the App's `migrations/`, not
+the root's). The flags that shape one project
 (`--schema`, `--output`, `--queries`, `--resource`, `--migrations-dir`,
 `--api-framework`) are refused — they belong to one App, and saying them in
 that App's directory does.
@@ -178,6 +236,8 @@ export = ["cargo", "run", "--quiet", "-p", "axum-api", "--example", "openapi", "
 
 [clients]
 ts = "clients/ts"
+dart = "clients/dart"
+rust = "clients/rust"
 ```
 
 - `rok gen` re-exports the contract — it runs `export` from the project
@@ -200,7 +260,15 @@ The contract is read as the OpenAPI 3.1 subset utoipa emits: paths, the
 JSON or `application/octet-stream` bodies, component schemas, statuses and
 an HTTP bearer security scheme. Anything else (a header parameter, a
 multipart body, `anyOf`, another security scheme...) fails the run, naming
-the construct and its JSON pointer. `ts` is the only client so far. Prose
+the construct and its JSON pointer; what a client cannot type (the Dart
+client: an object with both properties and `additionalProperties`, a
+`oneOf` of non-objects, a query parameter that is not a scalar; the Rust
+client: a query parameter that is an array or an object) fails the run the
+same way. The clients are `ts` (TypeScript), `dart` (a pub package for a
+Flutter App, its YAML files marked in a `# @generated` line) and `rust` (a
+crate's `README.md` and `src/`; its `Cargo.toml` is the project's, never
+written, and must give the generated code `reqwest` with `json`, `serde`
+with `derive` and `serde_json`). Prose
 output prints a `clients:` banner and `exported <document>`; `--json` adds
 one object per client to the array:
 `{"client", "dir", "document", "exported", "written", "unchanged", "missing", "changed", "stale", "drift"}`.
@@ -282,8 +350,6 @@ group's; the booleans OR.
 ## `rok generate` — whole-crate generation (legacy)
 
 ```text
-rok db create  <DBNAME> [--database-url] [--server <NAME>] [--json]  create a database
-rok db drop    <DBNAME> [--database-url] [--server <NAME>] [--yes] [--force] [--json]  drop a database
 Usage: rok generate [OPTIONS] [COMMAND]
 ```
 
@@ -699,7 +765,7 @@ is a library; `rok` forwards the tokens verbatim). Subcommand set:
 | Command        | Alias | One-liner                                                                 |
 | -------------- | ----- | ------------------------------------------------------------------------- |
 | `generate`     | `g`   | parse the schema and emit `src/db/<table>/{…}` modules, optional api/openapi |
-| `init`         | `i`   | scaffold a project (engine ADR 0016 skeleton, `-w axum` for axum, or `--template actix`/`axum`/`monorepo`), files-if-absent |
+| `init`         | `i`   | scaffold a project (engine ADR 0016 skeleton, `-w axum` for axum, or `--template actix`/`axum`/`monorepo`; `-o, --org ORG` names a Monorepo's Apps under ORG, as `rok init` does), files-if-absent |
 | `check`        | `c`   | the generated code is up to date; with `--db`, every annotated query agrees with the database; any difference → exit 1 |
 | `check-arch`   | `a`   | check `src/` layout against the engine's ADR 0016 rules; violations → exit 1 |
 | `query add`    | `q a` | append one annotated query to a query file and generate; kept only if it generates |

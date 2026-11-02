@@ -150,7 +150,7 @@ fn init_template_prints_numbered_next_steps_without_the_dependencies_it_copied()
         steps,
         [
             "  1. run `rok sqlc generate` to generate src/db/, src/shared/ and src/features/ from schema/",
-            "  2. set DATABASE_URL and JWT_SECRET (see .env.example) and apply migrations/",
+            "  2. set DATABASE_URL, JWT_SECRET and TOTP_ENCRYPTION_KEY (see .env.example) and apply migrations/",
             "  3. `cargo test`, then `cargo run`",
         ],
         "{stdout}"
@@ -177,5 +177,69 @@ fn init_template_into_a_package_asks_for_the_templates_dependencies() -> Result<
         "{stdout}"
     );
     assert_eq!(steps.len(), 4, "{stdout}");
+    Ok(())
+}
+
+/// A Monorepo scaffold names every App after the project and `--org`, and
+/// its next steps run the api App by its renamed package.
+#[test]
+fn init_monorepo_names_the_apps_after_the_project_and_org() -> Result<()> {
+    let dir = TempDir::new()?;
+    let output = run_binary_in(
+        dir.path(),
+        &["init", "my-shop", "-t", "monorepo", "--org", "com.acme"],
+    );
+    assert_success(&output);
+    let project = dir.path().join("my-shop");
+    let gradle = fs::read_to_string(project.join("apps/mobile/android/app/build.gradle.kts"))?;
+    assert!(
+        gradle.contains("applicationId = \"com.acme.my_shop\""),
+        "{gradle}"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let steps = next_steps(&stdout);
+    assert!(
+        steps.contains(&"  3. `cargo test` in apps/api, then `cargo run -p my-shop-api`"),
+        "{stdout}"
+    );
+    // Only `rok gen` regenerates the Apps and the Clients: the engine's door
+    // names it too, not its own one-crate `rok sqlc generate`.
+    assert!(
+        steps
+            .first()
+            .is_some_and(|step| step
+                .starts_with("  1. run `rok gen` from the root to generate every named App")),
+        "{stdout}"
+    );
+    assert!(!stdout.contains("rok sqlc generate"), "{stdout}");
+    Ok(())
+}
+
+/// `--org` takes a reverse-domain name; anything else is a usage error
+/// that writes nothing.
+#[test]
+fn init_rejects_an_org_that_is_not_a_reverse_domain_name() -> Result<()> {
+    let dir = TempDir::new()?;
+    let output = run_binary_in(dir.path(), &["init", "-t", "monorepo", "--org", "Acme Inc"]);
+    assert!(!output.status.success(), "a malformed org must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("is not a reverse-domain name"), "{stderr}");
+    assert!(read_tree(dir.path())?.is_empty(), "nothing written");
+    Ok(())
+}
+
+/// `--org` names a template's Apps: without `--template` it is a usage
+/// error.
+#[test]
+fn init_org_requires_a_template() -> Result<()> {
+    let dir = TempDir::new()?;
+    let output = run_binary_in(dir.path(), &["init", "--org", "com.acme"]);
+    assert!(
+        !output.status.success(),
+        "an org without a template must fail"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("--template"), "{stderr}");
+    assert!(read_tree(dir.path())?.is_empty(), "nothing written");
     Ok(())
 }

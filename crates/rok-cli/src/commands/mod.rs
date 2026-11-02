@@ -24,9 +24,16 @@ pub(crate) async fn execute(command: Command) -> Result<ExitCode, String> {
         Command::Init {
             name,
             template,
+            org,
             api_framework,
             schema,
-        } => init::run(name, template, api_framework.as_deref(), schema),
+        } => init::run(
+            name,
+            template,
+            org.as_deref(),
+            api_framework.as_deref(),
+            schema,
+        ),
         Command::Generate {
             options: generation,
             action,

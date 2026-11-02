@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use anyhow::{Result, bail};
 
 use super::openapi::Document;
-use super::project::{Client, Project};
+use super::project::{Client, ClientKind, Project};
 use crate::output::{apply_files, compare_files, find_stale, remove_stale, write_absent};
 use crate::report::display_path;
 
@@ -32,10 +32,10 @@ pub enum Mode {
 }
 
 /// What writing (or checking) one Client did.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Outcome {
-    /// The client's key, such as `ts`.
-    pub client: String,
+    /// The client.
+    pub client: ClientKind,
     /// Its directory.
     pub dir: PathBuf,
     /// Files written (in a dry run: that would be).
@@ -79,17 +79,20 @@ pub fn generate(project: &Project, mode: Mode) -> Result<Vec<Outcome>> {
 ///
 /// As [`generate`].
 pub fn emit_client(document: &Document, client: &Client, mode: Mode) -> Result<Outcome> {
-    let files: Vec<(PathBuf, String)> = match client.name.as_str() {
-        "ts" => super::ts::emit(document)?,
-        other => bail!("rok emits no `{other}` client"),
-    }
-    .into_iter()
-    .map(|(path, text)| (client.dir.join(path), text))
-    .collect();
+    let files: Vec<(PathBuf, String)> = client
+        .kind
+        .emit(document)?
+        .into_iter()
+        .map(|(path, text)| (client.dir.join(path), text))
+        .collect();
     let mut outcome = Outcome {
-        client: client.name.clone(),
+        client: client.kind,
         dir: client.dir.clone(),
-        ..Outcome::default()
+        written: Vec::new(),
+        unchanged: Vec::new(),
+        stale: Vec::new(),
+        missing: Vec::new(),
+        changed: Vec::new(),
     };
     let keep: HashSet<PathBuf> = files.iter().map(|(path, _)| path.clone()).collect();
     match mode {
@@ -118,7 +121,7 @@ pub fn emit_client(document: &Document, client: &Client, mode: Mode) -> Result<O
                     .collect();
                 bail!(
                     "the `{}` client was not written:\n  {}",
-                    client.name,
+                    client.kind,
                     refused.join("\n  ")
                 );
             }

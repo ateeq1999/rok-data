@@ -3,16 +3,20 @@
 //! engine's model — the hand-written routes (auth, two-factor, uploads)
 //! exist only in the document. [`openapi`] reads the subset utoipa emits
 //! into the model every emitter shares; [`ts`] emits the TypeScript
-//! Client from it. [`Project`] is where a monorepo's `rok.toml` keeps the
-//! contract and the Clients, and [`generate`] writes (or checks) them with
-//! the engine's generated-file rules: `init` writes the missing files,
-//! `rok gen` re-exports the contract and rewrites them, `rok gen check`
-//! reports their drift (engine ADR 0027).
+//! Client from it, [`dart`] the Dart Client, [`rust`] the Rust Client.
+//! [`Project`] is where a monorepo's `rok.toml` keeps the contract and the
+//! Clients, and [`generate`] writes (or checks) them with the engine's
+//! generated-file rules: `init` writes the missing files, `rok gen`
+//! re-exports the contract and rewrites them, `rok gen check` reports
+//! their drift (engine ADR 0027).
 
+pub mod dart;
+mod emit;
 pub mod openapi;
 mod project;
+pub mod rust;
 pub mod ts;
 mod write;
 
-pub use project::{CLIENTS, Client, Project};
+pub use project::{Client, ClientKind, Project};
 pub use write::{Mode, Outcome, emit_client, generate};

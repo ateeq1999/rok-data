@@ -73,6 +73,19 @@ pub(crate) enum Command {
             )
         )]
         template: Option<String>,
+        // The engine's `rok sqlc init --org` (`rok_data_sqlc::cli`) says the same, naming DIR.
+        /// The org a Monorepo template's Apps are named under, with the
+        /// project's name (NAME's): the mobile App's `applicationId` and
+        /// iOS bundle id are `<ORG>.<project>`. A reverse-domain name;
+        /// default `com.example`.
+        #[arg(
+            short,
+            long,
+            value_name = "ORG",
+            requires = "template",
+            value_parser = rok_data_sqlc::init::parse_org
+        )]
+        org: Option<String>,
         /// The web framework the skeleton is written for: `actix_web` (the
         /// default) or `axum`. A template has its own, so this doesn't
         /// combine with `--template`.
@@ -84,7 +97,7 @@ pub(crate) enum Command {
             value_parser = ["actix_web", "axum"]
         )]
         api_framework: Option<String>,
-        /// Seed the schema directory (migrations/) with this file's content.
+        /// Seed the schema directory with this file's content, as `schema/0001_init.sql`.
         #[arg(short, long, value_name = "PATH")]
         schema: Option<PathBuf>,
     },

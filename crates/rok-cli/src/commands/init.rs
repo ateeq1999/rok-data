@@ -22,23 +22,23 @@ const SCHEMA_DIR: &str = "schema";
 /// The file a seeded schema is written as.
 const SCHEMA_FILE: &str = "0001_init.sql";
 
-/// `rok init [NAME] [--template <NAME> | --api-framework <FW>] [--schema <PATH>]`.
+/// `rok init [NAME] [--template <NAME> [--org <ORG>] | --api-framework <FW>] [--schema <PATH>]`.
 pub(crate) fn run(
     name: Option<PathBuf>,
     template: Option<String>,
+    org: Option<&str>,
     api_framework: Option<&str>,
     schema: Option<PathBuf>,
 ) -> Result<ExitCode, String> {
     let dir = name.unwrap_or_else(|| PathBuf::from("."));
-    let is_template = template.is_some();
     // The schema is read before anything is written: a path that does not
     // exist must not leave a half-scaffolded project behind.
     let content = match schema.as_deref() {
         Some(schema) => Some(read_schema(schema)?),
         None => None,
     };
-    let scaffolded = match template {
-        Some(template) => init_template(&dir, &template).map_err(|err| format!("{err:#}"))?,
+    let scaffolded = match template.as_deref() {
+        Some(template) => init_template(&dir, template, org).map_err(|err| format!("{err:#}"))?,
         None => {
             let framework = match api_framework {
                 Some("axum") => ApiFramework::Axum,
@@ -52,7 +52,7 @@ pub(crate) fn run(
         Some(content) => seed_schema(&dir, &content)?,
         None => false,
     };
-    next_steps(&scaffolded, is_template, seeded);
+    next_steps(&scaffolded, template.as_deref(), seeded);
     Ok(ExitCode::SUCCESS)
 }
 
@@ -100,32 +100,28 @@ fn seed_schema(dir: &Path, content: &str) -> Result<bool, String> {
 /// The front door is `rok gen`: the truth in the schema directory is the
 /// truth (workspace ADR 0010), and `rok gen` turns it into the data
 /// layer and the API features; `rok gen --migration` stages the history
-/// pairs into `migrations/`, the default history dir.
-fn next_steps(scaffolded: &Scaffolded, template: bool, seeded: bool) {
-    let mut steps: Vec<&str> = Vec::new();
-    if template {
-        if !scaffolded.wrote_manifest {
-            steps.push(
-                "add the template's dependencies and lints (its README.md lists them) to Cargo.toml",
-            );
+/// pairs into `migrations/`, the default history dir. A template's steps
+/// are the engine's, so `rok sqlc init` prints the same ones (a Monorepo
+/// template's name its Apps).
+fn next_steps(scaffolded: &Scaffolded, template: Option<&str>, seeded: bool) {
+    let steps = match template {
+        Some(template) => scaffolded.template_next_steps(template, "rok gen"),
+        None => {
+            let schema = if seeded {
+                "grow the truth in schema/: edit its .sql files, then stage the change with `rok gen --migration <name>`"
+            } else {
+                "describe the tables in schema/ (0001_init.sql), then stage them with `rok gen --migration init`"
+            };
+            [
+                "add the dependencies listed at the end of rok-data-sqlc.toml to Cargo.toml",
+                schema,
+                "run `rok gen` to generate src/db/ and src/features/",
+                "set DATABASE_URL and JWT_SECRET, then `cargo run`",
+            ]
+            .map(str::to_owned)
+            .to_vec()
         }
-        steps.push("run `rok gen` to generate src/db/, src/shared/ and src/features/ from schema/");
-        steps.push("set DATABASE_URL and JWT_SECRET (see .env.example) and apply migrations/");
-        steps.push("`cargo test`, then `cargo run`");
-    } else {
-        steps.push("add the dependencies listed at the end of rok-data-sqlc.toml to Cargo.toml");
-        if seeded {
-            steps.push(
-                "grow the truth in schema/: edit its .sql files, then stage the change with `rok gen --migration <name>`",
-            );
-        } else {
-            steps.push(
-                "describe the tables in schema/ (0001_init.sql), then stage them with `rok gen --migration init`",
-            );
-        }
-        steps.push("run `rok gen` to generate src/db/ and src/features/");
-        steps.push("set DATABASE_URL and JWT_SECRET, then `cargo run`");
-    }
+    };
     println!("\nNext steps:");
     for (number, step) in steps.iter().enumerate() {
         println!("  {}. {step}", number + 1);

@@ -15,8 +15,8 @@ use crate::File;
 pub struct App {
     /// The App's name. An App `rok gen` regenerates (one with generation
     /// settings of its own, such as `api`) goes by it in the scaffold's
-    /// `rok.toml` `[apps]`; the web and desktop Apps have nothing generated
-    /// yet and are not listed there.
+    /// `rok.toml` `[apps]`; the web, desktop and mobile Apps have nothing
+    /// generated yet and are not listed there.
     pub name: &'static str,
     /// The directory of `templates/`, under the template's, the App's
     /// files sit in.
@@ -36,8 +36,7 @@ pub struct Template {
     pub apps: &'static [App],
 }
 
-/// The Apps of the monorepo template. The mobile App joins as its files
-/// arrive.
+/// The Apps of the monorepo template.
 const MONOREPO_APPS: &[App] = &[
     App {
         name: "api",
@@ -50,6 +49,10 @@ const MONOREPO_APPS: &[App] = &[
     App {
         name: "desktop",
         dir: "apps/desktop",
+    },
+    App {
+        name: "mobile",
+        dir: "apps/mobile",
     },
 ];
 
@@ -203,8 +206,10 @@ mod tests {
                 app.dir
             );
             assert!(
-                files.contains(&"Cargo.toml.template") || files.contains(&"package.json"),
-                "App `{}` has no manifest (`Cargo.toml.template` or `package.json`)",
+                files.contains(&"Cargo.toml.template")
+                    || files.contains(&"package.json")
+                    || files.contains(&"pubspec.yaml"),
+                "App `{}` has no manifest (`Cargo.toml.template`, `package.json` or `pubspec.yaml`)",
                 app.name
             );
         }
@@ -215,8 +220,8 @@ mod tests {
     }
 
     /// A JS App's package is named after the App the catalog names: its
-    /// `package.json` declares `"name": "<app>"`, until init names the Apps
-    /// after the project (workspace ADR 0027).
+    /// `package.json` declares `"name": "<app>"`, which init renames
+    /// after the project ([`crate::rename`], workspace ADR 0027).
     #[test]
     fn a_js_apps_package_is_named_after_its_app() {
         let files =
@@ -233,6 +238,47 @@ mod tests {
                 app.name
             );
         }
+    }
+
+    /// A Flutter App's package is named after the App the catalog names:
+    /// its `pubspec.yaml` declares `name: <app>`, which init renames
+    /// after the project ([`crate::rename`], workspace ADR 0027).
+    #[test]
+    fn a_flutter_apps_package_is_named_after_its_app() {
+        let files =
+            files("monorepo").unwrap_or_else(|| panic!("the monorepo template has no files"));
+        for app in apps("monorepo") {
+            let manifest = format!("{}/pubspec.yaml", app.dir);
+            let Some(file) = files.iter().find(|file| file.path == manifest) else {
+                continue;
+            };
+            let text = String::from_utf8_lossy(file.bytes);
+            assert!(
+                text.lines()
+                    .any(|line| line.trim_end() == format!("name: {}", app.name)),
+                "`{manifest}` does not name its package `{}`",
+                app.name
+            );
+        }
+    }
+
+    /// The monorepo's Apps: the API, and the web, desktop and mobile Apps
+    /// that call it.
+    #[test]
+    fn the_monorepo_names_its_four_apps() {
+        let named: Vec<(&str, &str)> = apps("monorepo")
+            .iter()
+            .map(|app| (app.name, app.dir))
+            .collect();
+        assert_eq!(
+            named,
+            [
+                ("api", "apps/api"),
+                ("web", "apps/web"),
+                ("desktop", "apps/desktop"),
+                ("mobile", "apps/mobile"),
+            ]
+        );
     }
 
     /// Every Rust App of the monorepo (one with a `Cargo.toml.template`) is
@@ -263,8 +309,8 @@ mod tests {
         }
     }
 
-    /// The desktop App's package is `desktop`, the name `cargo run -p
-    /// desktop` takes from the root.
+    /// The desktop App ships as the package `desktop`, which init renames
+    /// after the project ([`crate::rename`]).
     #[test]
     fn the_desktop_apps_package_is_named_desktop() {
         let manifest = files("monorepo")
@@ -276,6 +322,81 @@ mod tests {
         assert!(
             manifest.contains("\nname = \"desktop\"\n"),
             "apps/desktop's package is not named `desktop`:\n{manifest}"
+        );
+    }
+
+    /// The desktop App reaches the API only through the generated
+    /// `clients/rust` (workspace ADR 0031): its manifest depends on the
+    /// client by path, so a contract change `rok gen` regenerates breaks or
+    /// flows through its build, and no source of its calls HTTP by hand.
+    #[test]
+    fn the_desktop_app_calls_the_api_only_through_clients_rust() {
+        let files =
+            files("monorepo").unwrap_or_else(|| panic!("the monorepo template has no files"));
+        let manifest = files
+            .iter()
+            .find(|file| file.path == "apps/desktop/Cargo.toml.template")
+            .map(|file| String::from_utf8_lossy(file.bytes))
+            .unwrap_or_else(|| panic!("the desktop App has no manifest"));
+        assert!(
+            manifest.contains("\napi-client = { path = \"../../clients/rust\" }\n"),
+            "apps/desktop does not depend on clients/rust by path:\n{manifest}"
+        );
+        for file in files
+            .iter()
+            .filter(|file| file.path.starts_with("apps/desktop/src/"))
+        {
+            let text = String::from_utf8_lossy(file.bytes);
+            for by_hand in ["HttpClient", "http::Options", "reqwest"] {
+                assert!(
+                    !text.contains(by_hand),
+                    "`{}` calls HTTP by hand (`{by_hand}`)",
+                    file.path
+                );
+            }
+        }
+    }
+
+    /// The api App's generated code (`src/db/mod.rs` among it, marked
+    /// `@generated`) is embedded but never copied: init leaves it to `rok
+    /// gen`, and `apps/api` does not build until that runs. So the
+    /// README's first commands must run it.
+    #[test]
+    fn the_monorepo_readme_starts_with_rok_gen() {
+        let files =
+            files("monorepo").unwrap_or_else(|| panic!("the monorepo template has no files"));
+        let db = files
+            .iter()
+            .find(|file| file.path == "apps/api/src/db/mod.rs")
+            .map(|file| String::from_utf8_lossy(file.bytes))
+            .unwrap_or_else(|| panic!("apps/api has no src/db/mod.rs"));
+        assert!(
+            db.lines()
+                .next()
+                .is_some_and(|line| line.contains("@generated by rok-data-sqlc")),
+            "apps/api's `src/db/mod.rs` is no longer generated: this test's premise changed"
+        );
+        let readme = files
+            .iter()
+            .find(|file| file.path == "README.md")
+            .map(|file| String::from_utf8_lossy(file.bytes).replace("\r\n", "\n"))
+            .unwrap_or_else(|| panic!("the monorepo template has no README.md"));
+        let start = readme
+            .split("```sh\n")
+            .nth(1)
+            .and_then(|rest| rest.split("```").next())
+            .unwrap_or_else(|| panic!("the monorepo README has no sh block"));
+        let commands: Vec<&str> = start.lines().collect();
+        assert_eq!(
+            commands.first().copied(),
+            Some("rok init --template monorepo my-app"),
+            "{start}"
+        );
+        let build = readme.find("cargo run").unwrap_or(readme.len());
+        let generate = readme.find("\nrok gen\n").unwrap_or(usize::MAX);
+        assert!(
+            commands.contains(&"rok gen") && generate < build,
+            "the README's first block does not run `rok gen` before any build:\n{start}"
         );
     }
 
