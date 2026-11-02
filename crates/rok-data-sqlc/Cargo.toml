@@ -21,6 +21,8 @@ include = [
     "/src/**/*.rs",
     "/src/init/scaffold/*",
     "/src/clients/ts/*.ts",
+    "/src/clients/dart/*.dart",
+    "/src/clients/rust/*.rs.in",
     "/Cargo.toml",
     "/README.md",
     "/CHANGELOG.md",
