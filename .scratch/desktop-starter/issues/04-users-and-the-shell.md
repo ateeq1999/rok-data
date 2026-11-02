@@ -45,5 +45,9 @@ API. Two of them open the list, click a row and get the detail, one in Rok
 light and one in Rok dark. The third checks that the toggle flips the mode
 and keeps the preset.
 
-**Left to 03.** There is no route guard: a signed-out start still renders
-the shell until ticket 03 reads the session back and routes to sign-in.
+**With 03 merged.** `AppShell` sends a signed-out session (a start with no
+kept token, or one just signed out) to sign-in and renders nothing, since
+`SessionGuard` only reacts to changes. `tests/shell/` builds the App as
+`main.rs` does (`Api::kept`), on a `MemoryTokenStore`, never the keychain.
+Two more tests cover it: a signed-out start lands on `/auth`, and the
+shell's sign-out lands on `/auth` and clears the kept token (5 tests).
