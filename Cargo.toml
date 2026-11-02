@@ -26,7 +26,7 @@ exclude = [
 ]
 
 [workspace.package]
-version = "0.6.0"
+version = "0.6.1"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/ateeq1999/rok-data"
@@ -35,12 +35,12 @@ homepage = "https://github.com/ateeq1999/rok-data"
 authors = ["The rok-data Contributors"]
 
 [workspace.dependencies]
-rok-data-core = { path = "crates/rok-data-core", version = "0.6.0" }
-rok-data-macros = { path = "crates/rok-data-macros", version = "0.6.0" }
-rok-data = { path = "crates/rok-data", version = "0.6.0" }
-rok-data-codegen = { path = "crates/rok-data-codegen", version = "0.6.0" }
+rok-data-core = { path = "crates/rok-data-core", version = "0.6.1" }
+rok-data-macros = { path = "crates/rok-data-macros", version = "0.6.1" }
+rok-data = { path = "crates/rok-data", version = "0.6.1" }
+rok-data-codegen = { path = "crates/rok-data-codegen", version = "0.6.1" }
 rok-templates = "0.6.0"
-rok-data-sqlc = { path = "crates/rok-data-sqlc", version = "0.6.0" }
+rok-data-sqlc = { path = "crates/rok-data-sqlc", version = "0.6.1" }
 sqlx = { version = "0.9", default-features = false, features = [
     "runtime-tokio",
     "postgres",

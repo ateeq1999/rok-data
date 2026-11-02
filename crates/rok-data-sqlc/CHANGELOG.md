@@ -7,6 +7,13 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+## Workspace 0.6.1 - 2026-11-02
+
+Published as `rok-data-sqlc` 0.6.1, the first 0.6 release of this crate:
+0.6.0's package lacked the Dart and Rust client runtimes it embeds
+(`src/clients/dart/runtime.dart`, `src/clients/rust/runtime.rs.in`), so
+it was never published. The generated API is as in 0.6.0.
+
 ## Workspace 0.6.0 - 2026-11-02
 
 Published as `rok-data-sqlc` 0.6.0 with the workspace (root `CHANGELOG.md`).

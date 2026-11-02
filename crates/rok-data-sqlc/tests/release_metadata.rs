@@ -164,7 +164,7 @@ fn package_ships_every_embedded_file() -> Result<()> {
                     .context("an embedded file inside the crate")?
                     .to_string_lossy()
                     .replace('\\', "/");
-                if !files.iter().any(|file| *file == relative) {
+                if !files.contains(&relative) {
                     missing.push(relative);
                 }
             }
