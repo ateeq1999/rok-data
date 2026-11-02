@@ -9,6 +9,8 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+## [0.6.0] — the toolchain split: `rok-data`, `rok-templates`, and the per-user servers
+
 **Changed**
 
 - The CLI's binary is `rok-data` (was `rok`): the `rok` command moves to

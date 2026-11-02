@@ -1,7 +1,7 @@
 ---
 title: Migrating to `rok-data`
-description: Per-repository migration notes (rok-db, rok-sqlc, rok-fluent, rok-orm) and the 0.5.0 / 0.4.0 / 0.3.0 release upgrades.
-updated: 2026-10-30
+description: Per-repository migration notes (rok-db, rok-sqlc, rok-fluent, rok-orm) and the 0.6.0 / 0.5.0 / 0.4.0 / 0.3.0 release upgrades.
+updated: 2026-11-02
 kind: guide
 source: crates/rok-data/tests/docs/migration_guide.rs (compiled samples), CHANGELOG.md
 ---
@@ -12,7 +12,7 @@ source: crates/rok-data/tests/docs/migration_guide.rs (compiled samples), CHANGE
 
 - **What this page does:** per-repository notes — what changes when a
   project moves from rok-db, rok-sqlc, rok-fluent or rok-orm into this
-  workspace — plus the release upgrades **To 0.5.0**, **To 0.4.0** and
+  workspace — plus the release upgrades **To 0.6.0**, **To 0.5.0**, **To 0.4.0** and
   **To 0.3.0**.
 - **Upgrade recipe (any release):** regenerate once (`rok gen`, or
   `rok sqlc generate` for engine projects), then fix what the compiler
@@ -29,10 +29,30 @@ what was actually renamed, removed, or unified. Everything not listed is
 unchanged — same APIs, same test suites, same behavior (verified by
 porting the original tests).
 
-Three sections are not about a repository lineage: **To 0.5.0**, **To
+Four sections are not about a repository lineage: **To 0.6.0**, **To 0.5.0**, **To
 0.4.0** and **To 0.3.0**, the upgrades between workspace releases. The
 runtime's public surface and the generated output change in the last two;
 0.5.0 changes the templates only.
+
+## To 0.6.0
+
+Nothing to change in a project: the runtime, the generated code and the
+`rok` grammar are as in 0.5.0. Move the `rok-data` pin to `"0.6"` and
+regenerate; only the dependency hint in `db/mod.rs` changes.
+
+What changes is around the project (workspace ADR 0032):
+
+- **The CLI's binary is `rok-data`.** `cargo install rok-data-cli` (and
+  the release archives) install `rok-data`, not `rok`; every command and
+  flag is the same (`rok-data migrate up`). The `rok` command comes from
+  [rok-v2](https://github.com/ateeq1999/rok-v2), which links this CLI,
+  so once it is installed `rok migrate up` works as before. A script that
+  calls `rok` from a 0.5 install either installs rok-v2 or calls
+  `rok-data`.
+- **The templates have their own repository**,
+  [rok-templates](https://github.com/ateeq1999/rok-templates), released
+  on its own (0.6.0). `init --template` copies the same files; a
+  project made from a template is unaffected.
 
 ## To 0.5.0
 

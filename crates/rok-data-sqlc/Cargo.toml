@@ -52,7 +52,7 @@ clap = { version = "4", features = ["derive"] }
 heck = "0.5"
 proc-macro2 = { version = "1", features = ["span-locations"] }
 regex-syntax = "0.8"
-rok-data-codegen = { path = "../rok-data-codegen", version = "0.5.0" }
+rok-data-codegen = { path = "../rok-data-codegen", version = "0.6.0" }
 # `init --template`: the templates it copies, embedded (workspace ADR 0022).
 rok-templates = { workspace = true }
 serde = { version = "1", features = ["derive"] }
