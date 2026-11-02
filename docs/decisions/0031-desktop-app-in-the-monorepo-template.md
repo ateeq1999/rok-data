@@ -65,3 +65,9 @@ Date: 2026-10-30 · Status: accepted (amends ADR 0027)
   everything past the import.
 - rok-ui becomes a dependency of a rok-data template, not of any rok-data
   crate: the workspace's own crates never depend on it.
+- Signing out forgets the token on the App's side only (the session, the
+  client, the keychain entry): `apps/api` has no logout route, so the
+  bearer token stays valid on the API until it expires.
+- On Linux the session lives in the kernel keyring (the `keyring` crate's
+  `linux-native` store, which needs no system library), which forgets it
+  when the machine restarts: the user signs in again after a reboot.
