@@ -128,3 +128,51 @@ fn ci_tests_both_declared_minimum_rust_versions() -> Result<()> {
     );
     Ok(())
 }
+
+/// Every file the sources embed with `include_str!` or `include_bytes!`
+/// ships in the package: a missing one builds here but fails `cargo
+/// publish` (0.6.0's release lost the Dart and Rust client runtimes so).
+#[test]
+fn package_ships_every_embedded_file() -> Result<()> {
+    fn walk(dir: &Path, out: &mut Vec<PathBuf>) -> Result<()> {
+        for entry in fs::read_dir(dir)? {
+            let path = entry?.path();
+            if path.is_dir() {
+                walk(&path, out)?;
+            } else if path.extension().is_some_and(|ext| ext == "rs") {
+                out.push(path);
+            }
+        }
+        Ok(())
+    }
+    let files = packaged_files()?;
+    let mut sources = Vec::new();
+    walk(&root().join("src"), &mut sources)?;
+    let mut missing = Vec::new();
+    for source in &sources {
+        let text = fs::read_to_string(source)?;
+        for macro_name in ["include_str!(\"", "include_bytes!(\""] {
+            for (at, _) in text.match_indices(macro_name) {
+                let rest = &text[at + macro_name.len()..];
+                let Some(end) = rest.find('"') else { continue };
+                let embedded = source
+                    .parent()
+                    .context("a source has a directory")?
+                    .join(&rest[..end]);
+                let relative = embedded
+                    .strip_prefix(root())
+                    .context("an embedded file inside the crate")?
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                if !files.iter().any(|file| *file == relative) {
+                    missing.push(relative);
+                }
+            }
+        }
+    }
+    ensure!(
+        missing.is_empty(),
+        "embedded but not packaged (add them to Cargo.toml's `include`): {missing:?}"
+    );
+    Ok(())
+}
