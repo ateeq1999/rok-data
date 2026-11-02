@@ -1,7 +1,7 @@
 # 03: sign-up, sign-in and sign-out against apps/api
 
 **Blocked by:** 02
-**Status:** blocked
+**Status:** ready-for-agent
 
 Spec: What ships (Auth).
 
