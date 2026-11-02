@@ -55,11 +55,11 @@ page; edit the source file and re-mark.
 
 | Path | What it is |
 | ---- | ---------- |
-| [`decisions/`](decisions/) (0001–0031) | workspace ADRs — every deliberate cross-crate choice; the single source for "why". The latest, [0031](decisions/0031-desktop-app-in-the-monorepo-template.md), puts the desktop App in the monorepo template |
+| [`decisions/`](decisions/) (0001–0032) | workspace ADRs — every deliberate cross-crate choice; the single source for "why". The latest, [0032](decisions/0032-member-repos-and-subcommand-clis.md), splits rok-data into member repos under one `rok` |
 | [`migration-audit.md`](migration-audit.md) | what was audited out of the four source repositories before consolidation |
 | [`migration-plan.md`](migration-plan.md) | the original consolidation plan |
 | [`unified-pipeline-plan.md`](unified-pipeline-plan.md) | the 0.2.0 pipeline plan (schema-dir truth, front door, templates) |
-| [`specs/`](specs/) | per-release specs (0.3.0 model-shaped layer, 0.4.0 everyday verbs, the sqlc absorption, input validation, 0.5.0 production templates) and feature specs, among them [the desktop starter](specs/desktop-starter.md) (ADR 0031) |
+| [`specs/`](specs/) | per-release specs (0.3.0 model-shaped layer, 0.4.0 everyday verbs, the sqlc absorption, input validation, 0.5.0 production templates) and feature specs, among them [the desktop starter](specs/desktop-starter.md) (ADR 0031) and [the toolchain split runbook](specs/toolchain-split/plan.md) (ADR 0032) |
 | [`research/toasty-patterns.md`](research/toasty-patterns.md) | the toasty study behind With-loading's shape |
 
 The engine's own ADR series and guides live outside this directory, in
