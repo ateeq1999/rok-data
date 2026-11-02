@@ -68,6 +68,12 @@ that it exists and won't ship a tag without it).
   0.9.1's bloc-http starter (GPUI 0.2.2), a member of the root workspace
   (`cargo run -p desktop`), calling `apps/api` at `127.0.0.1:8080` unless
   `ROK_API_URL` says otherwise (desktop ticket 01, workspace ADR 0031).
+  Its data layer is the generated `clients/rust` (a path dependency on
+  `api-client`): the repositories sign in, read the signed-in account and
+  page the users through it, a 422's broken rules land on form fields,
+  and a 401 to the session's token expires the session. The starter's
+  hand-written HTTP providers and its notes feature, which the API does
+  not serve, are gone (desktop ticket 02).
 
 - The monorepo template's api App ships its contract as
   `apps/api/openapi.json`: the document it serves, written out by its
