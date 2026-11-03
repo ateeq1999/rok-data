@@ -1,6 +1,6 @@
 ---
 title: Migrating to `rok-data`
-description: Per-repository migration notes (rok-db, rok-sqlc, rok-fluent, rok-orm) and the 0.7.0 / 0.6.0 / 0.5.0 / 0.4.0 / 0.3.0 release upgrades.
+description: Per-repository migration notes (rok-db, rok-sqlc, rok-fluent, rok-orm) and the 0.8.0 / 0.7.0 / 0.6.0 / 0.5.0 / 0.4.0 / 0.3.0 release upgrades.
 updated: 2026-11-03
 kind: guide
 source: crates/rok-data/tests/docs/migration_guide.rs (compiled samples), CHANGELOG.md
@@ -12,8 +12,8 @@ source: crates/rok-data/tests/docs/migration_guide.rs (compiled samples), CHANGE
 
 - **What this page does:** per-repository notes — what changes when a
   project moves from rok-db, rok-sqlc, rok-fluent or rok-orm into this
-  workspace — plus the release upgrades **To 0.7.0**, **To 0.6.0**, **To 0.5.0**,
-  **To 0.4.0** and **To 0.3.0**.
+  workspace — plus the release upgrades **To 0.8.0**, **To 0.7.0**, **To 0.6.0**,
+  **To 0.5.0**, **To 0.4.0** and **To 0.3.0**.
 - **Upgrade recipe (any release):** regenerate once (`rok gen`, or
   `rok sqlc generate` for engine projects), then fix what the compiler
   reports. The compiler finds the breakages; this page explains each.
@@ -29,10 +29,40 @@ what was actually renamed, removed, or unified. Everything not listed is
 unchanged — same APIs, same test suites, same behavior (verified by
 porting the original tests).
 
-Five sections are not about a repository lineage: **To 0.7.0**, **To 0.6.0**,
-**To 0.5.0**, **To 0.4.0** and **To 0.3.0**, the upgrades between workspace
-releases. The runtime's public surface and the generated output change in
-the last two; 0.5.0 changes the templates only.
+Six sections are not about a repository lineage: **To 0.8.0**, **To 0.7.0**,
+**To 0.6.0**, **To 0.5.0**, **To 0.4.0** and **To 0.3.0**, the upgrades between
+workspace releases. The runtime's public surface and the generated output
+change in 0.4.0 and 0.3.0; 0.5.0 changes the templates only.
+
+## To 0.8.0
+
+Nothing to change in a project: the runtime, and what the actix and axum
+frameworks generate, are as in 0.7.0. Move the `rok-data` pin to `"0.8"`
+and regenerate; only the dependency hint in `db/mod.rs` changes.
+
+What is new is opt-in, or touches code that drives the engine as a library:
+
+- **A third framework**, `[api] framework = "grpc"` (engine ADR 0028): one
+  `proto/<resource>.proto` per Resource and a tonic service per feature
+  (`grpc.rs`, in place of `routes.rs` and `handlers.rs`). The engine's
+  [configuring guide](../crates/rok-data-sqlc/docs/guide/configuring.md)
+  says what it generates and what it refuses (a cursor-paged list,
+  `openapi = true`).
+- **`ApiFramework::extractor()` returns an `Option<Extractor>`**: `None`
+  for the new `ApiFramework::Grpc`, whose services need no extractor. A
+  caller that used the `Extractor` takes it out of the `Some`.
+  `ApiFramework` is `#[non_exhaustive]`, so a `match` on it outside the
+  engine already has a `_` arm; give `Grpc` its own arm where the
+  wildcard's answer is wrong for it.
+- **The unknown-framework error lists `grpc`**: "expected one of
+  `actix_web`, `axum`, `grpc`". A test that matches its text takes the
+  new list.
+- **`rok server update <NAME>`** changes a registered server's settings,
+  its password, or both, in place of removing and adding it again; every
+  command's `--help` ends with examples.
+- **A server URL without a database path** (`postgres://user@host`)
+  registers no default database, as the CLI reference says, where 0.7.0
+  registered an empty one.
 
 ## To 0.7.0
 

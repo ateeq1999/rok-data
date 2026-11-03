@@ -9,8 +9,20 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+## [0.8.0] — the gRPC framework; `rok server update` and command examples
+
 **Added**
 
+- The engine's third API framework, `[api] framework = "grpc"` (engine
+  ADR 0028): a run writes one `proto/<resource>.proto` per Resource (its
+  messages and a unary `Get`/`List`/`Create`/`Update`/`Delete` service)
+  and, in each feature, a `grpc.rs` that serves it as a tonic service over
+  the feature's service trait, in place of the HTTP routes and handlers.
+  `shared/grpc.rs` maps an `AppError` to a status; the drift check and
+  `check-arch` cover the protos and the services. `ApiFramework::Grpc` is
+  the library side, and `ApiFramework::extractor` now returns an `Option`
+  (`None` for `Grpc`). The engine's CHANGELOG lists the details;
+  `docs/migration-guide.md` §To 0.8.0 says what to change.
 - `rok server update <NAME>`: change a registered server's settings
   (`--host`, `--port`, `--user`, `--database`, `--sslmode`, or the whole
   connection with `--url`), its password (`--password-prompt`, or the one in
