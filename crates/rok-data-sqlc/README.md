@@ -1014,7 +1014,7 @@ famous = "crate::scopes::users::famous"  # the fn's path; the shape is checked a
 output          = "src/features"  # needs derive = ["serde", "validate"] and the framework's extractor
 db_path         = "crate::db"     # the default: where the generated data layer is
 prefix          = "/api/v1"       # the default URL prefix
-framework       = "actix_web"     # the default: actix-web or "axum"
+framework       = "actix_web"     # the default: actix-web, "axum" or "grpc"
 search_endpoint = true            # POST /search with per-field filters; off by default
 pagination      = "compact"       # the default; or "paginator" / "resource": a list's JSON shape
 cursor          = ["events"]      # tables whose list pages by cursor (`?cursor=`), not page number
@@ -1060,9 +1060,13 @@ table. A table key is the table's SQL, schema-qualified or module name. Each
 table it names must be generated and each column must exist, or the run
 fails naming the key, the table and the column (`api.owner.invoices`).
 `framework` picks the web framework the features are generated for:
-`actix_web` (the default) or `axum`. It decides the routes, the handlers and
-the shared tools; the bodies, the service and the OpenAPI document are the
-same either way. It needs the framework's extractor in `extractors`.
+`actix_web` (the default), `axum` or `grpc`. It decides the routes, the
+handlers and the shared tools; the bodies, the service and the OpenAPI
+document are the same either way. It needs the framework's extractor in
+`extractors` (`axum` for `grpc`). `grpc` also writes one
+`proto/<resource>.proto` per Resource (engine ADR 0028), covered by the
+drift check; its HTTP features are axum's until the generated tonic
+service replaces them.
 With `output`, a run also generates `db/pool.rs` in the data layer
 (`PoolSettings`, `init_pool`, `check_health`) and the shared tools in
 `shared/`, the directory beside `output`: `response.rs`, `pagination.rs`,

@@ -54,7 +54,7 @@ pub(super) const AXUM: Rule1 = Rule1 {
 pub(super) fn rule_1(framework: ApiFramework) -> &'static Rule1 {
     match framework {
         ApiFramework::ActixWeb => &ACTIX_WEB,
-        ApiFramework::Axum => &AXUM,
+        ApiFramework::Axum | ApiFramework::Grpc => &AXUM,
     }
 }
 

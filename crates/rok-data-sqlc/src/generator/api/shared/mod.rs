@@ -51,7 +51,7 @@ pub fn render(output: &Path, api: &ApiConfig) -> Vec<(PathBuf, String)> {
             ("tenant.rs", actix::TENANT),
             ("validation.rs", actix::VALIDATION),
         ],
-        ApiFramework::Axum => [
+        ApiFramework::Axum | ApiFramework::Grpc => [
             ("health.rs", axum::HEALTH),
             ("pagination.rs", PAGINATION),
             ("response.rs", RESPONSE),

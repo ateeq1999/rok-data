@@ -562,6 +562,6 @@ mod tests;
 fn other(framework: ApiFramework) -> ApiFramework {
     match framework {
         ApiFramework::ActixWeb => ApiFramework::Axum,
-        ApiFramework::Axum => ApiFramework::ActixWeb,
+        ApiFramework::Axum | ApiFramework::Grpc => ApiFramework::ActixWeb,
     }
 }

@@ -98,6 +98,7 @@ impl<'de> Deserialize<'de> for RuleSpec {
 enum FrameworkName {
     ActixWeb,
     Axum,
+    Grpc,
 }
 
 impl FrameworkName {
@@ -105,6 +106,7 @@ impl FrameworkName {
         match self {
             FrameworkName::ActixWeb => ApiFramework::ActixWeb,
             FrameworkName::Axum => ApiFramework::Axum,
+            FrameworkName::Grpc => ApiFramework::Grpc,
         }
     }
 }
@@ -189,6 +191,7 @@ impl ApiKeys {
             framework: framework.map(|framework| match framework {
                 ApiFramework::ActixWeb => FrameworkName::ActixWeb,
                 ApiFramework::Axum => FrameworkName::Axum,
+                ApiFramework::Grpc => FrameworkName::Grpc,
             }),
             ..ApiKeys::default()
         }

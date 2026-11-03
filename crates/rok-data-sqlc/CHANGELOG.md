@@ -7,6 +7,24 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+### Added
+
+- `[api] framework = "grpc"` (engine ADR 0028). A run writes one
+  `proto/<resource>.proto` per Resource at the project's root, marked
+  `@generated`: proto3 in the crate's package (`<crate>.v1`), the row
+  message, the create and update inputs, the list request and its page
+  (`items`, `total`, `page`, `per_page`), and a service with unary `Get`,
+  `List`, `Create`, `Update` and `Delete` (less the `skip`ped endpoints).
+  Types follow the ADR; a nullable column is `optional`; an SQL enum is a
+  nested proto enum whose first value is `<ENUM>_UNSPECIFIED = 0`;
+  `timestamp.proto` and `struct.proto` are imported only when used. The
+  drift check reports a stale or hand-edited `.proto`, and a run removes a
+  generated one no Resource makes any more. The features' routes, handlers
+  and shared tools stay axum's until the generated tonic service lands, so
+  `grpc` needs `axum` in `extractors`. An unknown framework's error now
+  lists `grpc`.
+- `ApiFramework::Grpc`.
+
 ## Workspace 0.7.0 - 2026-11-03
 
 Published as `rok-data-sqlc` 0.7.0 with the workspace (root `CHANGELOG.md`).

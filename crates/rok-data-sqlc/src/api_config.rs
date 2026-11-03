@@ -37,9 +37,10 @@ pub struct ApiConfig {
     /// `/api/v1`.
     pub prefix: String,
     /// The web framework the features are generated for: actix-web (the
-    /// default) or axum. The framework decides the routes, the handlers and
-    /// the shared tools the API generates; the bodies, the service and the
-    /// OpenAPI document are the same either way.
+    /// default), axum or gRPC. The framework decides the routes, the
+    /// handlers and the shared tools the API generates; the bodies, the
+    /// service and the OpenAPI document are the same either way. gRPC also
+    /// writes a `.proto` per Resource.
     pub framework: ApiFramework,
     /// Generate `POST /search` with per-field filters. Off by default.
     pub search_endpoint: bool,
@@ -167,6 +168,11 @@ pub enum ApiFramework {
     /// `Path` and `Query`, and the shared tools' extractors are axum's. The
     /// consuming crate needs `axum`.
     Axum,
+    /// gRPC (engine ADR 0028): one `proto/<resource>.proto` per Resource
+    /// besides the features. Until a generated tonic service replaces them,
+    /// the features' routes, handlers and shared tools are axum's, so the
+    /// consuming crate needs `axum` too.
+    Grpc,
 }
 
 impl ApiFramework {
@@ -175,6 +181,7 @@ impl ApiFramework {
         match self {
             ApiFramework::ActixWeb => "actix_web",
             ApiFramework::Axum => "axum",
+            ApiFramework::Grpc => "grpc",
         }
     }
 
@@ -183,7 +190,7 @@ impl ApiFramework {
     pub fn extractor(self) -> crate::Extractor {
         match self {
             ApiFramework::ActixWeb => crate::Extractor::ActixWeb,
-            ApiFramework::Axum => crate::Extractor::Axum,
+            ApiFramework::Axum | ApiFramework::Grpc => crate::Extractor::Axum,
         }
     }
 }
