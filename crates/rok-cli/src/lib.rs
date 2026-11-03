@@ -34,6 +34,7 @@ mod cli;
 pub mod commands;
 pub mod config;
 mod context;
+pub mod examples;
 mod group;
 mod keychain;
 mod output;

@@ -20,6 +20,11 @@ source: crates/rok-cli/src/cli/, crates/rok-data-sqlc/src/cli.rs (engine grammar
   check`) means one JSON document on stdout, nothing else there;
   progress/prose on stderr. Exit codes: 0 success/help, 1 runtime
   failure (and *usage* errors inside `rok sqlc …`), 2 root usage errors.
+- **Examples in the help:** every command's `--help` (not `-h`) ends with
+  an **Examples** section: real invocations, each with what it does, from
+  `crates/rok-cli/src/examples.rs`. `tests/examples.rs` parses each one
+  against the grammar and fails when a command has none, so they stay
+  true; rok-v2's `rok docs` shows the same examples.
 - **Legacy subsets:** `rok generate` and `rok sqlc …` keep their flags,
   output and exit codes unchanged; removal is deferred to 1.0 (engine
   ADR 0012).
