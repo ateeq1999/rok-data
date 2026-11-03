@@ -74,6 +74,16 @@ pub(crate) fn server_add_json(name: &str, keychain_available: bool) -> Value {
     })
 }
 
+/// JSON output for `rok server update --json`: the settings changed, and
+/// whether a new password went to the keychain (`null` when none was given).
+pub(crate) fn server_update_json(name: &str, changed: &[&str], stored: Option<bool>) -> Value {
+    json!({
+        "name": name,
+        "updated": changed,
+        "password_stored_in_keychain": stored,
+    })
+}
+
 /// JSON output for `rok server remove --json`.
 pub(crate) fn server_remove_json(name: &str, keychain_available: bool) -> Value {
     json!({

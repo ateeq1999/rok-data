@@ -9,6 +9,25 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+**Added**
+
+- `rok server update <NAME>`: change a registered server's settings
+  (`--host`, `--port`, `--user`, `--database`, `--sslmode`, or the whole
+  connection with `--url`), its password (`--password-prompt`, or the one in
+  `--url`), or both. Settings not given keep their values; no change at all
+  is a usage error (exit 2).
+- Every command's `--help` ends with an **Examples** section: two or so
+  real invocations, each with what it does (`-h` stays short). They live in
+  `rok_data_cli::examples` (`EXAMPLES`, `examples(path)`), which tools that
+  document the CLI read too; a test parses each example against the
+  grammar and requires examples for every command but the legacy `sqlc`
+  subtree.
+
+**Fixed**
+
+- A server URL without a database path (`postgres://user@host`) registers
+  no default database, as the CLI reference says, instead of an empty one.
+
 ## [0.7.0] — `rok-db` and `rok-gen`; binaries and installers move to rok-v2
 
 **Added**
