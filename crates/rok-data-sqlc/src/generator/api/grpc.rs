@@ -10,7 +10,7 @@
 
 use heck::{ToSnakeCase, ToUpperCamelCase};
 
-use super::dto::{create_columns, update_columns};
+use super::dto::{create_columns, rejected_columns, update_columns};
 use super::feature::{Endpoint, Feature, Key};
 use super::layout::{Uses, push_call, push_signature};
 use crate::ApiAccess;
@@ -228,7 +228,7 @@ fn render_rpc(
             };
             uses.add(&format!("super::dto::{dto}"));
             uses.add("crate::shared::grpc::validated");
-            let fields: Vec<String> = columns
+            let mut fields: Vec<String> = columns
                 .iter()
                 .map(|column| {
                     // An update's nullable column is changed by a value and
@@ -243,6 +243,16 @@ fn render_rpc(
                     field_read(column, reader, 12)
                 })
                 .collect();
+            if change {
+                // The message has no field for an immutable column, so the
+                // update body's field, which rejects one named over HTTP,
+                // is left unnamed: no update changes the column.
+                fields.extend(
+                    rejected_columns(feature)
+                        .iter()
+                        .map(|column| format!("            {}: None,\n", column.rust_name)),
+                );
+            }
             if fields.is_empty() {
                 output.push_str(&format!("        let input = validated({dto} {{}})?;\n"));
             } else {
