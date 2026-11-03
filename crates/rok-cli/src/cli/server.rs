@@ -1,8 +1,8 @@
-//! `rok server add|list|remove`: the per-user server registry (ADR 0028).
+//! `rok server add|update|list|remove`: the per-user server registry (ADR 0028).
 
 use clap::Subcommand;
 
-/// `rok server add|list|remove` — per-user server registry (ADR 0028).
+/// `rok server add|update|list|remove` — per-user server registry (ADR 0028).
 #[derive(Debug, Subcommand)]
 pub enum ServerAction {
     /// Register a new server.
@@ -35,6 +35,45 @@ pub enum ServerAction {
         sslmode: Option<String>,
         /// Prompt for the password on standard input (the input is not hidden).
         #[arg(long, conflicts_with = "url")]
+        password_prompt: bool,
+        /// Print machine-readable JSON output.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Change a registered server: the settings given, its password, or both.
+    ///
+    /// Settings not given keep their values. `--url` replaces the whole
+    /// connection (a password in it goes to the keychain); `--password-prompt`
+    /// asks for a new password and stores it, leaving the settings alone.
+    #[command(group(
+        clap::ArgGroup::new("change")
+            .required(true)
+            .multiple(true)
+            .args(["url", "host", "port", "user", "database", "sslmode", "password_prompt"])
+    ))]
+    Update {
+        /// Name of the registered server.
+        name: String,
+        /// New connection URL: postgres://user:password@host:port/db?sslmode=...
+        #[arg(long, value_name = "URL", conflicts_with_all = ["host", "port", "user", "database", "sslmode"])]
+        url: Option<String>,
+        /// New hostname or IP address.
+        #[arg(long, value_name = "HOST")]
+        host: Option<String>,
+        /// New port number.
+        #[arg(long, value_name = "PORT")]
+        port: Option<u16>,
+        /// New database user.
+        #[arg(long, value_name = "USER")]
+        user: Option<String>,
+        /// New default database for admin operations.
+        #[arg(long, value_name = "DB")]
+        database: Option<String>,
+        /// New SSL mode: disable, allow, prefer, require, verify-ca, verify-full.
+        #[arg(long, value_name = "MODE")]
+        sslmode: Option<String>,
+        /// Prompt for a new password on standard input and store it in the keychain.
+        #[arg(long)]
         password_prompt: bool,
         /// Print machine-readable JSON output.
         #[arg(long)]

@@ -171,3 +171,126 @@ fn server_remove_prompt_stays_off_stdout() {
     assert!(stderr(&output).contains("Type the server name to confirm: "));
     assert!(!stdout(&output).contains("confirm"), "{}", stdout(&output));
 }
+
+/// `server update` changes only the settings given; the rest keep their
+/// values, and the change is what `list` shows.
+#[test]
+fn server_update_changes_only_the_settings_given() {
+    let sandbox = Sandbox::new();
+    sandbox.add_server(
+        "local",
+        "postgres://ann:pw@db.example.com:6543/admin?sslmode=require",
+    );
+
+    let output = sandbox.run(&[
+        "server",
+        "update",
+        "local",
+        "--host",
+        "localhost",
+        "--port",
+        "5432",
+        "--json",
+    ]);
+    assert_success(&output);
+    assert_eq!(
+        json(&output),
+        serde_json::json!({ "name": "local", "updated": ["host", "port"],
+                            "password_stored_in_keychain": null })
+    );
+    assert_eq!(
+        json(&sandbox.run(&["server", "list", "--json"]))["servers"][0],
+        serde_json::json!({ "name": "local", "host": "localhost", "port": 5432, "user": "ann",
+                            "database": "admin", "sslmode": "require",
+                            "password": { "source": "none", "present": false } })
+    );
+}
+
+/// `--url` replaces the connection whole, and its password goes to the
+/// keychain (off here, so it says the variable supplies it).
+#[test]
+fn server_update_with_a_url_replaces_the_connection() {
+    let sandbox = Sandbox::new();
+    sandbox.add_server(
+        "local",
+        "postgres://ann:pw@old.example.com/admin?sslmode=require",
+    );
+
+    let output = sandbox.run(&[
+        "server",
+        "update",
+        "local",
+        "--url",
+        "postgres://bob:secret@new.example.com:5433/app",
+        "--json",
+    ]);
+    assert_success(&output);
+    assert_eq!(
+        json(&output)["password_stored_in_keychain"],
+        serde_json::json!(false)
+    );
+    assert_eq!(
+        json(&sandbox.run(&["server", "list", "--json"]))["servers"][0],
+        serde_json::json!({ "name": "local", "host": "new.example.com", "port": 5433, "user": "bob",
+                            "database": "app", "sslmode": null,
+                            "password": { "source": "none", "present": false } })
+    );
+}
+
+/// `--password-prompt` alone changes no setting: it asks, then stores.
+#[test]
+fn server_update_password_prompt_keeps_the_settings() {
+    use std::io::Write;
+    use std::process::Stdio;
+
+    let sandbox = Sandbox::new();
+    sandbox.add_server("local", "postgres://ann@db.example.com/admin");
+    let mut child = sandbox
+        .rok(&["server", "update", "local", "--password-prompt"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("run rok server update");
+    child
+        .stdin
+        .take()
+        .expect("piped stdin")
+        .write_all(b"new-secret\n")
+        .expect("write the password");
+    let output = child.wait_with_output().expect("wait for rok");
+    assert_success(&output);
+    assert!(
+        stderr(&output).contains("Enter password: "),
+        "{}",
+        stderr(&output)
+    );
+    assert!(
+        stdout(&output)
+            .contains("Server 'local' updated: password from ROK_SERVER_LOCAL_PASSWORD."),
+        "{}",
+        stdout(&output)
+    );
+    assert_eq!(
+        json(&sandbox.run(&["server", "list", "--json"]))["servers"][0]["host"],
+        serde_json::json!("db.example.com")
+    );
+}
+
+#[test]
+fn server_update_unknown_server_names_it() {
+    let sandbox = Sandbox::new();
+    let output = sandbox.run(&["server", "update", "ghost", "--port", "5433"]);
+    assert_error(
+        &output,
+        "server 'ghost' not found; `rok server add ghost` registers it",
+    );
+}
+
+#[test]
+fn server_update_without_a_change_is_a_usage_error() {
+    let sandbox = Sandbox::new();
+    sandbox.add_server("local", "postgres://ann@db.example.com/admin");
+    let output = sandbox.run(&["server", "update", "local"]);
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+}

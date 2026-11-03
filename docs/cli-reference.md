@@ -20,6 +20,11 @@ source: crates/rok-cli/src/cli/, crates/rok-data-sqlc/src/cli.rs (engine grammar
   check`) means one JSON document on stdout, nothing else there;
   progress/prose on stderr. Exit codes: 0 success/help, 1 runtime
   failure (and *usage* errors inside `rok sqlc …`), 2 root usage errors.
+- **Examples in the help:** every command's `--help` (not `-h`) ends with
+  an **Examples** section: real invocations, each with what it does, from
+  `crates/rok-cli/src/examples.rs`. `tests/examples.rs` parses each one
+  against the grammar and fails when a command has none, so they stay
+  true; rok-v2's `rok docs` shows the same examples.
 - **Legacy subsets:** `rok generate` and `rok sqlc …` keep their flags,
   output and exit codes unchanged; removal is deferred to 1.0 (engine
   ADR 0012).
@@ -649,6 +654,8 @@ rok schema diff [--database-url] [--dir migrations]
 ```text
 rok server add    <NAME> [--url <URL>] [--host <HOST>] [--port <PORT>] [--user <USER>]
                          [--database <DB>] [--sslmode <MODE>] [--password-prompt] [--json]
+rok server update <NAME> [--url <URL>] [--host <HOST>] [--port <PORT>] [--user <USER>]
+                         [--database <DB>] [--sslmode <MODE>] [--password-prompt] [--json]
 rok server list   [--json]
 rok server remove <NAME> [-y|--yes] [--json]
 ```
@@ -710,6 +717,43 @@ Server 'ci' added (password from ROK_SERVER_CI_PASSWORD).
 
 `--json`: `{"name": "<NAME>", "added": true,
 "password_stored_in_keychain": <bool>}`.
+
+### `rok server update <NAME> [OPTIONS]`
+
+Changes a registered server: the settings given, its password, or both.
+Settings not given keep their values; at least one change is required
+(none is a usage error, exit 2).
+
+| Flag                | Meaning                                                                                       |
+| ------------------- | --------------------------------------------------------------------------------------------- |
+| `NAME`              | Name of the registered server                                                                 |
+| `--url <URL>`       | Replaces the whole connection, read as `add` reads it; a password in it is stored in the keychain; conflicts with the discrete flags below |
+| `--host <HOST>`     | New hostname or IP address                                                                    |
+| `--port <PORT>`     | New port number                                                                               |
+| `--user <USER>`     | New database user                                                                             |
+| `--database <DB>`   | New default database for admin operations                                                     |
+| `--sslmode <MODE>`  | New SSL mode                                                                                  |
+| `--password-prompt` | Prompt for a new password on standard input (the input is not hidden) and store it; the settings stay as they are |
+| `--json`            | Print one JSON object                                                                         |
+
+Storing a password works as for `add`: with no keychain, or
+`ROK_KEYCHAIN=off`, a warning names `ROK_SERVER_<NAME>_PASSWORD`. A name
+not registered is an error that says `rok server add <NAME>` registers it.
+There is no flag taking the password itself, which would leave it in the
+shell's history.
+
+```text
+$ rok server update local --password-prompt
+Enter password: ********
+Server 'local' updated: password stored in OS keychain.
+
+$ rok server update local --host db.internal --port 6543
+Server 'local' updated: host, port.
+```
+
+`--json`: `{"name": "<NAME>", "updated": [<setting>, …],
+"password_stored_in_keychain": <bool or null>}` — `null` when no password
+was given.
 
 ### `rok server list [OPTIONS]`
 

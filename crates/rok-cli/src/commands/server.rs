@@ -8,6 +8,8 @@ use crate::keychain::{KeychainError, delete_password, env_var_name, get_password
 use crate::output::{PasswordStatus, server_add_json, server_list_json, server_remove_json};
 use std::io::Write;
 
+mod update;
+
 /// Runs the `server` subcommand.
 pub fn run(action: ServerAction) -> Result<std::process::ExitCode, String> {
     match action {
@@ -35,6 +37,28 @@ pub fn run(action: ServerAction) -> Result<std::process::ExitCode, String> {
             };
             add.run()
         }
+        ServerAction::Update {
+            name,
+            url,
+            host,
+            port,
+            user,
+            database,
+            sslmode,
+            password_prompt,
+            json,
+        } => update::ServerUpdate {
+            name,
+            url,
+            host,
+            port,
+            user,
+            database,
+            sslmode,
+            password_prompt,
+            json,
+        }
+        .run(),
         ServerAction::List { json } => list(json).map(|_| std::process::ExitCode::SUCCESS),
         ServerAction::Remove { name, yes, json } => {
             let remove = ServerRemove { name, yes, json };
@@ -124,44 +148,7 @@ impl ServerAdd {
     }
 
     fn parse_url(&self, url: &str) -> Result<ServerConfig, String> {
-        // Parse postgres:// URL
-        let parsed = url::Url::parse(url).map_err(|e| format!("invalid URL: {e}"))?;
-
-        if parsed.scheme() != "postgres" && parsed.scheme() != "postgresql" {
-            return Err("URL scheme must be postgres:// or postgresql://".to_owned());
-        }
-
-        let host = parsed
-            .host_str()
-            .ok_or("URL must include a host")?
-            .to_owned();
-        let port = parsed.port().unwrap_or(5432);
-        let user = parsed.username().to_owned();
-        if user.is_empty() {
-            return Err("URL must include a username".to_owned());
-        }
-
-        // Database from path (first segment)
-        let path_segments: Vec<&str> = parsed
-            .path_segments()
-            .map(|s| s.collect())
-            .unwrap_or_default();
-        let database = path_segments.first().map(|s| s.to_string());
-
-        // sslmode from query
-        let sslmode = parsed
-            .query_pairs()
-            .find(|(k, _)| k == "sslmode")
-            .map(|(_, v)| v.to_string());
-
-        Ok(ServerConfig {
-            name: self.name.clone(),
-            host,
-            port,
-            user,
-            database,
-            sslmode,
-        })
+        config_from_url(&self.name, url)
     }
 
     fn build_from_flags(&self) -> Result<ServerConfig, String> {
@@ -187,11 +174,10 @@ impl ServerAdd {
     /// The password from the URL, else from the prompt; `None` when
     /// neither gives one (it then comes from `ROK_SERVER_<NAME>_PASSWORD`).
     fn extract_password(&self) -> Result<Option<String>, String> {
-        if let Some(ref url) = self.url {
-            let parsed = url::Url::parse(url).map_err(|e| format!("invalid URL: {e}"))?;
-            if let Some(pwd) = parsed.password() {
-                return Ok(Some(pwd.to_owned()));
-            }
+        if let Some(ref url) = self.url
+            && let Some(password) = url_password(url)?
+        {
+            return Ok(Some(password));
         }
 
         if self.password_prompt {
@@ -200,6 +186,57 @@ impl ServerAdd {
 
         Ok(None)
     }
+}
+
+/// The server `name`'s settings from a `postgres://` URL (its password is
+/// not among them: it goes to the keychain, see [`url_password`]).
+fn config_from_url(name: &str, url: &str) -> Result<ServerConfig, String> {
+    let parsed = url::Url::parse(url).map_err(|e| format!("invalid URL: {e}"))?;
+
+    if parsed.scheme() != "postgres" && parsed.scheme() != "postgresql" {
+        return Err("URL scheme must be postgres:// or postgresql://".to_owned());
+    }
+
+    let host = parsed
+        .host_str()
+        .ok_or("URL must include a host")?
+        .to_owned();
+    let port = parsed.port().unwrap_or(5432);
+    let user = parsed.username().to_owned();
+    if user.is_empty() {
+        return Err("URL must include a username".to_owned());
+    }
+
+    // Database from path (first segment)
+    let path_segments: Vec<&str> = parsed
+        .path_segments()
+        .map(|s| s.collect())
+        .unwrap_or_default();
+    let database = path_segments
+        .first()
+        .filter(|segment| !segment.is_empty())
+        .map(|s| s.to_string());
+
+    // sslmode from query
+    let sslmode = parsed
+        .query_pairs()
+        .find(|(k, _)| k == "sslmode")
+        .map(|(_, v)| v.to_string());
+
+    Ok(ServerConfig {
+        name: name.to_owned(),
+        host,
+        port,
+        user,
+        database,
+        sslmode,
+    })
+}
+
+/// The password a `postgres://` URL carries, if any.
+fn url_password(url: &str) -> Result<Option<String>, String> {
+    let parsed = url::Url::parse(url).map_err(|e| format!("invalid URL: {e}"))?;
+    Ok(parsed.password().map(str::to_owned))
 }
 
 struct ServerRemove {
