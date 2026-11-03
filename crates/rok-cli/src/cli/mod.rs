@@ -170,6 +170,10 @@ pub(crate) fn command(program: &str, group: Option<Group>) -> clap::Command {
             "Legacy: generate SQLx Rust modules from SQL schema files \
                  (generate|init|check-arch); superseded by `rok gen`",
         ));
+    for (path, examples) in crate::examples::EXAMPLES {
+        let path: Vec<&str> = path.split(' ').collect();
+        command = with_examples(command, &path, crate::examples::render(examples));
+    }
     if let Some(group) = group {
         command = command.about(group.about());
         let hidden: Vec<String> = command
@@ -182,6 +186,18 @@ pub(crate) fn command(program: &str, group: Option<Group>) -> clap::Command {
         }
     }
     command
+}
+
+/// `command` with `text` as the long help's closing section of the
+/// subcommand at `path` (`["db", "create"]`): shown by `--help`, not `-h`.
+fn with_examples(command: clap::Command, path: &[&str], text: String) -> clap::Command {
+    match path {
+        [] => command.after_long_help(text),
+        [first, rest @ ..] => {
+            let rest = rest.to_vec();
+            command.mut_subcommand(*first, move |sub| with_examples(sub, &rest, text))
+        }
+    }
 }
 
 /// The command name `word` stands for, aliases resolved, if it is one.
