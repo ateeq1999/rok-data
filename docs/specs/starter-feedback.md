@@ -96,6 +96,9 @@ A team scaffolded the Monorepo template with `rok init` and built three Apps on 
   - **Route tree:** `@tanstack/router-cli` is pinned to the router's version and a `routes` script runs `tsr generate`; the web gate runs it and fails if `routeTree.gen.ts` changes.
   - **Tests on Node 26:** the `test` script sets `NODE_OPTIONS=--no-experimental-webstorage`, and the gates pin the Node version.
 - **Mobile golden test:** the Monorepo's mobile App ships one golden test of its sign-in screen, with the OFL fonts bundled so it renders the same on every machine.
+- **Clients live in their Apps** (workspace ADR 0027, amended 2026-11-03): a Client lives where its App keeps its data sources, and the App reaches it only through a hand-written adapter.
+  - **Paths:** TypeScript in `apps/web/src/lib/api/`, Dart in `apps/mobile/lib/app/data/api/`, Rust as a crate at `apps/api/client/` (the API's tests prove it; the desktop App's `api` provider wraps it).
+  - **Layout setting:** a `[clients]` entry can be a table with `dir` and `layout`; `layout = "sources"` emits only the source files, flat (TypeScript and Dart only), and the plain-string form keeps today's package layout, so existing projects are unaffected.
 
 ## Testing Decisions
 
