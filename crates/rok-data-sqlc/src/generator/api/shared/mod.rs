@@ -21,6 +21,7 @@ pub(super) mod actix;
 pub(super) mod axum;
 mod cursors;
 mod failures;
+pub(in crate::generator) mod grpc;
 mod pages;
 
 /// The data-layer path the templates are written against.
@@ -43,27 +44,46 @@ pub fn render(output: &Path, api: &ApiConfig) -> Vec<(PathBuf, String)> {
         |template: &str| format!("{HEADER}\n{}", template.replace(TEMPLATE_DB_PATH, &db_path));
     let shared = shared_dir(api);
     let mut files = vec![(output.join("pool.rs"), file(POOL))];
-    let tools: [(&str, &str); 5] = match api.framework {
-        ApiFramework::ActixWeb => [
+    let tools: &[(&str, &str)] = match api.framework {
+        ApiFramework::ActixWeb => &[
             ("health.rs", actix::HEALTH),
             ("pagination.rs", PAGINATION),
             ("response.rs", RESPONSE),
             ("tenant.rs", actix::TENANT),
             ("validation.rs", actix::VALIDATION),
         ],
-        ApiFramework::Axum | ApiFramework::Grpc => [
+        ApiFramework::Axum => &[
             ("health.rs", axum::HEALTH),
             ("pagination.rs", PAGINATION),
             ("response.rs", RESPONSE),
             ("tenant.rs", axum::TENANT),
             ("validation.rs", axum::VALIDATION),
         ],
+        // The tools the DTOs and the service trait name, without an HTTP
+        // framework's; `grpc.rs` is [`grpc`]'s, which reads the features.
+        ApiFramework::Grpc => &[
+            ("pagination.rs", PAGINATION),
+            ("response.rs", RESPONSE),
+            ("validation.rs", GRPC_VALIDATION),
+        ],
     };
-    for (name, template) in tools {
+    for &(name, template) in tools {
         // A list paged by cursor brings its queries and page shapes.
         let cursor = !api.cursor.is_empty();
         let mut text = if name == "pagination.rs" && cursor {
             file(&format!("{}{}", cursor_imports(template), cursors::QUERIES))
+        } else if name == "response.rs" && api.framework == ApiFramework::Grpc {
+            // A gRPC error is a status, never the wire standard's body.
+            let text = replace_once(
+                template,
+                "pub use crate::db::http::{ErrorBody, ErrorPayload};\n",
+                "",
+            );
+            file(&replace_once(
+                &text,
+                "What handlers answer besides a bare row: the wire standard's error body,\n//! a page",
+                "What the service answers besides a bare row: a page",
+            ))
         } else {
             file(template)
         };
@@ -436,4 +456,12 @@ pub fn path_segment(value: &impl std::fmt::Display) -> String {
 pub fn etag(version: &impl std::fmt::Display) -> String {
     format!("\"{version}\"")
 }
+"#;
+
+/// gRPC's `validation.rs`: no request to read, only the `FieldFailures` the
+/// service's pre-checks collect, appended like either framework's.
+const GRPC_VALIDATION: &str = r#"//! The field failures of a write: [`FieldFailures`] collects them into one
+//! validation failure, which a gRPC service answers `INVALID_ARGUMENT`.
+
+use crate::error::AppError;
 "#;

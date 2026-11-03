@@ -280,6 +280,7 @@ pub fn plan_files_with_queries(
         files.extend(api::shared::render(output, api));
         files.extend(api::render(&features, api));
         if api.framework == crate::ApiFramework::Grpc {
+            files.push(api::shared::grpc::render(&features, api, &enums));
             files.extend(api::proto::render(&features, api, &enums));
         }
     }

@@ -264,7 +264,9 @@ impl ApiKeys {
             api.pagination = pagination.pagination();
         }
         api.cursor = self.cursor.unwrap_or_default();
-        api.openapi = self.openapi.unwrap_or(api.openapi);
+        // gRPC serves no HTTP route to document.
+        let documented = api.openapi && api.framework != ApiFramework::Grpc;
+        api.openapi = self.openapi.unwrap_or(documented);
         api.exclude = self.exclude.unwrap_or_default();
         api.skip = self
             .skip

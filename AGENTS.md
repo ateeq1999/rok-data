@@ -33,7 +33,7 @@ functions; sqlx is depended on only by `rok-data-core`.
 | Generator change that alters a template's generated files | here, then in rok-templates: bump its `rok-data.pin` and regenerate there (`ROK_DATA_SQLC_UPDATE_EXPECTED=1`) |
 | CLI wiring / output formats / new root commands | `crates/rok-cli/src/{cli,commands,context,output,config}.rs`       |
 | Migration file format change                    | `crates/rok-data-core/src/{migration,migration_file}.rs` both      |
-| Fixtures (compile crates)                       | `crates/rok-data-sqlc/tests/{api-app,fixture-app,modules-app}` — excluded from the workspace; they manage own deps |
+| Fixtures (compile crates)                       | `crates/rok-data-sqlc/tests/{api-app,axum-app,grpc-app,fixture-app,modules-app}` — excluded from the workspace; they manage own deps |
 | The vertical-slice example                      | `examples/api` — excluded from the workspace too; its gate is `crates/rok-cli/tests/fixture_compile/example_api.rs` |
 
 ## Invariants (break them and something is wrong; fix the thing you broke)

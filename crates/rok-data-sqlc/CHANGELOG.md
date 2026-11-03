@@ -19,11 +19,28 @@ the *generated* API count as breaking (see ADR 0012).
   nested proto enum whose first value is `<ENUM>_UNSPECIFIED = 0`;
   `timestamp.proto` and `struct.proto` are imported only when used. The
   drift check reports a stale or hand-edited `.proto`, and a run removes a
-  generated one no Resource makes any more. The features' routes, handlers
-  and shared tools stay axum's until the generated tonic service lands, so
-  `grpc` needs `axum` in `extractors`. An unknown framework's error now
-  lists `grpc`.
-- `ApiFramework::Grpc`.
+  generated one no Resource makes any more. An unknown framework's error
+  now lists `grpc`.
+- Under `grpc`, each feature's `grpc.rs` (in place of `routes.rs` and
+  `handlers.rs`) implements the proto's tonic service on the feature's own
+  service: each RPC reads the request message into the feature's DTOs
+  (validated as an HTTP body is), calls the service trait method the HTTP
+  handlers call, and answers with messages. `dto.rs`, `service_api.rs` and
+  `service.rs` are as for the HTTP frameworks. The root's `generated.rs`
+  includes the compiled protos (`proto`) and holds `routes(pool)`, a tonic
+  `Routes` of every service. The new shared tool `shared/grpc.rs` is the
+  one place an `AppError` becomes a status (`NOT_FOUND`;
+  `INVALID_ARGUMENT` with the field errors as `BadRequest` details;
+  `ALREADY_EXISTS`; `UNAUTHENTICATED`; `PERMISSION_DENIED`; else
+  `INTERNAL`), reads the caller and the tenant an interceptor puts in the
+  request's extensions, and converts the fields. The shared tools name no
+  HTTP framework, so `grpc` needs no `extractors`; `openapi` is off by
+  default and an error when on. A versioned row's update message carries
+  the version as its last field. The drift check covers the services, and
+  `check-arch`'s rule 1 polices `tonic` (in a feature, only `grpc.rs` may
+  name it). A list paged by cursor (`api.cursor`) is refused under `grpc`.
+- `ApiFramework::Grpc`. `ApiFramework::extractor` now returns an `Option`,
+  `None` for `Grpc`.
 
 ## Workspace 0.7.0 - 2026-11-03
 

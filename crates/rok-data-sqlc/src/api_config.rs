@@ -168,10 +168,12 @@ pub enum ApiFramework {
     /// `Path` and `Query`, and the shared tools' extractors are axum's. The
     /// consuming crate needs `axum`.
     Axum,
-    /// gRPC (engine ADR 0028): one `proto/<resource>.proto` per Resource
-    /// besides the features. Until a generated tonic service replaces them,
-    /// the features' routes, handlers and shared tools are axum's, so the
-    /// consuming crate needs `axum` too.
+    /// gRPC (engine ADR 0028): one `proto/<resource>.proto` per Resource,
+    /// and in each feature a tonic service in place of the routes and
+    /// handlers. The shared tools name no HTTP framework, the data layer
+    /// needs no extractor, and there is no OpenAPI document. The consuming
+    /// crate needs `tonic`, `tonic-prost`, `tonic-types` and `prost-types`,
+    /// and compiles `proto/` in its `build.rs`.
     Grpc,
 }
 
@@ -186,11 +188,12 @@ impl ApiFramework {
     }
 
     /// The extractor the data layer needs for this framework's validated
-    /// bodies.
-    pub fn extractor(self) -> crate::Extractor {
+    /// bodies; none for gRPC, whose services validate the bodies they build.
+    pub fn extractor(self) -> Option<crate::Extractor> {
         match self {
-            ApiFramework::ActixWeb => crate::Extractor::ActixWeb,
-            ApiFramework::Axum | ApiFramework::Grpc => crate::Extractor::Axum,
+            ApiFramework::ActixWeb => Some(crate::Extractor::ActixWeb),
+            ApiFramework::Axum => Some(crate::Extractor::Axum),
+            ApiFramework::Grpc => None,
         }
     }
 }

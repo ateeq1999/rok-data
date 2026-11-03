@@ -1,6 +1,7 @@
 //! Generates the fixture schemas into the fixture crates and checks the
 //! output the way a consuming crate would see it: `tests/fixture-app` (the
-//! data layer), `tests/api-app` (the API features) and a project made with
+//! data layer), `tests/api-app`, `tests/axum-app` and `tests/grpc-app` (the
+//! API features, one per framework) and a project made with
 //! `rok sqlc init` and `rok sqlc generate`.
 //!
 //! Set `ROK_DATA_SQLC_TEST_DATABASE_URL` to a throwaway PostgreSQL database to
@@ -13,6 +14,7 @@ mod api_app;
 mod axum_app;
 mod example_api;
 mod fixture_app;
+mod grpc_app;
 mod init;
 
 use std::path::Path;

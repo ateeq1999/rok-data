@@ -55,8 +55,31 @@ pub fn related(features: &[Feature<'_>]) -> String {
     output
 }
 
+/// What a feature serves its endpoints through: an HTTP framework's routes
+/// and handlers, or a gRPC service.
+#[derive(Debug, Clone, Copy)]
+pub enum Edge {
+    Http(Framework),
+    Grpc,
+}
+
+/// The README's rows of a feature's edge files, with the root's summary.
+const HTTP_EDGE: &str = "| `<feature>/mod.rs` | generated | the module list; re-exports `routes`, the service and its trait |
+| `<feature>/routes.rs` | generated | URL to handler |
+| `<feature>/handlers.rs` | generated | parse, call one service method, answer |
+";
+
+/// gRPC's [`HTTP_EDGE`].
+const GRPC_EDGE: &str = "| `<feature>/mod.rs` | generated | the module list; re-exports the service and its trait |
+| `<feature>/grpc.rs` | generated | the `proto/` service: read the message, call one service method, answer |
+";
+
 /// Renders `README.md`.
-pub fn render_readme(features: &[Feature<'_>], framework: Framework) -> String {
+pub fn render_readme(features: &[Feature<'_>], edge: Edge) -> String {
+    let (summary, edge) = match edge {
+        Edge::Http(framework) => (framework.root_summary(), HTTP_EDGE),
+        Edge::Grpc => ("`proto` and `routes`", GRPC_EDGE),
+    };
     let mut output = format!(
         "{MARKDOWN_HEADER}
 # API features
@@ -70,19 +93,15 @@ rok-data-sqlc never touches it again.
 
 | File | Owner | Holds |
 |---|---|---|
-| `generated.rs` | generated | declares the features; {} |
-| `<feature>/mod.rs` | generated | the module list; re-exports `routes`, the service and its trait |
-| `<feature>/routes.rs` | generated | URL to handler |
-| `<feature>/handlers.rs` | generated | parse, call one service method, answer |
-| `<feature>/dto.rs` | generated | request and response bodies |
+| `generated.rs` | generated | declares the features; {summary} |
+{edge}| `<feature>/dto.rs` | generated | request and response bodies |
 | `<feature>/model.rs` | generated | the rows and typed ids, from `db` |
 | `<feature>/repo.rs` | generated | the table's `db` functions |
 | `<feature>/service_api.rs` | generated | the service trait, a default per endpoint |
 | `<feature>/service.rs` | **yours** | the service and your overrides: business rules go here |
 
 ## Features
-",
-        framework.root_summary()
+"
     );
     if features.is_empty() {
         output.push_str("\nNone: every table is excluded.\n");

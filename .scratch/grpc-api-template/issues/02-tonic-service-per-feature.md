@@ -6,10 +6,10 @@ Spec: `docs/specs/grpc-api-template.md` · engine ADR 0028
 
 **Blocked by:** 01
 
-**Status:** blocked
+**Status:** done
 
-- [ ] The generated service calls the service trait; DTOs, `service_api` and `service.rs` are as for the HTTP frameworks
-- [ ] The status mapping lives in one generated place
-- [ ] Fixture crate `tests/grpc-app` (workspace-excluded, own `[workspace]`), gated like `fixture_compile/axum_app.rs`
-- [ ] Its tests call the services over an in-process channel: create, get, list (page fields), update, delete, `NOT_FOUND`, `INVALID_ARGUMENT` (DB-backed parts skip with a printed note without a database URL)
-- [ ] Drift check covers the generated services
+- [x] The generated service calls the service trait; DTOs, `service_api` and `service.rs` are as for the HTTP frameworks
+- [x] The status mapping lives in one generated place
+- [x] Fixture crate `tests/grpc-app` (workspace-excluded, own `[workspace]`), gated like `fixture_compile/axum_app.rs`
+- [x] Its tests call the services over an in-process channel: create, get, list (page fields), update, delete, `NOT_FOUND`, `INVALID_ARGUMENT` (DB-backed parts skip with a printed note without a database URL)
+- [x] Drift check covers the generated services

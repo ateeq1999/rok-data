@@ -24,7 +24,7 @@ use rules::{
 };
 use source::Reference;
 
-/// The files a feature directory may hold.
+/// The files a feature directory of an HTTP framework may hold.
 pub(crate) const FEATURE_FILES: &[&str] = &[
     "mod.rs",
     "routes.rs",
@@ -35,6 +35,16 @@ pub(crate) const FEATURE_FILES: &[&str] = &[
     "service_api.rs",
     "service.rs",
 ];
+
+/// The files a feature directory of `framework` may hold: the HTTP ones, or
+/// for gRPC the same with `grpc.rs` in place of the routes and handlers.
+pub(crate) fn feature_files(framework: ApiFramework) -> Vec<&'static str> {
+    let edge = rule_1(framework).feature;
+    let mut files = vec![FEATURE_FILES[0]];
+    files.extend(edge);
+    files.extend(&FEATURE_FILES[3..]);
+    files
+}
 
 /// Module names no project may have.
 const FORBIDDEN_NAMES: &[&str] = &["utils", "helpers", "common"];
@@ -296,7 +306,7 @@ impl Layout {
         }
         if let Some(rest) = rel.strip_prefix(self.features.as_slice())
             && rest.len() == 2
-            && !FEATURE_FILES.contains(&rest[1].as_str())
+            && !feature_files(self.framework).contains(&rest[1].as_str())
         {
             report(
                 1,
@@ -304,7 +314,7 @@ impl Layout {
                 format!(
                     "feature `{}` holds a file it may not: a feature has only {}",
                     rest[0],
-                    FEATURE_FILES.join(", ")
+                    feature_files(self.framework).join(", ")
                 ),
             );
         }

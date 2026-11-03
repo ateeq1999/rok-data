@@ -63,7 +63,7 @@ pub fn render(
 
 /// The package: the crate's name in `Cargo.toml` beside `proto/`, in
 /// snake case, versioned like the HTTP prefix (`shop_api.v1`).
-fn package(dir: &Path) -> String {
+pub(super) fn package(dir: &Path) -> String {
     let manifest = dir
         .parent()
         .map(|root| root.join("Cargo.toml"))
@@ -142,11 +142,20 @@ fn render_one(feature: &Feature<'_>, package: &str, enums: &[EnumType]) -> Strin
     if feature.serves(Endpoint::Update) {
         let request = format!("Update{row}Request");
         let mut fields = fields(&key, row, enums, Presence::Plain);
+        let columns = update_columns(feature);
         fields.extend(
-            update_columns(feature)
+            columns
                 .iter()
                 .map(|column| field(column, row, enums, Presence::Optional)),
         );
+        // A versioned row changes only at the version the caller read, as
+        // `If-Match` holds it over HTTP: last, so the columns keep their
+        // numbers.
+        if let Some(version) = feature.version
+            && !columns.iter().any(|c| c.sql_name == version.sql_name)
+        {
+            fields.push(field(version, row, enums, Presence::Plain));
+        }
         push_message(&mut body, &request, &fields);
         push_rpc(&mut rpcs, "Update", &request, row);
     }

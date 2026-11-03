@@ -1063,10 +1063,12 @@ fails naming the key, the table and the column (`api.owner.invoices`).
 `actix_web` (the default), `axum` or `grpc`. It decides the routes, the
 handlers and the shared tools; the bodies, the service and the OpenAPI
 document are the same either way. It needs the framework's extractor in
-`extractors` (`axum` for `grpc`). `grpc` also writes one
-`proto/<resource>.proto` per Resource (engine ADR 0028), covered by the
-drift check; its HTTP features are axum's until the generated tonic
-service replaces them.
+`extractors` (none for `grpc`). `grpc` (engine ADR 0028) writes one
+`proto/<resource>.proto` per Resource and, in each feature, a `grpc.rs` in
+place of the routes and handlers: the proto's tonic service, over the same
+service trait. `shared/grpc.rs` maps errors to gRPC statuses in one place;
+there is no OpenAPI document and no list paged by cursor. The drift check
+covers both.
 With `output`, a run also generates `db/pool.rs` in the data layer
 (`PoolSettings`, `init_pool`, `check_health`) and the shared tools in
 `shared/`, the directory beside `output`: `response.rs`, `pagination.rs`,
