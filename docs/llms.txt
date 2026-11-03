@@ -38,6 +38,7 @@
 - [Engine specs](specs/0.3.0-model-shaped-data-layer.md): per-release specs (0.4.0 everyday verbs, sqlc absorption, input validation, 0.5.0 production templates) under `docs/specs/`.
 - [Desktop starter spec](specs/desktop-starter.md): the monorepo's desktop App (ADR 0031) on `clients/rust`: sign-up, the keychain session, My account, and the users screens for an admin.
 - [gRPC template spec](specs/grpc-api-template.md): gRPC as a third API framework (`framework = "grpc"`, engine ADR 0028): a `.proto` and a tonic service per Resource over the same service trait, and the `grpc-api` Template (workspace ADR 0030).
+- [Schema editing spec](specs/schema-editing.md): `rok schema column add|remove|change|rename` edit the schema dir in place and record renames for the next migration; every command takes a JSON payload through `-j` (inline, a path, `@path` or stdin).
 - [Toolchain split runbook](https://github.com/ateeq1999/rok-workspace/blob/main/docs/plan.md): the PowerShell + `gh` steps that split rok-data into member repos (ADR 0032): backups, the `rok-workspace` meta-repo, `rok-templates` out, `rok-v2` owning `rok`.
 - [Toasty patterns research](research/toasty-patterns.md): the study behind With-loading's shape.
 
