@@ -175,6 +175,13 @@ impl<'a> Feature<'a> {
         }
         let cursor =
             endpoints.contains(&Endpoint::List) && api.cursor.iter().any(|key| names(table, key));
+        if cursor && api.framework == crate::ApiFramework::Grpc {
+            // The `List` RPC pages by number (engine ADR 0028).
+            return Err(format!(
+                "`{}` is in `api.cursor`, but a gRPC `List` pages by number: leave it out of `api.cursor`",
+                table.display_name()
+            ));
+        }
         if cursor {
             cursor_fits(table, &sort)?;
         }

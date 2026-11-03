@@ -365,10 +365,23 @@ fn check_options(config: &Config) -> anyhow::Result<()> {
         return Ok(());
     };
     let framework = api.framework;
-    if !validate || !config.extractors.contains(&framework.extractor()) {
+    let Some(extractor) = framework.extractor() else {
+        if !validate {
+            bail!(
+                "`api.output` needs `derive = [\"serde\", \"validate\"]`, since the gRPC services validate the bodies they build"
+            );
+        }
+        if api.openapi {
+            bail!(
+                "`[api] openapi` documents HTTP routes, and `framework = \"grpc\"` serves none: set `openapi = false`, or leave it out"
+            );
+        }
+        return Ok(());
+    };
+    if !validate || !config.extractors.contains(&extractor) {
         bail!(
             "`api.output` needs `derive = [\"serde\", \"validate\"]` and `{}` in `extractors`, since API features take validated bodies through the {}-web extractor",
-            framework.extractor().name(),
+            extractor.name(),
             framework.name().replace('_', "-"),
         );
     }

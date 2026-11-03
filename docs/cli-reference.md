@@ -291,9 +291,10 @@ picks the web framework they are generated for: `actix_web` (the default),
 command line. `grpc` also writes one `proto/<resource>.proto` per Resource
 (proto3, the crate's package, the row and input messages, the list page
 and a service with unary `Get`, `List`, `Create`, `Update` and `Delete`),
-which `--check` covers like every generated file; its HTTP features are
-axum's for now (engine ADR 0028). The framework needs its extractor in
-`extractors` (`actix_web`, or `axum` for `axum` and `grpc`), and the flag
+and, in each feature, a `grpc.rs` in place of the routes and handlers: the
+proto's tonic service over the feature's service trait (engine ADR 0028);
+`--check` covers both like every generated file. The framework needs its
+extractor in `extractors` (`actix_web`, or `axum`; none for `grpc`), and the flag
 needs the `[api]` section: without it the run generates no API features
 and says so. Its `pagination` key picks the JSON shape a list answers a
 page in: `compact` (the default, `{items, page, per_page, total}`),

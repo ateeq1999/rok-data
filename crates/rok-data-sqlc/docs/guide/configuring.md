@@ -86,18 +86,75 @@ SQL enum is an enum nested in the row message (`Note.Status`), its first
 value `<ENUM>_UNSPECIFIED = 0`. The well-known types are imported only when
 a message uses them. The drift check covers the files, and a generated
 `.proto` no Resource makes any more is stale; your own `.proto` files in
-`proto/` are never touched. Until the generated tonic service lands, the
-features' routes, handlers and shared tools are axum's.
+`proto/` are never touched.
+
+In place of `routes.rs` and `handlers.rs`, each `grpc` feature has a
+`grpc.rs`: the proto's tonic service (`NotesService` of
+`notes_service_server`), implemented on the feature's own `NotesService`.
+Each RPC reads its request message into the feature's DTOs, checks them by
+their rules as an HTTP body is checked, calls the service trait method the
+HTTP handlers call (`NotesServiceApi::get_one` for `Get`, `remove` for
+`Delete`), and answers with messages. So `dto.rs`, `service_api.rs` and
+your `service.rs` are the same as for the HTTP frameworks. The root's
+`generated.rs` holds `proto` (`tonic::include_proto!` of the package your
+`build.rs` compiles from `proto/`) and `routes(pool)`, a tonic `Routes` of
+every feature's server, which `app.rs` serves.
+
+`shared/grpc.rs` is generated beside the other shared tools, which name no
+HTTP framework under `grpc` (there is no `health.rs` or `tenant.rs`). It is
+the one place an `AppError` becomes a status, by its code: `not_found`
+`NOT_FOUND`; `validation_failed` `INVALID_ARGUMENT`, each field error a
+`google.rpc.BadRequest` violation in the details (`ALREADY_EXISTS` when
+every one is a `unique` value another row has); `conflict`
+`ALREADY_EXISTS`; `unauthorized` `UNAUTHENTICATED`; `forbidden`
+`PERMISSION_DENIED`; `bad_request` `INVALID_ARGUMENT`; `version_conflict`
+`ABORTED`; `precondition_required` `FAILED_PRECONDITION`;
+`payload_too_large` `RESOURCE_EXHAUSTED`; anything else `INTERNAL`, logged.
+A service reads its caller (`AuthUser`) and its tenant from the request's
+extensions, where your interceptor puts them: no caller is
+`UNAUTHENTICATED`, a caller who isn't an admin of an admin-only feature
+`PERMISSION_DENIED`. A field that holds no value of its column's type is
+`INVALID_ARGUMENT` naming the field. A message can't say `NULL`: an
+update's absent field keeps its column, as an absent HTTP field does, so
+no update over gRPC clears a nullable column; an empty repeated field is
+no value too. A versioned row's update message ends with the version the
+caller read (`int64 revision`), as `If-Match` holds it over HTTP.
+
+The project needs `tonic`, `tonic-prost`, `tonic-types`, `prost` and
+`prost-types`, and a `build.rs` that compiles `proto/` with
+`tonic-prost-build` fed by `protox`, so no `protoc` is installed (the
+gRPC fixture's):
+
+<!-- source: tests/grpc-app/build.rs -->
+```rust
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut protos: Vec<PathBuf> = std::fs::read_dir("proto")?
+        .map(|entry| entry.map(|entry| entry.path()))
+        .collect::<Result<_, _>>()?;
+    protos.retain(|path| path.extension().is_some_and(|ext| ext == "proto"));
+    protos.sort();
+    let descriptors = protox::compile(&protos, ["proto"])?;
+    tonic_prost_build::configure().compile_fds(descriptors)?;
+    println!("cargo:rerun-if-changed=proto");
+    Ok(())
+}
+```
+
+`grpc` has no OpenAPI document (`openapi` is off unless set, and setting it
+on fails) and no list paged by cursor (a table in `api.cursor` fails).
 
 The framework needs its extractor in `extractors` (`actix_web` or `axum`;
-`axum` under `grpc`), since the features take validated JSON bodies through
-it; a run with `framework = "axum"` and only `actix_web` in `extractors`
-fails naming the extractor it needs. `--api-framework` sets `actix_web` or
-`axum` from the command line.
+none under `grpc`, whose services read no HTTP body), since the features
+take validated JSON bodies through it; a run with `framework = "axum"` and
+only `actix_web` in `extractors` fails naming the extractor it needs.
+`--api-framework` sets `actix_web` or `axum` from the command line.
 
 `check-arch` reads this key too: its rule 1 polices the API backend the
 key names — `use actix_web` under the default, `use axum` under `axum` —
 over the same allowed-file set, and the scaffolded `AGENTS.md` states it.
+Under `grpc` it polices `use tonic`, which in a feature only `grpc.rs` may
+name, and a feature holds `grpc.rs` in place of `routes.rs` and
+`handlers.rs`.
 
 The axum features keep the wire standard: a malformed path or query is a
 `400` with the error body, answered by the `Path` and `Query` extractors in

@@ -55,8 +55,8 @@ impl Framework {
     pub(crate) fn of(api: &ApiConfig) -> Self {
         match api.framework {
             ApiFramework::ActixWeb => Framework::ActixWeb,
-            // gRPC's features keep axum's routes and handlers until a
-            // generated tonic service replaces them (engine ADR 0028).
+            // gRPC renders no routes or handlers (its edge is `grpc.rs`,
+            // engine ADR 0028), so no renderer asks it for axum's.
             ApiFramework::Axum | ApiFramework::Grpc => Framework::Axum,
         }
     }

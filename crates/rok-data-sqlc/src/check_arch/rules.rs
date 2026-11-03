@@ -50,11 +50,20 @@ pub(super) const AXUM: Rule1 = Rule1 {
     feature: RULE_1_FEATURE,
 };
 
+/// gRPC's rule 1: tonic, named in a feature only by its service,
+/// `grpc.rs` (engine ADR 0028), which replaces the HTTP files.
+pub(super) const GRPC: Rule1 = Rule1 {
+    watched: "tonic",
+    root: RULE_1_ROOT,
+    feature: &["grpc.rs"],
+};
+
 /// The rule 1 of `framework`: what it watches and what may name it.
 pub(super) fn rule_1(framework: ApiFramework) -> &'static Rule1 {
     match framework {
         ApiFramework::ActixWeb => &ACTIX_WEB,
-        ApiFramework::Axum | ApiFramework::Grpc => &AXUM,
+        ApiFramework::Axum => &AXUM,
+        ApiFramework::Grpc => &GRPC,
     }
 }
 
@@ -135,7 +144,7 @@ pub(crate) fn rules(framework: ApiFramework) -> [String; 6] {
 
 /// What `check-arch` enforces besides the rules: where the features and the
 /// data layer are, the layout, and the test-code exemption.
-pub(crate) fn scope() -> String {
+pub(crate) fn scope(framework: ApiFramework) -> String {
     format!(
         "The features are the directories under `api.output` (`src/features/` by \
          default), and the data layer is the module `api.db_path` names \
@@ -147,7 +156,7 @@ pub(crate) fn scope() -> String {
          `#![cfg(test)]`, items under `#[cfg(test)]`, `#[test]` and \
          `#[<path>::test]` functions, and `tests/`, which is not read. Each \
          violation prints as `path:line: rule: message`. Rule 3 is yours to keep.",
-        listed(super::FEATURE_FILES)
+        listed(&super::feature_files(framework))
     )
 }
 
@@ -160,7 +169,7 @@ pub(crate) fn rules_markdown(framework: ApiFramework) -> String {
         out.push_str(&wrap(&format!("{}. {rule}", index + 1), "   "));
     }
     out.push('\n');
-    out.push_str(&wrap(&scope(), ""));
+    out.push_str(&wrap(&scope(framework), ""));
     out.truncate(out.trim_end().len());
     out
 }
@@ -248,7 +257,7 @@ mod tests {
                     index + 1
                 );
             }
-            assert!(normalized(&markdown).contains(&normalized(&scope())));
+            assert!(normalized(&markdown).contains(&normalized(&scope(framework))));
             for line in markdown.lines() {
                 assert!(line.chars().count() <= 76 || !line.contains(' '), "{line}");
             }
@@ -270,7 +279,7 @@ mod tests {
                 "architecture.md does not say: {rule}"
             );
         }
-        let scope = normalized(&scope());
+        let scope = normalized(&scope(ApiFramework::ActixWeb));
         assert!(
             guide.contains(&scope),
             "architecture.md does not say: {scope}"

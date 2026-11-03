@@ -19,6 +19,7 @@ mod endpoint;
 mod feature;
 mod files;
 mod framework;
+mod grpc;
 mod handlers;
 mod layout;
 pub mod listing;
@@ -67,6 +68,9 @@ pub fn features<'a>(tables: &'a [Table], api: &'a ApiConfig) -> Result<Vec<Featu
         feature.references = references;
         feature.unique_checks = unique::checks(feature);
     }
+    if api.framework == crate::ApiFramework::Grpc {
+        shared::grpc::check(&features)?;
+    }
     Ok(features)
 }
 
@@ -87,17 +91,29 @@ pub fn has_listing(feature: &Feature<'_>) -> bool {
 /// `README.md`.
 pub fn render(features: &[Feature<'_>], api: &ApiConfig) -> Vec<(PathBuf, String)> {
     let framework = Framework::of(api);
+    let grpc = api.framework == crate::ApiFramework::Grpc;
     let root = api.output.as_path();
     let mut files = Vec::new();
     for feature in features {
         let dir = root.join(feature.module());
+        // gRPC's edge is the feature's service, in place of the HTTP routes
+        // and handlers (engine ADR 0028); the rest is the same.
+        if grpc {
+            files.extend([
+                (dir.join("mod.rs"), files::render_grpc_mod(feature)),
+                (dir.join("grpc.rs"), grpc::render(feature)),
+            ]);
+        } else {
+            files.extend([
+                (dir.join("mod.rs"), files::render_mod(feature)),
+                (dir.join("routes.rs"), framework.routes(feature)),
+                (
+                    dir.join("handlers.rs"),
+                    handlers::render_handlers(feature, framework),
+                ),
+            ]);
+        }
         files.extend([
-            (dir.join("mod.rs"), files::render_mod(feature)),
-            (dir.join("routes.rs"), framework.routes(feature)),
-            (
-                dir.join("handlers.rs"),
-                handlers::render_handlers(feature, framework),
-            ),
             (dir.join("dto.rs"), dto::render(feature)),
             (dir.join("model.rs"), files::render_model(feature)),
             (dir.join("repo.rs"), files::render_repo(feature)),
@@ -105,14 +121,20 @@ pub fn render(features: &[Feature<'_>], api: &ApiConfig) -> Vec<(PathBuf, String
             (dir.join("service.rs"), service::render_scaffold(feature)),
         ]);
     }
-    files.push((
-        root.join("generated.rs"),
-        framework.generated(features, api),
-    ));
-    files.push((
-        root.join("README.md"),
-        root::render_readme(features, framework),
-    ));
+    let (generated, readme) = if grpc {
+        let package = proto::package(&proto::proto_dir(api));
+        (
+            grpc::generated(features, &package),
+            root::render_readme(features, root::Edge::Grpc),
+        )
+    } else {
+        (
+            framework.generated(features, api),
+            root::render_readme(features, root::Edge::Http(framework)),
+        )
+    };
+    files.push((root.join("generated.rs"), generated));
+    files.push((root.join("README.md"), readme));
     files
 }
 
