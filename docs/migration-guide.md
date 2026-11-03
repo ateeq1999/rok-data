@@ -1,7 +1,7 @@
 ---
 title: Migrating to `rok-data`
-description: Per-repository migration notes (rok-db, rok-sqlc, rok-fluent, rok-orm) and the 0.6.0 / 0.5.0 / 0.4.0 / 0.3.0 release upgrades.
-updated: 2026-11-02
+description: Per-repository migration notes (rok-db, rok-sqlc, rok-fluent, rok-orm) and the 0.7.0 / 0.6.0 / 0.5.0 / 0.4.0 / 0.3.0 release upgrades.
+updated: 2026-11-03
 kind: guide
 source: crates/rok-data/tests/docs/migration_guide.rs (compiled samples), CHANGELOG.md
 ---
@@ -12,8 +12,8 @@ source: crates/rok-data/tests/docs/migration_guide.rs (compiled samples), CHANGE
 
 - **What this page does:** per-repository notes — what changes when a
   project moves from rok-db, rok-sqlc, rok-fluent or rok-orm into this
-  workspace — plus the release upgrades **To 0.6.0**, **To 0.5.0**, **To 0.4.0** and
-  **To 0.3.0**.
+  workspace — plus the release upgrades **To 0.7.0**, **To 0.6.0**, **To 0.5.0**,
+  **To 0.4.0** and **To 0.3.0**.
 - **Upgrade recipe (any release):** regenerate once (`rok gen`, or
   `rok sqlc generate` for engine projects), then fix what the compiler
   reports. The compiler finds the breakages; this page explains each.
@@ -29,10 +29,29 @@ what was actually renamed, removed, or unified. Everything not listed is
 unchanged — same APIs, same test suites, same behavior (verified by
 porting the original tests).
 
-Four sections are not about a repository lineage: **To 0.6.0**, **To 0.5.0**, **To
-0.4.0** and **To 0.3.0**, the upgrades between workspace releases. The
-runtime's public surface and the generated output change in the last two;
-0.5.0 changes the templates only.
+Five sections are not about a repository lineage: **To 0.7.0**, **To 0.6.0**,
+**To 0.5.0**, **To 0.4.0** and **To 0.3.0**, the upgrades between workspace
+releases. The runtime's public surface and the generated output change in
+the last two; 0.5.0 changes the templates only.
+
+## To 0.7.0
+
+Nothing to change in a project: the runtime, the generated code and the
+commands are as in 0.6.1. Move the `rok-data` pin to `"0.7"` and
+regenerate; only the dependency hint in `db/mod.rs` changes.
+
+Around the project (workspace ADR 0032):
+
+- **Two more binaries**: `cargo install rok-data-cli` installs `rok-data`
+  (every command), `rok-db` (`server`, `db`, `migrate`, `schema`) and
+  `rok-gen` (`init`, `gen`, `generate`, `sqlc`). `rok` (rok-v2) is
+  unchanged and still answers every command.
+- **No binaries or installers here any more.** This repository's releases
+  publish the crates only; `rok` comes from
+  [rok-v2](https://github.com/ateeq1999/rok-v2) (`cargo install rok-cli`,
+  or its `install.sh` / `install.ps1`). A script that downloaded a
+  `rok-data-<version>-<target>` archive from these releases takes rok-v2's
+  `rok` archive instead, or runs `cargo install rok-data-cli`.
 
 ## To 0.6.0
 

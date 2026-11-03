@@ -7,6 +7,12 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+## Workspace 0.7.0 - 2026-11-03
+
+Published as `rok-data-sqlc` 0.7.0 with the workspace (root `CHANGELOG.md`).
+The engine and its generated API are as in 0.6.1; the release carries the
+CLI's `rok-db` and `rok-gen` binaries and moves binary releases to rok-v2.
+
 ## Workspace 0.6.1 - 2026-11-02
 
 Published as `rok-data-sqlc` 0.6.1, the first 0.6 release of this crate:

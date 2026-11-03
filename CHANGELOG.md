@@ -9,6 +9,8 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+## [0.7.0] — `rok-db` and `rok-gen`; binaries and installers move to rok-v2
+
 **Added**
 
 - Two specialized binaries beside `rok-data`, from the same crate:
