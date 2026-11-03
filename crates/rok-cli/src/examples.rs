@@ -36,7 +36,7 @@ pub const EXAMPLES: &[(&str, &[Example])] = &[
             ),
             ex(
                 "rok init shop --schema schema.sql",
-                "Seed the schema directory with an existing file, as schema/0001_init.sql.",
+                "Start the schema directory from an existing schema file.",
             ),
         ],
     ),
