@@ -281,9 +281,14 @@ one object per client to the array:
 `{"client", "dir", "document", "exported", "written", "unchanged", "missing", "changed", "stale", "drift"}`.
 
 The `[api]` section holds the API features' settings. Its `framework` key
-picks the web framework they are generated for: `actix_web` (the default)
-or `axum`; `--api-framework` sets it from the command line. The framework
-needs its extractor in `extractors` (`actix_web` or `axum`), and the flag
+picks the web framework they are generated for: `actix_web` (the default),
+`axum` or `grpc`; `--api-framework` sets `actix_web` or `axum` from the
+command line. `grpc` also writes one `proto/<resource>.proto` per Resource
+(proto3, the crate's package, the row and input messages, the list page
+and a service with unary `Get`, `List`, `Create`, `Update` and `Delete`),
+which `--check` covers like every generated file; its HTTP features are
+axum's for now (engine ADR 0028). The framework needs its extractor in
+`extractors` (`actix_web`, or `axum` for `axum` and `grpc`), and the flag
 needs the `[api]` section: without it the run generates no API features
 and says so. Its `pagination` key picks the JSON shape a list answers a
 page in: `compact` (the default, `{items, page, per_page, total}`),

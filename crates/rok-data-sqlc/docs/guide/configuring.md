@@ -56,9 +56,10 @@ output = "src/features"
 framework = "axum"
 ```
 
-The web framework the features are generated for: `actix_web` (the default)
-or `axum`. It decides the routes, the handlers and the shared tools; the
-bodies, the service and the OpenAPI document are the same either way.
+The web framework the features are generated for: `actix_web` (the
+default), `axum` or `grpc`. It decides the routes, the handlers and the
+shared tools; the bodies, the service and the OpenAPI document are the same
+either way. An unknown value fails with the valid ones.
 
 With `actix_web`, a feature's `routes.rs` mounts a `web::ServiceConfig`
 scope, its handlers take `web::Data`, `web::Path` and `web::Query`, and the
@@ -67,10 +68,32 @@ root's `generated.rs` holds `register_services` and `configure_all`. With
 `Extension`, `Path` and `Query`, and the root's `generated.rs` holds one
 `router(pool)`.
 
-The framework needs its extractor in `extractors` (`actix_web` or `axum`),
-since the features take validated JSON bodies through it; a run with
-`framework = "axum"` and only `actix_web` in `extractors` fails naming the
-extractor it needs. `--api-framework` sets it from the command line.
+With `grpc` (engine ADR 0028), a run also writes one `.proto` per Resource
+in `proto/` at the project's root (beside the `src/` that holds `output`):
+`proto/notes.proto`, marked `@generated`. Each is proto3 in one package per
+project, the crate's name in `Cargo.toml` with `.v1` (`shop_api.v1`;
+`api.v1` without a `Cargo.toml`), and holds the row message, the create and
+update inputs, the list request and its page (`items`, `total`, `page`,
+`per_page`), and a service (`NotesService`) with unary `Get`, `List`,
+`Create`, `Update` and `Delete`, less the endpoints `skip` leaves out.
+Text, `uuid` and `numeric` are `string`; `int2`/`int4` `int32`, `int8`
+`int64`, `float4` `float`, `float8` `double`, `bool` `bool`, `bytea`
+`bytes`; dates and timestamps `google.protobuf.Timestamp`; `json`/`jsonb`
+`google.protobuf.Struct`; the other types (times of day, intervals, money,
+ranges, network addresses) travel as their text, and an array is
+`repeated`. A nullable column, and every update field, is `optional`. An
+SQL enum is an enum nested in the row message (`Note.Status`), its first
+value `<ENUM>_UNSPECIFIED = 0`. The well-known types are imported only when
+a message uses them. The drift check covers the files, and a generated
+`.proto` no Resource makes any more is stale; your own `.proto` files in
+`proto/` are never touched. Until the generated tonic service lands, the
+features' routes, handlers and shared tools are axum's.
+
+The framework needs its extractor in `extractors` (`actix_web` or `axum`;
+`axum` under `grpc`), since the features take validated JSON bodies through
+it; a run with `framework = "axum"` and only `actix_web` in `extractors`
+fails naming the extractor it needs. `--api-framework` sets `actix_web` or
+`axum` from the command line.
 
 `check-arch` reads this key too: its rule 1 polices the API backend the
 key names — `use actix_web` under the default, `use axum` under `axum` —

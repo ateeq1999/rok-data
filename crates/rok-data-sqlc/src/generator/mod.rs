@@ -279,6 +279,9 @@ pub fn plan_files_with_queries(
     if let Some(api) = &config.api {
         files.extend(api::shared::render(output, api));
         files.extend(api::render(&features, api));
+        if api.framework == crate::ApiFramework::Grpc {
+            files.extend(api::proto::render(&features, api, &enums));
+        }
     }
     if !enums.is_empty() {
         files.push((output.join("types.rs"), types::render(&enums, derives)));

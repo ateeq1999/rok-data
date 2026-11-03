@@ -28,6 +28,14 @@ Date: 2026-11-03 · Status: accepted (implements workspace ADR 0030's generated-
 - Projects compile `proto/` with `tonic-build` fed by `protox`, so no
   `protoc` is installed anywhere.
 
+- Settled with the first slice: `proto/` sits at the project's root
+  (beside the `src/` holding `api.output`); the package is the crate's
+  name with `.v1` (`shop_api.v1`); an SQL enum is nested in the row
+  message, since every Resource shares the package; the types this ADR
+  doesn't name (times of day, intervals, money, ranges, network
+  addresses) travel as `string`, an array as `repeated`; every update
+  field is `optional`.
+
 ## Considered Options
 
 - **A separate gRPC generator beside the API generator**: a second model

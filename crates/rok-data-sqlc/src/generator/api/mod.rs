@@ -25,6 +25,7 @@ pub mod listing;
 mod operation;
 mod paths;
 mod prechecks;
+pub mod proto;
 mod relation_routes;
 mod relation_service;
 mod relations;
@@ -116,8 +117,13 @@ pub fn render(features: &[Feature<'_>], api: &ApiConfig) -> Vec<(PathBuf, String
 }
 
 /// The directories whose generated files a run with `api` owns, besides
-/// `output`: `api.output` and the shared tools' directory. A generated file
-/// in one that the run doesn't plan is stale.
-pub fn owned_dirs(api: &ApiConfig) -> [PathBuf; 2] {
-    [api.output.clone(), shared::shared_dir(api)]
+/// `output`: `api.output`, the shared tools' directory and `proto/`. A
+/// generated file in one that the run doesn't plan is stale, so a project
+/// leaving `framework = "grpc"` loses its generated protos too.
+pub fn owned_dirs(api: &ApiConfig) -> [PathBuf; 3] {
+    [
+        api.output.clone(),
+        shared::shared_dir(api),
+        proto::proto_dir(api),
+    ]
 }

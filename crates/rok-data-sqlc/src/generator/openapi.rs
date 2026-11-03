@@ -97,7 +97,7 @@ fn as_text(rust_type: &str) -> String {
 pub fn swagger_ui_hint(framework: crate::ApiFramework) -> String {
     let feature = match framework {
         crate::ApiFramework::ActixWeb => "actix-web",
-        crate::ApiFramework::Axum => "axum",
+        crate::ApiFramework::Axum | crate::ApiFramework::Grpc => "axum",
     };
     format!(
         "//   utoipa-swagger-ui = {{ version = \"9\", features = [\"{feature}\", \"vendored\"] }}\n"

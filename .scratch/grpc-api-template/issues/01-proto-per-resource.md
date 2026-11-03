@@ -6,11 +6,11 @@ Spec: `docs/specs/grpc-api-template.md` · engine ADR 0028
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `framework = "grpc"` parses; an unknown framework still fails with the valid values (now including `grpc`)
-- [ ] One `.proto` per Resource under `proto/`, with the `@generated` header
-- [ ] Type mapping per engine ADR 0028, nullable → `optional`, enums with `<ENUM>_UNSPECIFIED = 0` first, `google/protobuf/timestamp.proto` and `struct.proto` imported only when used
-- [ ] The service holds the 5 unary RPCs; `List` returns the page message
-- [ ] Generation unit tests over the shared fixture schema assert the above
-- [ ] `rok gen check` fails on a hand-edited or stale `.proto`
+- [x] `framework = "grpc"` parses; an unknown framework still fails with the valid values (now including `grpc`)
+- [x] One `.proto` per Resource under `proto/`, with the `@generated` header
+- [x] Type mapping per engine ADR 0028, nullable → `optional`, enums with `<ENUM>_UNSPECIFIED = 0` first, `google/protobuf/timestamp.proto` and `struct.proto` imported only when used
+- [x] The service holds the 5 unary RPCs; `List` returns the page message
+- [x] Generation unit tests over the shared fixture schema assert the above
+- [x] `rok gen check` fails on a hand-edited or stale `.proto`

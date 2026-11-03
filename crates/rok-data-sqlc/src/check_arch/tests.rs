@@ -174,7 +174,7 @@ fn the_wiring_may_be_split_into_app() -> Result<()> {
     for framework in [ApiFramework::ActixWeb, ApiFramework::Axum] {
         let watched = match framework {
             ApiFramework::ActixWeb => "actix_web",
-            ApiFramework::Axum => "axum",
+            ApiFramework::Axum | ApiFramework::Grpc => "axum",
         };
         let router = format!("use {watched}::http::StatusCode;\nuse sqlx::PgPool;\n");
         let files = [

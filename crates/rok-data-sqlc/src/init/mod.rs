@@ -90,7 +90,8 @@ const RULES_PLACEHOLDER: &str = "{rules}";
 pub(crate) fn plan(dir: &Path, krate: &str, framework: ApiFramework) -> Vec<(PathBuf, String)> {
     let own = match framework {
         ApiFramework::ActixWeb => ACTIX_WEB,
-        ApiFramework::Axum => AXUM,
+        // No skeleton of its own yet: the grpc Template is rok-templates'.
+        ApiFramework::Axum | ApiFramework::Grpc => AXUM,
     };
     COMMON
         .iter()
