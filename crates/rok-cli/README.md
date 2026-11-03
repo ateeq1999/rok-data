@@ -12,10 +12,22 @@ cargo install rok-data-cli
 rok-data --help
 ```
 
-The binary it installs is `rok-data`. The toolchain's `rok` command
+It installs three binaries, one CLI:
+
+| Binary | Commands |
+| --- | --- |
+| `rok-data` | all of them |
+| `rok-db` | `server`, `db`, `migrate`, `schema` |
+| `rok-gen` | `init`, `gen`, `generate`, `sqlc` |
+
+`rok-db` and `rok-gen` list only their commands and refuse the other's,
+naming the binary that answers (`rok-db gen` says it is `rok-gen gen`).
+The toolchain's `rok` command
 ([rok-v2](https://github.com/ateeq1999/rok-v2)) links this crate
 (`rok_data_cli::run`, `rok_data_cli::command()`), so every command below
 also runs as `rok …`, and help shows whichever name you called it by.
+A caller linking one group uses `rok_data_cli::run_group` and
+`rok_data_cli::group_command` with a `Group`.
 
 ```text
 rok init [NAME]                   scaffold a project (skeleton or template)

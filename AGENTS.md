@@ -42,10 +42,14 @@ functions; sqlx is depended on only by `rok-data-core`.
    warnings` clean. The engine's `Cargo.toml` spells its lint set out
    (it does not inherit the workspace lints; see workspace ADR 0007) — keep the
    two consistent when changing either.
-2. Only one binary target in the whole workspace: `rok-data`. The `rok`
-   binary is rok-v2's, which links `rok_data_cli::run` and
-   `rok_data_cli::command()` (workspace ADR 0032); never name a binary
-   here `rok`. Regenerating the example is
+2. The binaries are `rok-cli`'s three, one CLI each: `rok-data` (every
+   command), `rok-db` and `rok-gen` (`run_group` with a `Group`: each
+   answers and lists only its commands, and refuses the other's with
+   the binary that answers it). A command belongs to exactly one group
+   (`tests/groups.rs` checks). The `rok` binary is rok-v2's, which links
+   `rok_data_cli::run` and `rok_data_cli::command()` (workspace ADR
+   0032); never name a binary here `rok`, and no other crate has one.
+   Regenerating the example is
    `cargo run -p rok-data-codegen --example regenerate`.
 3. `rok sqlc` tokens are forwarded verbatim to
    `rok_data_sqlc::cli::run_from`. Never re-declare that grammar in

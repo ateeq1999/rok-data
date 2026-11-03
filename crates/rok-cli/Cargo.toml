@@ -17,6 +17,14 @@ categories = ["database", "development-tools", "command-line-utilities"]
 name = "rok-data"
 path = "src/main.rs"
 
+[[bin]]
+name = "rok-db"
+path = "src/bin/rok-db.rs"
+
+[[bin]]
+name = "rok-gen"
+path = "src/bin/rok-gen.rs"
+
 [dependencies]
 rok-data = { workspace = true }
 rok-data-codegen = { workspace = true }

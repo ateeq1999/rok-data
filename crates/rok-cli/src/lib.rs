@@ -34,8 +34,11 @@ mod cli;
 pub mod commands;
 pub mod config;
 mod context;
+mod group;
 mod keychain;
 mod output;
+
+pub use group::Group;
 
 /// Run the CLI with `args` (including the program name, like
 /// `std::env::args().collect()`), returning the process exit code.
@@ -51,11 +54,32 @@ where
     I: IntoIterator<Item = T>,
     T: Into<String> + Clone,
 {
-    let args: Vec<String> = args.into_iter().map(Into::into).collect();
-    let program = program_name(&args);
+    run_in(None, args.into_iter().map(Into::into).collect())
+}
+
+/// [`run`], answering only `group`'s commands: what the `rok-db` and
+/// `rok-gen` binaries run. A command of the other group is a usage error
+/// (exit 2) naming the binary that answers it.
+pub fn run_group<I, T>(group: Group, args: I) -> ExitCode
+where
+    I: IntoIterator<Item = T>,
+    T: Into<String> + Clone,
+{
+    run_in(Some(group), args.into_iter().map(Into::into).collect())
+}
+
+fn run_in(group: Option<Group>, args: Vec<String>) -> ExitCode {
+    let fallback = group.map_or("rok-data", Group::binary);
+    let program = program_name(&args, fallback);
+    if let (Some(group), Some(word)) = (group, args.get(1))
+        && let Some(refusal) = cli::canonical(word).and_then(|name| group.refusal(&program, &name))
+    {
+        eprintln!("{refusal}");
+        return ExitCode::from(2);
+    }
     match route_sqlc(&program, &args) {
         Outcome::Handled(code) => code,
-        Outcome::Continue => run_root(&program, args),
+        Outcome::Continue => run_root(&program, group, args),
     }
 }
 
@@ -63,17 +87,23 @@ where
 /// linking this CLI (rok-v2's `rok`) embeds in its own help.
 #[must_use]
 pub fn command() -> clap::Command {
-    cli::command("rok-data")
+    cli::command("rok-data", None)
+}
+
+/// `group`'s commands, with their help, as its binary displays them.
+#[must_use]
+pub fn group_command(group: Group) -> clap::Command {
+    cli::command(group.binary(), Some(group))
 }
 
 /// The name to display: the file stem of `args[0]` (`rok-data` from
-/// `C:\…\rok-data.exe`), or `rok-data` when there is none.
-fn program_name(args: &[String]) -> String {
+/// `C:\…\rok-data.exe`), or `fallback` when there is none.
+fn program_name(args: &[String], fallback: &str) -> String {
     args.first()
         .and_then(|arg| std::path::Path::new(arg).file_stem())
         .and_then(|stem| stem.to_str())
         .filter(|stem| !stem.is_empty())
-        .unwrap_or("rok-data")
+        .unwrap_or(fallback)
         .to_owned()
 }
 
@@ -98,7 +128,7 @@ fn route_sqlc(program: &str, args: &[String]) -> Outcome {
     Continue
 }
 
-fn run_root(program: &str, args: Vec<String>) -> ExitCode {
+fn run_root(program: &str, group: Option<Group>, args: Vec<String>) -> ExitCode {
     let runtime = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -109,7 +139,7 @@ fn run_root(program: &str, args: Vec<String>) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    match cli::parse(program, &args[1..]) {
+    match cli::parse(program, group, &args[1..]) {
         cli::ParseOutcome::Informational => ExitCode::SUCCESS,
         cli::ParseOutcome::Usage => ExitCode::from(2),
         cli::ParseOutcome::Command(command) => {

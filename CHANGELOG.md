@@ -9,6 +9,16 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+**Added**
+
+- Two specialized binaries beside `rok-data`, from the same crate:
+  `rok-db` (`server`, `db`, `migrate`, `schema`) and `rok-gen` (`init`,
+  `gen`, `generate`, `sqlc`). Each lists only its commands and refuses
+  the other's with the binary that answers them (`rok-db gen`: "it is
+  `rok-gen gen` (or `rok gen`)", exit 2). `rok_data_cli::Group`,
+  `run_group` and `group_command` are the library side; `run` and
+  `command()` are unchanged.
+
 **Changed**
 
 - Binaries and the installers are rok-v2's (workspace ADR 0032): its
