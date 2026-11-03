@@ -8,7 +8,7 @@ Spec: `docs/specs/starter-feedback.md`
 
 **Status:** done
 
-- [ ] actix-api, axum-api, grpc-api and the Monorepo's API App install `rok` from the release, checksum verified
-- [ ] `ROK_VERSION` agrees with `rok-data.pin` (unit test)
-- [ ] The workflow's install step runs green once in CI
-- [ ] Template READMEs say how CI gets `rok`
+- [x] actix-api, axum-api (grpc-api once rok-templates#4 lands) and the Monorepo's API App install `rok` from the release, checksum verified
+- [x] `ROK_VERSION` agrees with `rok-data.pin` (unit test)
+- [ ] The workflow's install step runs green once in CI (checked in a Debian container; rok-templates' own CI never runs template workflows)
+- [x] Template READMEs say how CI gets `rok`
