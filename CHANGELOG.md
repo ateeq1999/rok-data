@@ -9,6 +9,19 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+**Added**
+
+- `rok server update <NAME>`: change a registered server's settings
+  (`--host`, `--port`, `--user`, `--database`, `--sslmode`, or the whole
+  connection with `--url`), its password (`--password-prompt`, or the one in
+  `--url`), or both. Settings not given keep their values; no change at all
+  is a usage error (exit 2).
+
+**Fixed**
+
+- A server URL without a database path (`postgres://user@host`) registers
+  no default database, as the CLI reference says, instead of an empty one.
+
 ## [0.7.0] — `rok-db` and `rok-gen`; binaries and installers move to rok-v2
 
 **Added**
