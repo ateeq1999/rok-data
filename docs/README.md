@@ -55,7 +55,7 @@ page; edit the source file and re-mark.
 
 | Path | What it is |
 | ---- | ---------- |
-| [`decisions/`](decisions/) (0001–0032) | workspace ADRs — every deliberate cross-crate choice; the single source for "why". The latest, [0032](decisions/0032-member-repos-and-subcommand-clis.md), splits rok-data into member repos under one `rok` |
+| [`decisions/`](decisions/) (0001–0033) | workspace ADRs — every deliberate cross-crate choice; the single source for "why". The latest, [0033](decisions/0033-template-modules-left-out-at-init.md), lets `rok init --without` leave a Template's Modules out |
 | [`migration-audit.md`](migration-audit.md) | what was audited out of the four source repositories before consolidation |
 | [`migration-plan.md`](migration-plan.md) | the original consolidation plan |
 | [`unified-pipeline-plan.md`](unified-pipeline-plan.md) | the 0.2.0 pipeline plan (schema-dir truth, front door, templates) |
