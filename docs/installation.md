@@ -25,28 +25,29 @@ The rok-data toolchain in minutes: one binary (`rok`), one runtime crate
 
 ## Install the CLI
 
-From crates.io:
+The `rok` command, from crates.io:
 
 ```sh
-cargo install rok-data-cli        # provides the `rok-data` binary
+cargo install rok-cli             # provides `rok` (rok-v2), which links this CLI
 ```
 
-Or from a checkout of this repository:
+Or a prebuilt binary: rok-v2's releases carry checksummed `rok`
+archives for Linux (musl), macOS, and Windows, x86_64 and ARM64, and its
+installers download, verify and install them:
 
 ```sh
-cargo install --path crates/rok-cli
-```
-
-Or take a prebuilt binary — GitHub releases carry checksummed archives
-for Linux (musl), macOS, and Windows, x86_64 and ARM64, and the
-repository's installers download, verify and install them:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/ateeq1999/rok-data/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/ateeq1999/rok-v2/main/install.sh | sh
 ```
 
 ```powershell
-irm https://raw.githubusercontent.com/ateeq1999/rok-data/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/ateeq1999/rok-v2/main/install.ps1 | iex
+```
+
+This CLI on its own, as `rok-data`:
+
+```sh
+cargo install rok-data-cli        # provides the `rok-data` binary
+cargo install --path crates/rok-cli   # or from a checkout of this repository
 ```
 
 ## Verify

@@ -1,17 +1,15 @@
 name: Release
 
-# Builds the rok-data binary for every supported platform and publishes the
-# archives, with SHA-256 checksums, as a GitHub release. The install scripts
-# (install.sh, install.ps1) download from these releases. Once the binaries
-# build, it also publishes the workspace's library crates to crates.io with
-# the CARGO_REGISTRY_TOKEN repository secret, rok-data-cli last (so `cargo
-# install rok-data-cli` gets the matching binary).
+# Publishes the workspace's crates to crates.io with the
+# CARGO_REGISTRY_TOKEN repository secret, rok-data-cli last. Binaries and
+# the installers are rok-v2's: its `rok` links rok-data-cli, and its
+# releases carry the archives (workspace ADR 0032).
 #
 # Pushing a tag `vX.Y.Z` releases that version: the tag must match the
 # workspace's `version` (the single `[workspace.package] version` every
-# crate inherits), and the release notes are CHANGELOG.md's `## [X.Y.Z]`
-# section. To build an existing tag again, run the workflow by hand with
-# that tag; it updates the release's assets instead of failing.
+# crate inherits), and CHANGELOG.md must have a `## [X.Y.Z]` section. To
+# publish an existing tag again (a run stopped partway), run the workflow
+# by hand with that tag; versions already published are skipped.
 
 on:
   push:
@@ -74,171 +72,15 @@ jobs:
           name: release-notes
           path: release-notes.md
 
-  build:
-    name: Build ${{ matrix.target }}
-    needs: prepare
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Linux builds link musl statically, so one binary runs on any
-          # distribution regardless of its glibc version. rok-data depends
-          # on sqlx without TLS features, so the musl build carries no
-          # native TLS library.
-          - target: x86_64-unknown-linux-musl
-            os: ubuntu-latest
-          - target: aarch64-unknown-linux-musl
-            os: ubuntu-24.04-arm
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-          - target: aarch64-pc-windows-msvc
-            os: windows-latest
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ env.TAG }}
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: stable
-          targets: ${{ matrix.target }}
-      - name: Install musl tools
-        if: contains(matrix.target, 'musl')
-        run: sudo apt-get update && sudo apt-get install -y musl-tools
-      - name: Build
-        run: cargo build --workspace --release --locked --target ${{ matrix.target }}
-      - name: Package (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          name="rok-data-${{ needs.prepare.outputs.version }}-${{ matrix.target }}"
-          mkdir -p "dist/$name"
-          cp "target/${{ matrix.target }}/release/rok-data" "dist/$name/"
-          cp README.md CHANGELOG.md LICENSE-MIT LICENSE-APACHE "dist/$name/"
-          tar -C dist -czf "dist/$name.tar.gz" "$name"
-          cd dist && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
-      - name: Package (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $name = "rok-data-${{ needs.prepare.outputs.version }}-${{ matrix.target }}"
-          New-Item -ItemType Directory -Force "dist/$name" | Out-Null
-          Copy-Item "target/${{ matrix.target }}/release/rok-data.exe" "dist/$name/"
-          Copy-Item README.md, CHANGELOG.md, LICENSE-MIT, LICENSE-APACHE "dist/$name/"
-          Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.zip"
-          $hash = (Get-FileHash -Algorithm SHA256 "dist/$name.zip").Hash.ToLower()
-          # Same format as shasum: "<hash>  <file>", LF line ending.
-          [IO.File]::WriteAllText("dist/$name.zip.sha256", "$hash  $name.zip`n")
-      - name: Smoke test the native binary
-        # aarch64 Windows cannot run on the x86_64 runner.
-        if: matrix.target != 'aarch64-pc-windows-msvc'
-        shell: bash
-        run: |
-          bin="target/${{ matrix.target }}/release/rok-data"
-          [ -f "$bin.exe" ] && bin="$bin.exe"
-          "$bin" --version
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dist-${{ matrix.target }}
-          path: |
-            dist/*.tar.gz
-            dist/*.zip
-            dist/*.sha256
-
-  # Both macOS binaries on one runner: aarch64 natively and x86_64
-  # cross-compiled, smoke-tested under Rosetta. macOS runners are scarce, and
-  # a release whose two macOS builds each wait for one was cancelled twice
-  # ("not acquired by Runner ... after multiple attempts"), skipping every
-  # publish step. The artifacts keep their per-target names.
-  build-macos:
-    name: Build aarch64-apple-darwin + x86_64-apple-darwin
-    needs: prepare
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ env.TAG }}
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: stable
-          targets: aarch64-apple-darwin, x86_64-apple-darwin
-      - name: Build
-        run: |
-          cargo build --workspace --release --locked --target aarch64-apple-darwin
-          cargo build --workspace --release --locked --target x86_64-apple-darwin
-      - name: Package
-        shell: bash
-        run: |
-          for target in aarch64-apple-darwin x86_64-apple-darwin; do
-            name="rok-data-${{ needs.prepare.outputs.version }}-$target"
-            mkdir -p "dist/$target/$name"
-            cp "target/$target/release/rok-data" "dist/$target/$name/"
-            cp README.md CHANGELOG.md LICENSE-MIT LICENSE-APACHE "dist/$target/$name/"
-            tar -C "dist/$target" -czf "dist/$target/$name.tar.gz" "$name"
-            (cd "dist/$target" && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256")
-          done
-      - name: Smoke test both binaries
-        # The x86_64 binary runs under Rosetta; make sure it exists first
-        # (the runner image hasn't always shipped it).
-        shell: bash
-        run: |
-          sudo softwareupdate --install-rosetta --agree-to-license || true
-          target/aarch64-apple-darwin/release/rok-data --version
-          target/x86_64-apple-darwin/release/rok-data --version
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dist-aarch64-apple-darwin
-          path: |
-            dist/aarch64-apple-darwin/*.tar.gz
-            dist/aarch64-apple-darwin/*.sha256
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dist-x86_64-apple-darwin
-          path: |
-            dist/x86_64-apple-darwin/*.tar.gz
-            dist/x86_64-apple-darwin/*.sha256
-
-  publish:
-    name: Publish GitHub release
-    needs: [prepare, build, build-macos]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      GH_REPO: ${{ github.repository }}
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-      - name: Collect assets
-        run: |
-          mkdir dist
-          find artifacts -path '*/dist-*/*' -type f -exec cp {} dist/ \;
-          (cd dist && cat ./*.sha256 > SHA256SUMS)
-          ls -l dist
-      - name: Create or update the release
-        run: |
-          if gh release view "$TAG" > /dev/null 2>&1; then
-            gh release upload "$TAG" dist/* --clobber
-          else
-            prerelease=""
-            case "$TAG" in *-*) prerelease="--prerelease" ;; esac
-            gh release create "$TAG" dist/* \
-              --title "rok-data ${{ needs.prepare.outputs.version }}" \
-              --notes-file artifacts/release-notes/release-notes.md \
-              --verify-tag $prerelease
-          fi
-
-  # Publishes the workspace crates once every binary has built, since a
-  # crates.io release can't be taken back. They publish sequentially in
+  # Publishes the workspace crates once the tag checks out; a crates.io
+  # release can't be taken back. They publish sequentially in
   # dependency order (a parallel matrix would race: publishing rok-data
   # before `rok-data-macros vX` is visible on the registry fails), and a
   # version already on crates.io (a tag run again by hand, or published by
   # hand) is skipped, not an error.
   crates-io:
     name: Publish to crates.io
-    needs: [prepare, build, build-macos]
+    needs: prepare
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -273,37 +115,3 @@ jobs:
             cargo publish --locked -p "$crate"
           done
 
-  # Installs the published release with the install scripts on each OS, the
-  # way a user would, and runs the installed binary.
-  verify-install:
-    name: Verify install (${{ matrix.os }})
-    needs: [prepare, publish]
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ env.TAG }}
-      - name: install.sh
-        if: runner.os != 'Windows'
-        env:
-          ROK_VERSION: ${{ env.TAG }}
-          ROK_INSTALL_DIR: ${{ runner.temp }}/bin
-        run: |
-          sh install.sh
-          "$ROK_INSTALL_DIR/rok-data" --version | grep -F "${{ needs.prepare.outputs.version }}"
-      - name: install.ps1
-        if: runner.os == 'Windows'
-        shell: pwsh
-        env:
-          ROK_VERSION: ${{ env.TAG }}
-          ROK_INSTALL_DIR: ${{ runner.temp }}\bin
-          ROK_NO_MODIFY_PATH: "1"
-        run: |
-          ./install.ps1
-          $out = & "$env:ROK_INSTALL_DIR\rok-data.exe" --version
-          Write-Output $out
-          if ($out -notlike "*${{ needs.prepare.outputs.version }}*") { exit 1 }

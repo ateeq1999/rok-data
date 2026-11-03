@@ -157,21 +157,13 @@ pub(crate) enum ParseOutcome {
 /// only so the root help lists it; tokens after `sqlc` never reach this
 /// parser (see [`crate::route_sqlc`]).
 pub(crate) fn command(program: &str) -> clap::Command {
-    let command = Cli::command()
+    Cli::command()
         .bin_name(program.to_owned())
         .display_name(program.to_owned())
         .subcommand(rok_data_sqlc::cli::command().name("sqlc").about(
             "Legacy: generate SQLx Rust modules from SQL schema files \
                  (generate|init|check-arch); superseded by `rok gen`",
-        ));
-    // Likewise `rok tools …` is routed to rok-tools before this parser (ADR 0026).
-    #[cfg(rok_tools)]
-    let command = command.subcommand(
-        rok_tools_cli::command()
-            .name("tools")
-            .about("Developer tools: grep, replace, loc, refactor, … (`rok tools list`)"),
-    );
-    command
+        ))
 }
 
 /// Parse `args` (which must NOT include the program name) into a command,

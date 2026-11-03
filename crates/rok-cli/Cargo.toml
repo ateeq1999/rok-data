@@ -21,11 +21,6 @@ path = "src/main.rs"
 rok-data = { workspace = true }
 rok-data-codegen = { workspace = true }
 rok-data-sqlc = { workspace = true }
-# `rok tools …` (ADR 0026) waits for rok-tools-cli on crates.io: a path into
-# a sibling checkout neither builds in CI nor publishes. To build it locally,
-# restore this line and build with `RUSTFLAGS="--cfg rok_tools"`, the cfg the
-# `rok tools` code is gated on:
-# rok-tools-cli = { path = "../../../rok-tools/crates/rok-tools-cli", version = "0.1.0" }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }

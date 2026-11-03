@@ -9,6 +9,17 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+**Changed**
+
+- Binaries and the installers are rok-v2's (workspace ADR 0032): its
+  `rok` 0.7.0 links this CLI and `rok-tools-cli`, and its releases carry
+  the `rok` archives, `install.sh` and `install.ps1`. This repository's
+  release publishes the crates only, and its installers are gone;
+  `rok-data`, the CLI on its own, is `cargo install rok-data-cli`.
+- `rok tools …` is rok-v2's too: the CLI's `rok_tools` cfg, which wired
+  rok-tools in once it published, is removed. `rok.toml`'s `[tools]`
+  section stays readable here and belongs to rok-tools.
+
 ## [0.6.1] — the engine's package ships its client runtimes
 
 **Fixed**
