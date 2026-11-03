@@ -7,6 +7,12 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+## Workspace 0.8.0 - 2026-11-03
+
+Published as `rok-data-sqlc` 0.8.0 with the workspace (root `CHANGELOG.md`).
+The release adds the gRPC framework (engine ADR 0028); what the actix and
+axum frameworks generate is as in 0.7.0.
+
 ### Added
 
 - `[api] framework = "grpc"` (engine ADR 0028). A run writes one
