@@ -111,6 +111,33 @@ A team scaffolded the Monorepo template with `rok init` and built three Apps on 
 - **Init:** `-w` with `-t monorepo`, `-w` with a single-app template, and `-s` with the Monorepo are init tests in rok-data, beside the existing ones.
 - **Dev setup:** the seed binary is tested against the gates' database (it creates two accounts that can sign in). The route-tree and formatting checks are part of the web and mobile gates.
 
+## Typed web data: zod in the TypeScript Client
+
+- **Schemas:** the TypeScript Client emits a zod schema per component schema (`userResponseSchema`), with the type as its `z.infer`, and `oneOf` as `z.union` (engine ADR 0027, amended 2026-11-03).
+- **Responses checked:** each call parses its response and throws a `ContractError` (the operation and zod's issue paths) on a mismatch, apart from the HTTP `ApiError`. Request bodies are sent unchecked; the server validates them.
+- **The server's rules:** `minLength`/`maxLength`, `minimum`/`maximum`, `pattern` and `format` (`email`, `uuid`, `date-time`) become zod rules in the TypeScript Client only.
+- **The web App:** `features/*/schemas.ts` keeps only the forms' own rules, built on the generated request schemas with `.extend`/`.pick`/`.refine`. Login's deliberate "no length hint", the TOTP and recovery-code formats, and the confirm fields stay hand-written; the response schemas it duplicated are deleted. `zod` is pinned exactly, and the web gate checks it against the zod major the Client's header names.
+
+## Bugs found building on it
+
+From Karibu Pass's notes on tickets 02 and 03 (commits `4f194dc`, `1ff04a9`, rok 0.7.0, rok-ui 0.9.1), checked against rok-data 0.8.0 and rok-ui 0.9.2:
+
+- **Un-typeable queries fail by default:** `rok gen` ran the engine leniently, so a query whose result column it can't type (`expires_at <= now() AS expired`) was skipped with a stderr warning that scrolled past. `rok gen` is now strict by default (`--lenient` to skip), and the error keeps the `-- column: <name> <RustType>` hint.
+- **Line endings don't change migrations:** migration staging (rok-data-codegen) compared statements byte for byte, so a CRLF schema file made an unchanged function and trigger look changed. Staging normalises line endings in the truth files and the snapshot, and rok-data-core's migration checksum is computed over LF-normalised text. The migration guide notes the one-time checksum change.
+- **A changed function is replaced, not dropped:** a `CREATE FUNCTION` whose text changed but whose name and argument types didn't is staged as `CREATE OR REPLACE FUNCTION` (and a trigger as `CREATE OR REPLACE TRIGGER`). A change of signature is refused, naming the dependent objects. Full dependency tracking is out of scope.
+- **Errors show their causes:** every CLI error prints its whole chain, so "failed to parse SQL schema" carries the file, the line and the parser's message.
+- **One rule for finding the project:**
+  - **Search:** every command (`rok gen`, `rok gen check`, `rok migrate *`, `rok schema *`, `rok db *`, `rok sqlc check-arch`) walks up from the current directory to the nearest `rok.toml`.
+  - **Inside an App:** it acts on that App.
+  - **At the root:** it acts on the App(s) `[apps]` names; `rok migrate up` takes the Apps' migrations directories.
+  - **Report:** each command prints one line naming the config and directories it read.
+  - **Item 4:** the notes' "reads the wrong schema dir inside the App" does not reproduce from the code; the report line will show it, and Karibu is asked for their App's `rok-data-sqlc.toml`.
+- **Partial failure is reported:** when a `rok gen` step fails, it ends with the steps done, the step that failed, the steps skipped, and the command that finishes the rest. Nothing is rolled back.
+- **`check-arch` says it passed:** `checked N features: no violations`.
+- **The mobile App builds for Android:** `flutter_windowmanager` (v1 plugin API, no Gradle namespace) is replaced by a method channel that sets `FLAG_SECURE` from `MainActivity.kt`. The mobile gate runs `flutter build apk --debug`, skipping with a note without an Android SDK.
+- **The actix contract test is a parity check:** the README says it is expected to grow `KNOWN` entries as a project changes its own schema. A `KNOWN_SCHEMAS` list marks a whole schema as the project's own, and the stale "Coming next" section is fixed.
+- **rok-ui keeps custom colours:** a `Theme` holds a `ThemePair` (light and dark colours); `toggle_mode`, `sync_with_system_appearance` and `change_preset` rebuild from it, a preset is a built-in pair, and `Theme::custom(name, pair)` makes one (rok-ui 0.10.0).
+
 ## Out of Scope
 
 - **Karibu Pass's product work:** phone and SMS sign-in (its ADR-0006), its tickets, removing its sample data, its repo-wide reformat and its own visual-check scripts. A phone sign-in Module may come later.
@@ -122,4 +149,4 @@ A team scaffolded the Monorepo template with `rok init` and built three Apps on 
 ## Further Notes
 
 - **Already fixed:** the `--org` error message the notes ask about already explains the format in current rok ("not a reverse-domain name like `com.example`: two or more dot-separated segments…"); it needs no change.
-- **Ordering:** ticket 01 (the CI install) starts now. The rest follows the shipping of the gRPC Template (rok-data 0.8.1, the rok-templates release and `rok init --template grpc`), and goes with the Monorepo `--apps`/`--clients` flags, which are the same kind of init-time choice.
+- **Ordering:** the engine and CLI fixes (tickets 16, 18, 20–26) and rok-ui's (29) don't wait for anything; ticket 01 is done. The rest follows the shipping of the gRPC Template (rok-data 0.8.1, the rok-templates release and `rok init --template grpc`), and goes with the Monorepo `--apps`/`--clients` flags, which are the same kind of init-time choice.
