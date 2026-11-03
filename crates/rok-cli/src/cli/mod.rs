@@ -14,6 +14,8 @@
 use clap::{CommandFactory, FromArgMatches, Parser, Subcommand};
 use std::path::PathBuf;
 
+use crate::group::Group;
+
 pub(crate) mod db;
 pub(crate) mod r#gen;
 pub(crate) mod generate;
@@ -156,20 +158,44 @@ pub(crate) enum ParseOutcome {
 /// The `sqlc` subtree (owned by the `rok-data-sqlc` engine) is injected
 /// only so the root help lists it; tokens after `sqlc` never reach this
 /// parser (see [`crate::route_sqlc`]).
-pub(crate) fn command(program: &str) -> clap::Command {
-    Cli::command()
+///
+/// With a [`Group`], the commands outside it are hidden from the help (they
+/// are refused before parsing, see [`crate::run_group`]) and the root help
+/// says what the group is.
+pub(crate) fn command(program: &str, group: Option<Group>) -> clap::Command {
+    let mut command = Cli::command()
         .bin_name(program.to_owned())
         .display_name(program.to_owned())
         .subcommand(rok_data_sqlc::cli::command().name("sqlc").about(
             "Legacy: generate SQLx Rust modules from SQL schema files \
                  (generate|init|check-arch); superseded by `rok gen`",
-        ))
+        ));
+    if let Some(group) = group {
+        command = command.about(group.about());
+        let hidden: Vec<String> = command
+            .get_subcommands()
+            .map(|sub| sub.get_name().to_owned())
+            .filter(|name| !group.commands().contains(&name.as_str()))
+            .collect();
+        for name in hidden {
+            command = command.mut_subcommand(name, |sub| sub.hide(true));
+        }
+    }
+    command
+}
+
+/// The command name `word` stands for, aliases resolved, if it is one.
+pub(crate) fn canonical(word: &str) -> Option<String> {
+    command("rok-data", None)
+        .get_subcommands()
+        .find(|sub| sub.get_name() == word || sub.get_all_aliases().any(|alias| alias == word))
+        .map(|sub| sub.get_name().to_owned())
 }
 
 /// Parse `args` (which must NOT include the program name) into a command,
 /// displayed as `program`.
-pub(crate) fn parse(program: &str, args: &[String]) -> ParseOutcome {
-    match command(program).try_get_matches_from(inputs(program, args)) {
+pub(crate) fn parse(program: &str, group: Option<Group>, args: &[String]) -> ParseOutcome {
+    match command(program, group).try_get_matches_from(inputs(program, args)) {
         Ok(matches) => match Command::from_arg_matches(&matches) {
             Ok(command) => ParseOutcome::Command(command),
             Err(_) => ParseOutcome::Usage,

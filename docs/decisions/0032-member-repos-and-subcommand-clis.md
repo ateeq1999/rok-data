@@ -66,3 +66,12 @@ light rok-data and a family of small command lines under one `rok`.
   the umbrella at 0.7.0.
 - The plan is `docs/specs/toolchain-split/plan.md`, moved to
   `rok-workspace` when it exists.
+
+*Amended 2026-11-03, at the CLI split:* `rok-db` and `rok-gen` are two
+more binaries of the one `rok-data-cli` crate (`run_group` with a
+`Group`), not the crates `rok-db-cli` and `rok-gen-cli` the plan named.
+The two halves share `config`, `context`, `keychain` and `output`, so two
+crates would have needed a third, shared one: three new crate names
+against crates.io's new-crate limit, for halves that release together
+anyway (one repository, one version). The binary names are the contract,
+so the crates can still split later without breaking anyone.
