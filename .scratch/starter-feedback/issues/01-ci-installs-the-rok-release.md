@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md`
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] actix-api, axum-api, grpc-api and the Monorepo's API App install `rok` from the release, checksum verified
 - [ ] `ROK_VERSION` agrees with `rok-data.pin` (unit test)
