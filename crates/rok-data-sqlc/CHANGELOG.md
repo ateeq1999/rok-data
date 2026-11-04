@@ -7,6 +7,12 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+## Workspace 0.8.1 - 2026-11-04
+
+Published as `rok-data-sqlc` 0.8.1 with the workspace (root `CHANGELOG.md`).
+The release fixes the gRPC service of a feature with an immutable column;
+nothing else the engine generates changes from 0.8.0.
+
 ### Fixed
 
 - Under `[api] framework = "grpc"`, a feature with an immutable column
