@@ -99,11 +99,15 @@ pub const EXAMPLES: &[(&str, &[Example])] = &[
         &[
             ex(
                 "rok migrate create create_posts_table",
-                "Write the next numbered up/down pair in ./migrations.",
+                "Write the next numbered up/down pair in the project's migrations.",
             ),
             ex(
                 "rok migrate create add_index --dir db/migrations",
                 "The same, in another directory.",
+            ),
+            ex(
+                "rok migrate create add_tags --app api",
+                "The same, in a Monorepo App's migrations.",
             ),
         ],
     ),
@@ -130,6 +134,10 @@ pub const EXAMPLES: &[(&str, &[Example])] = &[
             ex(
                 "rok migrate up --database-url postgres://localhost/shop",
                 "Apply them to another database.",
+            ),
+            ex(
+                "rok migrate up --app api",
+                "Apply the api App's migrations from a Monorepo's root.",
             ),
         ],
     ),
@@ -217,7 +225,7 @@ pub const EXAMPLES: &[(&str, &[Example])] = &[
         &[
             ex(
                 "rok schema diff",
-                "Compare the migration journal with the files in ./migrations.",
+                "Compare the migration journal with the project's migrations.",
             ),
             ex(
                 "rok schema diff --dir db/migrations",

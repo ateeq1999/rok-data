@@ -82,6 +82,39 @@ scaffolds), and their removal is deferred to 1.0.
   preserved so its tests keep asserting it.
 - Flags beat the settings file wherever both exist.
 
+## Finding the project
+
+`rok gen`, `rok gen check`, `rok migrate *`, `rok schema diff` and
+`rok sqlc check-arch` share one rule for the project they act on:
+
+- **Search:** walk up from the current directory. A `rok.toml` whose
+  `[apps]` names the Apps of a Monorepo (workspace ADR 0027) makes the
+  project a Monorepo; without one, the nearest settings file (`rok.toml`,
+  else the engine's `rok-data-sqlc.toml`) is a plain project. A nearer
+  settings file outside every App is a plain project of its own.
+- **Inside an App:** started anywhere inside an App `[apps]` names, the
+  command acts on that App, with the App's own settings file
+  (`apps/api/rok-data-sqlc.toml`).
+- **At the root:** `rok gen`, `rok gen check` and `check-arch` act on every
+  App. The commands that work in one directory (`rok migrate *`,
+  `rok schema diff`) act on the only App, and with several ask for
+  `--app <name>`.
+- **Directories:** an App's `migrations` key, else its `migrations/`
+  directory. An explicit `--dir` still wins (`--dir` and `--app` exclude
+  each other).
+- **Report:** each command prints one line on stderr naming the App, the
+  settings file and the directories it read, so `--json` stdout stays one
+  document:
+
+  ```text
+  using App api: apps/api/rok-data-sqlc.toml (migrations apps/api/migrations)
+  using App api: apps/api/rok-data-sqlc.toml (schema apps/api/schema, migrations apps/api/migrations)
+  using --dir (migrations db/migrations)
+  ```
+
+`rok schema dump` and `rok db *` read only the database URL
+(`--database-url`, else `DATABASE_URL`), so no project.
+
 ## `rok init` — scaffold a project
 
 ```text
@@ -422,10 +455,17 @@ Journal table: `_rok_data_migrations`. Files:
 
 | Command                    | Flags                                        | Effect                                                     |
 | -------------------------- | -------------------------------------------- | ---------------------------------------------------------- |
-| `rok migrate create NAME`  | `--dir` (default `migrations`)               | writes the next-versioned up/down pair                      |
-| `rok migrate status`       | `--dir`, `--database-url`, `--json`          | every file + its journal state (`applied`, `pending`, `edited`, `unknown`) |
-| `rok migrate up`           | `--dir`, `--database-url`, `--json`          | applies pending files in version order                      |
-| `rok migrate down`         | `--dir`, `--database-url`, `--steps N` (default 1), `--json` | reverts the latest; `rollback` is an alias    |
+| `rok migrate create NAME`  | `--dir` or `--app`                           | writes the next-versioned up/down pair                      |
+| `rok migrate status`       | `--dir` or `--app`, `--database-url`, `--json` | every file + its journal state (`applied`, `pending`, `edited`, `unknown`) |
+| `rok migrate up`           | `--dir` or `--app`, `--database-url`, `--json` | applies pending files in version order                      |
+| `rok migrate down`         | `--dir` or `--app`, `--database-url`, `--steps N` (default 1), `--json` | reverts the latest; `rollback` is an alias    |
+
+`--dir DIR` names the migrations directory; without it, the project's
+history directory ([Finding the project](#finding-the-project)): the
+settings' `migrations` key, else `migrations/` beside the settings file,
+else `./migrations`. `--app NAME` picks a Monorepo's App, which a root
+naming several Apps needs (`rok migrate up --app api`). The first line on
+stderr names what was read.
 
 State semantics: `applied` (checksum matches the journal), `pending`
 (not yet applied), `edited` (file changed after being applied — the
@@ -642,9 +682,9 @@ the exit code is 1.
 
 ```text
 rok schema dump [--database-url]       approximate CREATE TABLE DDL for every user table
-rok schema diff [--database-url] [--dir migrations]
+rok schema diff [--database-url] [--dir DIR | --app NAME]
                                        compares the journal's applied migrations with
-                                       the files in --dir (missing, extra, drifted)
+                                       the project's migrations (or --dir; see Finding the project)
 ```
 
 `diff` is the CI guard: exit 1 when journal and files disagree.
@@ -824,7 +864,7 @@ is a library; `rok` forwards the tokens verbatim). Subcommand set:
 | `generate`     | `g`   | parse the schema and emit `src/db/<table>/{…}` modules, optional api/openapi |
 | `init`         | `i`   | scaffold a project (engine ADR 0016 skeleton, `-w axum` for axum, or `--template actix`/`axum`/`monorepo`; `-o, --org ORG` names a Monorepo's Apps under ORG, as `rok init` does), files-if-absent |
 | `check`        | `c`   | the generated code is up to date; with `--db`, every annotated query agrees with the database; any difference → exit 1 |
-| `check-arch`   | `a`   | check `src/` layout against the engine's ADR 0016 rules; violations → exit 1 |
+| `check-arch`   | `a`   | check `src/` layout against the engine's ADR 0016 rules; violations → exit 1. Finds its project by [the one rule](#finding-the-project): inside an App, that App; at a Monorepo root, every App; a plain `rok.toml` or `rok-data-sqlc.toml` with `[api] output` |
 | `query add`    | `q a` | append one annotated query to a query file and generate; kept only if it generates |
 
 Executive summary of the main flags (full text: `rok sqlc generate --help`):

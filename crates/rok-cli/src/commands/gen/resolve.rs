@@ -1,82 +1,81 @@
 //! The runs a `rok gen` does, and each run's settings: one run per App a
-//! monorepo's project file names in `[apps]`, or the one run of a plain
-//! project, its config file's values with the flags over them.
+//! Monorepo's project file names in `[apps]` at its root, the one run of
+//! the App the command started inside, or the one run of a plain project,
+//! its config file's values with the flags over them. Which it is, is the
+//! one rule every command shares (`rok_data_sqlc::Project`).
 
-use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 use rok_data_codegen::Rename;
-use rok_data_sqlc::Config;
+use rok_data_sqlc::{Config, Project, Target};
 
 use super::{DEFAULT_SCHEMA_DIR, Run, Settings};
 use crate::cli::r#gen::GenOptions;
 use crate::config::FILE;
-use crate::output::display_path;
 
-/// The project file a run reads: `--config`, or the nearest one.
-pub(super) fn project_file(options: &GenOptions) -> Option<PathBuf> {
+/// The project a run reads: `--config`'s, or the one the current directory
+/// belongs to.
+pub(super) fn project(options: &GenOptions) -> Result<Project, String> {
     match options.config.as_deref() {
-        Some(path) => Some(path.to_path_buf()),
-        None => std::env::current_dir()
-            .ok()
-            .and_then(|dir| rok_data_sqlc::discover_config(&dir)),
+        Some(path) => Project::at(path),
+        None => Project::current(),
     }
+    .map_err(|error| format!("{error:#}"))
 }
 
-/// The runs a `rok gen` does: one per App a project file named, or the
-/// one run of a plain project.
+/// The runs a `rok gen` does: one per App at a Monorepo's root, or the one
+/// run of the App started inside or of a plain project.
 pub(super) fn resolve(options: &GenOptions, check: bool) -> Result<Vec<Run>, String> {
-    let file = project_file(options);
-    if let Some(path) = file.as_deref()
-        && let Some(apps) = apps_section(path)?
-    {
-        return resolve_apps(options, check, path, &apps);
+    let project = project(options)?;
+    let targets = project
+        .targets(None)
+        .map_err(|error| format!("{error:#}"))?;
+    if matches!(project, Project::Monorepo { .. }) && !project.inside_app() {
+        return resolve_apps(options, check, &targets);
     }
-    let settings = settings(options, check, file.as_deref(), Path::new(""))?;
-    Ok(vec![Run {
-        app: None,
-        settings,
-    }])
-}
-
-/// The `[apps]` section of a canonical project file: the Apps of a
-/// monorepo (workspace ADR 0027), each a name and the directory its
-/// settings live in, relative to the file's. `None` when the file is
-/// another name or names no such section.
-fn apps_section(path: &Path) -> Result<Option<Vec<(String, String)>>, String> {
-    if path.file_name().and_then(OsStr::to_str) != Some(FILE) {
-        return Ok(None);
-    }
-    let text = std::fs::read_to_string(path)
-        .map_err(|error| format!("{}: {error}", display_path(path)))?;
-    let table: toml::Table =
-        toml::from_str(&text).map_err(|error| format!("{}: {error}", display_path(path)))?;
-    let Some(section) = table.get("apps").and_then(|apps| apps.as_table()) else {
-        return Ok(None);
-    };
-    let apps = section
+    targets
         .iter()
-        .map(|(name, dir)| {
-            let dir = dir.as_str().ok_or_else(|| {
-                format!(
-                    "{}: the `apps.{name}` entry names no directory",
-                    display_path(path)
-                )
-            })?;
-            Ok((name.clone(), dir.to_owned()))
+        .map(|target| {
+            if target.app.is_some() && target.settings.is_none() {
+                return Err(no_settings(target));
+            }
+            run(options, check, target, None)
         })
-        .collect::<Result<Vec<_>, String>>()?;
-    Ok(Some(apps))
+        .collect()
 }
 
-/// The runs of a monorepo project: one per named App, each from the App's
-/// own settings inside its directory.
-fn resolve_apps(
+/// The run of one target; `app` names it in a run over a Monorepo's Apps.
+fn run(
     options: &GenOptions,
     check: bool,
-    file: &Path,
-    apps: &[(String, String)],
-) -> Result<Vec<Run>, String> {
+    target: &Target,
+    app: Option<String>,
+) -> Result<Run, String> {
+    let settings = settings(options, check, target.settings.as_deref(), &target.dir)?;
+    let using = target.using(&[
+        ("schema", &settings.schema_dir),
+        ("migrations", &settings.migrations_dir),
+    ]);
+    Ok(Run {
+        app,
+        settings,
+        using,
+    })
+}
+
+/// The error of an App with no settings file of its own.
+fn no_settings(target: &Target) -> String {
+    format!(
+        "App `{}` (`{}`) has no settings file: the App's own settings are what a \
+         regeneration reads, so add a `{FILE}` or the engine's `rok-data-sqlc.toml` there",
+        target.app.as_deref().unwrap_or_default(),
+        crate::output::display_path(&target.dir)
+    )
+}
+
+/// The runs at a Monorepo's root: one per named App, each from the App's
+/// own settings inside its directory.
+fn resolve_apps(options: &GenOptions, check: bool, targets: &[Target]) -> Result<Vec<Run>, String> {
     // One App's own flags don't compose with a run over every named App:
     // the App's own settings carry them.
     let mut per_app: Vec<&str> = Vec::new();
@@ -105,22 +104,13 @@ fn resolve_apps(
             per_app.join(", ")
         ));
     }
-    let base = file.parent().map(Path::to_path_buf).unwrap_or_default();
-    apps.iter()
-        .map(|(name, dir)| {
-            let app = base.join(dir);
-            let config = rok_data_sqlc::discover_config(&app).ok_or_else(|| {
-                format!(
-                    "App `{name}` (`{dir}`) has no settings file: the App's own settings \
-                     are what a regeneration reads, so add a `{FILE}` or the engine's \
-                     `rok-data-sqlc.toml` there"
-                )
-            })?;
-            let settings = settings(options, check, Some(&config), &app)?;
-            Ok(Run {
-                app: Some(name.clone()),
-                settings,
-            })
+    targets
+        .iter()
+        .map(|target| {
+            if target.settings.is_none() {
+                return Err(no_settings(target));
+            }
+            run(options, check, target, target.app.clone())
         })
         .collect()
 }
