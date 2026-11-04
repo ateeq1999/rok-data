@@ -11,7 +11,7 @@ use crate::ddl::{self, Rename};
 use crate::generate::Options;
 use crate::ir::Schema;
 use crate::parse::{self, SourceFile};
-use crate::{Error, naming};
+use crate::{Error, naming, text};
 
 /// Everything the `.sql` files under `options.input` declare, without
 /// generating any Rust. Only `Options::input` is read.
@@ -117,8 +117,8 @@ pub(crate) fn read_sources(dir: &Path) -> Result<Vec<SourceFile>, Error> {
     paths
         .into_iter()
         .map(|path| {
-            let text = fs::read_to_string(&path)
-                .map_err(|e| Error::new(format!("{}: {e}", path.display())))?;
+            let text =
+                text::read(&path).map_err(|e| Error::new(format!("{}: {e}", path.display())))?;
             let stem = path
                 .file_stem()
                 .map(|s| s.to_string_lossy().into_owned())
