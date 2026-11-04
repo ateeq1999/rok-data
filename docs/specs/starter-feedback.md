@@ -148,6 +148,12 @@ From the notes on Karibu Pass's ticket 04:
 - **The dev server's address is IPv4:** `server.host: "127.0.0.1"`, with the proxy target on `127.0.0.1:8080`.
 - **The first admin:** the dev seed's `--promote <email>` (ticket 11).
 
+From the notes on Karibu Pass's ticket 05:
+
+- **A foreign key without `_id` names its relationship after both:** `offers.reviewed_by → users` gives `reviewed_by_user`, instead of a relationship named like the column that collides with the search filter's field (the data layer derives both for every table, excluded from the API or not).
+- **`rok` reads the App's `.env`:** `rok migrate`, `rok db`, `rok schema` and `rok gen`'s database steps load `<app>/.env`; the environment wins, the config line says so, and `--no-env-file` opts out. The template's test support loads it too (ticket 11).
+- **"Next steps" run as printed:** commands are printed for the directory `rok` ran in; `rok migrate up` needs no `--dir` after ticket 24.
+
 ## Out of Scope
 
 - **Karibu Pass's product work:** phone and SMS sign-in (its ADR-0006), its tickets, removing its sample data, its repo-wide reformat and its own visual-check scripts. A phone sign-in Module may come later.

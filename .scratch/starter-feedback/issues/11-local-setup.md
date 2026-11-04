@@ -3,7 +3,7 @@
 Spec: `docs/specs/starter-feedback.md`
 
 **What to build:**
-- **`.env`:** the template APIs load `.env` with dotenvy in debug builds only.
+- **`.env`:** the template APIs load `.env` with dotenvy in debug builds only, and the template's test support loads it before reading `DATABASE_URL`.
 - **Dev seed:** a `seed` binary creates a verified admin and a verified ordinary user and prints their credentials. `REQUIRE_VERIFIED_EMAIL` stays `true`. `seed --promote <email>` makes an existing account an admin, so the first admin needs no `psql`.
 - **Postgres port:** `compose.yaml` maps `"${POSTGRES_PORT:-5432}:5432"`, and `.env.example` sets `POSTGRES_PORT` and uses it.
 - **Stale name:** the Monorepo API's stale `actix_api` database name is fixed.
