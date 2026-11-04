@@ -12,8 +12,9 @@ source: crates/rok-data/tests/docs/migration_guide.rs (compiled samples), CHANGE
 
 - **What this page does:** per-repository notes — what changes when a
   project moves from rok-db, rok-sqlc, rok-fluent or rok-orm into this
-  workspace — plus the release upgrades **To 0.8.0**, **To 0.7.0**, **To 0.6.0**,
-  **To 0.5.0**, **To 0.4.0** and **To 0.3.0**.
+  workspace — plus the release upgrades **To the next version**,
+  **To 0.8.0**, **To 0.7.0**, **To 0.6.0**, **To 0.5.0**, **To 0.4.0** and
+  **To 0.3.0**.
 - **Upgrade recipe (any release):** regenerate once (`rok gen`, or
   `rok sqlc generate` for engine projects), then fix what the compiler
   reports. The compiler finds the breakages; this page explains each.
@@ -29,10 +30,34 @@ what was actually renamed, removed, or unified. Everything not listed is
 unchanged — same APIs, same test suites, same behavior (verified by
 porting the original tests).
 
-Six sections are not about a repository lineage: **To 0.8.0**, **To 0.7.0**,
-**To 0.6.0**, **To 0.5.0**, **To 0.4.0** and **To 0.3.0**, the upgrades between
+Seven sections are not about a repository lineage: **To the next version**
+(the unreleased changes), **To 0.8.0**, **To 0.7.0**, **To 0.6.0**,
+**To 0.5.0**, **To 0.4.0** and **To 0.3.0**, the upgrades between
 workspace releases. The runtime's public surface and the generated output
 change in 0.4.0 and 0.3.0; 0.5.0 changes the templates only.
+
+## To the next version
+
+Nothing to change in a project. Two fixes touch the migrations:
+
+- **Line endings don't change a staged migration.** `rok gen --migration`
+  reads the truth files and the `.rok-schema.json` snapshot with CRLF
+  turned into LF, so a CRLF checkout of an unchanged schema stages
+  nothing. A snapshot recorded from a CRLF file needs no rewrite.
+- **The checksum ignores line endings.** A migration's checksum (the
+  journal's `checksum` column) is computed over its `up` SQL with CRLF
+  turned into LF: an LF file keeps the checksum it had, and its CRLF copy
+  now has the same one. A journal row recorded from a CRLF file before
+  this version holds the old checksum, of the CRLF bytes. It still
+  matches, whether the file is checked out with CRLF or LF now, and the
+  next `rok migrate up` records the new checksum in its place, once.
+
+  The one row that does not match is a file recorded with *mixed* line
+  endings and checked out differently since: `rok migrate status` calls
+  it `edited`. To re-record it, run `rok migrate up` once from a checkout
+  whose file has the bytes that were applied (the commit it was applied
+  from); the row then holds the new checksum, which every checkout
+  matches.
 
 ## To 0.8.0
 

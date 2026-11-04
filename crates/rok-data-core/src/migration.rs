@@ -19,7 +19,8 @@
 //! ```
 //!
 //! Applied migrations are recorded in the `_rok_data_migrations` table with a
-//! checksum of their `up` SQL. Each migration runs in its own transaction,
+//! checksum of their `up` SQL, line endings aside (a CRLF and an LF checkout
+//! of one file match). Each migration runs in its own transaction,
 //! which holds a PostgreSQL advisory lock so two processes never migrate at
 //! once.
 //! Running is refused when an applied migration was edited, when the
@@ -46,8 +47,37 @@ pub struct Migration {
 impl Migration {
     /// A stable checksum of the `up` SQL (64-bit FNV-1a, hex), stored when
     /// the migration is applied to detect later edits.
+    ///
+    /// It is computed over the SQL with CRLF line endings normalised to
+    /// `\n`, so a CRLF and an LF checkout of one migration file have the
+    /// same checksum (and an LF file the checksum it always had).
     pub fn checksum(&self) -> String {
-        checksum(self.up)
+        checksum(&lf(self.up))
+    }
+
+    /// Whether `recorded`, a journal row's checksum, is this migration's:
+    /// [`Migration::checksum`], or a checksum recorded before checksums
+    /// ignored line endings — the raw bytes of a CRLF file, which a CRLF
+    /// checkout still has and an LF checkout has with every `\n` a CRLF.
+    pub(crate) fn is_recorded_as(&self, recorded: &str) -> bool {
+        recorded == self.checksum() || self.is_legacy_checksum(recorded)
+    }
+
+    /// Whether `recorded` is only a checksum of the CRLF bytes (see
+    /// [`Migration::is_recorded_as`]): one to re-record.
+    fn is_legacy_checksum(&self, recorded: &str) -> bool {
+        let lf = lf(self.up);
+        recorded != checksum(&lf)
+            && (recorded == checksum(self.up) || recorded == checksum(&lf.replace('\n', "\r\n")))
+    }
+}
+
+/// `sql` with every CRLF line ending turned into `\n`.
+fn lf(sql: &str) -> std::borrow::Cow<'_, str> {
+    if sql.contains("\r\n") {
+        sql.replace("\r\n", "\n").into()
+    } else {
+        sql.into()
     }
 }
 
@@ -83,6 +113,7 @@ pub async fn apply(db: &Db, migrations: &[Migration]) -> Result<Vec<i64>> {
         let mut tx = locked_tx(db).await?;
         let applied = read_applied(&mut tx).await?;
         verify(migrations, &applied)?;
+        rerecord(&mut tx, migrations, &applied).await?;
         let Some(migration) = migrations
             .iter()
             .find(|m| !applied.iter().any(|a| a.version == m.version))
@@ -203,7 +234,7 @@ fn verify(migrations: &[Migration], applied: &[AppliedMigration]) -> Result<()> 
                     row.version, row.name
                 )));
             }
-            Some(m) if m.checksum() != row.checksum => {
+            Some(m) if !m.is_recorded_as(&row.checksum) => {
                 return Err(Error::Config(format!(
                     "migration {} `{}` was edited after it was applied; \
                      add a new migration instead",
@@ -212,6 +243,37 @@ fn verify(migrations: &[Migration], applied: &[AppliedMigration]) -> Result<()> 
             }
             Some(_) => {}
         }
+    }
+    Ok(())
+}
+
+/// The applied migrations whose journal row holds a checksum of CRLF bytes
+/// (recorded before checksums ignored line endings), with the checksum to
+/// record in its place.
+fn to_rerecord(migrations: &[Migration], applied: &[AppliedMigration]) -> Vec<(i64, String)> {
+    applied
+        .iter()
+        .filter_map(|row| {
+            let m = migrations.iter().find(|m| m.version == row.version)?;
+            m.is_legacy_checksum(&row.checksum)
+                .then(|| (m.version, m.checksum()))
+        })
+        .collect()
+}
+
+/// Records the line-ending-free checksum for the rows that hold a checksum
+/// of CRLF bytes, so the journal converges on one checksum per migration.
+async fn rerecord(
+    tx: &mut Tx,
+    migrations: &[Migration],
+    applied: &[AppliedMigration],
+) -> Result<()> {
+    for (version, checksum) in to_rerecord(migrations, applied) {
+        crate::raw(r#"UPDATE "_rok_data_migrations" SET "checksum" = ? WHERE "version" = ?"#)
+            .bind(checksum)
+            .bind(version)
+            .execute(&mut *tx)
+            .await?;
     }
     Ok(())
 }
@@ -284,6 +346,50 @@ mod tests {
         assert_eq!(checksum(""), "cbf29ce484222325");
         assert_eq!(m(1, "a").checksum(), m(2, "a").checksum());
         assert_ne!(m(1, "a").checksum(), m(1, "b").checksum());
+    }
+
+    /// A CRLF checkout of a migration keeps its checksum, and an LF one
+    /// keeps the checksum it always had.
+    #[test]
+    fn line_endings_do_not_change_the_checksum() {
+        let lf = m(1, "CREATE TABLE a (id INT);\nCREATE TABLE b (id INT);\n");
+        let crlf = m(
+            1,
+            "CREATE TABLE a (id INT);\r\nCREATE TABLE b (id INT);\r\n",
+        );
+        assert_eq!(
+            lf.checksum(),
+            "207b634c1c5a9e00",
+            "the LF checksum is unchanged"
+        );
+        assert_eq!(crlf.checksum(), lf.checksum());
+    }
+
+    /// A journal row recorded from a CRLF file before checksums ignored
+    /// line endings (the raw bytes' checksum) still matches the migration,
+    /// whether the file is checked out with CRLF or LF now; an edit still
+    /// does not.
+    #[test]
+    fn a_checksum_recorded_from_crlf_bytes_still_matches() {
+        let crlf_bytes = AppliedMigration {
+            version: 1,
+            name: "m".into(),
+            checksum: checksum("CREATE TABLE a (id INT);\r\nCREATE TABLE b (id INT);\r\n"),
+        };
+        let lf = m(1, "CREATE TABLE a (id INT);\nCREATE TABLE b (id INT);\n");
+        let crlf = m(
+            1,
+            "CREATE TABLE a (id INT);\r\nCREATE TABLE b (id INT);\r\n",
+        );
+        let edited = m(1, "CREATE TABLE a (id INT);\nCREATE TABLE c (id INT);\n");
+        assert!(verify(&[lf], std::slice::from_ref(&crlf_bytes)).is_ok());
+        assert!(verify(&[crlf], std::slice::from_ref(&crlf_bytes)).is_ok());
+        assert!(verify(&[edited], std::slice::from_ref(&crlf_bytes)).is_err());
+        assert_eq!(
+            to_rerecord(&[lf], &[crlf_bytes]),
+            [(1, lf.checksum())],
+            "the row is re-recorded with the line-ending-free checksum"
+        );
     }
 
     #[test]
