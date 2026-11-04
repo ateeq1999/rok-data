@@ -9,6 +9,25 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+**Fixed**
+
+- Line endings don't change migrations. Migration staging (`rok gen
+  --migration`) normalises CRLF to LF in the truth files and in the
+  `.rok-schema.json` snapshot before comparing, as the engine does with
+  its schema and query files: a CRLF checkout whose function and trigger
+  equal the snapshot's stages nothing, where it staged a `DROP TRIGGER`,
+  a `DROP FUNCTION` and both `CREATE`s again. A snapshot recorded from a
+  CRLF file compares equal to the LF text.
+- A migration's checksum (`Migration::checksum`, the journal's
+  `checksum` column) is computed over its `up` SQL with CRLF normalised
+  to LF, so a CRLF and an LF checkout of one `.up.sql` have the same
+  checksum; an LF file keeps the checksum it had. A journal row recorded
+  from a CRLF file by an earlier version still matches (whether the file
+  is checked out with CRLF or LF now), and the next `rok migrate up`
+  (`migration::apply`) records the new checksum in its place.
+  `docs/migration-guide.md` §To the next version says what to do for a
+  file with mixed line endings.
+
 ## [0.8.0] — the gRPC framework; `rok server update` and command examples
 
 **Added**

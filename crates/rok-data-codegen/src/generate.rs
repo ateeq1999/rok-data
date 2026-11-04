@@ -12,7 +12,7 @@ use crate::parse::{self, SourceFile};
 use crate::queries;
 use crate::truth::{self, MigrationFile};
 use crate::types::Feature;
-use crate::{Error, naming};
+use crate::{Error, naming, text};
 
 /// Where rok-data comes from in the generated `Cargo.toml`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -104,7 +104,7 @@ pub fn generate(options: &Options) -> Result<Generated, Error> {
     // Migrations: compare with the snapshot of the latest one.
     let snapshot_path = output.join("schema.json");
     let snapshot: Schema = match fs::read_to_string(&snapshot_path) {
-        Ok(text) => serde_json::from_str(&text)
+        Ok(text) => text::from_json(&text)
             .map_err(|e| Error::new(format!("{}: {e}", snapshot_path.display())))?,
         Err(_) => Schema::default(),
     };

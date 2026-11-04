@@ -9,8 +9,8 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A CRLF schema file whose statements equal the snapshot's stages nothing (the Karibu case: `touch_updated_at()` and its trigger)
-- [ ] A CRLF and an LF copy of one migration have the same checksum
-- [ ] Changelog and migration guide updated
+- [x] A CRLF schema file whose statements equal the snapshot's stages nothing (the Karibu case: `touch_updated_at()` and its trigger)
+- [x] A CRLF and an LF copy of one migration have the same checksum
+- [x] Changelog and migration guide updated

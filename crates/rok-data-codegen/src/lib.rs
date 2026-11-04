@@ -14,6 +14,7 @@ mod parse;
 mod queries;
 mod split;
 mod staging;
+mod text;
 mod truth;
 mod types;
 

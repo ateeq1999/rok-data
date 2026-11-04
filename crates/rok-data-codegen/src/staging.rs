@@ -34,6 +34,7 @@ use crate::ddl::Rename;
 use crate::ir::Schema;
 use crate::naming;
 use crate::parse::{self, SourceFile};
+use crate::text;
 use crate::truth;
 
 /// The snapshot file's name inside the history dir.
@@ -225,8 +226,8 @@ fn read_sources(files: &[PathBuf]) -> Result<Vec<SourceFile>, Error> {
     files
         .iter()
         .map(|path| {
-            let text = fs::read_to_string(path)
-                .map_err(|e| Error::new(format!("{}: {e}", path.display())))?;
+            let text =
+                text::read(path).map_err(|e| Error::new(format!("{}: {e}", path.display())))?;
             let stem = path
                 .file_stem()
                 .map(|stem| stem.to_string_lossy().into_owned())
@@ -248,7 +249,7 @@ fn read_snapshot(dir: &Path) -> Result<Schema, Error> {
         Ok(text) => text,
         Err(_) => return Ok(Schema::default()),
     };
-    serde_json::from_str(&text).map_err(|e| Error::new(format!("{}: {e}", path.display())))
+    text::from_json(&text).map_err(|e| Error::new(format!("{}: {e}", path.display())))
 }
 
 /// Records the truth as the state of the last staged migration.
@@ -369,6 +370,74 @@ mod tests {
         );
         assert!(stop.is_nothing_to_migrate());
         assert!(!Error::new("something else failed").is_nothing_to_migrate());
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The Karibu case: a table with a `touch_updated_at()` function and
+    /// its trigger, the statements whose text rides into the diff as is.
+    const TOUCHED_USERS: &str = "CREATE TABLE users (
+    id BIGSERIAL PRIMARY KEY,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE FUNCTION touch_updated_at() RETURNS trigger AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+-- rok:down
+DROP FUNCTION touch_updated_at();
+
+CREATE TRIGGER users_touch_updated_at
+    BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+-- rok:down
+DROP TRIGGER users_touch_updated_at ON users;
+";
+
+    /// A CRLF checkout of a truth file whose statements equal the
+    /// snapshot's stages nothing: line endings are not a schema change.
+    #[test]
+    fn a_crlf_truth_file_equal_to_the_snapshot_stages_nothing() {
+        let dir = dir("stage-crlf-truth");
+        fs::write(dir.join("0001_init.sql"), TOUCHED_USERS).expect("write");
+        stage(&options(&dir)).expect("the first migration stages");
+        fs::write(
+            dir.join("0001_init.sql"),
+            TOUCHED_USERS.replace('\n', "\r\n"),
+        )
+        .expect("rewrite with CRLF");
+
+        let again = stage(&options(&dir));
+        assert!(
+            again.as_ref().is_err_and(Error::is_nothing_to_migrate),
+            "staged {:?}",
+            again.map(|staged| fs::read_to_string(staged.up).unwrap_or_default())
+        );
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A snapshot recorded from a CRLF truth file (before staging
+    /// normalised line endings) compares equal to the LF text.
+    #[test]
+    fn a_snapshot_recorded_from_crlf_equals_the_lf_truth() {
+        let dir = dir("stage-crlf-snapshot");
+        fs::write(dir.join("0001_init.sql"), TOUCHED_USERS).expect("write");
+        stage(&options(&dir)).expect("the first migration stages");
+        // What an older staging wrote from a CRLF file: the same JSON with
+        // every line break of the stored SQL a CRLF.
+        let snapshot = fs::read_to_string(snapshot_path(&dir)).expect("read the snapshot");
+        let crlf = snapshot.replace("\\n", "\\r\\n");
+        assert_ne!(crlf, snapshot, "the snapshot stores multi-line SQL");
+        fs::write(snapshot_path(&dir), crlf).expect("rewrite the snapshot");
+
+        let again = stage(&options(&dir));
+        assert!(
+            again.as_ref().is_err_and(Error::is_nothing_to_migrate),
+            "staged {:?}",
+            again.map(|staged| fs::read_to_string(staged.up).unwrap_or_default())
+        );
         fs::remove_dir_all(&dir).ok();
     }
 
