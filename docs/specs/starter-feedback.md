@@ -138,6 +138,16 @@ From Karibu Pass's notes on tickets 02 and 03 (commits `4f194dc`, `1ff04a9`, rok
 - **The actix contract test is a parity check:** the README says it is expected to grow `KNOWN` entries as a project changes its own schema. A `KNOWN_SCHEMAS` list marks a whole schema as the project's own, and the stale "Coming next" section is fixed.
 - **rok-ui keeps custom colours:** a `Theme` holds a `ThemePair` (light and dark colours); `toggle_mode`, `sync_with_system_appearance` and `change_preset` rebuild from it, a preset is a built-in pair, and `Theme::custom(name, pair)` makes one (rok-ui 0.10.0).
 
+From the notes on Karibu Pass's ticket 04:
+
+- **`SCHEMA_SQL` is in dependency order:** the engine emits it with statements in the order the migration diff uses, so a forward reference across schema files no longer breaks the tests that load it. Its doc comment says the tests load it.
+- **Casts keep nullability:** a cast keeps the nullability of what it wraps (`count(*)::bigint`, a `NOT NULL` column), and `coalesce(x, <literal>)` is not-null. The `-- column:` override is documented for the rest.
+- **Constraint violations say which constraint:** the templates' `AppError::Conflict` becomes `Conflict { kind, constraint, message }` (`kind` is `Unique` or `ForeignKey`), still 409, so a feature maps a constraint to its own error by name.
+- **Flows other features compose run on the caller's connection:** `invite_in`, `register_in` and the audit log's `record_in` take a connection; the existing methods open their transaction and call them. The template's `AGENTS.md` states the convention.
+- **A browser smoke test:** the web App ships Playwright (pinned) with one flow (sign in with the seed's account, land on home, sign out). `bun run e2e` runs it, and the web gate runs it in CI with the API up.
+- **The dev server's address is IPv4:** `server.host: "127.0.0.1"`, with the proxy target on `127.0.0.1:8080`.
+- **The first admin:** the dev seed's `--promote <email>` (ticket 11).
+
 ## Out of Scope
 
 - **Karibu Pass's product work:** phone and SMS sign-in (its ADR-0006), its tickets, removing its sample data, its repo-wide reformat and its own visual-check scripts. A phone sign-in Module may come later.
