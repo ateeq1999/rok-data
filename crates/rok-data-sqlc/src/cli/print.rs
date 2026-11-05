@@ -49,6 +49,9 @@ pub(super) fn print_report(config: &Config, report: &Report) {
             eprintln!("error: {failure}");
         }
     }
+    for skipped in &report.skipped_queries {
+        eprintln!("note: {skipped}");
+    }
     for warning in &report.warnings {
         eprintln!("warning: {warning}");
     }

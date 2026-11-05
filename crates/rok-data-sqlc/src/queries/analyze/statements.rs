@@ -5,7 +5,7 @@ use std::rc::Rc;
 use sqlparser::ast::{
     AssignmentTarget, ConflictTarget, Cte, Expr, FromTable, JoinConstraint, JoinOperator,
     LimitClause, OnConflictAction, OnInsert, Query, Select, SelectItem, SetExpr, SetOperator,
-    Statement, TableFactor, TableObject, TableWithJoins,
+    Statement, TableFactor, TableObject, TableWithJoins, UpdateTableFromKind,
 };
 
 use super::conflict::{check_conflict_constraint, check_conflict_target};
@@ -91,16 +91,24 @@ impl<'a, 'c> Analysis<'a, 'c> {
                 returning,
                 ..
             } => {
-                if from.is_some() {
-                    return Err("UPDATE … FROM is not supported yet".to_owned());
-                }
                 if !table.joins.is_empty() {
-                    return Err("UPDATE with joins is not supported".to_owned());
+                    return Err("UPDATE with joins is not supported; join in `FROM`".to_owned());
                 }
                 self.scope_table(table)?;
                 let TableRef::Schema(target) = self.scope[0].table else {
                     return Err("UPDATE must target a schema table, not a CTE".to_owned());
                 };
+                // `FROM` tables join the target: their columns resolve
+                // beside its own, in the `SET` values, `WHERE` and
+                // `RETURNING`.
+                if let Some(
+                    UpdateTableFromKind::AfterSet(from) | UpdateTableFromKind::BeforeSet(from),
+                ) = from
+                {
+                    for table in from {
+                        self.scope_table(table)?;
+                    }
+                }
                 for assignment in assignments {
                     self.assignment(target, &assignment.target, &assignment.value)?;
                 }
@@ -110,18 +118,21 @@ impl<'a, 'c> Analysis<'a, 'c> {
                 self.returning(returning.as_deref())
             }
             Statement::Delete(delete) => {
-                if delete.using.is_some() {
-                    return Err("DELETE … USING is not supported yet".to_owned());
-                }
                 let (FromTable::WithFromKeyword(from) | FromTable::WithoutKeyword(from)) =
                     &delete.from;
                 let [table] = from.as_slice() else {
-                    return Err("DELETE must name exactly one table".to_owned());
+                    return Err(
+                        "DELETE must name exactly one table; name the others in `USING`".to_owned(),
+                    );
                 };
                 if !table.joins.is_empty() {
-                    return Err("DELETE with joins is not supported".to_owned());
+                    return Err("DELETE with joins is not supported; join in `USING`".to_owned());
                 }
                 self.scope_table(table)?;
+                // `USING` tables join the target, as `UPDATE … FROM`'s do.
+                for table in delete.using.iter().flatten() {
+                    self.scope_table(table)?;
+                }
                 if let Some(selection) = &delete.selection {
                     self.expr(selection)?;
                 }
@@ -345,6 +356,10 @@ impl<'a, 'c> Analysis<'a, 'c> {
     }
 
     fn scope_table(&mut self, table: &TableWithJoins) -> Result<(), String> {
+        // A `RIGHT`/`FULL` join makes nullable only the tables joined before
+        // it in this item, not those of other `FROM` items (or an
+        // `UPDATE`'s target).
+        let first = self.scope.len();
         self.table_factor(&table.relation, false)?;
         for join in &table.joins {
             let (constraint, left_nullable, right_nullable) = match &join.join_operator {
@@ -362,7 +377,7 @@ impl<'a, 'c> Analysis<'a, 'c> {
                 other => return Err(format!("join `{other:?}` is not supported")),
             };
             if left_nullable {
-                for entry in &mut self.scope {
+                for entry in &mut self.scope[first..] {
                     entry.outer_nullable = true;
                 }
             }

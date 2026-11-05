@@ -149,9 +149,16 @@ impl<'a, 'c> Analysis<'a, 'c> {
                     tables.join(", ")
                 ))
             }
-            _ => Err(format!(
-                "column `{name}` is ambiguous; qualify it with a table or alias"
-            )),
+            many => {
+                let candidates: Vec<String> = many
+                    .iter()
+                    .map(|reference| format!("`{}.{name}`", self.scope[reference.entry].qualifier))
+                    .collect();
+                Err(format!(
+                    "column `{name}` is ambiguous: it could be {}; qualify it with a table or alias",
+                    candidates.join(" or ")
+                ))
+            }
         }
     }
 

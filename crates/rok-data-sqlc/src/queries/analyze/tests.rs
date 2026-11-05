@@ -39,6 +39,15 @@ const SCHEMA: &str = "
             RETURN NEW;
         END;
         $$;
+        CREATE TABLE partners (id BIGSERIAL PRIMARY KEY, name TEXT NOT NULL, active BOOLEAN NOT NULL);
+        CREATE TABLE offers (id BIGSERIAL PRIMARY KEY, partner_id BIGINT NOT NULL REFERENCES partners (id), status TEXT NOT NULL);
+        CREATE TABLE allocations (
+            id BIGSERIAL PRIMARY KEY,
+            offer_id BIGINT NOT NULL REFERENCES offers (id),
+            rooms_held INTEGER NOT NULL,
+            rooms_total INTEGER NOT NULL,
+            held_at TIMESTAMPTZ
+        );
     ";
 
 fn analyze(queries: &str) -> (Vec<AnalyzedQuery>, Vec<QueryFailure>) {
@@ -151,8 +160,8 @@ fn infers_params_from_in_any_between_like_and_casts() {
         query.params,
         [
             param(1, "sku", "String"),
-            param(2, "stock", "i32"),
-            param(3, "stock_2", "i32"),
+            param(2, "stock_from", "i32"),
+            param(3, "stock_to", "i32"),
             param(4, "category_id", "i64"),
             param(5, "category_id_2", "i64"),
             param(6, "id_list", "Vec<uuid::Uuid>"),
@@ -188,6 +197,154 @@ fn update_set_and_upsert_assignments_are_typed() {
         "-- name: Upsert :exec\nINSERT INTO products (id, sku, name, category_id) VALUES ($1, $2, $3, $4)\nON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, stock = $5;",
     );
     assert_eq!(upsert.params[4], param(5, "stock", "i32"));
+}
+
+#[test]
+fn between_bounds_are_named_from_and_to() {
+    let query = one(
+        "-- name: InStock :many\nSELECT id FROM products WHERE stock BETWEEN $1 AND $2 AND stock NOT BETWEEN $3 AND $4::int;",
+    );
+    assert_eq!(
+        query.params,
+        [
+            param(1, "stock_from", "i32"),
+            param(2, "stock_to", "i32"),
+            param(3, "stock_from_2", "i32"),
+            param(4, "stock_to_2", "i32"),
+        ]
+    );
+}
+
+#[test]
+fn a_param_override_without_a_type_renames_and_keeps_the_inferred_type() {
+    let query = one(
+        "-- name: InStock :many\n-- param: $1 from\n-- param: $2 to\nSELECT id FROM products WHERE category_id = $3 AND stock BETWEEN $1 AND $2;",
+    );
+    assert_eq!(
+        query.params,
+        [
+            param(1, "from", "i32"),
+            param(2, "to", "i32"),
+            param(3, "category_id", "i64"),
+        ]
+    );
+}
+
+#[test]
+fn a_bang_marks_a_nullable_columns_param_not_null() {
+    let query = one(
+        "-- name: Annotate :exec\n-- param: $2 note!\n-- param: $3 memo!\nUPDATE products SET note = $2 WHERE id = $1 AND note <> $3;",
+    );
+    assert_eq!(
+        query.params,
+        [
+            param(1, "id", "uuid::Uuid"),
+            param(2, "note", "String"),
+            param(3, "memo", "String"),
+        ]
+    );
+    let typed_id = one(
+        "-- name: Reparent :exec\n-- param: $1 parent!\nUPDATE nodes SET parent_id = $1 WHERE id = $2;",
+    );
+    assert_eq!(typed_id.params[0].name, "parent");
+    assert!(
+        !typed_id.params[0].rust_type.starts_with("Option<"),
+        "{:?}",
+        typed_id.params
+    );
+}
+
+#[test]
+fn a_type_free_override_needs_an_inferable_placeholder() {
+    let reason = failure(
+        "-- name: Q :many\n-- param: $1 pattern\nSELECT id FROM products WHERE lower(name) = lower($1);",
+    );
+    assert!(
+        reason.contains("`-- param: $1 pattern <RustType>`"),
+        "{reason}"
+    );
+}
+
+/// Karibu Pass's `HoldRooms`: an `UPDATE … FROM` with a join, typed like
+/// the equivalent join.
+const HOLD_ROOMS: &str = "UPDATE allocations SET rooms_held = rooms_held + $2, held_at = $3
+FROM offers o JOIN partners p ON p.id = o.partner_id
+WHERE o.id = allocations.offer_id AND allocations.id = $1 AND p.active AND o.status = $4
+  AND rooms_held + $2 <= rooms_total";
+
+#[test]
+fn update_from_resolves_columns_across_the_target_and_its_from_tables() {
+    let exec = one(&format!("-- name: HoldRooms :execrows\n{HOLD_ROOMS};"));
+    assert_eq!(
+        exec.params,
+        [
+            param(1, "id", "i64"),
+            param(2, "rooms_held", "i32"),
+            param(3, "held_at", "Option<chrono::DateTime<chrono::Utc>>"),
+            param(4, "status", "String"),
+        ]
+    );
+    assert_eq!(exec.result, ResultShape::None);
+
+    let returning = one(&format!(
+        "-- name: HoldRooms :maybe_one\n{HOLD_ROOMS}\nRETURNING allocations.id, rooms_held, o.status, p.name AS partner;"
+    ));
+    assert_eq!(returning.params, exec.params);
+    assert_eq!(
+        row_columns(&returning),
+        [
+            ("id", "i64"),
+            ("rooms_held", "i32"),
+            ("status", "String"),
+            ("partner", "String"),
+        ]
+    );
+}
+
+#[test]
+fn update_from_names_the_tables_of_an_ambiguous_column() {
+    let reason = failure(
+        "-- name: Q :exec\nUPDATE allocations SET rooms_held = 0 FROM offers o WHERE id = $1;",
+    );
+    assert!(reason.contains("column `id` is ambiguous"), "{reason}");
+    assert!(reason.contains("`allocations.id`"), "{reason}");
+    assert!(reason.contains("`o.id`"), "{reason}");
+}
+
+#[test]
+fn delete_using_resolves_columns_like_a_join() {
+    let query = one(
+        "-- name: DropRetired :many\nDELETE FROM allocations a USING offers o, partners p\nWHERE o.id = a.offer_id AND p.id = o.partner_id AND p.name = $1 AND o.status = $2\nRETURNING a.id, o.status;",
+    );
+    assert_eq!(
+        query.params,
+        [param(1, "name", "String"), param(2, "status", "String")]
+    );
+    assert_eq!(row_columns(&query), [("id", "i64"), ("status", "String")]);
+}
+
+#[test]
+fn a_rok_skip_query_is_neither_analyzed_nor_failed() {
+    let (analyzed, failures) = analyze(
+        "-- name: Untypeable :one\n-- rok:skip\nSELECT upper(name) FROM products;\n-- name: Kept :exec\nDELETE FROM products;",
+    );
+    assert!(failures.is_empty(), "{failures:?}");
+    let names: Vec<&str> = analyzed.iter().map(|query| query.name.as_str()).collect();
+    assert_eq!(names, ["Kept"]);
+}
+
+#[test]
+fn arithmetic_with_a_numeric_column_types_its_placeholder() {
+    let query = one(
+        "-- name: Q :exec\nUPDATE allocations SET rooms_held = rooms_total - $1 WHERE id = $2;",
+    );
+    assert_eq!(query.params[0], param(1, "rooms_total", "i32"));
+    // A timestamp plus a placeholder is a timestamp plus an interval: not
+    // settled by the column.
+    assert!(
+        failure("-- name: Q :exec\nUPDATE allocations SET held_at = held_at + $1;")
+            .contains("cannot infer the type of `$1`")
+    );
 }
 
 #[test]

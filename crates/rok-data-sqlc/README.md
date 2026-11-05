@@ -546,13 +546,20 @@ A query file holds SQL statements, each starting with a `-- name:` line:
 
 ```text
 -- name: <Name> :<mode>
--- param: $<n> <name> <RustType>     (optional, repeatable)
--- column: <name> <RustType>        (optional, repeatable)
+-- param: $<n> <name>[!] [<RustType>] (optional, repeatable)
+-- column: <name> <RustType>          (optional, repeatable)
+-- rok:skip [<note>]                  (optional)
 <one SQL statement>
 ```
 
 The name becomes the function name in snake_case. Other full-line comments
 are dropped.
+
+`-- rok:skip` leaves a query ungenerated on purpose, say one you call
+through hand-written SQLx code. The run prints a note instead of failing,
+without `--lenient`: ``note: queries/holds.sql:12: query `HoldRooms` left
+ungenerated (`-- rok:skip`: <note>)``. `rok gen --json` lists it under
+`skipped_on_purpose`, apart from `failures` and `skipped`.
 
 | Return mode | Runs | Returns |
 |---|---|---|
@@ -566,6 +573,8 @@ are dropped.
 are:
 
 - a comparison, `IN`, `BETWEEN` or `LIKE` against a known column;
+- arithmetic with a numeric column (`rooms_held + $2` takes `rooms_held`'s
+  type; a timestamp plus `$n` is not settled, since `$n` is an interval);
 - `= ANY($n)`, which takes a slice;
 - an `INSERT … VALUES` position, an `UPDATE … SET` target, or
   `ON CONFLICT … DO UPDATE SET`;
@@ -576,6 +585,22 @@ are:
 
 A placeholder anywhere else fails generation. The error names the fix, a
 `-- param:` override.
+
+**Parameter names come from the column.** A parameter takes the name of
+the column that types it (`_list` for `= ANY`, `param_<n>` for a bare
+cast), and a second one with the same name gets `_2`, `_3`. `BETWEEN`'s
+bounds are `<column>_from` and `<column>_to`. A `-- param:` override
+comes in three forms:
+
+- `-- param: $2 since` names the parameter `since` and keeps its inferred
+  type;
+- `-- param: $2 reviewer!` names it `reviewer` and keeps its inferred type
+  without the `Option` a nullable column gives it;
+- `-- param: $2 reviewer Uuid` names it and takes `Uuid` as written.
+
+`!` is for a value written to a nullable column that the query always
+sets, as in `UPDATE offers SET reviewed_by = $2`. It can't go with a
+written type, which is used as is.
 
 **Keys keep their typed ids.** A parameter typed by a primary key or foreign
 key column takes that table's typed id, and so does a result column taken
@@ -686,6 +711,11 @@ pub async fn search_product_names<'e, E>(
 **More rules:**
 
 - `WITH` queries work: each CTE is treated as a table.
+- `UPDATE t SET … FROM a JOIN b …` and `DELETE FROM t USING a, b …` are
+  typed like the join of `t` with the other tables: a column resolves
+  across all of them, in the `SET` values, `WHERE` and `RETURNING`. An
+  unqualified column more than one of them has fails, naming each
+  (`` `allocations.id` or `o.id` ``); qualify it.
 - An `ON CONFLICT (cols)` target must be one of the table's unique keys, and
   `ON CONFLICT ON CONSTRAINT name` must name its primary key or a unique
   constraint: the declared name, or PostgreSQL's default for an unnamed one

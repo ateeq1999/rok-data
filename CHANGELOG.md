@@ -11,6 +11,18 @@ that it exists and won't ship a tag without it).
 
 **Changed**
 
+- Query parameter names (rok-data-sqlc): a `BETWEEN` bound is
+  `<column>_from` / `<column>_to` (was `<column>` / `<column>_2`);
+  `-- param: $2 from` renames without restating the type, and
+  `-- param: $2 reviewer!` also makes a nullable column's value required
+  (`Uuid`, not `Option<Uuid>`).
+- Typed queries (rok-data-sqlc) support `UPDATE … FROM` and
+  `DELETE … USING`, typed like the equivalent join, and a placeholder in
+  arithmetic with a numeric column takes its type. `-- rok:skip [note]`
+  leaves one query ungenerated on purpose: `rok gen` prints a `note:`
+  instead of failing without `--lenient`, and `--json` lists it under
+  `skipped_on_purpose`, apart from `failures` and `skipped`.
+
 - `rok gen` and `rok gen check` fail on a table or query they can't
   generate, where they skipped it with a warning that scrolled past. A
   query whose result column can't be typed (`expires_at <= now() AS
