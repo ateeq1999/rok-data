@@ -35,6 +35,18 @@ that it exists and won't ship a tag without it).
 
 **Fixed**
 
+- A failed `rok gen` step says what's done and what isn't: a run of
+  several steps (each App's data layer and migration, the contract export,
+  each Client) that fails ends with the steps done, the one that failed
+  with its error, the ones skipped, and the `rok gen` command that
+  finishes the rest (without `--migration` once it is staged). Nothing is
+  rolled back. `--json` carries the same as `{"steps": [...], "finish":
+  ...}`. A failed staging prints the data layer's report too, and its
+  `--json` body, where it printed nothing.
+- An App whose settings leave `output` unset generates into its own
+  `src/db`, not the `src/db` of the directory `rok gen` ran in; and a
+  Monorepo's `rok gen --json` no longer prints the `api:` heading on
+  stdout, so stdout is one JSON document.
 - Line endings don't change migrations. Migration staging (`rok gen
   --migration`) normalises CRLF to LF in the truth files and in the
   `.rok-schema.json` snapshot before comparing, as the engine does with

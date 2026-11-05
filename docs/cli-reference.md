@@ -399,6 +399,28 @@ error: queries/sessions.sql:1: query `SessionExpiry`: cannot infer the type of r
 failures are in `failures` (`skipped` in a `--lenient` run), each with
 its `path` and `line`.
 
+A step that fails (an App's data layer or migration, the contract export,
+a Client) ends a run of several steps with the list of them and the command
+that finishes the rest; nothing done is rolled back:
+
+```text
+error: the contract export failed: re-exporting the contract: `cargo run -p api --bin export-openapi` failed (exit code: 101); openapi.json was not rewritten
+
+steps:
+  done     `api`'s data layer
+  done     `api`'s migration `add_bio`
+  failed   the contract export
+  skipped  the `ts` client
+nothing was rolled back; once the cause is fixed, `rok gen` finishes the rest
+```
+
+The command keeps the run's flags, without `--migration` once a migration
+is staged. With `--json`, the steps are an object `{"steps": [{"kind":
+"data_layer"|"migration"|"export"|"client", "app"|"migration"|"client": ...,
+"step": ..., "status": "done"|"failed"|"skipped", "error": ...}],
+"finish": "rok gen"}`: the last element of a Monorepo's array, or keys of a
+plain project's object.
+
 ### `rok gen check [OPTIONS]`
 
 The CI mode: nothing is written, the missing, changed and stale files are

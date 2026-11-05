@@ -43,9 +43,11 @@ use crate::output::display_path;
 mod clients;
 mod report;
 mod resolve;
+mod steps;
 
 use report::{print_json_body, print_report};
 use resolve::resolve;
+use steps::Steps;
 
 /// The truth dir a project has when nothing else is said: also where the
 /// pre-split layout (`rok init` before the history was separated) keeps
@@ -85,6 +87,8 @@ struct Run {
     settings: Settings,
     /// The line naming the settings file and directories the run reads.
     using: String,
+    /// The directory of the run's App (or plain project).
+    dir: PathBuf,
 }
 
 /// `rok gen`: the data layer and the API features, and the migration pair
@@ -94,23 +98,38 @@ fn generate(options: GenOptions) -> Result<ExitCode, String> {
     let clients = clients::load(&options)?;
     let multi = runs.iter().any(|run| run.app.is_some()) || clients.is_some();
     let mut bodies: Vec<Value> = Vec::new();
+    // A step that fails ends the run with what was done, what failed and
+    // what was skipped; nothing done is rolled back.
+    let mut steps = Steps::plan(&runs, clients.as_ref(), &options);
     for run in &runs {
         heading(run, multi);
         match rok_data_sqlc::generate(&run.settings.engine) {
             Ok(report) => {
-                let staged = stage(&run.settings)?;
+                steps.done();
+                let staged = stage(&run.settings);
+                let shown = staged.as_ref().ok().and_then(Option::as_ref);
                 if run.settings.json {
                     bodies.push(print_json_body(
                         &run.settings,
                         run.app.as_deref(),
                         &report,
-                        staged.as_ref(),
+                        shown,
                         None,
                         false,
                     ));
                 } else {
-                    print_report(&run.settings, &report, staged.as_ref(), None);
-                    next_steps(&run.settings, staged.as_ref());
+                    print_report(&run.settings, &report, shown, None);
+                }
+                match staged {
+                    Ok(staged) => {
+                        if staged.is_some() {
+                            steps.done();
+                        }
+                        if !run.settings.json {
+                            next_steps(&run.settings, staged.as_ref());
+                        }
+                    }
+                    Err(message) => return steps.fail(message, bodies, multi),
                 }
             }
             Err(error) => {
@@ -127,16 +146,16 @@ fn generate(options: GenOptions) -> Result<ExitCode, String> {
                 } else {
                     print_report(&run.settings, report, None, None);
                 }
-                return print_bodies_then(bodies, multi, Err(error.to_string()));
+                return steps.fail(error.to_string(), bodies, multi);
             }
         }
     }
     // A monorepo's Clients follow its Apps: the contract is re-exported
     // from the regenerated api, then each client is emitted from it.
     if let Some(project) = &clients
-        && let Err(message) = clients::generate(project, &options, &mut bodies)
+        && let Err(message) = clients::generate(project, &options, &mut bodies, &mut steps)
     {
-        return print_bodies_then(bodies, multi, Err(message));
+        return steps.fail(message, bodies, multi);
     }
     print_bodies_then(bodies, multi, Ok(ExitCode::SUCCESS))
 }
@@ -286,7 +305,10 @@ fn print_bodies_then(
 fn heading(run: &Run, multi: bool) {
     // On stderr, so `--json` stdout stays one document.
     eprintln!("{}", run.using);
-    if multi && let Some(app) = &run.app {
+    if multi
+        && !run.settings.json
+        && let Some(app) = &run.app
+    {
         println!("{app}:");
     }
 }

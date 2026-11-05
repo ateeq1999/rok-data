@@ -60,6 +60,7 @@ fn run(
         app,
         settings,
         using,
+        dir: target.dir.clone(),
     })
 }
 
@@ -157,6 +158,10 @@ fn settings(
     engine.schema = schema_inputs(&entries)?;
     if let Some(output) = options.output.clone() {
         engine.output = output;
+    } else if engine.output == Config::default().output {
+        // As with `migrations` below: the engine's bare default is the
+        // App's `src/db`, not the directory `rok gen` ran in.
+        engine.output = join_default(base, &engine.output.to_string_lossy());
     }
     if let Some(resource) = options.resource.clone() {
         engine.resource = Some(resource);
