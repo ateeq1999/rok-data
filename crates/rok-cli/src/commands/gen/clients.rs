@@ -13,6 +13,7 @@ use std::path::Path;
 use rok_data_sqlc::clients::{self, Mode, Outcome, Project};
 use serde_json::{Value, json};
 
+use super::Steps;
 use super::resolve::project;
 use crate::cli::r#gen::GenOptions;
 use crate::config::FILE;
@@ -32,12 +33,14 @@ pub(super) fn load(options: &GenOptions) -> Result<Option<Project>, String> {
 }
 
 /// `rok gen`'s step: re-export the contract (not in a dry run), then emit
-/// every client. Prose goes to stdout; with `--json`, one body per client
-/// joins `bodies`.
+/// every client, each a step of `steps`. Prose goes to stdout; with
+/// `--json`, one body per client joins `bodies`. The error is the failed
+/// step's.
 pub(super) fn generate(
     project: &Project,
     options: &GenOptions,
     bodies: &mut Vec<Value>,
+    steps: &mut Steps<'_>,
 ) -> Result<(), String> {
     let export = !options.dry_run && project.export.is_some();
     if !options.json {
@@ -45,6 +48,7 @@ pub(super) fn generate(
     }
     if export {
         project.export().map_err(|error| format!("{error:#}"))?;
+        steps.done();
         if !options.json {
             println!("exported {}", display_path(&project.document));
         }
@@ -53,12 +57,18 @@ pub(super) fn generate(
         dry_run: options.dry_run,
         force: options.force,
     };
-    let outcomes = clients::generate(project, mode).map_err(|error| format!("{error:#}"))?;
-    for outcome in &outcomes {
+    // A contract that can't be read fails the first client's step.
+    let document = project
+        .read_document()
+        .map_err(|error| format!("{error:#}"))?;
+    for client in &project.clients {
+        let outcome =
+            clients::emit_client(&document, client, mode).map_err(|error| format!("{error:#}"))?;
+        steps.done();
         if options.json {
-            bodies.push(body(project, outcome, export.then_some(&project.document)));
+            bodies.push(body(project, &outcome, export.then_some(&project.document)));
         } else {
-            print(outcome, options.dry_run, false);
+            print(&outcome, options.dry_run, false);
         }
     }
     Ok(())

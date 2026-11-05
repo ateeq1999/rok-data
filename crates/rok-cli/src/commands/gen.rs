@@ -34,7 +34,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use rok_data_codegen::{Rename, StageOptions, Staged};
-use rok_data_sqlc::{Config, Report};
+use rok_data_sqlc::{Config, Project};
 use serde_json::Value;
 
 use crate::cli::r#gen::{GenAction, GenOptions};
@@ -43,18 +43,16 @@ use crate::output::display_path;
 mod clients;
 mod report;
 mod resolve;
+mod steps;
 
 use report::{print_json_body, print_report};
 use resolve::resolve;
+use steps::Steps;
 
 /// The truth dir a project has when nothing else is said: also where the
 /// pre-split layout (`rok init` before the history was separated) keeps
 /// its staged pairs.
 const DEFAULT_SCHEMA_DIR: &str = "migrations";
-
-/// The history dir the settings place the staged pairs in when nothing
-/// moves them: the same dir `rok migrate` reads by default.
-const DEFAULT_MIGRATIONS_DIR: &str = "migrations";
 
 /// `rok gen`: with the flags directly, or with the nested `rok gen check`
 /// CI mode. A value given at the group level and again on the leaf: the
@@ -85,6 +83,8 @@ struct Run {
     settings: Settings,
     /// The line naming the settings file and directories the run reads.
     using: String,
+    /// The directory of the run's App (or plain project).
+    dir: PathBuf,
 }
 
 /// `rok gen`: the data layer and the API features, and the migration pair
@@ -94,31 +94,38 @@ fn generate(options: GenOptions) -> Result<ExitCode, String> {
     let clients = clients::load(&options)?;
     let multi = runs.iter().any(|run| run.app.is_some()) || clients.is_some();
     let mut bodies: Vec<Value> = Vec::new();
+    // A step that fails ends the run with what was done, what failed and
+    // what was skipped; nothing done is rolled back.
+    let mut steps = Steps::plan(&runs, clients.as_ref(), &options);
     for run in &runs {
         heading(run, multi);
         match rok_data_sqlc::generate(&run.settings.engine) {
             Ok(report) => {
-                let strict = strict_failure(&run.settings, &report);
-                let staged = if strict.is_none() {
-                    stage(&run.settings)?
-                } else {
-                    None
-                };
+                steps.done();
+                let staged = stage(&run.settings);
+                let shown = staged.as_ref().ok().and_then(Option::as_ref);
                 if run.settings.json {
                     bodies.push(print_json_body(
                         &run.settings,
                         run.app.as_deref(),
                         &report,
-                        staged.as_ref(),
+                        shown,
                         None,
                         false,
                     ));
                 } else {
-                    print_report(&run.settings, &report, staged.as_ref(), None);
-                    next_steps(&run.settings, staged.as_ref());
+                    print_report(&run.settings, &report, shown, None);
                 }
-                if let Some(message) = strict {
-                    return print_bodies_then(bodies, multi, Err(message));
+                match staged {
+                    Ok(staged) => {
+                        if staged.is_some() {
+                            steps.done();
+                        }
+                        if !run.settings.json {
+                            next_steps(run, staged.as_ref());
+                        }
+                    }
+                    Err(message) => return steps.fail(message, bodies, multi),
                 }
             }
             Err(error) => {
@@ -135,16 +142,16 @@ fn generate(options: GenOptions) -> Result<ExitCode, String> {
                 } else {
                     print_report(&run.settings, report, None, None);
                 }
-                return print_bodies_then(bodies, multi, Err(error.to_string()));
+                return steps.fail(error.to_string(), bodies, multi);
             }
         }
     }
     // A monorepo's Clients follow its Apps: the contract is re-exported
     // from the regenerated api, then each client is emitted from it.
     if let Some(project) = &clients
-        && let Err(message) = clients::generate(project, &options, &mut bodies)
+        && let Err(message) = clients::generate(project, &options, &mut bodies, &mut steps)
     {
-        return print_bodies_then(bodies, multi, Err(message));
+        return steps.fail(message, bodies, multi);
     }
     print_bodies_then(bodies, multi, Ok(ExitCode::SUCCESS))
 }
@@ -185,12 +192,7 @@ fn check(options: GenOptions) -> Result<ExitCode, String> {
                 continue;
             }
         };
-        let strict = strict_failure(&run.settings, &report);
-        let pending = if strict.is_none() {
-            staged_drift(&run.settings)?
-        } else {
-            None
-        };
+        let pending = staged_drift(&run.settings)?;
         if run.settings.json {
             bodies.push(print_json_body(
                 &run.settings,
@@ -202,9 +204,6 @@ fn check(options: GenOptions) -> Result<ExitCode, String> {
             ));
         } else {
             print_report(&run.settings, &report, None, pending.as_ref());
-        }
-        if let Some(message) = strict {
-            return print_bodies_then(bodies, multi, Err(message));
         }
         if pending.is_some() {
             findings.push(pending_message(run));
@@ -302,34 +301,12 @@ fn print_bodies_then(
 fn heading(run: &Run, multi: bool) {
     // On stderr, so `--json` stdout stays one document.
     eprintln!("{}", run.using);
-    if multi && let Some(app) = &run.app {
+    if multi
+        && !run.settings.json
+        && let Some(app) = &run.app
+    {
         println!("{app}:");
     }
-}
-
-/// The message of a `--strict` run that found warnings, if any.
-fn strict_failure(settings: &Settings, report: &Report) -> Option<String> {
-    if !settings.strict {
-        return None;
-    }
-    let mut reasons: Vec<String> = Vec::new();
-    for failure in &report.table_failures {
-        reasons.push(format!("table `{}`: {}", failure.table, failure.reason));
-    }
-    for failure in &report.query_failures {
-        reasons.push(format!("query `{}`: {}", failure.query, failure.reason));
-    }
-    for warning in &report.warnings {
-        reasons.push(warning.clone());
-    }
-    if reasons.is_empty() {
-        return None;
-    }
-    Some(format!(
-        "--strict: {} warning(s):\n  - {}",
-        reasons.len(),
-        reasons.join("\n  - ")
-    ))
 }
 
 /// The migration pair the run stages, if any.
@@ -362,8 +339,6 @@ struct Settings {
     renames: Vec<Rename>,
     /// Whether the steps that lose data are allowed.
     allow_destructive: bool,
-    /// Whether a warning fails the run.
-    strict: bool,
     /// Whether the report is JSON.
     json: bool,
 }
@@ -420,24 +395,51 @@ fn staged_drift(settings: &Settings) -> Result<Option<Pending>, String> {
     }))
 }
 
+/// What `rok migrate up` needs to read the run's history dir from where
+/// `rok gen` ran: nothing when the project rule finds it there (the App
+/// started in, a Monorepo's one App, a plain project's settings), `--app`
+/// at a root naming several Apps, and `--dir` for a history dir only a
+/// flag named.
+fn migrate_place(run: &Run) -> String {
+    let found = |app: Option<&str>| {
+        Project::current()
+            .and_then(|project| project.target(app))
+            .and_then(|target| target.migrations_dir())
+            .is_ok_and(|dir| same_dir(&dir, &run.settings.migrations_dir))
+    };
+    if found(None) {
+        String::new()
+    } else if let Some(app) = run.app.as_deref().filter(|app| found(Some(app))) {
+        format!(" --app {app}")
+    } else {
+        format!(" --dir {}", display_path(&run.settings.migrations_dir))
+    }
+}
+
+/// Whether two paths name one directory.
+fn same_dir(a: &Path, b: &Path) -> bool {
+    let full = |path: &Path| {
+        path.canonicalize()
+            .or_else(|_| std::path::absolute(path))
+            .unwrap_or_else(|_| path.to_path_buf())
+    };
+    full(a) == full(b)
+}
+
 /// The name a check's planned pair carries until it is staged for real.
 const PENDING_MIGRATION_NAME: &str = "pending";
 
 /// Prints the numbered next steps.
-fn next_steps(settings: &Settings, staged: Option<&Staged>) {
+///
+/// Each command runs as printed from the directory `rok gen` ran in, and
+/// each path is relative to it.
+fn next_steps(run: &Run, staged: Option<&Staged>) {
     let mut steps: Vec<String> = Vec::new();
     if let Some(staged) = staged {
-        // The runtime's loader reads the history dir's pairs (and skips
-        // the snapshot beside them); the --dir is the loader's own flag,
-        // needed only when the run moved the history off its default.
-        let dir = if settings.migrations_dir == Path::new(DEFAULT_MIGRATIONS_DIR) {
-            String::new()
-        } else {
-            format!(" --dir {}", display_path(&settings.migrations_dir))
-        };
         steps.push(format!(
-            "apply the staged pair ({}) with `rok migrate up{dir}`",
-            display_path(&staged.up)
+            "apply the staged pair ({}) with `rok migrate up{}`",
+            display_path(&staged.up),
+            migrate_place(run)
         ));
     }
     steps.push("`rok gen check` fails the build when the generated code is out of date".to_owned());

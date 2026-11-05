@@ -11,6 +11,15 @@ that it exists and won't ship a tag without it).
 
 **Changed**
 
+- `rok gen` and `rok gen check` fail on a table or query they can't
+  generate, where they skipped it with a warning that scrolled past. A
+  query whose result column can't be typed (`expires_at <= now() AS
+  expired`) names its file and line, the expression and the override:
+  ``add `-- column: expired <RustType>` ``. `--lenient` skips as before;
+  `--strict` is the default now and still accepted. `--json` carries the
+  failures in `failures`, and each failure and skipped entry has its
+  `path` and `line`. `--strict` no longer fails on the other warnings
+  (a scaffolded file using what the settings stopped generating).
 - One rule for finding the project: `rok gen`, `rok gen check`,
   `rok migrate *`, `rok schema diff` and `rok sqlc check-arch` walk up to
   the nearest `rok.toml`. Started inside an App a Monorepo's `[apps]`
@@ -26,6 +35,23 @@ that it exists and won't ship a tag without it).
 
 **Fixed**
 
+- "Next steps" run as printed: `rok gen` prints `rok migrate up` bare
+  when the project rule finds the staged pair's history dir from where it
+  ran (a Monorepo root printed `--dir apps/api/migrations`), `--app
+  <name>` at a root naming several Apps, and `--dir` only for a history
+  dir a flag named; `rok init <dir>` starts its steps with `cd <dir>`.
+- A failed `rok gen` step says what's done and what isn't: a run of
+  several steps (each App's data layer and migration, the contract export,
+  each Client) that fails ends with the steps done, the one that failed
+  with its error, the ones skipped, and the `rok gen` command that
+  finishes the rest (without `--migration` once it is staged). Nothing is
+  rolled back. `--json` carries the same as `{"steps": [...], "finish":
+  ...}`. A failed staging prints the data layer's report too, and its
+  `--json` body, where it printed nothing.
+- An App whose settings leave `output` unset generates into its own
+  `src/db`, not the `src/db` of the directory `rok gen` ran in; and a
+  Monorepo's `rok gen --json` no longer prints the `api:` heading on
+  stdout, so stdout is one JSON document.
 - Casts keep nullability in generated queries (rok-data-sqlc, a change
   to the generated API). `count(*)::bigint AS owners` in a `:one` query
   is `i64`, where every cast was `Option`; a cast of a `NOT NULL` column

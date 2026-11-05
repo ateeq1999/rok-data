@@ -60,6 +60,7 @@ fn run(
         app,
         settings,
         using,
+        dir: target.dir.clone(),
     })
 }
 
@@ -157,6 +158,10 @@ fn settings(
     engine.schema = schema_inputs(&entries)?;
     if let Some(output) = options.output.clone() {
         engine.output = output;
+    } else if engine.output == Config::default().output {
+        // As with `migrations` below: the engine's bare default is the
+        // App's `src/db`, not the directory `rok gen` ran in.
+        engine.output = join_default(base, &engine.output.to_string_lossy());
     }
     if let Some(resource) = options.resource.clone() {
         engine.resource = Some(resource);
@@ -167,9 +172,10 @@ fn settings(
     engine.dry_run = options.dry_run;
     engine.force = options.force;
     engine.check = check;
-    // The unsupported tables and queries are reported as warnings; the
-    // `--strict` flag turns them into failures.
-    engine.lenient = true;
+    // A table or query the engine can't generate fails the run (the
+    // file, the query and the fix are in its report); `--lenient` skips
+    // it with a warning instead.
+    engine.lenient = options.lenient;
     let renames = options
         .renames
         .iter()
@@ -195,7 +201,6 @@ fn settings(
         migration: options.migration.clone(),
         renames,
         allow_destructive: options.allow_destructive,
-        strict: options.strict,
         json: options.json,
     })
 }

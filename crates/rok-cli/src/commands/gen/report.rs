@@ -9,25 +9,38 @@ use serde_json::{Value, json};
 use super::{Pending, Settings};
 use crate::output::display_path;
 
-/// Prints what the run did: the skipped tables and queries and the
-/// warnings on stderr, the files on stdout.
+/// Prints what the run did: the tables and queries it could not generate
+/// (errors, or warnings of what a `--lenient` run skipped) and the warnings
+/// on stderr, the files on stdout.
 pub(super) fn print_report(
     settings: &Settings,
     report: &Report,
     staged: Option<&Staged>,
     pending: Option<&Pending>,
 ) {
+    let lenient = settings.engine.lenient;
     for failure in &report.table_failures {
-        eprintln!(
-            "warning: table `{}` skipped: {}",
-            failure.table, failure.reason
-        );
+        if lenient {
+            eprintln!(
+                "warning: table `{}` skipped: {}",
+                failure.table, failure.reason
+            );
+        } else {
+            // The failure's own form: `path:line: table `name`: reason`.
+            eprintln!("error: {failure}");
+        }
     }
     for failure in &report.query_failures {
-        eprintln!(
-            "warning: query `{}` skipped: {}",
-            failure.query, failure.reason
-        );
+        if lenient {
+            eprintln!(
+                "warning: query `{}` skipped: {}",
+                failure.query, failure.reason
+            );
+        } else {
+            // `path:line: query `name`: reason`, the reason naming the
+            // expression and the `-- column:` override that types it.
+            eprintln!("error: {failure}");
+        }
     }
     for warning in &report.warnings {
         eprintln!("warning: {warning}");
@@ -118,21 +131,32 @@ pub(super) fn print_json_body(
     let paths = |paths: &[std::path::PathBuf]| -> Vec<String> {
         paths.iter().map(|path| display_path(path)).collect()
     };
-    let mut skipped: Vec<Value> = Vec::new();
+    // The tables and queries the engine could not generate: `skipped` in a
+    // `--lenient` run, `failures` (which failed it) otherwise.
+    let mut cannot: Vec<Value> = Vec::new();
     for failure in &report.table_failures {
-        skipped.push(json!({
+        cannot.push(json!({
             "kind": "table",
             "name": failure.table,
             "reason": failure.reason,
+            "path": failure.path.as_deref().map(display_path),
+            "line": failure.line,
         }));
     }
     for failure in &report.query_failures {
-        skipped.push(json!({
+        cannot.push(json!({
             "kind": "query",
             "name": failure.query,
             "reason": failure.reason,
+            "path": failure.path.as_deref().map(display_path),
+            "line": failure.line,
         }));
     }
+    let (skipped, failures) = if settings.engine.lenient {
+        (cannot, Vec::new())
+    } else {
+        (Vec::new(), cannot)
+    };
     let refused: Vec<Value> = report
         .refused
         .iter()
@@ -172,6 +196,7 @@ pub(super) fn print_json_body(
         "missing": paths(&report.missing),
         "changed": paths(&report.changed),
         "skipped": skipped,
+        "failures": failures,
         "warnings": report.warnings,
         "migration": migration,
         "pending_migration": pending_migration,

@@ -236,7 +236,8 @@ project's only source of truth (workspace ADR 0010).
 | `--migration NAME`         | stage a migration pair for the schema changes since the last one    |
 | `--allow-destructive`      | allow the steps that lose data or fail on existing rows             |
 | `--rename OLD=NEW`         | `users=accounts` (table) or `users.name=full_name` (column); repeat|
-| `--strict`                 | fail on warnings (a skipped table or query)                        |
+| `--lenient`                | skip a table or query it can't generate, with a warning          |
+| `--strict`                 | fail on one (the default; accepted for the scripts that pass it)   |
 | `--json`                   | one JSON object on stdout                                           |
 | `-n, --dry-run`            | plan the run; write nothing                                         |
 | `-f, --force`              | overwrite files the generator did not write                          |
@@ -364,7 +365,12 @@ refused unless `--allow-destructive` is given; `--rename` records a
 rename instead of a drop and an add.
 
 The next steps name the staged pair's file: apply it with `rok migrate
-up` (with `--dir <path>` when the history dir is not `migrations`).
+up`, run from the same directory; it finds the history dir by the same
+rule, and the step adds `--app <name>` at a root naming several Apps, or
+`--dir <path>` for a history dir only `--migrations-dir` named. Every
+command the next steps print (here and in `rok init`, which starts with
+`cd <dir>` for a project made elsewhere) runs as printed from the
+directory `rok` ran in, and every path is relative to it.
 An `ALTER TABLE` the truth carries folds into the truth's tables when
 the model can represent it; a clause it cannot rides the pair as an
 extra step with the undo the truth's `-- rok:down` marker supplies.
@@ -374,6 +380,7 @@ numbered next steps. `--json` prints one object instead:
 `{"written": [...], "scaffolded": [...], "unchanged": [...], "refused":
 [{"path": ..., "reason": ...}], "stale": [...], "missing": [...],
 "changed": [...], "skipped": [{"kind": "table"|"query", "name": ...,
+"reason": ..., "path": ..., "line": ...}], "failures": [...], "warnings"|"query", "name": ...,
 "reason": ...}], "warnings": [...], "migration": {"version": ..., "name":
 ..., "up": ..., "down": ..., "reversible": ..., "steps": [...]},
 "pending_migration": {"version": ..., "name": ..., "since": ...} | null,
@@ -382,6 +389,42 @@ own finding of an un-staged truth change (null otherwise): the version
 the pair would take, the placeholder name `pending`, and `since` — the
 last staged migration's stem. The check names no file that does not
 exist: the pending pair is not among the `missing` files.
+
+A table or query the engine can't generate fails the run (and `rok gen
+check`), before anything is written. A query whose result column it
+can't type names its file and line, the expression and the override that
+types it:
+
+```text
+error: queries/sessions.sql:1: query `SessionExpiry`: cannot infer the type of result column `expired` (`expires_at <= now()`); add `-- column: expired <RustType>`
+```
+
+`--lenient` skips it instead, with a warning on stderr (`warning: query
+`SessionExpiry` skipped: ...`), and generates the rest. In `--json` the
+failures are in `failures` (`skipped` in a `--lenient` run), each with
+its `path` and `line`.
+
+A step that fails (an App's data layer or migration, the contract export,
+a Client) ends a run of several steps with the list of them and the command
+that finishes the rest; nothing done is rolled back:
+
+```text
+error: the contract export failed: re-exporting the contract: `cargo run -p api --bin export-openapi` failed (exit code: 101); openapi.json was not rewritten
+
+steps:
+  done     `api`'s data layer
+  done     `api`'s migration `add_bio`
+  failed   the contract export
+  skipped  the `ts` client
+nothing was rolled back; once the cause is fixed, `rok gen` finishes the rest
+```
+
+The command keeps the run's flags, without `--migration` once a migration
+is staged. With `--json`, the steps are an object `{"steps": [{"kind":
+"data_layer"|"migration"|"export"|"client", "app"|"migration"|"client": ...,
+"step": ..., "status": "done"|"failed"|"skipped", "error": ...}],
+"finish": "rok gen"}`: the last element of a Monorepo's array, or keys of a
+plain project's object.
 
 ### `rok gen check [OPTIONS]`
 
