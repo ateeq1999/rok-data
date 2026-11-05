@@ -489,10 +489,11 @@ fn lenient_turns_layout_violations_into_warnings() -> Result<()> {
         assert_success(&output);
         assert_eq!(stdout(&output), "");
         let stderr = String::from_utf8_lossy(&output.stderr).replace("\r\n", "\n");
-        let warnings: Vec<String> = LAYOUT
-            .iter()
-            .map(|line| format!("warning: {line}"))
-            .collect();
+        // The line naming what it read, then the warnings.
+        let warnings: Vec<String> =
+            std::iter::once("using rok-data-sqlc.toml (features src/features)".to_owned())
+                .chain(LAYOUT.iter().map(|line| format!("warning: {line}")))
+                .collect();
         assert_eq!(stderr.lines().collect::<Vec<_>>(), warnings);
     }
 

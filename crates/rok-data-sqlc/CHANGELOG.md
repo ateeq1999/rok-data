@@ -7,6 +7,19 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+### Added
+
+- `Project`, `Target` and `App`: the one rule every command uses to find
+  the project it acts on (a Monorepo's App started inside, its App(s) at
+  the root, or the nearest settings file), with `Target::migrations_dir`
+  and `Target::using`, the line naming what a command read.
+
+### Changed
+
+- `check-arch` finds its project by that rule: a `rok.toml` project (plain,
+  or a Monorepo's App or Apps), not only `rok-data-sqlc.toml`, and
+  `--config` accepts a `rok.toml`. It prints the `using …` line on stderr.
+
 ### Fixed
 
 - A foreign key whose column has neither an `_id` nor an

@@ -154,6 +154,21 @@ From the notes on Karibu Pass's ticket 05:
 - **`rok` reads the App's `.env`:** `rok migrate`, `rok db`, `rok schema` and `rok gen`'s database steps load `<app>/.env`; the environment wins, the config line says so, and `--no-env-file` opts out. The template's test support loads it too (ticket 11).
 - **"Next steps" run as printed:** commands are printed for the directory `rok` ran in; `rok migrate up` needs no `--dir` after ticket 24.
 
+From the notes on Karibu Pass's tickets 05 and 06 (the rest of those notes are tickets 20, 31, 36, 37 and 38):
+
+- **Constraints map to a field and a message:** `-- rok:constraint <name> <field> "<message>"` anywhere in the schema dir, for a CHECK or a trigger's `RAISE … USING CONSTRAINT`. The engine generates a constraint table, and the templates' error mapping returns a mapped constraint as a 422 with field details. An unmapped one carries PostgreSQL's own message.
+- **Actix features mount resources, not scopes:** generated features use `web::resource` only, and `check-arch` warns when a hand-written scope's prefix covers another feature's routes.
+- **`rok add feature <name>`:** scaffolds a hand-written feature's files and registers it at the template's Integration points. Each feature contributes one nested `ApiDoc`, so its OpenAPI registration is one line.
+- **Shared reads:** `queries/shared/*.sql` generates `db::queries::shared`, read kinds only, callable from any feature.
+- **Rust Client bodies:** `Option<Option<T>>` only in `PATCH` bodies; `Default` is derived where every field is optional.
+- **A role at a resource:** a template guide recipe for a path-scoped role extractor, built like `AuthUser`.
+- **Calls to schema functions are typed:** from the function's `RETURNS`, nullable unless `-- column:` says otherwise.
+- **Serving a new table is announced:** `rok gen` prints a loud line for each table it serves for the first time. `[api] include` is an allowlist alternative to `exclude` (not both).
+- **Leftover scaffold-once files are removed while unedited:** an edited one is listed with a note.
+- **Parameter names:** `BETWEEN` bounds are `<column>_from` and `<column>_to`, and `-- param: $2 from` renames without restating the type.
+- **Set-returning functions:** `generate_series` and `unnest` in `FROM` are typed. Batches use `unnest($1::date[])`, documented.
+- **Root scripts:** the Monorepo root has a scripts-only `package.json` (`dev:web`, `dev:api`, `test:web`), with no workspaces.
+
 ## Out of Scope
 
 - **Karibu Pass's product work:** phone and SMS sign-in (its ADR-0006), its tickets, removing its sample data, its repo-wide reformat and its own visual-check scripts. A phone sign-in Module may come later.

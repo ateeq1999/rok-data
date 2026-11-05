@@ -83,6 +83,8 @@ struct Run {
     app: Option<String>,
     /// The run's settings.
     settings: Settings,
+    /// The line naming the settings file and directories the run reads.
+    using: String,
 }
 
 /// `rok gen`: the data layer and the API features, and the migration pair
@@ -298,6 +300,8 @@ fn print_bodies_then(
 
 /// Names the run before its findings, when the project has named Apps.
 fn heading(run: &Run, multi: bool) {
+    // On stderr, so `--json` stdout stays one document.
+    eprintln!("{}", run.using);
     if multi && let Some(app) = &run.app {
         println!("{app}:");
     }

@@ -9,6 +9,21 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+**Changed**
+
+- One rule for finding the project: `rok gen`, `rok gen check`,
+  `rok migrate *`, `rok schema diff` and `rok sqlc check-arch` walk up to
+  the nearest `rok.toml`. Started inside an App a Monorepo's `[apps]`
+  names, they act on that App; at the root, on its App(s). So
+  `rok migrate up` at a Monorepo root applies `apps/api/migrations`
+  instead of failing on a missing `./migrations`, and `check-arch` finds a
+  `rok.toml` project (it read only `rok-data-sqlc.toml` before). An
+  explicit `--dir` still wins; the new `--app <name>` on `rok migrate *`
+  and `rok schema diff` picks an App, and a root naming several Apps asks
+  for it. Each command prints one line on stderr naming the settings file
+  and directories it read (`using App api: apps/api/rok-data-sqlc.toml
+  (migrations apps/api/migrations)`). The rule is `rok_data_sqlc::Project`.
+
 **Fixed**
 
 - Line endings don't change migrations. Migration staging (`rok gen
