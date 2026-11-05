@@ -11,6 +11,15 @@ that it exists and won't ship a tag without it).
 
 **Fixed**
 
+- `SCHEMA_SQL` (the generated `db/schema.rs`) is in an order that loads
+  into an empty database. It listed the schema files' statements in
+  file-name order, so a table referencing one a later file creates
+  (`users.home_city_id` in `0001` → `cities` in `0007`) broke the tests
+  that run it ("relation cities does not exist"). A statement naming an
+  object a later statement creates now moves after it, with the
+  statements that need it; each keeps its text. A schema already in a
+  loadable order keeps its snapshot as it was; the doc comment no longer
+  says it is never executed.
 - Line endings don't change migrations. Migration staging (`rok gen
   --migration`) normalises CRLF to LF in the truth files and in the
   `.rok-schema.json` snapshot before comparing, as the engine does with

@@ -2,7 +2,8 @@
 
 //! The schema the code was generated from.
 
-/// Verbatim snapshot of the input schema; never executed.
+/// The input schema's statements, each as written, in an order that loads
+/// into an empty database: the tests run it to create the schema.
 pub const SCHEMA_SQL: &str = r#"-- The truth of this example (workspace ADR 0010): the schema as it is now,
 -- in one plain `.sql` file. `rok gen` reads these files; the staged
 -- migration pairs beside them are the history — how the schema got here.

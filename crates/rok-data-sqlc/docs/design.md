@@ -106,8 +106,8 @@ Responsibilities:
   ----------------------------------- -----------------------------------
   `db/mod.rs`                         Expose generated resource modules
 
-  `db/schema.rs`                      Verbatim snapshot of the input
-                                      schema; never executed
+  `db/schema.rs`                      The input schema's statements as
+                                      written, in an order that loads
 
   `db/search.rs`                      Shared `Page`, `Sort`, and typed
                                       filter conditions (`Ordered`,

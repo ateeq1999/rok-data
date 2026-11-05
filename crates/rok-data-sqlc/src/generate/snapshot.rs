@@ -12,6 +12,8 @@ use std::path::PathBuf;
 
 use crate::parser;
 
+mod order;
+
 /// The engine's schema inputs with the `-- rok:down` undos stripped
 /// (`parser/postgres/undo.rs`'s strip, which refuses a misplaced marker),
 /// in their given order. The parse below and the snapshot SQL the
@@ -32,17 +34,13 @@ pub(crate) fn prepared(sources: Vec<(PathBuf, String)>) -> anyhow::Result<Vec<(P
     Ok(sources)
 }
 
-/// The schema snapshot: every input verbatim, in order, each starting on a
-/// new line.
+/// The schema snapshot: every input's statements verbatim, in an order
+/// that loads into an empty database ([`order`]): input order, except that
+/// a statement naming an object a later one creates moves after it. Each
+/// input starts on a new line.
 pub(crate) fn sql(sources: &[(PathBuf, String)]) -> String {
-    let mut sql = String::new();
-    for (_, text) in sources {
-        if !sql.is_empty() && !sql.ends_with('\n') {
-            sql.push('\n');
-        }
-        sql.push_str(text);
-    }
-    sql
+    let texts: Vec<&str> = sources.iter().map(|(_, text)| text.as_str()).collect();
+    order::ordered(&texts)
 }
 
 #[cfg(test)]

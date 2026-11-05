@@ -359,10 +359,12 @@ fn crate_hint_with(name: &str, version: &str, serde: bool, features: &[&str]) ->
     }
 }
 
+/// `schema.rs`: `SCHEMA_SQL`, the schema's statements as written, in the
+/// order that loads (`generate/snapshot.rs`).
 pub fn render_schema_snapshot(schema_sql: &str) -> String {
     let hashes = sql::raw_hashes(schema_sql);
     format!(
-        "{HEADER}\n//! The schema the code was generated from.\n\n/// Verbatim snapshot of the input schema; never executed.\npub const SCHEMA_SQL: &str = r{hashes}\"{schema_sql}\"{hashes};\n"
+        "{HEADER}\n//! The schema the code was generated from.\n\n/// The input schema's statements, each as written, in an order that loads\n/// into an empty database: the tests run it to create the schema.\npub const SCHEMA_SQL: &str = r{hashes}\"{schema_sql}\"{hashes};\n"
     )
 }
 

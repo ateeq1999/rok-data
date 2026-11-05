@@ -6,8 +6,8 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A forward reference across schema files loads in a DB test (red first)
-- [ ] Order for already-ordered schemas is unchanged, or the snapshot diffs are reviewed
-- [ ] Changelog updated
+- [x] A forward reference across schema files loads in a DB test (red first)
+- [x] Order for already-ordered schemas is unchanged, or the snapshot diffs are reviewed
+- [x] Changelog updated

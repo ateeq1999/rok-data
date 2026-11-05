@@ -13,7 +13,7 @@ use sqlparser::tokenizer::{Token, TokenWithSpan};
 /// Splits a file's tokens into statements at top-level semicolons. A
 /// `BEGIN ATOMIC … END` function body, with any `CASE … END` inside it,
 /// belongs to its statement.
-pub(super) fn split_statements(tokens: &[TokenWithSpan]) -> Vec<&[TokenWithSpan]> {
+pub(crate) fn split_statements(tokens: &[TokenWithSpan]) -> Vec<&[TokenWithSpan]> {
     let mut statements = Vec::new();
     let mut start = 0;
     // `BEGIN ATOMIC` and `CASE` open a level that `END` closes.
