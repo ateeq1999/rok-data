@@ -523,3 +523,113 @@ fn an_immutable_column_is_created_but_never_updated() -> Result<()> {
     );
     Ok(())
 }
+
+/// A table served for the first time (its feature directory held no
+/// generated `mod.rs` before the run) is reported once, with its route and
+/// endpoints; the next run serves it again without reporting it.
+#[test]
+fn a_table_served_for_the_first_time_is_reported_once() -> Result<()> {
+    let project = Project::new("CREATE TABLE users (id UUID PRIMARY KEY, email TEXT NOT NULL);\n")?;
+    let mut config = project.config();
+    let report = rok_data_sqlc::generate(&config)?;
+    let served: Vec<String> = report
+        .newly_served
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    assert_eq!(
+        served,
+        [
+            "now serving `/api/v1/users` (list, create, get_one, update, remove); \
+             add `users` to `[api] exclude` to keep it private"
+        ],
+    );
+    assert_eq!(report.newly_served[0].table, "users");
+    assert_eq!(
+        report.newly_served[0].route.as_deref(),
+        Some("/api/v1/users")
+    );
+
+    fs::write(
+        project.path("schema.sql"),
+        "CREATE TABLE users (id UUID PRIMARY KEY, email TEXT NOT NULL);\n\
+         CREATE TABLE posts (id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL);\n",
+    )?;
+    api(&mut config)
+        .skip
+        .insert("posts".into(), vec![ApiEndpoint::Remove]);
+    let report = rok_data_sqlc::generate(&config)?;
+    let served: Vec<&str> = report
+        .newly_served
+        .iter()
+        .map(|s| s.table.as_str())
+        .collect();
+    assert_eq!(served, ["posts"]);
+    assert_eq!(
+        report.newly_served[0].endpoints,
+        [
+            ApiEndpoint::List,
+            ApiEndpoint::Create,
+            ApiEndpoint::GetOne,
+            ApiEndpoint::Update
+        ]
+    );
+
+    let report = rok_data_sqlc::generate(&config)?;
+    assert!(report.newly_served.is_empty(), "{:?}", report.newly_served);
+    Ok(())
+}
+
+/// `[api] include` is an allowlist: only the tables it names get a feature,
+/// and the announcement says it names them.
+#[test]
+fn include_serves_only_the_named_tables() -> Result<()> {
+    let project = Project::new(SCHEMA)?;
+    let mut config = project.config();
+    api(&mut config).include = Some(vec!["posts".into()]);
+    let report = rok_data_sqlc::generate(&config)?;
+
+    assert!(project.path("src/features/posts/mod.rs").is_file());
+    for absent in ["users", "tags", "events", "post_tags"] {
+        assert!(!project.path(&format!("src/features/{absent}")).exists());
+    }
+    let served: Vec<String> = report
+        .newly_served
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    assert_eq!(
+        served,
+        [
+            "now serving `/api/v1/posts` (list, create, get_one, update, remove); \
+          `[api] include` names `posts`"
+        ]
+    );
+    Ok(())
+}
+
+/// `include` and `exclude` are two ways to say the same thing; setting both
+/// is a configuration error naming both, and so is an `include` entry that
+/// names no table.
+#[test]
+fn include_and_exclude_together_fail() -> Result<()> {
+    let project = Project::new(SCHEMA)?;
+    let mut config = project.config();
+    api(&mut config).include = Some(vec!["posts".into()]);
+    api(&mut config).exclude = vec!["tags".into()];
+    let error = rok_data_sqlc::generate(&config).unwrap_err().to_string();
+    assert!(
+        error.contains("`api.include`") && error.contains("`api.exclude`"),
+        "{error}"
+    );
+    assert!(!project.path("src/features").exists());
+
+    api(&mut config).exclude.clear();
+    api(&mut config).include = Some(vec!["nope".into()]);
+    let error = rok_data_sqlc::generate(&config).unwrap_err().to_string();
+    assert!(
+        error.contains("`api.include`") && error.contains("`nope`"),
+        "{error}"
+    );
+    Ok(())
+}

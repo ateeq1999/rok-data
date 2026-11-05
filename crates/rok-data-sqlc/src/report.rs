@@ -1,6 +1,8 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+use crate::ApiEndpoint;
+
 /// What a [`generate`](crate::generate) run did, or would do in a dry run.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[non_exhaustive]
@@ -29,12 +31,54 @@ pub struct Report {
     /// Problems the run found outside what it generates, such as a
     /// scaffolded file using what the configuration stopped generating.
     pub warnings: Vec<String>,
+    /// API features served for the first time: the table's feature
+    /// directory under `api.output` held no generated `mod.rs` before the
+    /// run (in a dry run: features that would be). Empty in a check.
+    pub newly_served: Vec<ServedFeature>,
 }
 
 impl Report {
     /// Whether the run found drift: missing, changed, or stale files.
     pub fn has_drift(&self) -> bool {
         !(self.missing.is_empty() && self.changed.is_empty() && self.stale.is_empty())
+    }
+}
+
+/// An API feature a run serves for the first time ([`Report::newly_served`]).
+/// Its [`Display`](fmt::Display) is the line a CLI prints: "now serving
+/// `/api/v1/users` (list, create, get_one, update, remove); add `users` to
+/// `[api] exclude` to keep it private".
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ServedFeature {
+    /// The table's SQL name, schema-qualified outside the default schema.
+    pub table: String,
+    /// The route base the endpoints sit under, prefix included:
+    /// `/api/v1/users`. `None` under gRPC, which serves no HTTP route.
+    pub route: Option<String>,
+    /// The endpoints served, in route order.
+    pub endpoints: Vec<ApiEndpoint>,
+    /// Whether `[api] include` names the table, so it is served on purpose.
+    pub included: bool,
+}
+
+impl fmt::Display for ServedFeature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.route {
+            Some(route) => write!(f, "now serving `{route}`")?,
+            None => write!(f, "now serving `{}` over gRPC", self.table)?,
+        }
+        let endpoints: Vec<&str> = self.endpoints.iter().map(|e| e.name()).collect();
+        write!(f, " ({})", endpoints.join(", "))?;
+        if self.included {
+            write!(f, "; `[api] include` names `{}`", self.table)
+        } else {
+            write!(
+                f,
+                "; add `{}` to `[api] exclude` to keep it private",
+                self.table
+            )
+        }
     }
 }
 

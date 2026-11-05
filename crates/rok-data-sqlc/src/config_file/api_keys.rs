@@ -22,6 +22,7 @@ pub(crate) struct ApiKeys {
     cursor: Option<Vec<String>>,
     openapi: Option<bool>,
     exclude: Option<Vec<String>>,
+    include: Option<Vec<String>>,
     #[serde(default)]
     skip: BTreeMap<String, Vec<EndpointName>>,
     #[serde(default)]
@@ -225,6 +226,7 @@ impl ApiKeys {
             cursor: self.cursor.or(lower.cursor),
             openapi: self.openapi.or(lower.openapi),
             exclude: self.exclude.or(lower.exclude),
+            include: self.include.or(lower.include),
             skip: merge(self.skip, lower.skip),
             routes: merge(self.routes, lower.routes),
             access: merge(self.access, lower.access),
@@ -268,6 +270,7 @@ impl ApiKeys {
         let documented = api.openapi && api.framework != ApiFramework::Grpc;
         api.openapi = self.openapi.unwrap_or(documented);
         api.exclude = self.exclude.unwrap_or_default();
+        api.include = self.include;
         api.skip = self
             .skip
             .into_iter()

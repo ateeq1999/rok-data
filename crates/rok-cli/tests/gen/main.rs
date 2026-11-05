@@ -59,6 +59,7 @@ fn migrations(dir: &Path) -> Result<Vec<String>> {
     Ok(names)
 }
 
+mod api;
 mod check;
 mod generate;
 mod json;

@@ -15,6 +15,9 @@ primary_key_ids = "uuid_v7"
 
 [api]
 output = "src/features"
+# Every table is served; `rok gen` says so when it serves a new one. Keep
+# tables private with `exclude = ["sessions"]`, or serve only the ones you
+# name with `include = ["projects"]` (not both).
 # The features are generated for axum: the routes are a `Router`'s and the
 # handlers take axum's extractors.
 framework = "axum"

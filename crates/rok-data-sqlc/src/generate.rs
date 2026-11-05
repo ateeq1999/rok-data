@@ -305,6 +305,20 @@ fn run(config: &Config, report: &mut Report, analysis: &mut Analysis) -> anyhow:
         return Ok(());
     }
 
+    // A feature is served for the first time when its directory holds no
+    // generated `mod.rs` yet: looked at before the run writes one.
+    let newly_served = match &config.api {
+        Some(api) => {
+            let tables: Vec<Table> = selected.iter().chain(&kept.tables).cloned().collect();
+            generator::api_served(&tables, api)
+                .into_iter()
+                .filter(|(module, _)| !is_generated_file(&api.output.join(module).join("mod.rs")))
+                .map(|(_, served)| served)
+                .collect()
+        }
+        None => Vec::new(),
+    };
+
     let applied = output::apply_files(&files, dry_run, force)?;
 
     report.unchanged = applied.unchanged;
@@ -327,6 +341,7 @@ fn run(config: &Config, report: &mut Report, analysis: &mut Analysis) -> anyhow:
         }
     }
     report.stale = stale;
+    report.newly_served = newly_served;
     Ok(())
 }
 

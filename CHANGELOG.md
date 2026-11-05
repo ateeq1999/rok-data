@@ -9,6 +9,16 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+**Added**
+
+- `rok gen` announces a table the API serves for the first time, once,
+  on stderr: ``warning: now serving `/api/v1/posts` (list, create,
+  get_one, update, remove); add `posts` to `[api] exclude` to keep it
+  private``, and `--json` carries it in `newly_served`. Every table is
+  served by default, so a new migration's table no longer goes public
+  unnoticed. `[api] include` is the allowlist alternative to `exclude`
+  (setting both is an error naming both).
+
 **Changed**
 
 - `rok gen` and `rok gen check` fail on a table or query they can't

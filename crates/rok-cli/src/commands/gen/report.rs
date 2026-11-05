@@ -45,6 +45,10 @@ pub(super) fn print_report(
     for warning in &report.warnings {
         eprintln!("warning: {warning}");
     }
+    // A table the API starts serving is loud: it went public by default.
+    for served in &report.newly_served {
+        eprintln!("warning: {served}");
+    }
     for path in &report.written {
         if settings.engine.dry_run {
             println!("would write {}", display_path(path));
@@ -187,6 +191,18 @@ pub(super) fn print_json_body(
             "since": pending.base,
         })
     });
+    let newly_served: Vec<Value> = report
+        .newly_served
+        .iter()
+        .map(|served| {
+            json!({
+                "table": served.table,
+                "route": served.route,
+                "endpoints": served.endpoints.iter().map(|e| e.name()).collect::<Vec<_>>(),
+                "message": served.to_string(),
+            })
+        })
+        .collect();
     let mut body = json!({
         "written": paths(&report.written),
         "scaffolded": paths(&report.scaffolded),
@@ -198,6 +214,7 @@ pub(super) fn print_json_body(
         "skipped": skipped,
         "failures": failures,
         "warnings": report.warnings,
+        "newly_served": newly_served,
         "migration": migration,
         "pending_migration": pending_migration,
         "drift": drift,
