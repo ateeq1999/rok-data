@@ -6,8 +6,8 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Excluding a table removes its unedited `service.rs` and the folder when empty
-- [ ] An edited `service.rs` stays and is listed
-- [ ] `rok gen check` reports both cases
+- [x] Excluding a table removes its unedited `service.rs` and the folder when empty
+- [x] An edited `service.rs` stays and is listed
+- [x] `rok gen check` reports both cases

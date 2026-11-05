@@ -80,3 +80,54 @@ fn include_is_an_allowlist_and_excludes_exclude() -> Result<()> {
     );
     Ok(())
 }
+
+/// Excluding a table removes its feature, its unedited `service.rs` and
+/// the folder; an edited `service.rs` stays, listed as no longer wired in.
+/// `rok gen check` reports both: the first as stale, the second listed.
+#[test]
+fn an_excluded_tables_leftover_service_is_removed_or_listed() -> Result<()> {
+    let dir = api_project(SCHEMA_WITH_POSTS, "")?;
+    assert_success(&run_in(dir.path(), &["gen"])?);
+    let users = dir.path().join("src/features/users/service.rs");
+    fs::write(&users, "// my rules\n")?;
+    fs::write(
+        dir.path().join("rok.toml"),
+        fs::read_to_string(dir.path().join("rok.toml"))? + "exclude = [\"users\", \"posts\"]\n",
+    )?;
+
+    let check = run_in(dir.path(), &["gen", "check"])?;
+    assert_eq!(check.status.code(), Some(1));
+    let out = stdout(&check);
+    assert!(out.contains("stale src/features/posts/service.rs"), "{out}");
+    let err = stderr(&check);
+    let note = "warning: src/features/users/service.rs is no longer wired in: \
+                its feature is no longer generated; delete it, or serve the table again";
+    assert!(err.contains(note), "{err}");
+
+    let output = run_in(dir.path(), &["gen"])?;
+    assert_success(&output);
+    let out = stdout(&output);
+    assert!(
+        out.contains("removed src/features/posts/service.rs"),
+        "{out}"
+    );
+    assert!(!dir.path().join("src/features/posts").exists());
+    assert!(stderr(&output).contains(note), "{}", stderr(&output));
+    assert_eq!(fs::read_to_string(&users)?, "// my rules\n");
+
+    let output = run_in(dir.path(), &["gen", "--json"])?;
+    let stdout = stdout(&output);
+    let report: serde_json::Value =
+        serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("{e}: {stdout}"));
+    assert_eq!(
+        report["unwired"],
+        serde_json::json!(["src/features/users/service.rs"]),
+        "{stdout}"
+    );
+
+    // Without drift the check passes, and still lists the edited file.
+    let check = run_in(dir.path(), &["gen", "check"])?;
+    assert_success(&check);
+    assert!(stderr(&check).contains(note), "{}", stderr(&check));
+    Ok(())
+}

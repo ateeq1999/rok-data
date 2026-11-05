@@ -43,7 +43,9 @@ fn has_marker(text: &[u8]) -> bool {
 /// The first line of a scaffolded file: a file written only when absent and
 /// owned by the user from then on (engine ADR 0016). A planned file whose contents
 /// start with it is scaffolded: never rewritten, never reported as changed,
-/// and never stale, since it lacks the generated header.
+/// and never stale, since it lacks the generated header. The one exception
+/// is a feature's `service.rs` once the feature is no longer generated,
+/// which [`find_orphans`] finds.
 pub const SCAFFOLD_HEADER: &str = "// Scaffolded once by rok-data-sqlc; this file is yours. It is never regenerated. See docs/guide/architecture.md.";
 
 #[derive(Debug, Default)]
@@ -136,6 +138,76 @@ pub fn find_stale(output: &Path, keep: &HashSet<PathBuf>) -> Result<Vec<PathBuf>
     walk(output, keep, &mut stale)?;
     stale.sort();
     Ok(stale)
+}
+
+/// The scaffolded `service.rs` files of features a run no longer
+/// generates ([`find_orphans`]).
+#[derive(Debug, Default)]
+pub struct Orphans {
+    /// Still exactly as scaffolded (line endings aside): removed like a
+    /// stale file.
+    pub unedited: Vec<PathBuf>,
+    /// Edited: kept, and listed as no longer wired in.
+    pub edited: Vec<PathBuf>,
+}
+
+/// The `service.rs` files under `root`'s feature directories that the run
+/// does not plan (not in `keep`), of features it no longer generates: the
+/// directory's generated `mod.rs` is in `stale`, or it has no `mod.rs` and
+/// either its `service.rs` still starts with [`SCAFFOLD_HEADER`] or
+/// `table_module(name)` says the directory is a schema table's. A directory
+/// with a `mod.rs` of its own is a hand-written feature, never an orphan.
+///
+/// Each is compared with `scaffold(name)`, what scaffolding it would write
+/// now: equal (ignoring line endings) is unedited. Sorted.
+pub fn find_orphans(
+    root: &Path,
+    keep: &HashSet<PathBuf>,
+    stale: &[PathBuf],
+    table_module: impl Fn(&str) -> bool,
+    scaffold: impl Fn(&str) -> String,
+) -> Result<Orphans> {
+    let mut orphans = Orphans::default();
+    let entries = match fs::read_dir(root) {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(orphans),
+        Err(err) => {
+            return Err(err)
+                .with_context(|| format!("failed to read directory `{}`", display_path(root)));
+        }
+    };
+    for entry in entries {
+        let entry =
+            entry.with_context(|| format!("failed to read directory `{}`", display_path(root)))?;
+        let dir = entry.path();
+        let service = dir.join("service.rs");
+        if !entry.file_type().is_ok_and(|kind| kind.is_dir())
+            || !service.is_file()
+            || keep.contains(&service)
+        {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let existing = fs::read(&service)
+            .with_context(|| format!("failed to read `{}`", display_path(&service)))?;
+        let module = dir.join("mod.rs");
+        let orphaned = if module.exists() {
+            stale.contains(&module)
+        } else {
+            existing.starts_with(SCAFFOLD_HEADER.as_bytes()) || table_module(&name)
+        };
+        if !orphaned {
+            continue;
+        }
+        if same_text(&existing, &scaffold(&name)) {
+            orphans.unedited.push(service);
+        } else {
+            orphans.edited.push(service);
+        }
+    }
+    orphans.unedited.sort();
+    orphans.edited.sort();
+    Ok(orphans)
 }
 
 /// Removes `stale` files, then the directories under `output` they leave

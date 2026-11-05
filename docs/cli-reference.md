@@ -397,7 +397,7 @@ numbered next steps. `--json` prints one object instead:
 "changed": [...], "skipped": [{"kind": "table"|"query", "name": ...,
 "reason": ..., "path": ..., "line": ...}], "failures": [...], "warnings": [...],
 "newly_served": [{"table": ..., "route": ..., "endpoints": [...], "message":
-...}], "migration": {"version": ..., "name":
+...}], "unwired": [...], "migration": {"version": ..., "name":
 ..., "up": ..., "down": ..., "reversible": ..., "steps": [...]},
 "pending_migration": {"version": ..., "name": ..., "since": ...} | null,
 "drift": <bool>, "dry_run": <bool>}`. `pending_migration` is the check's
@@ -417,6 +417,14 @@ warning: now serving `/api/v1/posts` (list, create, get_one, update, remove); ad
 `[api] include` lists the only tables to serve instead (setting both
 `include` and `exclude` is an error); a table it names is announced with
 ``; `[api] include` names `posts` `` in place of the advice.
+
+A feature no longer generated (its table excluded or dropped) loses its
+scaffolded `service.rs` and its folder too while the file is exactly as
+scaffolded (listed with the removed, or `stale` in `rok gen check`). An
+edited one stays; the run and the check list it on stderr without failing
+(`warning: src/features/users/service.rs is no longer wired in: its
+feature is no longer generated; delete it, or serve the table again`), and
+`--json` carries it in `unwired`.
 
 A table or query the engine can't generate fails the run (and `rok gen
 check`), before anything is written. A query whose result column it

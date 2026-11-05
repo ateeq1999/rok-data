@@ -578,8 +578,17 @@ pub fn push_transaction(output: &mut String, name: &str, inputs: &[String], retu
 
 /// Renders the scaffolded `service.rs`.
 pub fn render_scaffold(feature: &Feature<'_>) -> String {
-    let service = feature.service();
-    let trait_name = feature.service_api();
+    render_scaffold_for(feature.module(), &feature.table.display_name())
+}
+
+/// Renders the scaffolded `service.rs` of the feature of the table
+/// `table` (its display name) whose module is `module`: what
+/// [`render_scaffold`] writes, from the names alone, so a run can tell a
+/// feature it no longer generates still holds it unedited.
+pub fn render_scaffold_for(module: &str, table: &str) -> String {
+    let plural = heck::ToUpperCamelCase::to_upper_camel_case(module);
+    let service = format!("{plural}Service");
+    let trait_name = format!("{plural}ServiceApi");
     format!(
         "{SCAFFOLD_HEADER}
 
@@ -612,7 +621,6 @@ impl {service} {{
     }}
 }}
 ",
-        table = feature.table.display_name(),
         impl_head = super::layout::impl_head(&trait_name, &service),
     )
 }

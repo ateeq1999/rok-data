@@ -49,6 +49,13 @@ pub(super) fn print_report(
     for served in &report.newly_served {
         eprintln!("warning: {served}");
     }
+    for path in &report.unwired {
+        eprintln!(
+            "warning: {} is no longer wired in: its feature is no longer generated; \
+             delete it, or serve the table again",
+            display_path(path)
+        );
+    }
     for path in &report.written {
         if settings.engine.dry_run {
             println!("would write {}", display_path(path));
@@ -215,6 +222,7 @@ pub(super) fn print_json_body(
         "failures": failures,
         "warnings": report.warnings,
         "newly_served": newly_served,
+        "unwired": paths(&report.unwired),
         "migration": migration,
         "pending_migration": pending_migration,
         "drift": drift,

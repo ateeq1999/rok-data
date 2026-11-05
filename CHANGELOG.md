@@ -18,6 +18,13 @@ that it exists and won't ship a tag without it).
   served by default, so a new migration's table no longer goes public
   unnoticed. `[api] include` is the allowlist alternative to `exclude`
   (setting both is an error naming both).
+- When a table's API feature is no longer generated (the table excluded
+  or dropped), `rok gen` removes its scaffolded `service.rs` and the
+  folder too while the file is still exactly as scaffolded (CRLF aside),
+  where it left an orphan no `mod` declared. An edited one stays and is
+  listed on stderr (`warning: src/features/users/service.rs is no longer
+  wired in: ...`) and in `--json`'s `unwired`; `rok gen check` reports
+  the unedited one as stale and lists the edited one without failing.
 
 **Changed**
 

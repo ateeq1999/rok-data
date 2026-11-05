@@ -35,7 +35,7 @@ mod rules;
 mod schemas;
 mod scope;
 mod search;
-mod service;
+pub(super) mod service;
 pub mod shared;
 mod unique;
 

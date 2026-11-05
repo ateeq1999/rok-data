@@ -17,6 +17,11 @@ the *generated* API count as breaking (see ADR 0012).
   as `ServedFeature`s whose `Display` is the line the CLIs print on
   stderr: ``now serving `/api/v1/posts` (list, create, get_one, update,
   remove); add `posts` to `[api] exclude` to keep it private``.
+- `Report::unwired`: the edited `service.rs` files of API features no
+  longer generated (the table excluded or dropped), kept but no longer
+  declared by any `mod`. An unedited one (equal to what scaffolding
+  writes now, line endings aside) is removed with the stale files and
+  its folder, where every scaffolded file used to stay as an orphan.
 - `Project`, `Target` and `App`: the one rule every command uses to find
   the project it acts on (a Monorepo's App started inside, its App(s) at
   the root, or the nearest settings file), with `Target::migrations_dir`

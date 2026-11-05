@@ -37,6 +37,7 @@ use self::emit::{CHAIN_WIDTH, FN_CALL_WIDTH, MAX_WIDTH, indented, max_width};
 pub use self::api::owned_dirs as api_owned_dirs;
 pub(crate) use self::api::push_signature;
 pub use self::api::served as api_served;
+pub use self::api::service::render_scaffold_for as api_service_scaffold;
 pub use self::db_mod::{DbMod, render_db_mod, render_schema_snapshot};
 pub use self::emit::{
     DeriveOptions, StaticQuery, doc_name, model_chain, push_and_chain, push_chain, push_derives,

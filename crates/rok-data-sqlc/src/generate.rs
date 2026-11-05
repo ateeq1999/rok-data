@@ -276,7 +276,8 @@ fn run(config: &Config, report: &mut Report, analysis: &mut Analysis) -> anyhow:
     }
     // `api.output` and `shared/` hold generated files beside the user's
     // own: a generated one this run doesn't produce is stale too. Scaffolded
-    // files lack the generated marker, so they never are.
+    // files lack the generated marker, so they never are (but see the
+    // orphaned `service.rs` files below).
     let mut stale_roots = vec![(output_dir.clone(), stale)];
     if let Some(api) = &config.api {
         for root in generator::api_owned_dirs(api) {
@@ -286,6 +287,35 @@ fn run(config: &Config, report: &mut Report, analysis: &mut Analysis) -> anyhow:
                 .collect();
             stale_roots.push((root, found));
         }
+        // A feature no longer generated (its table excluded or dropped)
+        // leaves its scaffolded `service.rs`, which nothing declares: it
+        // goes with the generated files while unedited, else it is listed.
+        let schema_table = |module: &str| {
+            parsed
+                .schema
+                .tables
+                .iter()
+                .find(|table| table.module_name == module)
+        };
+        let orphans = output::find_orphans(
+            &api.output,
+            &keep,
+            &stale_roots
+                .iter()
+                .flat_map(|(_, paths)| paths.iter().cloned())
+                .collect::<Vec<_>>(),
+            |module| schema_table(module).is_some(),
+            |module| {
+                let table =
+                    schema_table(module).map_or_else(|| module.to_owned(), Table::display_name);
+                generator::api_service_scaffold(module, &table)
+            },
+        )?;
+        if let Some((_, paths)) = stale_roots.iter_mut().find(|(root, _)| *root == api.output) {
+            paths.extend(orphans.unedited);
+            paths.sort();
+        }
+        report.unwired = orphans.edited;
     }
     let stale: Vec<PathBuf> = stale_roots
         .iter()

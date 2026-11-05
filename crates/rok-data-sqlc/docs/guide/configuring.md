@@ -230,6 +230,11 @@ warning: now serving `/api/v1/sessions` (list, create, get_one, update, remove);
 A table is new to the API when its directory under `api.output` holds no
 generated `mod.rs` yet.
 
+Excluding a table that was served removes its generated feature files and,
+while it is still exactly as scaffolded, its `service.rs` and the folder. An
+edited `service.rs` stays (it is yours) and each run lists it as no longer
+wired in, until you move what you need and delete it.
+
 ## `include`
 
 ```toml

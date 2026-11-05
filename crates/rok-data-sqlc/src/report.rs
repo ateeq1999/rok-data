@@ -11,7 +11,9 @@ pub struct Report {
     pub written: Vec<PathBuf>,
     /// Scaffolded files written because they were absent (in a dry run:
     /// that would be written). An existing scaffolded file is the user's
-    /// and is never listed, rewritten or removed.
+    /// and is never rewritten; the `service.rs` of a feature no longer
+    /// generated is removed while unedited (listed in `stale`), else listed
+    /// in `unwired`.
     pub scaffolded: Vec<PathBuf>,
     /// Files whose contents were already up to date.
     pub unchanged: Vec<PathBuf>,
@@ -35,6 +37,10 @@ pub struct Report {
     /// directory under `api.output` held no generated `mod.rs` before the
     /// run (in a dry run: features that would be). Empty in a check.
     pub newly_served: Vec<ServedFeature>,
+    /// Edited `service.rs` files of API features no longer generated (the
+    /// table excluded or dropped): kept, but no `mod` declares them any
+    /// more. An unedited one is removed with the stale files instead.
+    pub unwired: Vec<PathBuf>,
 }
 
 impl Report {

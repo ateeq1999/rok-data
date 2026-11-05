@@ -46,7 +46,7 @@ or any comment that is not exactly `rok:down`, is a comment.
 |---|---|
 | `src/db/**`, `src/shared/` (but `auth.rs` and `mod.rs`), `src/features/generated.rs`, `src/features/README.md` | rewritten |
 | a feature's `mod.rs`, `routes.rs`, `handlers.rs`, `dto.rs`, `model.rs`, `repo.rs`, `service_api.rs` | rewritten |
-| a feature's `service.rs` | never touched; scaffolded only for a new table |
+| a feature's `service.rs` | never rewritten; scaffolded only for a new table, removed with its feature only while unedited |
 | everything `init` scaffolded (`app.rs`, `config.rs`, `error.rs`, `openapi.rs`, ...) | never touched |
 | your own files: migrations, query files, tests, hand-written features | never touched |
 
@@ -65,9 +65,12 @@ In detail, per kind of change:
   response, and every `[api]` entry naming it fails the run until you
   change the entry.
 - **A dropped table** loses its generated feature files and its data-layer
-  module (`removed ...`). Its `service.rs` stays, because it is yours, but
-  `generated.rs` no longer declares it, so it is no longer compiled: move
-  what you need and delete the folder.
+  module (`removed ...`). Its `service.rs` goes too, with the folder, while
+  it is still exactly as scaffolded. An edited one stays, because it is
+  yours, but nothing declares it any more, so it is no longer compiled:
+  the run lists it (`warning: src/features/<table>/service.rs is no longer
+  wired in: ...`) until you move what you need and delete the folder. An
+  excluded table's feature goes the same way.
 - **A renamed table** is a dropped table and a new one: the new name gets a
   fresh feature with a fresh `service.rs`. Move your overrides from the old
   folder's `service.rs` into the new one, rename the types they name, and
@@ -131,7 +134,9 @@ Error: generated code is out of date: 9 file(s) drifted; run `rok sqlc generate`
 rewrite, `stale` for generated files it would remove.) A pull request that
 adds a migration without regenerating, or edits a generated file by hand,
 fails it. A scaffolded file only counts when it is missing, never for its
-contents, so your edits to `service.rs` never fail the check. Line endings
+contents, so your edits to `service.rs` never fail the check. The
+`service.rs` of a feature no longer generated is `stale` while unedited,
+and an edited one is listed without failing the check. Line endings
 don't count either, so a Windows checkout with CRLF passes.
 
 Run it with the same rok-data-sqlc version the project generates with; a newer
