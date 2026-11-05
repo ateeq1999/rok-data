@@ -7,6 +7,20 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking (generated API):** a cast in a query's result keeps the
+  nullability of what it wraps, where every cast was `Option`.
+  `count(*)::bigint` is `i64`; a cast of a `NOT NULL` column is its target
+  type, and `Option` on the outer side of a join, as the plain column is.
+  `coalesce(x, <literal>)` with a literal other than `NULL` last is never
+  NULL: it is typed from `x` when `x` is a column, a cast or a `count`
+  (where it failed to infer), and a cast of it is not `Option`. Any other
+  cast stays `Option`. A field that was `Option<T>` for such a cast is now
+  `T`; drop the `unwrap_or` (the API example's `stats` feature did). The
+  README's "Writing query files" says when to reach for a `-- column:`
+  override.
+
 ## Workspace 0.8.0 - 2026-11-03
 
 Published as `rok-data-sqlc` 0.8.0 with the workspace (root `CHANGELOG.md`).

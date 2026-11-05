@@ -609,6 +609,20 @@ exactly a table's columns, such as the `RETURNING *` above, reuses that
 table's row struct. A single column decodes as a scalar. Anything else gets
 a `{Name}Row` struct.
 
+**A cast takes its target type and keeps the nullability of what it
+wraps.** `count(*)::bigint` is `i64`, and so is `stock::bigint` for a
+`NOT NULL` column `stock`, unless the column is on the outer side of a
+join. A cast of anything else, such as `sum(stock)::bigint` or `0::int`,
+is `Option`. `coalesce(x, <literal>)`, whose last argument is a literal
+other than `NULL`, is never NULL: it takes `x`'s type when `x` is a
+column, a cast or a `count`, and a cast of it is not `Option`
+(`coalesce(sum(stock), 0)::bigint` is `i64`).
+
+Where you know more than the inference, a `-- column: <name> <RustType>`
+override settles the type: `-- column: total i64` for `sum(stock)::bigint
+AS total` under a `GROUP BY` (every group has a row, and `stock` is
+`NOT NULL`), or `-- column: total Option<i64>` to keep a column optional.
+
 Any other expression needs an alias and a `-- column:` override, and a
 parameter rok-data-sqlc can't type needs a `-- param:` override:
 

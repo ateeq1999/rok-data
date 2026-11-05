@@ -2,7 +2,10 @@
 
 use std::collections::HashSet;
 
-use sqlparser::ast::{Expr, Ident, SelectItem};
+use sqlparser::ast::{
+    Expr, Function, FunctionArg, FunctionArgExpr, FunctionArguments, Ident, SelectItem,
+    UnaryOperator, Value,
+};
 
 use super::{Analysis, Context, Output, OutputColumn, ResultShape};
 use crate::parser::naming;
@@ -88,14 +91,26 @@ impl<'a, 'c> Analysis<'a, 'c> {
             Expr::Function(function) if is_count(function) => {
                 ("count".to_owned(), Some("i64".to_owned()))
             }
-            Expr::Function(function) => (object_leaf_name(&function.name), None),
-            Expr::Cast { data_type, .. } => (
-                String::new(),
-                Some(
-                    map_type(data_type, self.context.enums)
-                        .map(|(_, sqlx_type)| format!("Option<{sqlx_type}>"))?,
-                ),
-            ),
+            Expr::Function(function) => {
+                let rust_type = match coalesce_with_literal_fallback(function) {
+                    Some(first) => self.value_type(first)?,
+                    None => None,
+                };
+                (object_leaf_name(&function.name), rust_type)
+            }
+            Expr::Cast {
+                expr: inner,
+                data_type,
+                ..
+            } => {
+                let (_, sqlx_type) = map_type(data_type, self.context.enums)?;
+                let rust_type = if self.never_null(inner)? {
+                    sqlx_type
+                } else {
+                    format!("Option<{sqlx_type}>")
+                };
+                (String::new(), Some(rust_type))
+            }
             _ => (String::new(), None),
         };
         let sql_name = match alias {
@@ -119,6 +134,74 @@ impl<'a, 'c> Analysis<'a, 'c> {
             origin: None,
             nullable_origin: false,
         })
+    }
+
+    /// Whether `expr` is never NULL, as far as the engine can tell: `count`,
+    /// `coalesce` with a literal fallback, or a `NOT NULL` column that is not
+    /// on the outer side of a join.
+    fn never_null(&self, expr: &Expr) -> Result<bool, String> {
+        if let Some(reference) = self.column_reference(expr)? {
+            let entry = &self.scope[reference.entry];
+            return Ok(!entry.outer_nullable && !entry.table.columns[reference.column].nullable);
+        }
+        Ok(match expr {
+            Expr::Nested(inner) => self.never_null(inner)?,
+            Expr::Function(function) => {
+                is_count(function) || coalesce_with_literal_fallback(function).is_some()
+            }
+            _ => false,
+        })
+    }
+
+    /// The Rust type of `expr`'s non-NULL values, where the engine infers one
+    /// without looking at nullability: a column, a cast or `count`.
+    fn value_type(&self, expr: &Expr) -> Result<Option<String>, String> {
+        if let Some(reference) = self.column_reference(expr)? {
+            let column = &self.scope[reference.entry].table.columns[reference.column];
+            return Ok(Some(column.value_type().to_owned()));
+        }
+        Ok(match expr {
+            Expr::Nested(inner) => self.value_type(inner)?,
+            Expr::Function(function) if is_count(function) => Some("i64".to_owned()),
+            Expr::Cast { data_type, .. } => Some(map_type(data_type, self.context.enums)?.1),
+            _ => None,
+        })
+    }
+}
+
+/// The first argument of `coalesce(x, ..., <literal>)` whose last argument
+/// is a literal other than NULL, so the call is never NULL.
+fn coalesce_with_literal_fallback(function: &Function) -> Option<&Expr> {
+    if !object_leaf_name(&function.name).eq_ignore_ascii_case("coalesce") {
+        return None;
+    }
+    let FunctionArguments::List(list) = &function.args else {
+        return None;
+    };
+    let arguments: Vec<&Expr> = list
+        .args
+        .iter()
+        .map(|argument| match argument {
+            FunctionArg::Unnamed(FunctionArgExpr::Expr(argument)) => Some(argument),
+            _ => None,
+        })
+        .collect::<Option<_>>()?;
+    match arguments.as_slice() {
+        [first, .., last] if is_non_null_literal(last) => Some(first),
+        _ => None,
+    }
+}
+
+/// A literal other than NULL or a placeholder, possibly signed (`-1`).
+fn is_non_null_literal(expr: &Expr) -> bool {
+    match expr {
+        Expr::Value(value) => !matches!(value.value, Value::Null | Value::Placeholder(_)),
+        Expr::Nested(inner) => is_non_null_literal(inner),
+        Expr::UnaryOp {
+            op: UnaryOperator::Minus | UnaryOperator::Plus,
+            expr,
+        } => is_non_null_literal(expr),
+        _ => false,
     }
 }
 
