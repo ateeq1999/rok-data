@@ -109,12 +109,13 @@ fn an_unsupported_table_fails_unless_lenient() -> Result<()> {
     Ok(())
 }
 
-/// The schema with an expiry the `expired` query compares.
+/// The schema with an expiry the `remaining` query subtracts from.
 const SESSIONS: &str =
     "CREATE TABLE sessions (\n    id UUID PRIMARY KEY,\n    expires_at TIMESTAMPTZ NOT NULL\n);\n";
 
-/// A query whose result column the engine can't type.
-const EXPIRED_QUERY: &str = "-- name: SessionExpiry :one\nSELECT id, expires_at <= now() AS expired FROM sessions WHERE id = $1;\n";
+/// A query whose result column the engine can't type: it does not type
+/// date arithmetic.
+const EXPIRED_QUERY: &str = "-- name: SessionExpiry :one\nSELECT id, expires_at - now() AS remaining FROM sessions WHERE id = $1;\n";
 
 /// A project with [`SESSIONS`] and the [`EXPIRED_QUERY`] in `queries/`.
 fn expiry_project() -> Result<TempDir> {
@@ -141,9 +142,9 @@ fn an_untypeable_query_fails_naming_the_fix() -> Result<()> {
             stderr.contains("error: queries/sessions.sql:1: query `SessionExpiry`"),
             "{stderr}"
         );
-        assert!(stderr.contains("`expires_at <= now()`"), "{stderr}");
+        assert!(stderr.contains("`expires_at - now()`"), "{stderr}");
         assert!(
-            stderr.contains("add `-- column: expired <RustType>`"),
+            stderr.contains("add `-- column: remaining <RustType>`"),
             "{stderr}"
         );
         assert!(!stderr.contains("skipped"), "{stderr}");
@@ -156,7 +157,10 @@ fn an_untypeable_query_fails_naming_the_fix() -> Result<()> {
     // The fix the error names generates the query.
     fs::write(
         dir.path().join("queries/sessions.sql"),
-        EXPIRED_QUERY.replace(":one\n", ":one\n-- column: expired bool\n"),
+        EXPIRED_QUERY.replace(
+            ":one\n",
+            ":one\n-- column: remaining sqlx::postgres::types::PgInterval\n",
+        ),
     )?;
     assert_success(&run_in(dir.path(), &["gen", "--queries", "queries"])?);
     Ok(())
@@ -192,7 +196,10 @@ fn json_carries_the_untypeable_query() -> Result<()> {
     assert_eq!(failure["path"], "queries/sessions.sql", "{stdout}");
     assert_eq!(failure["line"], 1, "{stdout}");
     let reason = failure["reason"].as_str().unwrap_or_default();
-    assert!(reason.contains("-- column: expired <RustType>"), "{stdout}");
+    assert!(
+        reason.contains("-- column: remaining <RustType>"),
+        "{stdout}"
+    );
     assert_eq!(body["skipped"], serde_json::json!([]), "{stdout}");
     Ok(())
 }

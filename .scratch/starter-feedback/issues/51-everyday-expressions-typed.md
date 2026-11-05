@@ -12,8 +12,8 @@ Each is nullable when an operand is (`IS NULL` never is), so `expires_at <= now(
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `expires_at <= now() AS expired` is `bool`; on a nullable column `Option<bool>`
-- [ ] `price * 0.8`, `CASE … END`, `a || b` typed as above (tests per form)
-- [ ] Mixed or unknown operand types still fail with the hint
+- [x] `expires_at <= now() AS expired` is `bool`; on a nullable column `Option<bool>`
+- [x] `price * 0.8`, `CASE … END`, `a || b` typed as above (tests per form)
+- [x] Mixed or unknown operand types still fail with the hint

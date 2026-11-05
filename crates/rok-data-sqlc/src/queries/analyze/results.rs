@@ -3,8 +3,8 @@
 use std::collections::HashSet;
 
 use sqlparser::ast::{
-    Expr, Function, FunctionArg, FunctionArgExpr, FunctionArguments, Ident, SelectItem,
-    UnaryOperator, Value,
+    BinaryOperator, Expr, Function, FunctionArg, FunctionArgExpr, FunctionArguments, Ident,
+    SelectItem, UnaryOperator, Value,
 };
 
 use super::{Analysis, Context, Output, OutputColumn, ResultShape};
@@ -87,31 +87,15 @@ impl<'a, 'c> Analysis<'a, 'c> {
             });
         }
 
-        let (default_name, rust_type) = match expr {
-            Expr::Function(function) if is_count(function) => {
-                ("count".to_owned(), Some("i64".to_owned()))
-            }
-            Expr::Function(function) => {
-                let rust_type = match coalesce_with_literal_fallback(function) {
-                    Some(first) => self.value_type(first)?,
-                    None => None,
-                };
-                (object_leaf_name(&function.name), rust_type)
-            }
-            Expr::Cast {
-                expr: inner,
-                data_type,
-                ..
-            } => {
-                let (_, sqlx_type) = map_type(data_type, self.context.enums)?;
-                let rust_type = if self.never_null(inner)? {
-                    sqlx_type
-                } else {
-                    format!("Option<{sqlx_type}>")
-                };
-                (String::new(), Some(rust_type))
-            }
-            _ => (String::new(), None),
+        let default_name = match expr {
+            Expr::Function(function) if is_count(function) => "count".to_owned(),
+            Expr::Function(function) => object_leaf_name(&function.name),
+            _ => String::new(),
+        };
+        let rust_type = match self.value_type(expr)? {
+            Some(value_type) if self.never_null(expr)? => Some(value_type),
+            Some(value_type) => Some(format!("Option<{value_type}>")),
+            None => None,
         };
         let sql_name = match alias {
             Some(alias) => ident_name(alias),
@@ -136,25 +120,81 @@ impl<'a, 'c> Analysis<'a, 'c> {
         })
     }
 
-    /// Whether `expr` is never NULL, as far as the engine can tell: `count`,
-    /// `coalesce` with a literal fallback, or a `NOT NULL` column that is not
-    /// on the outer side of a join.
+    /// Whether `expr` is never NULL, as far as the engine can tell: a
+    /// literal, `count`, `now()` and the other clock functions, `coalesce`
+    /// with a literal fallback, a `NOT NULL` column that is not on the outer
+    /// side of a join, an `IS [NOT] NULL`-style test, or an operator or cast
+    /// none of whose operands can be NULL.
     fn never_null(&self, expr: &Expr) -> Result<bool, String> {
         if let Some(reference) = self.column_reference(expr)? {
             let entry = &self.scope[reference.entry];
             return Ok(!entry.outer_nullable && !entry.table.columns[reference.column].nullable);
         }
         Ok(match expr {
-            Expr::Nested(inner) => self.never_null(inner)?,
+            Expr::Nested(inner)
+            | Expr::Cast { expr: inner, .. }
+            | Expr::UnaryOp { expr: inner, .. } => self.never_null(inner)?,
+            Expr::Value(_) => is_non_null_literal(expr),
+            Expr::TypedString(_) => true,
             Expr::Function(function) => {
-                is_count(function) || coalesce_with_literal_fallback(function).is_some()
+                is_count(function)
+                    || clock_type(function).is_some()
+                    || coalesce_with_literal_fallback(function).is_some()
+            }
+            _ if is_is_test(expr) => true,
+            Expr::BinaryOp { left, op, right } if is_typed_operator(op) => {
+                self.all_never_null([&**left, &**right])?
+            }
+            Expr::Between {
+                expr, low, high, ..
+            } => self.all_never_null([&**expr, &**low, &**high])?,
+            Expr::InList { expr, list, .. } => {
+                self.never_null(expr)? && self.all_never_null(list)?
+            }
+            Expr::Like { expr, pattern, .. }
+            | Expr::ILike { expr, pattern, .. }
+            | Expr::SimilarTo { expr, pattern, .. } => {
+                self.all_never_null([&**expr, &**pattern])?
+            }
+            Expr::Case {
+                conditions,
+                else_result: Some(else_result),
+                ..
+            } => {
+                self.all_never_null(conditions.iter().map(|when| &when.result))?
+                    && self.never_null(else_result)?
             }
             _ => false,
         })
     }
 
+    fn all_never_null<'e>(
+        &self,
+        exprs: impl IntoIterator<Item = &'e Expr>,
+    ) -> Result<bool, String> {
+        for expr in exprs {
+            if !self.never_null(expr)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    /// The numeric type of an arithmetic operand: a column's plain type
+    /// (never its typed id), or what [`Self::value_type`] infers.
+    fn number_type(&self, expr: &Expr) -> Result<Option<Number>, String> {
+        let value_type = match self.column_reference(expr)? {
+            Some(reference) => Some(self.reference_column(&reference).sqlx_type.clone()),
+            None => self.value_type(expr)?,
+        };
+        Ok(value_type.as_deref().and_then(Number::of))
+    }
+
     /// The Rust type of `expr`'s non-NULL values, where the engine infers one
-    /// without looking at nullability: a column, a cast or `count`.
+    /// without looking at nullability: a column, a literal, a cast, `count`,
+    /// a clock function, a comparison or boolean operator (`bool`),
+    /// arithmetic (its operands' shared numeric type), `||` (text) or a `CASE`
+    /// (the type its non-NULL branches share).
     fn value_type(&self, expr: &Expr) -> Result<Option<String>, String> {
         if let Some(reference) = self.column_reference(expr)? {
             let column = &self.scope[reference.entry].table.columns[reference.column];
@@ -162,11 +202,130 @@ impl<'a, 'c> Analysis<'a, 'c> {
         }
         Ok(match expr {
             Expr::Nested(inner) => self.value_type(inner)?,
+            Expr::Value(value) => literal_type(&value.value),
+            Expr::TypedString(typed) => Some(map_type(&typed.data_type, self.context.enums)?.1),
             Expr::Function(function) if is_count(function) => Some("i64".to_owned()),
+            Expr::Function(function) => match coalesce_with_literal_fallback(function) {
+                Some(first) => self.value_type(first)?,
+                None => clock_type(function).map(str::to_owned),
+            },
             Expr::Cast { data_type, .. } => Some(map_type(data_type, self.context.enums)?.1),
+            Expr::BinaryOp { op, .. } if is_boolean_operator(op) => Some("bool".to_owned()),
+            Expr::BinaryOp {
+                left,
+                op: BinaryOperator::StringConcat,
+                right,
+            } => {
+                let is_text = |value_type: &Option<String>| {
+                    value_type.as_deref().is_none_or(|value_type| {
+                        !value_type.starts_with("Vec<") && value_type != "serde_json::Value"
+                    })
+                };
+                (is_text(&self.value_type(left)?) && is_text(&self.value_type(right)?))
+                    .then(|| "String".to_owned())
+            }
+            Expr::Case {
+                conditions,
+                else_result,
+                ..
+            } => {
+                let mut types = Vec::new();
+                let branches = conditions
+                    .iter()
+                    .map(|when| &when.result)
+                    .chain(else_result.as_deref());
+                for branch in branches.filter(|branch| !is_null_literal(branch)) {
+                    match self.value_type(branch)? {
+                        Some(value_type) => types.push(value_type),
+                        None => return Ok(None),
+                    }
+                }
+                shared_type(types)
+            }
+            Expr::BinaryOp { left, op, right } if is_arithmetic(op) => {
+                match (self.number_type(left)?, self.number_type(right)?) {
+                    (Some(left), Some(right)) => Some(left.max(right).rust_type().to_owned()),
+                    _ => None,
+                }
+            }
+            Expr::UnaryOp {
+                op: UnaryOperator::Minus | UnaryOperator::Plus,
+                expr: inner,
+            } => self
+                .number_type(inner)?
+                .map(|number| number.rust_type().to_owned()),
+            _ if is_is_test(expr) => Some("bool".to_owned()),
+            Expr::UnaryOp {
+                op: UnaryOperator::Not,
+                ..
+            }
+            | Expr::Between { .. }
+            | Expr::InList { .. }
+            | Expr::Like { .. }
+            | Expr::ILike { .. }
+            | Expr::SimilarTo { .. } => Some("bool".to_owned()),
             _ => None,
         })
     }
+}
+
+/// Comparisons, pattern matches and `AND`/`OR`: `bool` whatever the operands.
+fn is_boolean_operator(op: &BinaryOperator) -> bool {
+    matches!(
+        op,
+        BinaryOperator::Eq
+            | BinaryOperator::NotEq
+            | BinaryOperator::Lt
+            | BinaryOperator::LtEq
+            | BinaryOperator::Gt
+            | BinaryOperator::GtEq
+            | BinaryOperator::And
+            | BinaryOperator::Or
+            | BinaryOperator::PGRegexMatch
+            | BinaryOperator::PGRegexIMatch
+            | BinaryOperator::PGRegexNotMatch
+            | BinaryOperator::PGRegexNotIMatch
+            | BinaryOperator::PGLikeMatch
+            | BinaryOperator::PGILikeMatch
+            | BinaryOperator::PGNotLikeMatch
+            | BinaryOperator::PGNotILikeMatch
+    )
+}
+
+/// The type of a clock function (`now()`, `current_date`, ...), which is
+/// never NULL.
+fn clock_type(function: &Function) -> Option<&'static str> {
+    let name = object_leaf_name(&function.name).to_ascii_lowercase();
+    Some(match name.as_str() {
+        "now"
+        | "current_timestamp"
+        | "transaction_timestamp"
+        | "statement_timestamp"
+        | "clock_timestamp" => "chrono::DateTime<chrono::Utc>",
+        "current_date" => "chrono::NaiveDate",
+        "localtimestamp" => "chrono::NaiveDateTime",
+        "localtime" => "chrono::NaiveTime",
+        _ => return None,
+    })
+}
+
+/// The type PostgreSQL gives a literal: an integer that fits is `integer`
+/// then `bigint`, any other number `numeric`; a string is `text`.
+fn literal_type(value: &Value) -> Option<String> {
+    Some(
+        match value {
+            Value::Number(number, _) if number.parse::<i32>().is_ok() => "i32",
+            Value::Number(number, _) if number.parse::<i64>().is_ok() => "i64",
+            Value::Number(..) => "rust_decimal::Decimal",
+            Value::Boolean(_) => "bool",
+            Value::SingleQuotedString(_)
+            | Value::DollarQuotedString(_)
+            | Value::EscapedStringLiteral(_)
+            | Value::UnicodeStringLiteral(_) => "String",
+            _ => return None,
+        }
+        .to_owned(),
+    )
 }
 
 /// The first argument of `coalesce(x, ..., <literal>)` whose last argument
@@ -311,4 +470,100 @@ fn column_type(column: &Column, outer_nullable: bool) -> String {
 
 fn is_count(function: &sqlparser::ast::Function) -> bool {
     object_leaf_name(&function.name).eq_ignore_ascii_case("count")
+}
+
+/// An operator whose result the engine types: NULL only when an operand is.
+fn is_typed_operator(op: &BinaryOperator) -> bool {
+    is_boolean_operator(op) || is_arithmetic(op) || *op == BinaryOperator::StringConcat
+}
+
+fn is_arithmetic(op: &BinaryOperator) -> bool {
+    matches!(
+        op,
+        BinaryOperator::Plus
+            | BinaryOperator::Minus
+            | BinaryOperator::Multiply
+            | BinaryOperator::Divide
+            | BinaryOperator::Modulo
+    )
+}
+
+/// A numeric type, ordered so that the larger of two operands' types is
+/// their result's: integers widen, `numeric` wins over integers and floats
+/// over `numeric`, as PostgreSQL's implicit casts do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Number {
+    SmallInt,
+    Integer,
+    BigInt,
+    Numeric,
+    Real,
+    Double,
+}
+
+impl Number {
+    fn of(rust_type: &str) -> Option<Number> {
+        Some(match rust_type {
+            "i16" => Number::SmallInt,
+            "i32" => Number::Integer,
+            "i64" => Number::BigInt,
+            "rust_decimal::Decimal" => Number::Numeric,
+            "f32" => Number::Real,
+            "f64" => Number::Double,
+            _ => return None,
+        })
+    }
+
+    fn rust_type(self) -> &'static str {
+        match self {
+            Number::SmallInt => "i16",
+            Number::Integer => "i32",
+            Number::BigInt => "i64",
+            Number::Numeric => "rust_decimal::Decimal",
+            Number::Real => "f32",
+            Number::Double => "f64",
+        }
+    }
+}
+
+fn is_null_literal(expr: &Expr) -> bool {
+    match expr {
+        Expr::Value(value) => value.value == Value::Null,
+        Expr::Nested(inner) => is_null_literal(inner),
+        _ => false,
+    }
+}
+
+/// The type `CASE` branches of `types` share: their one type, or the widest
+/// of their numeric types. `None` when they have none in common.
+fn shared_type(types: Vec<String>) -> Option<String> {
+    let first = types.first()?;
+    if types.iter().all(|value_type| value_type == first) {
+        return Some(first.clone());
+    }
+    types
+        .iter()
+        .map(|value_type| Number::of(value_type))
+        .collect::<Option<Vec<Number>>>()?
+        .into_iter()
+        .max()
+        .map(|number| number.rust_type().to_owned())
+}
+
+/// `IS [NOT] NULL`, `IS [NOT] TRUE`/`FALSE`/`UNKNOWN` and `IS [NOT]
+/// DISTINCT FROM`: `bool`, and never NULL.
+fn is_is_test(expr: &Expr) -> bool {
+    matches!(
+        expr,
+        Expr::IsNull(_)
+            | Expr::IsNotNull(_)
+            | Expr::IsTrue(_)
+            | Expr::IsNotTrue(_)
+            | Expr::IsFalse(_)
+            | Expr::IsNotFalse(_)
+            | Expr::IsUnknown(_)
+            | Expr::IsNotUnknown(_)
+            | Expr::IsDistinctFrom(..)
+            | Expr::IsNotDistinctFrom(..)
+    )
 }

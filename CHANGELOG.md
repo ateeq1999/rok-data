@@ -77,6 +77,15 @@ that it exists and won't ship a tag without it).
   `coalesce(x, <literal>)` is never NULL. Any other cast stays `Option`,
   and a `-- column:` override settles what inference can't (the engine's
   README, "Writing query files").
+- Everyday expressions in generated queries are typed (rok-data-sqlc),
+  where `rok gen` failed with the `-- column:` hint: `expires_at <= now()
+  AS expired` is `bool` on a `NOT NULL` column and `Option<bool>` on a
+  nullable one. Comparisons and boolean logic are `bool`, arithmetic
+  takes its operands' type (`numeric` over integers), `CASE` the type its
+  branches share, and `||` is text; each is `Option` when an operand can
+  be NULL (`IS NULL` never is). A cast literal (`0::int`) is no longer
+  `Option`, a change to the generated API. Anything else still fails
+  with the hint.
 
 - `SCHEMA_SQL` (the generated `db/schema.rs`) is in an order that loads
   into an empty database. It listed the schema files' statements in
