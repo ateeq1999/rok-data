@@ -11,6 +11,15 @@ that it exists and won't ship a tag without it).
 
 **Changed**
 
+- `rok gen` and `rok gen check` fail on a table or query they can't
+  generate, where they skipped it with a warning that scrolled past. A
+  query whose result column can't be typed (`expires_at <= now() AS
+  expired`) names its file and line, the expression and the override:
+  ``add `-- column: expired <RustType>` ``. `--lenient` skips as before;
+  `--strict` is the default now and still accepted. `--json` carries the
+  failures in `failures`, and each failure and skipped entry has its
+  `path` and `line`. `--strict` no longer fails on the other warnings
+  (a scaffolded file using what the settings stopped generating).
 - One rule for finding the project: `rok gen`, `rok gen check`,
   `rok migrate *`, `rok schema diff` and `rok sqlc check-arch` walk up to
   the nearest `rok.toml`. Started inside an App a Monorepo's `[apps]`

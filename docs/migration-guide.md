@@ -38,7 +38,21 @@ change in 0.4.0 and 0.3.0; 0.5.0 changes the templates only.
 
 ## To the next version
 
-Nothing to change in a project. Two fixes touch the migrations:
+**`rok gen` fails on what it can't generate.** A table or query the
+engine can't generate fails `rok gen` and `rok gen check`, where it
+was skipped with a warning. Type the query's column with the override
+the error names:
+
+```sql
+-- name: SessionExpiry :one
+-- column: expired bool
+SELECT id, expires_at <= now() AS expired FROM sessions WHERE id = $1;
+```
+
+or pass `--lenient` to skip it as before. `--strict` is now the default
+and can stay in a script.
+
+Two fixes touch the migrations:
 
 - **Line endings don't change a staged migration.** `rok gen --migration`
   reads the truth files and the `.rok-schema.json` snapshot with CRLF

@@ -61,9 +61,10 @@ rok gen check --json      # one JSON object on stdout; process exit code carries
 | 1 | runtime failure anywhere — bad URL, drift, a check that failed; also *usage* errors inside `rok sqlc …` (the engine's historic behavior, preserved) |
 | 2 | usage errors at the root (clap) |
 
-`--force` overwrites files the generator did not write; `--strict` turns
-warnings (a skipped table or query) into failures; flags beat every
-settings file.
+`--force` overwrites files the generator did not write; a table or query
+`rok gen` can't generate fails the run (the error names the file, the
+line and the fix), and `--lenient` skips it with a warning instead; flags
+beat every settings file.
 
 ## The agent's loop
 

@@ -6,8 +6,8 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `expires_at <= now() AS expired` fails `rok gen` naming the query and the hint
-- [ ] `--lenient` skips it with the warning, as before
-- [ ] CLI reference, changelog and migration guide (a behaviour change) updated
+- [x] `expires_at <= now() AS expired` fails `rok gen` naming the query and the hint
+- [x] `--lenient` skips it with the warning, as before
+- [x] CLI reference, changelog and migration guide (a behaviour change) updated
