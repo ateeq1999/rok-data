@@ -32,6 +32,7 @@ A team scaffolded the Monorepo template with `rok init` and built three Apps on 
 **Templates:** they ship formatted, with LF line endings enforced.
 
 **Local setup:**
+
 - the API reads `.env` in debug builds
 - a dev seed creates verified accounts
 - Postgres's port is a setting
