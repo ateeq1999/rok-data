@@ -9,6 +9,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
   - a real and a fake transport chosen by `<NAME>_TRANSPORT`
   - a fake that signs its callbacks exactly as the provider does
   - a test helper that swaps the fake into `AppState`
+- **Tests and transports:** the recipe and the template docs say tests read queued mail and SMS through the memory transport, and the `log` transport is for running locally.
 - **No vendor** is shipped.
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)

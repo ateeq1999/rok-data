@@ -32,6 +32,7 @@ A team scaffolded the Monorepo template with `rok init` and built three Apps on 
 **Templates:** they ship formatted, with LF line endings enforced.
 
 **Local setup:**
+
 - the API reads `.env` in debug builds
 - a dev seed creates verified accounts
 - Postgres's port is a setting
@@ -180,7 +181,14 @@ From the notes on Karibu Pass's tickets 07 and 08:
 - **Data-modifying CTEs** are typed from their final statement.
 - **`-- returns: <RowType>`** reuses an existing row type, failing on any column mismatch.
 - **Transaction control in services:** `check-arch` rule 2 allows a `Transaction` and its `begin` (a savepoint), `commit` and `rollback`, and still forbids SQL. The template's `AGENTS.md` documents the `ON CONFLICT … DO NOTHING` + `:execrows` retry, and the templates enable `reqwest`'s `json` feature.
-- **A provider that calls back:** the templates gain a `SignedWebhook` extractor (headers and raw body, with a verifier you plug in) as part of the security Capability, and a guide recipe for a provider with real and fake transports chosen by `<NAME>_TRANSPORT`. No vendor is shipped.
+- **A provider that calls back:** the templates gain a `SignedWebhook` extractor (headers and raw body, with a verifier you plug in) as part of the security Capability, and a guide recipe for a provider with real and fake transports chosen by `<NAME>_TRANSPORT`. No vendor is shipped. Tests read queued mail and SMS through the memory transport.
+
+From the notes on Karibu Pass's ticket 09:
+
+- **A query's parameter shape doesn't flip:** `-- rok:params struct|positional` fixes it, and each generated function's doc comment states the default (up to three positional, four or more a `…Params` struct).
+- **A contract export that fails to compile says so:** "the App doesn't build after this change: fix the call sites, then run `rok gen` to write the contract and the Clients".
+- **Query-parameter enums reach the contract:** generated features register the schemas their query-parameter structs use, and the contract error names the `components(schemas(...))` line a hand-written one needs.
+- **Boolean-switched queries:** `$2::bool` with `CASE WHEN $2 THEN … END` in `WHERE` and `ORDER BY` is tested and documented.
 
 ## Out of Scope
 
