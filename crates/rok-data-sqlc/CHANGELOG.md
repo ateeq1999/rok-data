@@ -50,6 +50,18 @@ the *generated* API count as breaking (see ADR 0012).
 - A relationship that still collides with a search filter field names the
   entry that fixes it: `reviewed_by_user = "<new name>"` in
   `relationships.offers`.
+- `db/schema.rs`'s `SCHEMA_SQL` lists the schema's statements in an order
+  that loads into an empty database, not file-name order: a statement
+  that names an object a later statement creates (a foreign key to a
+  table of a later file, a trigger on that table, a view over it) moves
+  after its creator, and otherwise keeps its place. Each statement's
+  text, with the comments before it, is kept; an order that already
+  loads is unchanged. What a statement creates is read from its
+  `CREATE`/`ALTER` head, and what it needs from the names in its text; a
+  cycle (two tables referencing each other) keeps the input order. The
+  migration diff's order is not reused: it rewrites the schema (tables
+  first, then their foreign keys) where the snapshot keeps it as
+  written. The constant's doc comment says the tests run it.
 
 ## Workspace 0.8.0 - 2026-11-03
 

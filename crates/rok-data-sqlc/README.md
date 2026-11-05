@@ -492,7 +492,7 @@ same name fail generation, and the error names both.
 | File | Contents |
 |---|---|
 | `mod.rs` | Declares every module and lists the dependencies to add. Holds `UpdateOutcome` when a table has a version column. |
-| `schema.rs` | `SCHEMA_SQL`: a verbatim snapshot of the input schema. It is never executed. |
+| `schema.rs` | `SCHEMA_SQL`: the input schema's statements, each as written, in an order that loads into an empty database (a statement naming an object a later file creates moves after it). Tests run it to create the schema. |
 | `search.rs` | `Page`, `Limit`, `Sort`, `Direction`, the condition types, and `MAX_RELATIONSHIP_DEPTH`. |
 | `types.rs` | A Rust enum for each enum type and each value-list column, keeping its exact database labels. |
 | `session.rs` | `set_tenant` and `set_user`, when the conventions name a setting. |

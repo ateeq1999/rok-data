@@ -27,6 +27,7 @@ use super::diagnostics::{LastGood, TableFailure};
 use crate::schema::{Schema, Table};
 
 pub(crate) use self::names::{ident_name, object_leaf_name};
+pub(crate) use self::recover::split_statements;
 pub use self::statements::parse_sources_with_modules;
 pub(crate) use self::types::map_type;
 

@@ -2,7 +2,8 @@
 
 //! The schema the code was generated from.
 
-/// Verbatim snapshot of the input schema; never executed.
+/// The input schema's statements, each as written, in an order that loads
+/// into an empty database: the tests run it to create the schema.
 pub const SCHEMA_SQL: &str = r#"-- The schema of the axum fixture: an account, the notes it owns, and the
 -- labels a note carries. The notes are tenant-scoped, versioned and
 -- soft-deleted, so the generated features hold every shape the API
