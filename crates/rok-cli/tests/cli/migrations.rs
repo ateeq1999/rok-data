@@ -62,7 +62,8 @@ fn repeated_schema_flags_combine_inputs_in_the_order_given() -> Result<()> {
     fs::write(&shared, "CREATE TABLE users (id UUID PRIMARY KEY);")?;
     fs::write(
         module.join("0001_posts.up.sql"),
-        "CREATE TABLE posts (id UUID PRIMARY KEY, author_id UUID NOT NULL REFERENCES users (id));",
+        "CREATE TABLE tags (id UUID PRIMARY KEY);\n\
+         CREATE TABLE posts (id UUID PRIMARY KEY, author_id UUID NOT NULL REFERENCES users (id));",
     )?;
     let out = output_dir(&dir);
 
@@ -70,13 +71,20 @@ fn repeated_schema_flags_combine_inputs_in_the_order_given() -> Result<()> {
 
     assert!(out.join("users/models.rs").exists());
     assert!(out.join("posts/models.rs").exists());
-    let users = snapshot.find("CREATE TABLE users").unwrap();
-    let posts = snapshot.find("CREATE TABLE posts").unwrap();
-    assert!(users < posts, "inputs combined in the order given");
-
-    let reversed = generate_snapshot(&[&module, &shared], &dir.path().join("reversed"))?;
+    let at = |snapshot: &str, table: &str| snapshot.find(&format!("CREATE TABLE {table}")).unwrap();
     assert!(
-        reversed.find("CREATE TABLE posts").unwrap() < reversed.find("CREATE TABLE users").unwrap()
+        at(&snapshot, "users") < at(&snapshot, "tags"),
+        "inputs combined in the order given"
+    );
+    assert!(at(&snapshot, "tags") < at(&snapshot, "posts"));
+
+    // Given first, the module's `tags` comes first; its `posts` waits for
+    // the `users` table it references, so the snapshot loads.
+    let reversed = generate_snapshot(&[&module, &shared], &dir.path().join("reversed"))?;
+    assert!(at(&reversed, "tags") < at(&reversed, "users"), "{reversed}");
+    assert!(
+        at(&reversed, "users") < at(&reversed, "posts"),
+        "{reversed}"
     );
     Ok(())
 }

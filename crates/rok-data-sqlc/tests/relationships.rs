@@ -587,3 +587,118 @@ CREATE TABLE products (
     );
     Ok(())
 }
+
+#[test]
+fn a_foreign_key_without_id_names_its_relationship_after_the_column_and_the_row() -> Result<()> {
+    // Named `reviewed_by`, the relationship would collide with the search
+    // filter's field for the column.
+    let (dir, result) = generate(
+        "CREATE TABLE users (id UUID PRIMARY KEY, email TEXT NOT NULL);
+CREATE TABLE offers (
+    id UUID PRIMARY KEY,
+    reviewed_by UUID REFERENCES users (id)
+);
+",
+        "",
+    );
+    result?;
+    let offers = loaders(dir.path(), "offers").expect("offers has relationships");
+    assert!(
+        offers.contains("pub async fn load_reviewed_by_user<"),
+        "{offers}"
+    );
+    let filter = fs::read_to_string(dir.path().join("out/offers/filter.rs"))?;
+    assert!(
+        filter.contains("pub reviewed_by_user: Option<Box<UserFilter>>,"),
+        "{filter}"
+    );
+    let users = loaders(dir.path(), "users").expect("the inverse");
+    assert!(users.contains("pub async fn load_offers<"), "{users}");
+    Ok(())
+}
+
+#[test]
+fn two_foreign_keys_without_id_to_one_table_are_two_relationships() -> Result<()> {
+    let (dir, result) = generate(
+        "CREATE TABLE users (id UUID PRIMARY KEY, email TEXT NOT NULL);
+CREATE TABLE offers (
+    id UUID PRIMARY KEY,
+    created_by UUID NOT NULL REFERENCES users (id),
+    reviewed_by UUID REFERENCES users (id)
+);
+",
+        "",
+    );
+    result?;
+    let offers = loaders(dir.path(), "offers").expect("offers has relationships");
+    for loader in ["load_created_by_user", "load_reviewed_by_user"] {
+        assert!(
+            offers.contains(&format!("pub async fn {loader}<")),
+            "{offers}"
+        );
+    }
+    // The inverses add the belongs-to name, as for any two foreign keys
+    // from one table to another.
+    let users = loaders(dir.path(), "users").expect("the inverses");
+    for loader in [
+        "load_offers_by_created_by_user",
+        "load_offers_by_reviewed_by_user",
+    ] {
+        assert!(
+            users.contains(&format!("pub async fn {loader}<")),
+            "{users}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn a_foreign_key_ending_in_id_keeps_the_name_without_it() -> Result<()> {
+    let (dir, result) = generate(
+        "CREATE TABLE users (id UUID PRIMARY KEY, email TEXT NOT NULL);
+CREATE TABLE offers (
+    id UUID PRIMARY KEY,
+    reviewer_id UUID REFERENCES users (id)
+);
+",
+        "",
+    );
+    result?;
+    let offers = loaders(dir.path(), "offers").expect("offers has relationships");
+    assert!(offers.contains("pub async fn load_reviewer<"), "{offers}");
+    assert!(!offers.contains("reviewer_user"), "{offers}");
+    Ok(())
+}
+
+#[test]
+fn a_remaining_filter_field_collision_names_the_rename_that_fixes_it() -> Result<()> {
+    let schema = "CREATE TABLE users (id UUID PRIMARY KEY, email TEXT NOT NULL);
+CREATE TABLE offers (
+    id UUID PRIMARY KEY,
+    reviewed_by_user TEXT,
+    reviewed_by UUID REFERENCES users (id)
+);
+";
+    let message = failure(schema, "");
+    assert!(
+        message.contains(
+            "the `reviewed_by_user` relationship of `offers` collides with the search filter's `reviewed_by_user` field for column `reviewed_by_user`"
+        ),
+        "{message}"
+    );
+    assert!(
+        message.contains(
+            "rename the relationship in `relationships.offers`: `reviewed_by_user = \"<new name>\"`"
+        ),
+        "{message}"
+    );
+
+    let (dir, result) = generate(
+        schema,
+        "[relationships.offers]\nreviewed_by_user = \"reviewer\"\n",
+    );
+    result?;
+    let offers = loaders(dir.path(), "offers").expect("offers has relationships");
+    assert!(offers.contains("pub async fn load_reviewer<"), "{offers}");
+    Ok(())
+}

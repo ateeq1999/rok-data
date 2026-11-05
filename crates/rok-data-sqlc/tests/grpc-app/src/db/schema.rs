@@ -2,7 +2,8 @@
 
 //! The schema the code was generated from.
 
-/// Verbatim snapshot of the input schema; never executed.
+/// The input schema's statements, each as written, in an order that loads
+/// into an empty database: the tests run it to create the schema.
 pub const SCHEMA_SQL: &str = r#"-- The schema of the gRPC fixture: the axum fixture's accounts, notes and
 -- labels (the notes tenant-scoped, versioned and soft-deleted), and the
 -- gadgets, whose columns hold every type a message carries.

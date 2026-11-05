@@ -260,7 +260,12 @@ fn api_app_passes_check_arch() -> Result<()> {
         .output()
         .context("failed to run rok sqlc check-arch")?;
     ensure!(
-        output.status.success() && output.stdout.is_empty() && output.stderr.is_empty(),
+        // Only the line naming the settings file it read.
+        output.status.success()
+            && super::check_arch_passed(&output.stdout)
+            && String::from_utf8_lossy(&output.stderr)
+                .lines()
+                .all(|line| line.starts_with("using ")),
         "the API fixture fails check-arch:\n{}{}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)

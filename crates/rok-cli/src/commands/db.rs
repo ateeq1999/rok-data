@@ -7,6 +7,7 @@ mod split;
 
 pub(crate) use query::query;
 
+use crate::commands::chain;
 use crate::context;
 use crate::output::json_line;
 
@@ -18,12 +19,12 @@ use crate::output::json_line;
 pub(crate) async fn check(database_url: Option<&str>, json: bool) -> Result<ExitCode, String> {
     let connection = context::Connection::resolve(database_url)?;
     let db = connection.probe_into_db().await?;
-    db.ping().await.map_err(|e| e.to_string())?;
+    db.ping().await.map_err(chain)?;
     let stats = db.stats();
     let version: String = rok_data::raw("SELECT version()")
         .scalar(&db)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(chain)?;
     if json {
         json_line(serde_json::json!({
             "ok": true,
@@ -55,9 +56,7 @@ pub(crate) async fn inspect(
     let db = connection.probe_into_db().await?;
     match table {
         None => {
-            let tables = rok_data::introspect::tables(&db)
-                .await
-                .map_err(|e| e.to_string())?;
+            let tables = rok_data::introspect::tables(&db).await.map_err(chain)?;
             if json {
                 json_line(serde_json::json!({ "tables": tables }));
             } else {
@@ -69,13 +68,13 @@ pub(crate) async fn inspect(
         Some(table) => {
             let columns = rok_data::introspect::columns(&db, table)
                 .await
-                .map_err(|e| e.to_string())?;
+                .map_err(chain)?;
             let indexes = rok_data::introspect::indexes(&db, table)
                 .await
-                .map_err(|e| e.to_string())?;
+                .map_err(chain)?;
             let foreign_keys = rok_data::introspect::foreign_keys(&db, table)
                 .await
-                .map_err(|e| e.to_string())?;
+                .map_err(chain)?;
             if columns.is_empty() && json {
                 return Err(format!("no table `{table}` in schema `public`"));
             }
@@ -142,7 +141,7 @@ pub(crate) async fn create(
     rok_data::raw(&sql)
         .execute(&db)
         .await
-        .map_err(|e| format!("failed to create database: {e}"))?;
+        .map_err(|e| format!("failed to create database: {}", chain(e)))?;
 
     if json {
         json_line(crate::output::db_create_json(name, server));
@@ -185,10 +184,10 @@ pub(crate) async fn drop(
         use std::io::{Write, stderr, stdin};
         // The prompt goes to stderr: stdout carries only the result.
         eprint!("Type the database name to confirm: ");
-        stderr().flush().map_err(|e| e.to_string())?;
+        stderr().flush().map_err(chain)?;
 
         let mut input = String::new();
-        stdin().read_line(&mut input).map_err(|e| e.to_string())?;
+        stdin().read_line(&mut input).map_err(chain)?;
 
         if input.trim() != name {
             return Err("confirmation failed: database name does not match".to_owned());
@@ -203,7 +202,7 @@ pub(crate) async fn drop(
     rok_data::raw(&sql)
         .execute(&db)
         .await
-        .map_err(|e| format!("failed to drop database: {e}"))?;
+        .map_err(|e| format!("failed to drop database: {}", chain(e)))?;
 
     if json {
         json_line(crate::output::db_drop_json(name, server));

@@ -51,7 +51,12 @@ pub(crate) struct GenOptions {
     /// A renamed table (`users=accounts`) or column (`users.name=full_name`); repeatable.
     #[arg(long = "rename", value_name = "OLD=NEW")]
     pub renames: Vec<String>,
-    /// Fail on warnings (a skipped table or query).
+    /// Skip a table or query that can't be generated, with a warning,
+    /// instead of failing the run.
+    #[arg(long, conflicts_with = "strict")]
+    pub lenient: bool,
+    /// Fail on a table or query that can't be generated: the default,
+    /// accepted so the scripts that pass it keep working.
     #[arg(long)]
     pub strict: bool,
     /// Print a machine-readable JSON report.
@@ -86,6 +91,7 @@ impl GenCheckOptions {
             migration: None,
             allow_destructive: self.allow_destructive || group.allow_destructive,
             renames: Vec::new(),
+            lenient: self.lenient || group.lenient,
             strict: self.strict || group.strict,
             json: self.json || group.json,
             dry_run: self.dry_run || group.dry_run,
@@ -123,7 +129,12 @@ pub(crate) struct GenCheckOptions {
     /// Allow the steps that lose data or fail on existing rows.
     #[arg(long)]
     pub allow_destructive: bool,
-    /// Fail on warnings (a skipped table or query).
+    /// Skip a table or query that can't be generated, with a warning,
+    /// instead of failing the run.
+    #[arg(long, conflicts_with = "strict")]
+    pub lenient: bool,
+    /// Fail on a table or query that can't be generated: the default,
+    /// accepted so the scripts that pass it keep working.
     #[arg(long)]
     pub strict: bool,
     /// Print a machine-readable JSON report.

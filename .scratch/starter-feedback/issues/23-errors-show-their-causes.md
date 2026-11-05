@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A schema with a syntax error names the file, the line and the parser's message
-- [ ] Existing error-output tests updated deliberately, not loosened
+- [x] A schema with a syntax error names the file, the line and the parser's message
+- [x] Existing error-output tests updated deliberately, not loosened

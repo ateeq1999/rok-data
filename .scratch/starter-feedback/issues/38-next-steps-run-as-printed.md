@@ -6,6 +6,6 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** 24
 
-**Status:** blocked
+**Status:** done
 
-- [ ] Each printed command runs as printed, from the root and from inside the App (test)
+- [x] Each printed command runs as printed, from the root and from inside the App (test)

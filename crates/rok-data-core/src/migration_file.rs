@@ -69,7 +69,7 @@ pub fn status_rows(migrations: &[Migration], applied: &[AppliedMigration]) -> Ve
     let mut rows = BTreeMap::new();
     for m in migrations {
         let row = match applied.iter().find(|a| a.version == m.version) {
-            Some(a) if a.checksum == m.checksum() => ("applied", "ok", false),
+            Some(a) if m.is_recorded_as(&a.checksum) => ("applied", "ok", false),
             Some(_) => ("applied", "edited", true),
             None => ("pending", "", false),
         };
@@ -302,5 +302,25 @@ mod tests {
                 (9, "unknown", "", true),
             ]
         );
+    }
+
+    /// A journal row recorded from a CRLF file before checksums ignored
+    /// line endings is not drift for the file checked out with LF.
+    #[test]
+    fn a_checksum_of_crlf_bytes_is_not_drift() {
+        let file = Migration {
+            version: 1,
+            name: "init",
+            up: "CREATE TABLE a (id INT);\nCREATE TABLE b (id INT);\n",
+            down: "",
+        };
+        let recorded = AppliedMigration {
+            version: 1,
+            name: "init".into(),
+            // The raw bytes' checksum of the CRLF copy of `file.up`.
+            checksum: "a78923a04ca0c3e0".into(),
+        };
+        let rows = status_rows(&[file], &[recorded]);
+        assert_eq!((rows[0].checksum, rows[0].drift), ("ok", false));
     }
 }

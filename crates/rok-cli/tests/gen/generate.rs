@@ -77,26 +77,123 @@ fn gen_dry_run_writes_nothing() -> Result<()> {
     Ok(())
 }
 
-/// A table the generator cannot handle is a warning; `--strict` makes it a
-/// failure.
+/// A table the generator cannot handle fails the run; `--lenient` skips it
+/// with a warning, and `--strict` (the default) is still accepted.
 #[test]
-fn a_warning_fails_a_strict_run() -> Result<()> {
+fn an_unsupported_table_fails_unless_lenient() -> Result<()> {
     let dir = project(
         "CREATE TABLE users (\n    id UUID PRIMARY KEY\n);\n\
          CREATE TABLE weird (\n    id UUID PRIMARY KEY,\n    payload \"weird type\" NOT NULL\n);\n",
     )?;
 
-    let lenient = run_in(dir.path(), &["gen"])?;
+    for args in [&["gen"][..], &["gen", "--strict"][..]] {
+        let strict = run_in(dir.path(), args)?;
+        assert_eq!(strict.status.code(), Some(1), "{args:?}");
+        let stderr = stderr(&strict);
+        assert!(stderr.contains("table `weird`"), "{stderr}");
+        assert!(!stderr.contains("skipped"), "{stderr}");
+        assert!(stderr.contains("--lenient"), "{stderr}");
+    }
+    assert!(
+        !dir.path().join("src/db").exists(),
+        "a failure writes nothing"
+    );
+
+    let lenient = run_in(dir.path(), &["gen", "--lenient"])?;
     assert_success(&lenient);
     assert!(
         stderr(&lenient).contains("warning: table `weird` skipped"),
         "{}",
         stderr(&lenient)
     );
+    Ok(())
+}
 
-    let strict = run_in(dir.path(), &["gen", "--strict"])?;
-    assert_eq!(strict.status.code(), Some(1));
-    assert!(stderr(&strict).contains("--strict"), "{}", stderr(&strict));
+/// The schema with an expiry the `expired` query compares.
+const SESSIONS: &str =
+    "CREATE TABLE sessions (\n    id UUID PRIMARY KEY,\n    expires_at TIMESTAMPTZ NOT NULL\n);\n";
+
+/// A query whose result column the engine can't type.
+const EXPIRED_QUERY: &str = "-- name: SessionExpiry :one\nSELECT id, expires_at <= now() AS expired FROM sessions WHERE id = $1;\n";
+
+/// A project with [`SESSIONS`] and the [`EXPIRED_QUERY`] in `queries/`.
+fn expiry_project() -> Result<TempDir> {
+    let dir = project(SESSIONS)?;
+    fs::create_dir_all(dir.path().join("queries"))?;
+    fs::write(dir.path().join("queries/sessions.sql"), EXPIRED_QUERY)?;
+    Ok(dir)
+}
+
+/// A query whose result column can't be typed fails `rok gen` (and
+/// `rok gen check`), naming the file, the query, the expression and the
+/// `-- column:` override that fixes it.
+#[test]
+fn an_untypeable_query_fails_naming_the_fix() -> Result<()> {
+    let dir = expiry_project()?;
+    for args in [
+        &["gen", "--queries", "queries"][..],
+        &["gen", "check", "--queries", "queries"][..],
+    ] {
+        let output = run_in(dir.path(), args)?;
+        assert_eq!(output.status.code(), Some(1), "{args:?}");
+        let stderr = stderr(&output);
+        assert!(
+            stderr.contains("error: queries/sessions.sql:1: query `SessionExpiry`"),
+            "{stderr}"
+        );
+        assert!(stderr.contains("`expires_at <= now()`"), "{stderr}");
+        assert!(
+            stderr.contains("add `-- column: expired <RustType>`"),
+            "{stderr}"
+        );
+        assert!(!stderr.contains("skipped"), "{stderr}");
+    }
+    assert!(
+        !dir.path().join("src/db").exists(),
+        "a failure writes nothing"
+    );
+
+    // The fix the error names generates the query.
+    fs::write(
+        dir.path().join("queries/sessions.sql"),
+        EXPIRED_QUERY.replace(":one\n", ":one\n-- column: expired bool\n"),
+    )?;
+    assert_success(&run_in(dir.path(), &["gen", "--queries", "queries"])?);
+    Ok(())
+}
+
+/// `--lenient` skips the query with a warning, as `rok gen` did before.
+#[test]
+fn lenient_skips_an_untypeable_query() -> Result<()> {
+    let dir = expiry_project()?;
+    let output = run_in(dir.path(), &["gen", "--queries", "queries", "--lenient"])?;
+    assert_success(&output);
+    let stderr = stderr(&output);
+    assert!(
+        stderr.contains("warning: query `SessionExpiry` skipped: "),
+        "{stderr}"
+    );
+    assert!(dir.path().join("src/db/sessions/models.rs").is_file());
+    Ok(())
+}
+
+/// The `--json` body carries the failure: where, which query, and why.
+#[test]
+fn json_carries_the_untypeable_query() -> Result<()> {
+    let dir = expiry_project()?;
+    let output = run_in(dir.path(), &["gen", "--queries", "queries", "--json"])?;
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = stdout(&output);
+    let body: serde_json::Value =
+        serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("{e}: {stdout}"));
+    let failure = &body["failures"][0];
+    assert_eq!(failure["kind"], "query", "{stdout}");
+    assert_eq!(failure["name"], "SessionExpiry", "{stdout}");
+    assert_eq!(failure["path"], "queries/sessions.sql", "{stdout}");
+    assert_eq!(failure["line"], 1, "{stdout}");
+    let reason = failure["reason"].as_str().unwrap_or_default();
+    assert!(reason.contains("-- column: expired <RustType>"), "{stdout}");
+    assert_eq!(body["skipped"], serde_json::json!([]), "{stdout}");
     Ok(())
 }
 

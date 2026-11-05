@@ -125,17 +125,40 @@ pub(crate) enum Command {
         action: Option<GenAction>,
     },
     /// Run migration files against the database.
-    #[command(subcommand)]
-    Migrate(MigrateAction),
+    Migrate {
+        #[command(flatten)]
+        env: EnvFile,
+        #[command(subcommand)]
+        action: MigrateAction,
+    },
     /// Connectivity and structure of the configured database.
-    #[command(subcommand)]
-    Db(DbAction),
+    Db {
+        #[command(flatten)]
+        env: EnvFile,
+        #[command(subcommand)]
+        action: DbAction,
+    },
     /// The live schema as DDL, and journal-vs-files comparison.
-    #[command(subcommand)]
-    Schema(SchemaAction),
+    Schema {
+        #[command(flatten)]
+        env: EnvFile,
+        #[command(subcommand)]
+        action: SchemaAction,
+    },
     /// Per-user server registry (ADR 0028).
     #[command(subcommand)]
     Server(ServerAction),
+}
+
+/// Whether a database command reads the App's `.env` (`rok migrate`, `rok
+/// db`, `rok schema`): the `.env` in the directory of the App the project
+/// rule finds, or beside a plain project's settings file.
+#[derive(Debug, Clone, Copy, clap::Args)]
+pub(crate) struct EnvFile {
+    /// Don't load the App's `.env` (by default it is loaded, and a variable
+    /// already set in the environment wins over the file's).
+    #[arg(long, global = true)]
+    pub(crate) no_env_file: bool,
 }
 
 /// How [`parse`] finished.

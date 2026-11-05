@@ -420,7 +420,10 @@ page, per_page)` gives a page and its total in one round trip, and
 
 **Relationships.** Each foreign key between two tables generated together
 gives a belongs-to on the child (`category_id` gives `category`) and a has-many
-on the parent, named after the child module (`products`). If the foreign key
+on the parent, named after the child module (`products`). A column without
+`_id` adds the referenced row's name (`reviewed_by` referencing `users` gives
+`reviewed_by_user`), so the relationship doesn't take the name of the search
+filter's field for the column. If the foreign key
 column is unique, the parent gets a has-one instead. A `parent_id`
 self-reference gives `parent` and `children`. A join table (two `NOT NULL`
 foreign keys that together form a unique key) relates its two tables
@@ -489,7 +492,7 @@ same name fail generation, and the error names both.
 | File | Contents |
 |---|---|
 | `mod.rs` | Declares every module and lists the dependencies to add. Holds `UpdateOutcome` when a table has a version column. |
-| `schema.rs` | `SCHEMA_SQL`: a verbatim snapshot of the input schema. It is never executed. |
+| `schema.rs` | `SCHEMA_SQL`: the input schema's statements, each as written, in an order that loads into an empty database (a statement naming an object a later file creates moves after it). Tests run it to create the schema. |
 | `search.rs` | `Page`, `Limit`, `Sort`, `Direction`, the condition types, and `MAX_RELATIONSHIP_DEPTH`. |
 | `types.rs` | A Rust enum for each enum type and each value-list column, keeping its exact database labels. |
 | `session.rs` | `set_tenant` and `set_user`, when the conventions name a setting. |
@@ -608,6 +611,20 @@ outer side of a `LEFT`/`RIGHT`/`FULL` join becomes `Option`. A result that is
 exactly a table's columns, such as the `RETURNING *` above, reuses that
 table's row struct. A single column decodes as a scalar. Anything else gets
 a `{Name}Row` struct.
+
+**A cast takes its target type and keeps the nullability of what it
+wraps.** `count(*)::bigint` is `i64`, and so is `stock::bigint` for a
+`NOT NULL` column `stock`, unless the column is on the outer side of a
+join. A cast of anything else, such as `sum(stock)::bigint` or `0::int`,
+is `Option`. `coalesce(x, <literal>)`, whose last argument is a literal
+other than `NULL`, is never NULL: it takes `x`'s type when `x` is a
+column, a cast or a `count`, and a cast of it is not `Option`
+(`coalesce(sum(stock), 0)::bigint` is `i64`).
+
+Where you know more than the inference, a `-- column: <name> <RustType>`
+override settles the type: `-- column: total i64` for `sum(stock)::bigint
+AS total` under a `GROUP BY` (every group has a row, and `stock` is
+`NOT NULL`), or `-- column: total Option<i64>` to keep a column optional.
 
 Any other expression needs an alias and a `-- column:` override, and a
 parameter rok-data-sqlc can't type needs a `-- param:` override:

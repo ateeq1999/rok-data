@@ -6,6 +6,6 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A clean project prints the line with its feature count
+- [x] A clean project prints the line with its feature count

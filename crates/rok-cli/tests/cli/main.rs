@@ -35,6 +35,7 @@ mod modules;
 mod queries;
 mod query_add;
 mod runs;
+mod schema_snapshot;
 mod servers;
 mod servers_config;
 mod servers_flow;

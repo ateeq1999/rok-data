@@ -82,6 +82,54 @@ scaffolds), and their removal is deferred to 1.0.
   preserved so its tests keep asserting it.
 - Flags beat the settings file wherever both exist.
 
+## Finding the project
+
+`rok gen`, `rok gen check`, `rok migrate *`, `rok schema diff` and
+`rok sqlc check-arch` share one rule for the project they act on:
+
+- **Search:** walk up from the current directory. A `rok.toml` whose
+  `[apps]` names the Apps of a Monorepo (workspace ADR 0027) makes the
+  project a Monorepo; without one, the nearest settings file (`rok.toml`,
+  else the engine's `rok-data-sqlc.toml`) is a plain project. A nearer
+  settings file outside every App is a plain project of its own.
+- **Inside an App:** started anywhere inside an App `[apps]` names, the
+  command acts on that App, with the App's own settings file
+  (`apps/api/rok-data-sqlc.toml`).
+- **At the root:** `rok gen`, `rok gen check` and `check-arch` act on every
+  App. The commands that work in one directory (`rok migrate *`,
+  `rok schema diff`) act on the only App, and with several ask for
+  `--app <name>`.
+- **Directories:** an App's `migrations` key, else its `migrations/`
+  directory. An explicit `--dir` still wins (`--dir` and `--app` exclude
+  each other).
+- **Report:** each command prints one line on stderr naming the App, the
+  settings file and the directories it read, so `--json` stdout stays one
+  document:
+
+  ```text
+  using App api: apps/api/rok-data-sqlc.toml (migrations apps/api/migrations)
+  using App api: apps/api/rok-data-sqlc.toml (schema apps/api/schema, migrations apps/api/migrations)
+  using --dir (migrations db/migrations)
+  ```
+
+`rok schema dump` and `rok db *` need no project, but find one the same
+way for its `.env` (below), and run without one.
+
+### The App's `.env`
+
+`rok migrate status|up|down`, `rok schema *` and `rok db *` load the
+`.env` of the App the rule finds (`apps/api/.env`), or the one beside a
+plain project's settings file, so its `DATABASE_URL` needs no `export`:
+
+- **Precedence:** a variable already in the environment wins over the
+  file's; `--database-url` wins over both.
+- **Report:** the `using` line ends `, loaded apps/api/.env`; `rok db *` and
+  `rok schema dump`, which have no `using` line, print `loaded
+  apps/api/.env`.
+- **Opting out:** `--no-env-file` reads nothing.
+- A `.env` with no project around it, or at a Monorepo root naming several
+  Apps, is not read.
+
 ## `rok init` — scaffold a project
 
 ```text
@@ -203,7 +251,8 @@ project's only source of truth (workspace ADR 0010).
 | `--migration NAME`         | stage a migration pair for the schema changes since the last one    |
 | `--allow-destructive`      | allow the steps that lose data or fail on existing rows             |
 | `--rename OLD=NEW`         | `users=accounts` (table) or `users.name=full_name` (column); repeat|
-| `--strict`                 | fail on warnings (a skipped table or query)                        |
+| `--lenient`                | skip a table or query it can't generate, with a warning          |
+| `--strict`                 | fail on one (the default; accepted for the scripts that pass it)   |
 | `--json`                   | one JSON object on stdout                                           |
 | `-n, --dry-run`            | plan the run; write nothing                                         |
 | `-f, --force`              | overwrite files the generator did not write                          |
@@ -331,7 +380,12 @@ refused unless `--allow-destructive` is given; `--rename` records a
 rename instead of a drop and an add.
 
 The next steps name the staged pair's file: apply it with `rok migrate
-up` (with `--dir <path>` when the history dir is not `migrations`).
+up`, run from the same directory; it finds the history dir by the same
+rule, and the step adds `--app <name>` at a root naming several Apps, or
+`--dir <path>` for a history dir only `--migrations-dir` named. Every
+command the next steps print (here and in `rok init`, which starts with
+`cd <dir>` for a project made elsewhere) runs as printed from the
+directory `rok` ran in, and every path is relative to it.
 An `ALTER TABLE` the truth carries folds into the truth's tables when
 the model can represent it; a clause it cannot rides the pair as an
 extra step with the undo the truth's `-- rok:down` marker supplies.
@@ -341,6 +395,7 @@ numbered next steps. `--json` prints one object instead:
 `{"written": [...], "scaffolded": [...], "unchanged": [...], "refused":
 [{"path": ..., "reason": ...}], "stale": [...], "missing": [...],
 "changed": [...], "skipped": [{"kind": "table"|"query", "name": ...,
+"reason": ..., "path": ..., "line": ...}], "failures": [...], "warnings"|"query", "name": ...,
 "reason": ...}], "warnings": [...], "migration": {"version": ..., "name":
 ..., "up": ..., "down": ..., "reversible": ..., "steps": [...]},
 "pending_migration": {"version": ..., "name": ..., "since": ...} | null,
@@ -349,6 +404,42 @@ own finding of an un-staged truth change (null otherwise): the version
 the pair would take, the placeholder name `pending`, and `since` — the
 last staged migration's stem. The check names no file that does not
 exist: the pending pair is not among the `missing` files.
+
+A table or query the engine can't generate fails the run (and `rok gen
+check`), before anything is written. A query whose result column it
+can't type names its file and line, the expression and the override that
+types it:
+
+```text
+error: queries/sessions.sql:1: query `SessionExpiry`: cannot infer the type of result column `expired` (`expires_at <= now()`); add `-- column: expired <RustType>`
+```
+
+`--lenient` skips it instead, with a warning on stderr (`warning: query
+`SessionExpiry` skipped: ...`), and generates the rest. In `--json` the
+failures are in `failures` (`skipped` in a `--lenient` run), each with
+its `path` and `line`.
+
+A step that fails (an App's data layer or migration, the contract export,
+a Client) ends a run of several steps with the list of them and the command
+that finishes the rest; nothing done is rolled back:
+
+```text
+error: the contract export failed: re-exporting the contract: `cargo run -p api --bin export-openapi` failed (exit code: 101); openapi.json was not rewritten
+
+steps:
+  done     `api`'s data layer
+  done     `api`'s migration `add_bio`
+  failed   the contract export
+  skipped  the `ts` client
+nothing was rolled back; once the cause is fixed, `rok gen` finishes the rest
+```
+
+The command keeps the run's flags, without `--migration` once a migration
+is staged. With `--json`, the steps are an object `{"steps": [{"kind":
+"data_layer"|"migration"|"export"|"client", "app"|"migration"|"client": ...,
+"step": ..., "status": "done"|"failed"|"skipped", "error": ...}],
+"finish": "rok gen"}`: the last element of a Monorepo's array, or keys of a
+plain project's object.
 
 ### `rok gen check [OPTIONS]`
 
@@ -422,10 +513,17 @@ Journal table: `_rok_data_migrations`. Files:
 
 | Command                    | Flags                                        | Effect                                                     |
 | -------------------------- | -------------------------------------------- | ---------------------------------------------------------- |
-| `rok migrate create NAME`  | `--dir` (default `migrations`)               | writes the next-versioned up/down pair                      |
-| `rok migrate status`       | `--dir`, `--database-url`, `--json`          | every file + its journal state (`applied`, `pending`, `edited`, `unknown`) |
-| `rok migrate up`           | `--dir`, `--database-url`, `--json`          | applies pending files in version order                      |
-| `rok migrate down`         | `--dir`, `--database-url`, `--steps N` (default 1), `--json` | reverts the latest; `rollback` is an alias    |
+| `rok migrate create NAME`  | `--dir` or `--app`                           | writes the next-versioned up/down pair                      |
+| `rok migrate status`       | `--dir` or `--app`, `--database-url`, `--json` | every file + its journal state (`applied`, `pending`, `edited`, `unknown`) |
+| `rok migrate up`           | `--dir` or `--app`, `--database-url`, `--json` | applies pending files in version order                      |
+| `rok migrate down`         | `--dir` or `--app`, `--database-url`, `--steps N` (default 1), `--json` | reverts the latest; `rollback` is an alias    |
+
+`--dir DIR` names the migrations directory; without it, the project's
+history directory ([Finding the project](#finding-the-project)): the
+settings' `migrations` key, else `migrations/` beside the settings file,
+else `./migrations`. `--app NAME` picks a Monorepo's App, which a root
+naming several Apps needs (`rok migrate up --app api`). The first line on
+stderr names what was read.
 
 State semantics: `applied` (checksum matches the journal), `pending`
 (not yet applied), `edited` (file changed after being applied — the
@@ -642,9 +740,9 @@ the exit code is 1.
 
 ```text
 rok schema dump [--database-url]       approximate CREATE TABLE DDL for every user table
-rok schema diff [--database-url] [--dir migrations]
+rok schema diff [--database-url] [--dir DIR | --app NAME]
                                        compares the journal's applied migrations with
-                                       the files in --dir (missing, extra, drifted)
+                                       the project's migrations (or --dir; see Finding the project)
 ```
 
 `diff` is the CI guard: exit 1 when journal and files disagree.
@@ -824,7 +922,7 @@ is a library; `rok` forwards the tokens verbatim). Subcommand set:
 | `generate`     | `g`   | parse the schema and emit `src/db/<table>/{…}` modules, optional api/openapi |
 | `init`         | `i`   | scaffold a project (engine ADR 0016 skeleton, `-w axum` for axum, or `--template actix`/`axum`/`monorepo`; `-o, --org ORG` names a Monorepo's Apps under ORG, as `rok init` does), files-if-absent |
 | `check`        | `c`   | the generated code is up to date; with `--db`, every annotated query agrees with the database; any difference → exit 1 |
-| `check-arch`   | `a`   | check `src/` layout against the engine's ADR 0016 rules; violations → exit 1 |
+| `check-arch`   | `a`   | check `src/` layout against the engine's ADR 0016 rules; violations → exit 1. Finds its project by [the one rule](#finding-the-project): inside an App, that App; at a Monorepo root, every App; a plain `rok.toml` or `rok-data-sqlc.toml` with `[api] output` |
 | `query add`    | `q a` | append one annotated query to a query file and generate; kept only if it generates |
 
 Executive summary of the main flags (full text: `rok sqlc generate --help`):
@@ -913,7 +1011,9 @@ Apply the migrations first (`rok migrate up`): the queries are checked
 against the database as it is.
 
 
-`check-arch` prints each violation as `path:line: rule: message`. The rules
+`check-arch` prints each violation as `path:line: rule: message`; a run
+with none prints `checked 3 features: no violations` (with `, N warnings`
+when `--lenient` let layout violations through). The rules
 are the project's `AGENTS.md` six (the architecture guide states them):
 
 | Rule                  | Reports                                                                   |

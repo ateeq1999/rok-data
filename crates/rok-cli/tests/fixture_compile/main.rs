@@ -39,3 +39,14 @@ fn rok_data_sqlc(dir: &Path, args: &[&str]) -> Result<String> {
     );
     Ok(stderr)
 }
+
+/// Whether `stdout` is only the line a passing `rok sqlc check-arch` prints
+/// (`checked 3 features: no violations`), with no violation and no warning.
+fn check_arch_passed(stdout: &[u8]) -> bool {
+    let stdout = String::from_utf8_lossy(stdout);
+    let mut lines = stdout.lines();
+    lines
+        .next()
+        .is_some_and(|line| line.starts_with("checked ") && line.ends_with(": no violations"))
+        && lines.next().is_none()
+}

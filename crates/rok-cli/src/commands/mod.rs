@@ -3,10 +3,12 @@
 use std::process::ExitCode;
 
 pub mod db;
+mod env_file;
 pub mod r#gen;
 pub mod generate;
 pub mod init;
 pub mod migrate;
+mod place;
 pub mod schema;
 pub mod server;
 pub mod sqlc;
@@ -15,6 +17,24 @@ use crate::cli::Command;
 use crate::cli::db::DbAction;
 use crate::cli::migrate::MigrateAction;
 use crate::cli::schema::SchemaAction;
+
+/// `error` with its whole chain of causes, `outer: inner: innermost` the way
+/// anyhow's `{:#}` prints one, so a wrapped error keeps what caused it
+/// ("failed to parse SQL schema: schema/0001_init.sql:2: invalid PostgreSQL
+/// SQL syntax: …"). A cause the message already ends with is not repeated.
+pub(crate) fn chain(error: impl std::error::Error) -> String {
+    let mut message = error.to_string();
+    let mut source = error.source();
+    while let Some(cause) = source {
+        let cause_message = cause.to_string();
+        if !message.ends_with(&cause_message) {
+            message.push_str(": ");
+            message.push_str(&cause_message);
+        }
+        source = cause.source();
+    }
+    message
+}
 
 /// Execute a parsed command; errors print `error: …` outside and exit 1.
 pub(crate) async fn execute(command: Command) -> Result<ExitCode, String> {
@@ -40,69 +60,106 @@ pub(crate) async fn execute(command: Command) -> Result<ExitCode, String> {
             options: generation,
             action,
         } => r#gen::run(generation, action),
-        Command::Migrate(action) => match action {
-            MigrateAction::Create { name, dir } => migrate::create(&name, &dir),
-            MigrateAction::Status {
-                dir,
-                database_url,
-                json,
-            } => migrate::status(&dir, database_url.as_deref(), json).await,
-            MigrateAction::Up {
-                dir,
-                database_url,
-                json,
-            } => migrate::up(&dir, database_url.as_deref(), json).await,
-            MigrateAction::Down {
-                dir,
-                database_url,
-                steps,
-                json,
-            } => migrate::down(&dir, database_url.as_deref(), steps, json).await,
-        },
-        Command::Db(action) => match action {
-            DbAction::Check { database_url, json } => {
-                db::check(database_url.as_deref(), json).await
+        Command::Migrate { env, action } => match action {
+            MigrateAction::Create { name, place } => {
+                migrate::create(&name, &place::migrations_dir(&place, None)?)
             }
-            DbAction::Inspect {
-                table,
+            MigrateAction::Status {
+                place,
                 database_url,
-                json,
-            } => db::inspect(table.as_deref(), database_url.as_deref(), json).await,
-            DbAction::Create {
-                name,
-                database_url,
-                server,
-                json,
-            } => db::create(&name, database_url.as_deref(), server.as_deref(), json).await,
-            DbAction::Drop {
-                name,
-                database_url,
-                server,
-                yes,
-                force,
                 json,
             } => {
-                db::drop(
-                    &name,
+                migrate::status(
+                    &place::migrations_dir(&place, Some(env))?,
                     database_url.as_deref(),
-                    server.as_deref(),
-                    yes,
-                    force,
                     json,
                 )
                 .await
             }
-            DbAction::Query {
-                sql,
+            MigrateAction::Up {
+                place,
                 database_url,
-                server,
                 json,
-            } => db::query(&sql, database_url.as_deref(), server.as_deref(), json).await,
+            } => {
+                migrate::up(
+                    &place::migrations_dir(&place, Some(env))?,
+                    database_url.as_deref(),
+                    json,
+                )
+                .await
+            }
+            MigrateAction::Down {
+                place,
+                database_url,
+                steps,
+                json,
+            } => {
+                migrate::down(
+                    &place::migrations_dir(&place, Some(env))?,
+                    database_url.as_deref(),
+                    steps,
+                    json,
+                )
+                .await
+            }
         },
-        Command::Schema(action) => match action {
-            SchemaAction::Dump { database_url } => schema::dump(database_url.as_deref()).await,
-            SchemaAction::Diff { dir, database_url } => {
-                schema::diff(&dir, database_url.as_deref()).await
+        Command::Db { env, action } => {
+            env_file::load_for_current(env)?;
+            match action {
+                DbAction::Check { database_url, json } => {
+                    db::check(database_url.as_deref(), json).await
+                }
+                DbAction::Inspect {
+                    table,
+                    database_url,
+                    json,
+                } => db::inspect(table.as_deref(), database_url.as_deref(), json).await,
+                DbAction::Create {
+                    name,
+                    database_url,
+                    server,
+                    json,
+                } => db::create(&name, database_url.as_deref(), server.as_deref(), json).await,
+                DbAction::Drop {
+                    name,
+                    database_url,
+                    server,
+                    yes,
+                    force,
+                    json,
+                } => {
+                    db::drop(
+                        &name,
+                        database_url.as_deref(),
+                        server.as_deref(),
+                        yes,
+                        force,
+                        json,
+                    )
+                    .await
+                }
+                DbAction::Query {
+                    sql,
+                    database_url,
+                    server,
+                    json,
+                } => db::query(&sql, database_url.as_deref(), server.as_deref(), json).await,
+            }
+        }
+        Command::Schema { env, action } => match action {
+            SchemaAction::Dump { database_url } => {
+                env_file::load_for_current(env)?;
+                schema::dump(database_url.as_deref()).await
+            }
+            SchemaAction::Diff {
+                place,
+                database_url,
+            } => {
+                schema::diff(
+                    &place::migrations_dir(&place, Some(env))?,
+                    database_url.as_deref(),
+                )
+                .await
             }
         },
         Command::Server(action) => server::run(action),

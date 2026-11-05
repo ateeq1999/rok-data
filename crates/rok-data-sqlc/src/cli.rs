@@ -91,8 +91,8 @@ enum Command {
         lenient: bool,
 
         /// Read `api.output` and `api.db_path` from this config file instead
-        /// of discovering rok-data-sqlc.toml in the current directory or its
-        /// parents
+        /// of finding the project (the nearest rok.toml or rok-data-sqlc.toml
+        /// in the current directory or its parents)
         #[arg(short, long, value_name = "FILE")]
         config: Option<PathBuf>,
     },
@@ -270,44 +270,79 @@ where
     }
 }
 
-/// `check-arch`: checks the project whose config file is `config` (or the
-/// discovered `rok-data-sqlc.toml`), printing violations on stdout and, with
-/// `lenient`, layout violations as warnings on stderr.
+/// `check-arch`: checks the project whose config file is `config`, or the
+/// project the one rule finds (`crate::Project`: the App started inside, or
+/// every App at a Monorepo's root), printing violations on stdout and, with
+/// `lenient`, layout violations as warnings on stderr; a pass says so on
+/// stdout ([`passed_line`]).
 fn check_arch(config: Option<PathBuf>, lenient: bool) -> Result<()> {
-    let path = match config {
-        Some(path) => path,
-        None => config_file::discover(&std::env::current_dir()?).with_context(|| {
-            format!(
-                "no {} found in the current directory or its parents",
-                config_file::FILE_NAME
-            )
-        })?,
+    let project = match config {
+        Some(path) => crate::Project::at(&path)?,
+        None => crate::Project::current()?,
     };
-    let api = config_file::load(&path)?.api.resolve().with_context(|| {
-        format!(
-            "{} sets no `api.output`: check-arch checks an API project",
-            display_path(&path)
-        )
-    })?;
-    let project = crate::check_arch::Project {
-        root: path.parent().unwrap_or(Path::new("")).to_path_buf(),
-        features: api.output,
-        db_path: api.db_path,
-        framework: api.framework,
-    };
-    let mut failures = 0;
-    for violation in crate::check_arch::check(&project)? {
-        if lenient && violation.rule.is_layout() {
-            eprintln!("warning: {violation}");
-        } else {
-            failures += 1;
-            println!("{violation}");
+    let (mut failures, mut warnings, mut features) = (0, 0, 0);
+    for target in project.targets(None)? {
+        let path = target
+            .settings
+            .as_deref()
+            .with_context(|| match &target.app {
+                Some(app) => format!(
+                    "App `{app}` ({}) has no settings file: check-arch reads its `api.output`",
+                    display_path(&target.dir)
+                ),
+                None => format!(
+                    "no {} or {} found in the current directory or its parents",
+                    config_file::PROJECT_FILE,
+                    config_file::FILE_NAME
+                ),
+            })?;
+        let api = config_file::load_any(path)?
+            .api
+            .resolve()
+            .with_context(|| {
+                format!(
+                    "{} sets no `api.output`: check-arch checks an API project",
+                    display_path(path)
+                )
+            })?;
+        eprintln!("{}", target.using(&[("features", &api.output)]));
+        let project = crate::check_arch::Project {
+            root: path.parent().unwrap_or(Path::new("")).to_path_buf(),
+            features: api.output,
+            db_path: api.db_path,
+            framework: api.framework,
+        };
+        let checked = crate::check_arch::check(&project)?;
+        features += checked.features;
+        for violation in checked.violations {
+            if lenient && violation.rule.is_layout() {
+                warnings += 1;
+                eprintln!("warning: {violation}");
+            } else {
+                failures += 1;
+                println!("{violation}");
+            }
         }
     }
     if failures > 0 {
         bail!("check-arch found {failures} violation(s)");
     }
+    println!("{}", passed_line(features, warnings));
     Ok(())
+}
+
+/// What a passing `check-arch` says: `checked 2 features: no violations`,
+/// and the layout violations `--lenient` let through as warnings.
+fn passed_line(features: usize, warnings: usize) -> String {
+    let plural = |count: usize, word: &str| match count {
+        1 => format!("1 {word}"),
+        _ => format!("{count} {word}s"),
+    };
+    let mut line = format!("checked {}: no violations", plural(features, "feature"));
+    if warnings > 0 {
+        line.push_str(&format!(", {}", plural(warnings, "warning")));
+    }
+    line
 }
 
 /// The usage error for a run with neither `--schema` nor a `schema` key in

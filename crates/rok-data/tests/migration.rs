@@ -92,6 +92,30 @@ async fn guards(db: Db) {
     assert!(err.to_string().contains("can't be reverted"), "{err}");
 }
 
+/// A journal row recorded from a CRLF file before checksums ignored line
+/// endings (the raw bytes' checksum) is accepted for the LF checkout, and
+/// the next run records the line-ending-free checksum in its place.
+#[rok_data::test]
+async fn a_checksum_of_crlf_bytes_is_re_recorded(db: Db) {
+    const LF: Migration = Migration {
+        version: 1,
+        name: "init",
+        up: "CREATE TABLE a (id INT);\nCREATE TABLE b (id INT);\n",
+        down: "DROP TABLE b; DROP TABLE a;",
+    };
+    migration::apply(&db, &[LF]).await.unwrap();
+    // What an older version recorded from the CRLF copy of `LF.up`.
+    rok_data::raw(r#"UPDATE "_rok_data_migrations" SET "checksum" = ? WHERE "version" = 1"#)
+        .bind("a78923a04ca0c3e0")
+        .execute(&db)
+        .await
+        .unwrap();
+
+    assert!(migration::apply(&db, &[LF]).await.unwrap().is_empty());
+    let applied = migration::applied(&db).await.unwrap();
+    assert_eq!(applied[0].checksum, LF.checksum());
+}
+
 /// Compile-time check: migrations can run on a spawned task.
 #[allow(dead_code)]
 fn futures_are_spawnable(db: Db) {

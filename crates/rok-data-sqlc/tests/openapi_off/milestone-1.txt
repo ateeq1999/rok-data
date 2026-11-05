@@ -95,7 +95,7 @@ ee18a1e614ded9e8 db/notes/write.rs
 8d586a8c911889af db/profiles/read.rs
 ddd1bd6357f38f2f db/profiles/write.rs
 b3b67ba0f6379361 db/schema.json
-02e05131ac357c96 db/schema.rs
+19fb79fff6e4447a db/schema.rs
 c3be1e7a0cb088d6 db/search.rs
 5be662321aa663fe db/tags/filter.rs
 20bc5247408b4447 db/tags/listing.rs

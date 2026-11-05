@@ -109,6 +109,7 @@ async fn generated_crud_against_postgres() {
     loaders::belongs_to_loader_fetches_every_parent_in_one_query(&pool).await;
     loaders::has_many_loader_stays_in_the_tenant_and_skips_deleted_rows(&pool).await;
     loaders::several_foreign_keys_to_one_table_get_distinct_names(&pool).await;
+    loaders::foreign_keys_without_id_name_the_column_and_the_row(&pool).await;
     loaders::unique_foreign_key_loads_one_row(&pool).await;
     loaders::self_reference_loads_parent_and_children(&pool).await;
     relationship_filters::belongs_to_filter_matches_each_row_once(&pool).await;

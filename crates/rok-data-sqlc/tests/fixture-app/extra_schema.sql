@@ -299,6 +299,16 @@ CREATE TABLE invoices (
     total_cents BIGINT NOT NULL
 );
 
+-- Foreign keys without `_id`: each relationship is named after the column
+-- and the referenced row (`created_by_user`, `reviewed_by_user`), so it
+-- doesn't take the search filter's field for the column.
+CREATE TABLE offers (
+    id BIGSERIAL PRIMARY KEY,
+    created_by BIGINT NOT NULL REFERENCES users (id),
+    reviewed_by BIGINT REFERENCES users (id),
+    price_cents BIGINT NOT NULL
+);
+
 CREATE TABLE user_profiles (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL UNIQUE REFERENCES users (id),

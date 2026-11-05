@@ -12,7 +12,7 @@ Nothing is rolled back. `--json` carries the same steps.
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A failing `[contract] export` lists the data layer and migration as done and the Clients as skipped
-- [ ] `--json` has the steps
+- [x] A failing `[contract] export` lists the data layer and migration as done and the Clients as skipped
+- [x] `--json` has the steps

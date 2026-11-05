@@ -7,6 +7,62 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+### Added
+
+- `Project`, `Target` and `App`: the one rule every command uses to find
+  the project it acts on (a Monorepo's App started inside, its App(s) at
+  the root, or the nearest settings file), with `Target::migrations_dir`
+  and `Target::using`, the line naming what a command read.
+
+### Changed
+
+- **Breaking (generated API):** a cast in a query's result keeps the
+  nullability of what it wraps, where every cast was `Option`.
+  `count(*)::bigint` is `i64`; a cast of a `NOT NULL` column is its target
+  type, and `Option` on the outer side of a join, as the plain column is.
+  `coalesce(x, <literal>)` with a literal other than `NULL` last is never
+  NULL: it is typed from `x` when `x` is a column, a cast or a `count`
+  (where it failed to infer), and a cast of it is not `Option`. Any other
+  cast stays `Option`. A field that was `Option<T>` for such a cast is now
+  `T`; drop the `unwrap_or` (the API example's `stats` feature did). The
+  README's "Writing query files" says when to reach for a `-- column:`
+  override.
+- `check-arch` finds its project by that rule: a `rok.toml` project (plain,
+  or a Monorepo's App or Apps), not only `rok-data-sqlc.toml`, and
+  `--config` accepts a `rok.toml`. It prints the `using …` line on stderr.
+
+### Fixed
+
+- A foreign key whose column has neither an `_id` nor an
+  `_<referenced column>` suffix names its relationship after the column
+  and the referenced row: `offers.reviewed_by` referencing `users` gives
+  `reviewed_by_user` (`load_reviewed_by_user`, the filter's
+  `reviewed_by_user` field), where it was named `reviewed_by` and failed
+  generation, colliding with the search filter's field for the column.
+  The data layer derives both for every table, `[api] exclude` or not.
+  `created_by` and `reviewed_by` to `users` give `created_by_user` and
+  `reviewed_by_user`, and the inverses on `users` add those names
+  (`offers_by_reviewed_by_user`). Columns ending in `_id` or
+  `_<referenced column>`, and a column named like the referenced one,
+  keep their names. A `[relationships]` entry written for the old name
+  (`reviewed_by = "reviewer"`) now names no relationship, and the error
+  lists the new one.
+- A relationship that still collides with a search filter field names the
+  entry that fixes it: `reviewed_by_user = "<new name>"` in
+  `relationships.offers`.
+- `db/schema.rs`'s `SCHEMA_SQL` lists the schema's statements in an order
+  that loads into an empty database, not file-name order: a statement
+  that names an object a later statement creates (a foreign key to a
+  table of a later file, a trigger on that table, a view over it) moves
+  after its creator, and otherwise keeps its place. Each statement's
+  text, with the comments before it, is kept; an order that already
+  loads is unchanged. What a statement creates is read from its
+  `CREATE`/`ALTER` head, and what it needs from the names in its text; a
+  cycle (two tables referencing each other) keeps the input order. The
+  migration diff's order is not reused: it rewrites the schema (tables
+  first, then their foreign keys) where the snapshot keeps it as
+  written. The constant's doc comment says the tests run it.
+
 ## Workspace 0.8.1 - 2026-11-04
 
 Published as `rok-data-sqlc` 0.8.1 with the workspace (root `CHANGELOG.md`).

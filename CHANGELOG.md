@@ -9,6 +9,109 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+**Changed**
+
+- `rok gen` and `rok gen check` fail on a table or query they can't
+  generate, where they skipped it with a warning that scrolled past. A
+  query whose result column can't be typed (`expires_at <= now() AS
+  expired`) names its file and line, the expression and the override:
+  ``add `-- column: expired <RustType>` ``. `--lenient` skips as before;
+  `--strict` is the default now and still accepted. `--json` carries the
+  failures in `failures`, and each failure and skipped entry has its
+  `path` and `line`. `--strict` no longer fails on the other warnings
+  (a scaffolded file using what the settings stopped generating).
+- One rule for finding the project: `rok gen`, `rok gen check`,
+  `rok migrate *`, `rok schema diff` and `rok sqlc check-arch` walk up to
+  the nearest `rok.toml`. Started inside an App a Monorepo's `[apps]`
+  names, they act on that App; at the root, on its App(s). So
+  `rok migrate up` at a Monorepo root applies `apps/api/migrations`
+  instead of failing on a missing `./migrations`, and `check-arch` finds a
+  `rok.toml` project (it read only `rok-data-sqlc.toml` before). An
+  explicit `--dir` still wins; the new `--app <name>` on `rok migrate *`
+  and `rok schema diff` picks an App, and a root naming several Apps asks
+  for it. Each command prints one line on stderr naming the settings file
+  and directories it read (`using App api: apps/api/rok-data-sqlc.toml
+  (migrations apps/api/migrations)`). The rule is `rok_data_sqlc::Project`.
+- `rok` loads the App's `.env` for its database commands: `rok migrate
+  status|up|down`, `rok schema *` and `rok db *` read `apps/api/.env` (or
+  the `.env` beside a plain project's settings file), so `rok migrate up`
+  at a Monorepo root finds the App's `DATABASE_URL` without an `export`.
+  A variable already in the environment wins, the `using` line ends `,
+  loaded apps/api/.env` (`rok db *` and `rok schema dump` print `loaded
+  apps/api/.env`), and `--no-env-file` reads nothing. Since `rok db drop`
+  guards the database `DATABASE_URL` names, it now guards the `.env`'s too.
+
+**Fixed**
+
+- "Next steps" run as printed: `rok gen` prints `rok migrate up` bare
+  when the project rule finds the staged pair's history dir from where it
+  ran (a Monorepo root printed `--dir apps/api/migrations`), `--app
+  <name>` at a root naming several Apps, and `--dir` only for a history
+  dir a flag named; `rok init <dir>` starts its steps with `cd <dir>`.
+- A failed `rok gen` step says what's done and what isn't: a run of
+  several steps (each App's data layer and migration, the contract export,
+  each Client) that fails ends with the steps done, the one that failed
+  with its error, the ones skipped, and the `rok gen` command that
+  finishes the rest (without `--migration` once it is staged). Nothing is
+  rolled back. `--json` carries the same as `{"steps": [...], "finish":
+  ...}`. A failed staging prints the data layer's report too, and its
+  `--json` body, where it printed nothing.
+- An App whose settings leave `output` unset generates into its own
+  `src/db`, not the `src/db` of the directory `rok gen` ran in; and a
+  Monorepo's `rok gen --json` no longer prints the `api:` heading on
+  stdout, so stdout is one JSON document.
+- Errors show their causes: the CLI prints an error with its whole chain,
+  so `rok gen` on a schema with a syntax error says `error: failed to
+  parse SQL schema: schema/0001_init.sql:2: invalid PostgreSQL SQL
+  syntax: <the parser's message>` instead of stopping at `failed to parse
+  SQL schema`. The same goes for `--json` runs and for the database
+  errors of `rok migrate *`, `rok db *` and `rok schema *`.
+- `rok sqlc check-arch` says it passed: a clean run prints `checked 3
+  features: no violations` on stdout (`, 2 warnings` added when
+  `--lenient` let layout violations through), where it printed nothing.
+  Its failures and exit codes are unchanged.
+- Casts keep nullability in generated queries (rok-data-sqlc, a change
+  to the generated API). `count(*)::bigint AS owners` in a `:one` query
+  is `i64`, where every cast was `Option`; a cast of a `NOT NULL` column
+  is not `Option` unless the column is on the outer side of a join; and
+  `coalesce(x, <literal>)` is never NULL. Any other cast stays `Option`,
+  and a `-- column:` override settles what inference can't (the engine's
+  README, "Writing query files").
+
+- `SCHEMA_SQL` (the generated `db/schema.rs`) is in an order that loads
+  into an empty database. It listed the schema files' statements in
+  file-name order, so a table referencing one a later file creates
+  (`users.home_city_id` in `0001` → `cities` in `0007`) broke the tests
+  that run it ("relation cities does not exist"). A statement naming an
+  object a later statement creates now moves after it, with the
+  statements that need it; each keeps its text. A schema already in a
+  loadable order keeps its snapshot as it was; the doc comment no longer
+  says it is never executed.
+- Line endings don't change migrations. Migration staging (`rok gen
+  --migration`) normalises CRLF to LF in the truth files and in the
+  `.rok-schema.json` snapshot before comparing, as the engine does with
+  its schema and query files: a CRLF checkout whose function and trigger
+  equal the snapshot's stages nothing, where it staged a `DROP TRIGGER`,
+  a `DROP FUNCTION` and both `CREATE`s again. A snapshot recorded from a
+  CRLF file compares equal to the LF text.
+- A migration's checksum (`Migration::checksum`, the journal's
+  `checksum` column) is computed over its `up` SQL with CRLF normalised
+  to LF, so a CRLF and an LF checkout of one `.up.sql` have the same
+  checksum; an LF file keeps the checksum it had. A journal row recorded
+  from a CRLF file by an earlier version still matches (whether the file
+  is checked out with CRLF or LF now), and the next `rok migrate up`
+  (`migration::apply`) records the new checksum in its place.
+  `docs/migration-guide.md` §To the next version says what to do for a
+  file with mixed line endings.
+- A foreign key without `_id` names its relationship after the column
+  and the referenced row (rok-data-sqlc): `offers.reviewed_by` referencing
+  `users` gives `reviewed_by_user`, where the relationship was named
+  `reviewed_by` and `rok gen` failed on its collision with the search
+  filter's field for the column. Two such columns to one table
+  (`created_by`, `reviewed_by`) give two relationships; columns ending in
+  `_id` keep their names. A remaining collision names the
+  `[relationships]` entry that fixes it.
+
 ## [0.8.1] — gRPC services compile with an immutable column
 
 **Fixed**
