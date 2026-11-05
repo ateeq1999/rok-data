@@ -11,8 +11,8 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `rok migrate up` at a Monorepo root migrates the api App
-- [ ] Each command, run at the root and inside an App, reads the same App and says so
-- [ ] `rok sqlc check-arch` finds a `rok.toml` project
+- [x] `rok migrate up` at a Monorepo root migrates the api App
+- [x] Each command, run at the root and inside an App, reads the same App and says so
+- [x] `rok sqlc check-arch` finds a `rok.toml` project

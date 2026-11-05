@@ -1,6 +1,6 @@
 //! `rok migrate create|status|up|down`.
 
-use clap::Subcommand;
+use clap::{Args, Subcommand};
 use std::path::PathBuf;
 
 /// `rok migrate create|status|up|down`.
@@ -10,15 +10,13 @@ pub(crate) enum MigrateAction {
     Create {
         /// Descriptive name, e.g. `create_posts_table`.
         name: String,
-        /// Directory of the migration files.
-        #[arg(long, value_name = "DIR", default_value = "migrations")]
-        dir: PathBuf,
+        #[command(flatten)]
+        place: Place,
     },
     /// List every migration and its journal state.
     Status {
-        /// Directory of the migration files.
-        #[arg(long, value_name = "DIR", default_value = "migrations")]
-        dir: PathBuf,
+        #[command(flatten)]
+        place: Place,
         /// The database to look at (default: DATABASE_URL).
         #[arg(long, value_name = "URL")]
         database_url: Option<String>,
@@ -28,9 +26,8 @@ pub(crate) enum MigrateAction {
     },
     /// Apply every pending migration.
     Up {
-        /// Directory of the migration files.
-        #[arg(long, value_name = "DIR", default_value = "migrations")]
-        dir: PathBuf,
+        #[command(flatten)]
+        place: Place,
         /// The database to migrate (default: DATABASE_URL).
         #[arg(long, value_name = "URL")]
         database_url: Option<String>,
@@ -41,9 +38,8 @@ pub(crate) enum MigrateAction {
     /// Revert the latest migration; also readable as `rok migrate rollback`.
     #[command(alias = "rollback")]
     Down {
-        /// Directory of the migration files.
-        #[arg(long, value_name = "DIR", default_value = "migrations")]
-        dir: PathBuf,
+        #[command(flatten)]
+        place: Place,
         /// The database to migrate (default: DATABASE_URL).
         #[arg(long, value_name = "URL")]
         database_url: Option<String>,
@@ -54,4 +50,18 @@ pub(crate) enum MigrateAction {
         #[arg(long)]
         json: bool,
     },
+}
+
+/// Where a command finds the migration files: `--dir`, or the project's
+/// history directory (`--app` picks a Monorepo's App).
+#[derive(Debug, Args)]
+pub(crate) struct Place {
+    /// Directory of the migration files (default: the project's, found by
+    /// walking up to the nearest `rok.toml`; else `migrations`).
+    #[arg(long, value_name = "DIR")]
+    pub(crate) dir: Option<PathBuf>,
+    /// The Monorepo App to act on (default: the App you are in, or the only
+    /// one `[apps]` names).
+    #[arg(long, value_name = "NAME", conflicts_with = "dir")]
+    pub(crate) app: Option<String>,
 }
