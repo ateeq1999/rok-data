@@ -8,6 +8,7 @@ mod check_rules;
 mod constraint_changes;
 mod create_table;
 mod enums;
+mod functions;
 mod recovered;
 mod undo;
 mod value_lists;

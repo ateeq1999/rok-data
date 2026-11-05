@@ -20,10 +20,19 @@ the *generated* API count as breaking (see ADR 0012).
   integers); `CASE` takes the type its non-NULL branches share; `||` is
   `String`; literals, `now()`, `current_timestamp` and `current_date` are
   typed and never NULL. Each is `Option` when an operand can be NULL (an
-  `IS` test never is; a `CASE` without `ELSE` always can be), so `expires_at <= now() AS expired` is `bool` on a `NOT NULL`
-  column. Operands it can't type, or types that don't combine, still fail
-  with the `-- column:` hint. The README's "Writing query files" has the
+  `IS` test never is; a `CASE` without `ELSE` always can be), so
+  `expires_at <= now() AS expired` is `bool` on a `NOT NULL` column.
+  Operands it can't type, or types that don't combine, still fail with
+  the `-- column:` hint. The README's "Writing query files" has the
   table.
+- A call to a function the schema dir defines is typed from its
+  `RETURNS`, and `Option` unless a `-- column:` override says otherwise:
+  `SELECT tz_today() AS today` is `Option<chrono::NaiveDate>` for
+  `CREATE FUNCTION tz_today() RETURNS date`. `Schema::functions` carries
+  each `CREATE FUNCTION`'s name, argument types and return type
+  (`SqlFunction`), after `CREATE OR REPLACE` and `DROP FUNCTION`, and
+  `analyze_queries` takes them. An unknown function, an unmapped return
+  type or overloads returning different types still fail with the hint.
 
 ### Changed
 

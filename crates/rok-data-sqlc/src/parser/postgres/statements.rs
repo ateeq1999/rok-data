@@ -19,6 +19,7 @@ use super::constraints::record_unique_index;
 use super::enums::{
     EnumRegistry, drop_columns_of_type, resolve_value_lists, retype_columns, uses_type,
 };
+use super::functions::{define_function, drop_functions};
 use super::names::{
     OtherRelations, constraint_names, find_table, ident_name, object_leaf_name, object_schema_name,
     relation_names, rename_relation,
@@ -61,6 +62,7 @@ pub fn parse_sources_with_modules(
     let mut warnings = Vec::new();
     let mut seen_modules: HashSet<String> = HashSet::new();
     let mut enums = EnumRegistry::default();
+    let mut functions = Vec::new();
     let mut others = OtherRelations::default();
     // Where each table was created, for failures found after every statement.
     let mut created: HashMap<String, (PathBuf, Option<usize>)> = HashMap::new();
@@ -285,6 +287,14 @@ pub fn parse_sources_with_modules(
                     }
                     continue;
                 }
+                Statement::CreateFunction(create) => {
+                    define_function(&mut functions, &create, &enums);
+                    continue;
+                }
+                Statement::DropFunction { func_desc, .. } => {
+                    drop_functions(&mut functions, &func_desc);
+                    continue;
+                }
                 Statement::CreateTrigger(trigger) => {
                     let triggered = has_before_insert_trigger(&tables);
                     record_trigger(&mut tables, &trigger);
@@ -397,6 +407,7 @@ pub fn parse_sources_with_modules(
         schema: Schema {
             tables,
             enums: all_enums,
+            functions,
         },
         failures,
         created,

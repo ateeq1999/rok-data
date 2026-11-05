@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use sqlparser::ast::{
     BinaryOperator, Expr, Function, FunctionArg, FunctionArgExpr, FunctionArguments, Ident,
-    SelectItem, UnaryOperator, Value,
+    ObjectNamePart, SelectItem, UnaryOperator, Value,
 };
 
 use super::{Analysis, Context, Output, OutputColumn, ResultShape};
@@ -180,6 +180,42 @@ impl<'a, 'c> Analysis<'a, 'c> {
         Ok(true)
     }
 
+    /// The `RETURNS` type of the schema function `function` calls: an
+    /// unqualified name matches the function in any schema, as a table name
+    /// does. `None` for an unknown function, a type the engine doesn't map,
+    /// or overloads that return different types.
+    fn schema_function_type(&self, function: &Function) -> Option<String> {
+        let parts: Vec<String> = function
+            .name
+            .0
+            .iter()
+            .filter_map(|part| match part {
+                ObjectNamePart::Identifier(ident) => Some(ident_name(ident)),
+                ObjectNamePart::Function(_) => None,
+            })
+            .collect();
+        let (schema, leaf) = match parts.as_slice() {
+            [.., schema, leaf] => (Some(schema.as_str()), leaf.as_str()),
+            [leaf] => (None, leaf.as_str()),
+            [] => return None,
+        };
+        let mut return_types = self
+            .context
+            .functions
+            .iter()
+            .filter(|candidate| {
+                candidate.sql_name == leaf
+                    && schema.is_none_or(|schema| {
+                        candidate.schema.as_deref().unwrap_or("public") == schema
+                    })
+            })
+            .map(|candidate| candidate.return_type.as_deref());
+        let first = return_types.next()??;
+        return_types
+            .all(|return_type| return_type == Some(first))
+            .then(|| first.to_owned())
+    }
+
     /// The numeric type of an arithmetic operand: a column's plain type
     /// (never its typed id), or what [`Self::value_type`] infers.
     fn number_type(&self, expr: &Expr) -> Result<Option<Number>, String> {
@@ -207,7 +243,9 @@ impl<'a, 'c> Analysis<'a, 'c> {
             Expr::Function(function) if is_count(function) => Some("i64".to_owned()),
             Expr::Function(function) => match coalesce_with_literal_fallback(function) {
                 Some(first) => self.value_type(first)?,
-                None => clock_type(function).map(str::to_owned),
+                None => clock_type(function)
+                    .map(str::to_owned)
+                    .or_else(|| self.schema_function_type(function)),
             },
             Expr::Cast { data_type, .. } => Some(map_type(data_type, self.context.enums)?.1),
             Expr::BinaryOp { op, .. } if is_boolean_operator(op) => Some("bool".to_owned()),

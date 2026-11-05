@@ -646,6 +646,16 @@ can't type, or types that don't combine (`label + 1`, `expires_at -
 now()`, a `CASE` with a `text` and an `integer` branch), still fails with
 the `-- column:` hint.
 
+**A call to a function the schema defines takes its `RETURNS` type.** With
+`CREATE FUNCTION tz_today() RETURNS date …` in the schema,
+`SELECT tz_today() AS today` is `Option<chrono::NaiveDate>`: a function
+may return NULL, so the call is `Option` until a `-- column: today
+chrono::NaiveDate` override says it doesn't. An unqualified call matches
+the function in any schema, as a table name does. A function the schema
+doesn't define, a `RETURNS` type the engine doesn't map (`trigger`,
+`void`, `TABLE (…)`), or overloads returning different types fail with
+the hint.
+
 Where you know more than the inference, a `-- column: <name> <RustType>`
 override settles the type: `-- column: total i64` for `sum(stock)::bigint
 AS total` under a `GROUP BY` (every group has a row, and `stock` is

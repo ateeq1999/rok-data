@@ -6,6 +6,7 @@ mod alter;
 mod checks;
 mod constraints;
 mod enums;
+mod functions;
 mod named;
 mod names;
 mod recover;
@@ -154,8 +155,10 @@ pub fn parse_schema(sql: &str) -> Result<ParsedSchema> {
 /// `BEFORE INSERT` triggers, by name; the trigger functions are not read.
 /// `DROP TABLE` removes a table, together with the foreign keys other tables
 /// hold to it (as `CASCADE` would), and `DROP TYPE` removes an enum type.
+/// `CREATE FUNCTION` and `DROP FUNCTION` keep the functions' signatures (their
+/// bodies are not read), which type calls to them in queries.
 /// Statements that leave the model unchanged (row-level security, policies,
-/// non-unique indexes, grants, other triggers, comments, functions, `SELECT`
+/// non-unique indexes, grants, other triggers, comments, `SELECT`
 /// calls) and statements on unknown tables are ignored on purpose. Index,
 /// sequence, and view names are tracked for default constraint names, and
 /// an `ALTER TABLE` the SQL parser cannot read fails its table (see

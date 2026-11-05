@@ -86,6 +86,12 @@ that it exists and won't ship a tag without it).
   be NULL (`IS NULL` never is). A cast literal (`0::int`) is no longer
   `Option`, a change to the generated API. Anything else still fails
   with the hint.
+- Calls to the schema's own functions are typed in generated queries
+  (rok-data-sqlc): with `CREATE FUNCTION tz_today() RETURNS date` in the
+  schema dir, `SELECT tz_today() AS today` generates a function returning
+  `Option<NaiveDate>`, and `-- column: today chrono::NaiveDate` makes it
+  not-null. A function the schema doesn't define still fails with the
+  `-- column:` hint.
 
 - `SCHEMA_SQL` (the generated `db/schema.rs`) is in an order that loads
   into an empty database. It listed the schema files' statements in

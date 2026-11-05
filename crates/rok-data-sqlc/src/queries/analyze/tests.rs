@@ -30,6 +30,15 @@ const SCHEMA: &str = "
             seats SMALLINT NOT NULL,
             label TEXT NOT NULL
         );
+        CREATE FUNCTION tz_today() RETURNS date LANGUAGE sql STABLE
+            AS $$ SELECT (now() AT TIME ZONE 'Africa/Nairobi')::date $$;
+        CREATE FUNCTION app.seats_left(pass BIGINT, taken INTEGER) RETURNS integer
+            LANGUAGE sql AS $$ SELECT 4 - taken $$;
+        CREATE FUNCTION touch() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+            RETURN NEW;
+        END;
+        $$;
     ";
 
 fn analyze(queries: &str) -> (Vec<AnalyzedQuery>, Vec<QueryFailure>) {
@@ -46,6 +55,7 @@ fn analyze(queries: &str) -> (Vec<AnalyzedQuery>, Vec<QueryFailure>) {
         &defs,
         &parsed.schema.tables,
         &parsed.schema.enums,
+        &parsed.schema.functions,
         &modules,
         &parsed.failures,
     )
@@ -724,6 +734,47 @@ fn mixed_or_unknown_operands_still_fail() {
             reason.contains("cannot infer the type of result column `v`")
                 && reason.contains("add `-- column: v <RustType>`"),
             "{expr}: {reason}"
+        );
+    }
+}
+
+/// A call to a function the schema defines takes its `RETURNS` type, and
+/// may be NULL unless a `-- column:` override says otherwise.
+#[test]
+fn schema_function_calls_take_their_return_type() {
+    assert_eq!(
+        scalar("-- name: Today :one\nSELECT tz_today() AS today;"),
+        "Option<chrono::NaiveDate>"
+    );
+    assert_eq!(
+        scalar(
+            "-- name: Today :one\n-- column: today chrono::NaiveDate\nSELECT tz_today() AS today;"
+        ),
+        "chrono::NaiveDate"
+    );
+    assert_eq!(
+        scalar(
+            "-- name: Left :one\nSELECT app.seats_left(id, seats) AS left_over FROM passes WHERE id = $1;"
+        ),
+        "Option<i32>"
+    );
+    // Typed, it combines like any other operand.
+    assert_eq!(
+        scalar(
+            "-- name: Due :one\nSELECT expires_at::date <= tz_today() AS due FROM passes WHERE id = $1;"
+        ),
+        "Option<bool>"
+    );
+}
+
+#[test]
+fn unknown_functions_and_unsupported_return_types_still_fail() {
+    for call in ["nobody_defined_me()", "touch()", "public.seats_left(1, 2)"] {
+        let reason = failure(&format!("-- name: Q :one\nSELECT {call} AS v;"));
+        assert!(
+            reason.contains("cannot infer the type of result column `v`")
+                && reason.contains("add `-- column: v <RustType>`"),
+            "{call}: {reason}"
         );
     }
 }
