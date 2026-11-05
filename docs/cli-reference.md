@@ -953,7 +953,9 @@ Apply the migrations first (`rok migrate up`): the queries are checked
 against the database as it is.
 
 
-`check-arch` prints each violation as `path:line: rule: message`. The rules
+`check-arch` prints each violation as `path:line: rule: message`; a run
+with none prints `checked 3 features: no violations` (with `, N warnings`
+when `--lenient` let layout violations through). The rules
 are the project's `AGENTS.md` six (the architecture guide states them):
 
 | Rule                  | Reports                                                                   |

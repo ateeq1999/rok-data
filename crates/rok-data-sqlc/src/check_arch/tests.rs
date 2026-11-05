@@ -30,7 +30,11 @@ fn violations(framework: ApiFramework, files: &[(&str, &str)]) -> Result<Vec<Str
         db_path: "crate::db".to_owned(),
         framework,
     };
-    Ok(check(&project)?.iter().map(|v| v.to_string()).collect())
+    Ok(check(&project)?
+        .violations
+        .iter()
+        .map(|v| v.to_string())
+        .collect())
 }
 
 /// The message `check-arch` prints under `axum`, when the code at `path`
@@ -277,7 +281,11 @@ fn the_config_sets_the_watched_framework() -> Result<()> {
         db_path: api.db_path,
         framework: api.framework,
     };
-    let violations: Vec<String> = check(&project)?.iter().map(|v| v.to_string()).collect();
+    let violations: Vec<String> = check(&project)?
+        .violations
+        .iter()
+        .map(|v| v.to_string())
+        .collect();
     assert_eq!(
         violations,
         [axum_message(

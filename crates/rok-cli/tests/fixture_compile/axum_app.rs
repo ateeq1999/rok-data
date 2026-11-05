@@ -135,7 +135,7 @@ fn axum_app_passes_check_arch() -> Result<()> {
     ensure!(
         // Only the line naming the settings file it read.
         output.status.success()
-            && output.stdout.is_empty()
+            && super::check_arch_passed(&output.stdout)
             && String::from_utf8_lossy(&output.stderr)
                 .lines()
                 .all(|line| line.starts_with("using ")),

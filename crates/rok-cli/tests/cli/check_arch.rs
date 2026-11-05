@@ -92,7 +92,22 @@ fn a_project_that_follows_the_rules_passes() -> Result<()> {
     let dir = project(NOTES)?;
     let output = check_arch(&dir, &[]);
     assert_success(&output);
-    assert_eq!(stdout(&output), "");
+    assert_eq!(stdout(&output), "checked 1 feature: no violations\n");
+    Ok(())
+}
+
+#[test]
+fn a_clean_run_counts_the_features_it_checked() -> Result<()> {
+    let mut files = NOTES.to_vec();
+    files.push(("src/features/labels/mod.rs", "pub mod service;\n"));
+    files.push((
+        "src/features/labels/service.rs",
+        "pub struct LabelsService;\n",
+    ));
+    let dir = project(&files)?;
+    let output = check_arch(&dir, &[]);
+    assert_success(&output);
+    assert_eq!(stdout(&output), "checked 2 features: no violations\n");
     Ok(())
 }
 
@@ -155,7 +170,7 @@ fn an_axum_project_that_follows_the_rules_passes() -> Result<()> {
     let dir = project_with(CONFIG_AXUM, &files)?;
     let output = check_arch(&dir, &[]);
     assert_success(&output);
-    assert_eq!(stdout(&output), "");
+    assert_eq!(stdout(&output), "checked 1 feature: no violations\n");
     Ok(())
 }
 
@@ -487,7 +502,10 @@ fn lenient_turns_layout_violations_into_warnings() -> Result<()> {
     for flag in ["--lenient", "-l"] {
         let output = check_arch(&dir, &[flag]);
         assert_success(&output);
-        assert_eq!(stdout(&output), "");
+        assert_eq!(
+            stdout(&output),
+            "checked 1 feature: no violations, 5 warnings\n"
+        );
         let stderr = String::from_utf8_lossy(&output.stderr).replace("\r\n", "\n");
         // The line naming what it read, then the warnings.
         let warnings: Vec<String> =

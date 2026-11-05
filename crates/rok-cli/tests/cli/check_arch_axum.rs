@@ -52,7 +52,7 @@ fn an_axum_project_that_follows_the_rules_passes() -> Result<()> {
     let dir = axum_project(AXUM_NOTES)?;
     let output = check_arch(&dir, &[]);
     assert_success(&output);
-    assert_eq!(stdout(&output), "");
+    assert_eq!(stdout(&output), "checked 1 feature: no violations\n");
     Ok(())
 }
 

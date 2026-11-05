@@ -124,8 +124,16 @@ impl fmt::Display for Violation {
     }
 }
 
-/// Checks `project`, returning its violations by path and line.
-pub(crate) fn check(project: &Project) -> Result<Vec<Violation>> {
+/// What [`check`] found: how many features it checked, and the violations
+/// by path and line.
+pub(crate) struct Checked {
+    /// The feature directories under `api.output`.
+    pub(crate) features: usize,
+    pub(crate) violations: Vec<Violation>,
+}
+
+/// Checks `project`.
+pub(crate) fn check(project: &Project) -> Result<Checked> {
     let src = project.root.join("src");
     if !src.is_dir() {
         bail!("no src/ directory in {}", shown(&project.root));
@@ -157,7 +165,10 @@ pub(crate) fn check(project: &Project) -> Result<Vec<Violation>> {
     }
     violations.sort();
     violations.dedup();
-    Ok(violations)
+    Ok(Checked {
+        features: layout.feature_names.len(),
+        violations,
+    })
 }
 
 /// Every file and directory under `dir`, sorted, directories before their

@@ -273,13 +273,14 @@ where
 /// `check-arch`: checks the project whose config file is `config`, or the
 /// project the one rule finds (`crate::Project`: the App started inside, or
 /// every App at a Monorepo's root), printing violations on stdout and, with
-/// `lenient`, layout violations as warnings on stderr.
+/// `lenient`, layout violations as warnings on stderr; a pass says so on
+/// stdout ([`passed_line`]).
 fn check_arch(config: Option<PathBuf>, lenient: bool) -> Result<()> {
     let project = match config {
         Some(path) => crate::Project::at(&path)?,
         None => crate::Project::current()?,
     };
-    let mut failures = 0;
+    let (mut failures, mut warnings, mut features) = (0, 0, 0);
     for target in project.targets(None)? {
         let path = target
             .settings
@@ -311,8 +312,11 @@ fn check_arch(config: Option<PathBuf>, lenient: bool) -> Result<()> {
             db_path: api.db_path,
             framework: api.framework,
         };
-        for violation in crate::check_arch::check(&project)? {
+        let checked = crate::check_arch::check(&project)?;
+        features += checked.features;
+        for violation in checked.violations {
             if lenient && violation.rule.is_layout() {
+                warnings += 1;
                 eprintln!("warning: {violation}");
             } else {
                 failures += 1;
@@ -323,7 +327,22 @@ fn check_arch(config: Option<PathBuf>, lenient: bool) -> Result<()> {
     if failures > 0 {
         bail!("check-arch found {failures} violation(s)");
     }
+    println!("{}", passed_line(features, warnings));
     Ok(())
+}
+
+/// What a passing `check-arch` says: `checked 2 features: no violations`,
+/// and the layout violations `--lenient` let through as warnings.
+fn passed_line(features: usize, warnings: usize) -> String {
+    let plural = |count: usize, word: &str| match count {
+        1 => format!("1 {word}"),
+        _ => format!("{count} {word}s"),
+    };
+    let mut line = format!("checked {}: no violations", plural(features, "feature"));
+    if warnings > 0 {
+        line.push_str(&format!(", {}", plural(warnings, "warning")));
+    }
+    line
 }
 
 /// The usage error for a run with neither `--schema` nor a `schema` key in

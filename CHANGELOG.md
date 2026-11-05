@@ -32,6 +32,10 @@ that it exists and won't ship a tag without it).
   syntax: <the parser's message>` instead of stopping at `failed to parse
   SQL schema`. The same goes for `--json` runs and for the database
   errors of `rok migrate *`, `rok db *` and `rok schema *`.
+- `rok sqlc check-arch` says it passed: a clean run prints `checked 3
+  features: no violations` on stdout (`, 2 warnings` added when
+  `--lenient` let layout violations through), where it printed nothing.
+  Its failures and exit codes are unchanged.
 - Line endings don't change migrations. Migration staging (`rok gen
   --migration`) normalises CRLF to LF in the truth files and in the
   `.rok-schema.json` snapshot before comparing, as the engine does with
