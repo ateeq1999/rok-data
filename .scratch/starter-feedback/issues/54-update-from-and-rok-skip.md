@@ -6,8 +6,8 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Karibu's `HoldRooms` shape (`UPDATE allocations … FROM offers o JOIN partners p …`) generates, `:execrows` and `RETURNING`
-- [ ] `DELETE … USING` generates
-- [ ] `-- rok:skip` leaves a query out with a note, not an error
+- [x] Karibu's `HoldRooms` shape (`UPDATE allocations … FROM offers o JOIN partners p …`) generates, `:execrows` and `RETURNING`
+- [x] `DELETE … USING` generates
+- [x] `-- rok:skip` leaves a query out with a note, not an error

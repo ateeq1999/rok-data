@@ -28,6 +28,18 @@ that it exists and won't ship a tag without it).
 
 **Changed**
 
+- Query parameter names (rok-data-sqlc): a `BETWEEN` bound is
+  `<column>_from` / `<column>_to` (was `<column>` / `<column>_2`);
+  `-- param: $2 from` renames without restating the type, and
+  `-- param: $2 reviewer!` also makes a nullable column's value required
+  (`Uuid`, not `Option<Uuid>`).
+- Typed queries (rok-data-sqlc) support `UPDATE … FROM` and
+  `DELETE … USING`, typed like the equivalent join, and a placeholder in
+  arithmetic with a numeric column takes its type. `-- rok:skip [note]`
+  leaves one query ungenerated on purpose: `rok gen` prints a `note:`
+  instead of failing without `--lenient`, and `--json` lists it under
+  `skipped_on_purpose`, apart from `failures` and `skipped`.
+
 - `rok gen` and `rok gen check` fail on a table or query they can't
   generate, where they skipped it with a warning that scrolled past. A
   query whose result column can't be typed (`expires_at <= now() AS
@@ -94,6 +106,21 @@ that it exists and won't ship a tag without it).
   `coalesce(x, <literal>)` is never NULL. Any other cast stays `Option`,
   and a `-- column:` override settles what inference can't (the engine's
   README, "Writing query files").
+- Everyday expressions in generated queries are typed (rok-data-sqlc),
+  where `rok gen` failed with the `-- column:` hint: `expires_at <= now()
+  AS expired` is `bool` on a `NOT NULL` column and `Option<bool>` on a
+  nullable one. Comparisons and boolean logic are `bool`, arithmetic
+  takes its operands' type (`numeric` over integers), `CASE` the type its
+  branches share, and `||` is text; each is `Option` when an operand can
+  be NULL (`IS NULL` never is). A cast literal (`0::int`) is no longer
+  `Option`, a change to the generated API. Anything else still fails
+  with the hint.
+- Calls to the schema's own functions are typed in generated queries
+  (rok-data-sqlc): with `CREATE FUNCTION tz_today() RETURNS date` in the
+  schema dir, `SELECT tz_today() AS today` generates a function returning
+  `Option<NaiveDate>`, and `-- column: today chrono::NaiveDate` makes it
+  not-null. A function the schema doesn't define still fails with the
+  `-- column:` hint.
 
 - `SCHEMA_SQL` (the generated `db/schema.rs`) is in an order that loads
   into an empty database. It listed the schema files' statements in

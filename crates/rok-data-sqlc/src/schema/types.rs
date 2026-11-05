@@ -9,6 +9,24 @@ pub struct Schema {
     pub tables: Vec<Table>,
     /// Enum types in definition order, generated into the shared `types` module.
     pub enums: Vec<EnumType>,
+    /// The `CREATE FUNCTION`s left after every `DROP FUNCTION`, in definition
+    /// order: query analysis types a call to one from its `RETURNS`.
+    pub functions: Vec<SqlFunction>,
+}
+
+/// A `CREATE FUNCTION`'s signature; its body is not read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SqlFunction {
+    /// The schema qualifier as written; `None` when unqualified or `public`.
+    pub schema: Option<String>,
+    pub sql_name: String,
+    /// The input argument types, as written (`BIGINT`).
+    pub arg_types: Vec<String>,
+    /// The `RETURNS` type as written; `None` without one.
+    pub returns: Option<String>,
+    /// The Rust type of one returned value; `None` without `RETURNS` or when
+    /// the type maps to none (`trigger`, `void`, `TABLE (…)`).
+    pub return_type: Option<String>,
 }
 
 /// A `CREATE TYPE … AS ENUM` type, after every `ALTER TYPE` applied to it.

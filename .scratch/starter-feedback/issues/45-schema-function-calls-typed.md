@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `SELECT tz_today() AS today` generates `Option<NaiveDate>`, and `NaiveDate` with the override (red first)
-- [ ] An unknown function still fails under ticket 20's strict default
+- [x] `SELECT tz_today() AS today` generates `Option<NaiveDate>`, and `NaiveDate` with the override (red first)
+- [x] An unknown function still fails under ticket 20's strict default

@@ -6,9 +6,9 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `starts_on BETWEEN $2 AND $3` generates `starts_on_from`, `starts_on_to`
-- [ ] `-- param: $2 from` keeps the inferred type
-- [ ] `-- param: $2 reviewer!` on a nullable column's value gives `Uuid`, not `Option<Uuid>`
-- [ ] Existing generated names elsewhere unchanged (fixtures)
+- [x] `starts_on BETWEEN $2 AND $3` generates `starts_on_from`, `starts_on_to`
+- [x] `-- param: $2 from` keeps the inferred type
+- [x] `-- param: $2 reviewer!` on a nullable column's value gives `Uuid`, not `Option<Uuid>`
+- [x] Existing generated names elsewhere unchanged (fixtures)

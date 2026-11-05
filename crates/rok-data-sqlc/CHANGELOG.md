@@ -26,9 +26,56 @@ the *generated* API count as breaking (see ADR 0012).
   the project it acts on (a Monorepo's App started inside, its App(s) at
   the root, or the nearest settings file), with `Target::migrations_dir`
   and `Target::using`, the line naming what a command read.
+- Everyday expressions in a query's result are typed, where they failed
+  to infer: comparisons, `BETWEEN`, `IN`, `LIKE`/`ILIKE`, `IS [NOT] NULL`,
+  `IS [NOT] DISTINCT FROM`, `AND`, `OR` and `NOT` are `bool`; arithmetic
+  takes its operands' shared type (integers widen, `numeric` wins over
+  integers); `CASE` takes the type its non-NULL branches share; `||` is
+  `String`; literals, `now()`, `current_timestamp` and `current_date` are
+  typed and never NULL. Each is `Option` when an operand can be NULL (an
+  `IS` test never is; a `CASE` without `ELSE` always can be), so
+  `expires_at <= now() AS expired` is `bool` on a `NOT NULL` column.
+  Operands it can't type, or types that don't combine, still fail with
+  the `-- column:` hint. The README's "Writing query files" has the
+  table.
+- A call to a function the schema dir defines is typed from its
+  `RETURNS`, and `Option` unless a `-- column:` override says otherwise:
+  `SELECT tz_today() AS today` is `Option<chrono::NaiveDate>` for
+  `CREATE FUNCTION tz_today() RETURNS date`. `Schema::functions` carries
+  each `CREATE FUNCTION`'s name, argument types and return type
+  (`SqlFunction`), after `CREATE OR REPLACE` and `DROP FUNCTION`, and
+  `analyze_queries` takes them. An unknown function, an unmapped return
+  type or overloads returning different types still fail with the hint.
+- `-- param: $2 from` renames a parameter and keeps its inferred type, and
+  `-- param: $2 reviewer!` does that and drops the `Option` a nullable
+  column gives it, for a value written to a nullable column that the
+  query always sets. `!` with a type (`-- param: $2 reviewer! Uuid`) is
+  refused: write the type itself. `ParamOverride::rust_type` is an
+  `Option`, and `ParamOverride::not_null` is new.
+- Typed queries support `UPDATE t SET … FROM a JOIN b …` and
+  `DELETE FROM t USING a, b …`, which failed as "not supported yet": a
+  column resolves across `t` and the other tables like a join, typing the
+  parameters and `RETURNING`. Joins in the target itself are still
+  refused, now saying to join in `FROM` / `USING`.
+- A placeholder in arithmetic with a numeric column takes the column's
+  type (`rooms_held + $2` is `i32`), as PostgreSQL types it. Other types
+  are not inferred (`held_at + $1` is an interval).
+- `-- rok:skip [note]` after a query's `-- name:` leaves it ungenerated on
+  purpose: not a failure in a strict run, and reported as a note
+  (``path:line: query `Name` left ungenerated (`-- rok:skip`: note)``).
+  `QueryDef::skip`, `Report::skipped_queries` and `SkippedQuery` are new.
 
 ### Changed
 
+- An ambiguous column names its candidates: "column `id` is ambiguous: it
+  could be `allocations.id` or `o.id`".
+- **Breaking (generated API):** a `BETWEEN` bound named by its column is
+  `<column>_from` and `<column>_to` (`starts_on BETWEEN $2 AND $3` takes
+  `starts_on_from`, `starts_on_to`), where they were `<column>` and
+  `<column>_2`. Other parameter names are unchanged.
+- **Breaking (generated API):** a cast of a literal in a query's result is
+  never NULL: `0::int AS depth` and `'active'::product_status` are `i32`
+  and `types::ProductStatus`, where they were `Option`.
 - **Breaking (generated API):** a cast in a query's result keeps the
   nullability of what it wraps, where every cast was `Option`.
   `count(*)::bigint` is `i64`; a cast of a `NOT NULL` column is its target
@@ -46,6 +93,9 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Fixed
 
+- A `RIGHT` or `FULL` join makes nullable only the tables joined before it
+  in the same `FROM` item, not those of another comma-separated item (or
+  an `UPDATE … FROM`'s target).
 - A foreign key whose column has neither an `_id` nor an
   `_<referenced column>` suffix names its relationship after the column
   and the referenced row: `offers.reviewed_by` referencing `users` gives

@@ -208,10 +208,10 @@ pub(super) async fn partial_index_upserts_and_recursive_ctes(pool: &PgPool) {
     assert_eq!(
         walk,
         [
-            (root.id, root.name, Some(0)),
-            (left.id, left.name, Some(1)),
-            (right.id, right.name, Some(1)),
-            (leaf.id, leaf.name, Some(2)),
+            (root.id, root.name, 0),
+            (left.id, left.name, 1),
+            (right.id, right.name, 1),
+            (leaf.id, leaf.name, 2),
         ]
     );
 }

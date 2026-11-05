@@ -21,6 +21,33 @@ const SCHEMA: &str = "
         CREATE UNIQUE INDEX members_email_live ON members (email) WHERE deleted_at IS NULL;
         CREATE TABLE handles (id BIGSERIAL PRIMARY KEY, name TEXT NOT NULL);
         CREATE UNIQUE INDEX handles_name_ci ON handles (lower(name));
+        CREATE TABLE passes (
+            id BIGSERIAL PRIMARY KEY,
+            expires_at TIMESTAMPTZ NOT NULL,
+            revoked_at TIMESTAMPTZ,
+            price NUMERIC NOT NULL,
+            discount NUMERIC,
+            seats SMALLINT NOT NULL,
+            label TEXT NOT NULL
+        );
+        CREATE FUNCTION tz_today() RETURNS date LANGUAGE sql STABLE
+            AS $$ SELECT (now() AT TIME ZONE 'Africa/Nairobi')::date $$;
+        CREATE FUNCTION app.seats_left(pass BIGINT, taken INTEGER) RETURNS integer
+            LANGUAGE sql AS $$ SELECT 4 - taken $$;
+        CREATE FUNCTION touch() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+            RETURN NEW;
+        END;
+        $$;
+        CREATE TABLE partners (id BIGSERIAL PRIMARY KEY, name TEXT NOT NULL, active BOOLEAN NOT NULL);
+        CREATE TABLE offers (id BIGSERIAL PRIMARY KEY, partner_id BIGINT NOT NULL REFERENCES partners (id), status TEXT NOT NULL);
+        CREATE TABLE allocations (
+            id BIGSERIAL PRIMARY KEY,
+            offer_id BIGINT NOT NULL REFERENCES offers (id),
+            rooms_held INTEGER NOT NULL,
+            rooms_total INTEGER NOT NULL,
+            held_at TIMESTAMPTZ
+        );
     ";
 
 fn analyze(queries: &str) -> (Vec<AnalyzedQuery>, Vec<QueryFailure>) {
@@ -37,6 +64,7 @@ fn analyze(queries: &str) -> (Vec<AnalyzedQuery>, Vec<QueryFailure>) {
         &defs,
         &parsed.schema.tables,
         &parsed.schema.enums,
+        &parsed.schema.functions,
         &modules,
         &parsed.failures,
     )
@@ -114,10 +142,11 @@ fn casts_to_interval_bytea_and_timetz_infer_their_mapped_types() {
     assert_eq!(
         types[1..],
         [
-            format!("Option<{interval}>"),
-            // `sku` is `NOT NULL`, and a cast keeps that.
+            // A cast keeps the nullability of what it wraps: a literal is
+            // never NULL, and `sku` is `NOT NULL`.
+            interval.to_owned(),
             "Vec<u8>".to_owned(),
-            format!("Option<{time_tz}>"),
+            time_tz.to_owned(),
         ]
     );
 }
@@ -131,8 +160,8 @@ fn infers_params_from_in_any_between_like_and_casts() {
         query.params,
         [
             param(1, "sku", "String"),
-            param(2, "stock", "i32"),
-            param(3, "stock_2", "i32"),
+            param(2, "stock_from", "i32"),
+            param(3, "stock_to", "i32"),
             param(4, "category_id", "i64"),
             param(5, "category_id_2", "i64"),
             param(6, "id_list", "Vec<uuid::Uuid>"),
@@ -171,6 +200,154 @@ fn update_set_and_upsert_assignments_are_typed() {
 }
 
 #[test]
+fn between_bounds_are_named_from_and_to() {
+    let query = one(
+        "-- name: InStock :many\nSELECT id FROM products WHERE stock BETWEEN $1 AND $2 AND stock NOT BETWEEN $3 AND $4::int;",
+    );
+    assert_eq!(
+        query.params,
+        [
+            param(1, "stock_from", "i32"),
+            param(2, "stock_to", "i32"),
+            param(3, "stock_from_2", "i32"),
+            param(4, "stock_to_2", "i32"),
+        ]
+    );
+}
+
+#[test]
+fn a_param_override_without_a_type_renames_and_keeps_the_inferred_type() {
+    let query = one(
+        "-- name: InStock :many\n-- param: $1 from\n-- param: $2 to\nSELECT id FROM products WHERE category_id = $3 AND stock BETWEEN $1 AND $2;",
+    );
+    assert_eq!(
+        query.params,
+        [
+            param(1, "from", "i32"),
+            param(2, "to", "i32"),
+            param(3, "category_id", "i64"),
+        ]
+    );
+}
+
+#[test]
+fn a_bang_marks_a_nullable_columns_param_not_null() {
+    let query = one(
+        "-- name: Annotate :exec\n-- param: $2 note!\n-- param: $3 memo!\nUPDATE products SET note = $2 WHERE id = $1 AND note <> $3;",
+    );
+    assert_eq!(
+        query.params,
+        [
+            param(1, "id", "uuid::Uuid"),
+            param(2, "note", "String"),
+            param(3, "memo", "String"),
+        ]
+    );
+    let typed_id = one(
+        "-- name: Reparent :exec\n-- param: $1 parent!\nUPDATE nodes SET parent_id = $1 WHERE id = $2;",
+    );
+    assert_eq!(typed_id.params[0].name, "parent");
+    assert!(
+        !typed_id.params[0].rust_type.starts_with("Option<"),
+        "{:?}",
+        typed_id.params
+    );
+}
+
+#[test]
+fn a_type_free_override_needs_an_inferable_placeholder() {
+    let reason = failure(
+        "-- name: Q :many\n-- param: $1 pattern\nSELECT id FROM products WHERE lower(name) = lower($1);",
+    );
+    assert!(
+        reason.contains("`-- param: $1 pattern <RustType>`"),
+        "{reason}"
+    );
+}
+
+/// Karibu Pass's `HoldRooms`: an `UPDATE … FROM` with a join, typed like
+/// the equivalent join.
+const HOLD_ROOMS: &str = "UPDATE allocations SET rooms_held = rooms_held + $2, held_at = $3
+FROM offers o JOIN partners p ON p.id = o.partner_id
+WHERE o.id = allocations.offer_id AND allocations.id = $1 AND p.active AND o.status = $4
+  AND rooms_held + $2 <= rooms_total";
+
+#[test]
+fn update_from_resolves_columns_across_the_target_and_its_from_tables() {
+    let exec = one(&format!("-- name: HoldRooms :execrows\n{HOLD_ROOMS};"));
+    assert_eq!(
+        exec.params,
+        [
+            param(1, "id", "i64"),
+            param(2, "rooms_held", "i32"),
+            param(3, "held_at", "Option<chrono::DateTime<chrono::Utc>>"),
+            param(4, "status", "String"),
+        ]
+    );
+    assert_eq!(exec.result, ResultShape::None);
+
+    let returning = one(&format!(
+        "-- name: HoldRooms :maybe_one\n{HOLD_ROOMS}\nRETURNING allocations.id, rooms_held, o.status, p.name AS partner;"
+    ));
+    assert_eq!(returning.params, exec.params);
+    assert_eq!(
+        row_columns(&returning),
+        [
+            ("id", "i64"),
+            ("rooms_held", "i32"),
+            ("status", "String"),
+            ("partner", "String"),
+        ]
+    );
+}
+
+#[test]
+fn update_from_names_the_tables_of_an_ambiguous_column() {
+    let reason = failure(
+        "-- name: Q :exec\nUPDATE allocations SET rooms_held = 0 FROM offers o WHERE id = $1;",
+    );
+    assert!(reason.contains("column `id` is ambiguous"), "{reason}");
+    assert!(reason.contains("`allocations.id`"), "{reason}");
+    assert!(reason.contains("`o.id`"), "{reason}");
+}
+
+#[test]
+fn delete_using_resolves_columns_like_a_join() {
+    let query = one(
+        "-- name: DropRetired :many\nDELETE FROM allocations a USING offers o, partners p\nWHERE o.id = a.offer_id AND p.id = o.partner_id AND p.name = $1 AND o.status = $2\nRETURNING a.id, o.status;",
+    );
+    assert_eq!(
+        query.params,
+        [param(1, "name", "String"), param(2, "status", "String")]
+    );
+    assert_eq!(row_columns(&query), [("id", "i64"), ("status", "String")]);
+}
+
+#[test]
+fn a_rok_skip_query_is_neither_analyzed_nor_failed() {
+    let (analyzed, failures) = analyze(
+        "-- name: Untypeable :one\n-- rok:skip\nSELECT upper(name) FROM products;\n-- name: Kept :exec\nDELETE FROM products;",
+    );
+    assert!(failures.is_empty(), "{failures:?}");
+    let names: Vec<&str> = analyzed.iter().map(|query| query.name.as_str()).collect();
+    assert_eq!(names, ["Kept"]);
+}
+
+#[test]
+fn arithmetic_with_a_numeric_column_types_its_placeholder() {
+    let query = one(
+        "-- name: Q :exec\nUPDATE allocations SET rooms_held = rooms_total - $1 WHERE id = $2;",
+    );
+    assert_eq!(query.params[0], param(1, "rooms_total", "i32"));
+    // A timestamp plus a placeholder is a timestamp plus an interval: not
+    // settled by the column.
+    assert!(
+        failure("-- name: Q :exec\nUPDATE allocations SET held_at = held_at + $1;")
+            .contains("cannot infer the type of `$1`")
+    );
+}
+
+#[test]
 fn returning_star_reuses_the_resource_model() {
     let query =
         one("-- name: CreateCategory :one\nINSERT INTO categories (name) VALUES ($1) RETURNING *;");
@@ -201,7 +378,8 @@ fn casts_to_enum_types_infer_the_generated_enum() {
         one("-- name: Status :one\nSELECT 'active'::product_status AS status FROM products;");
     assert_eq!(
         status.result,
-        ResultShape::Scalar("Option<types::ProductStatus>".to_owned())
+        // A cast literal is never NULL.
+        ResultShape::Scalar("types::ProductStatus".to_owned())
     );
 }
 
@@ -419,8 +597,8 @@ fn recursive_ctes_take_their_columns_from_the_anchor() {
         [
             ("id", "i64"),
             ("parent_id", "Option<i64>"),
-            // A cast may be NULL, as everywhere else.
-            ("depth", "Option<i32>")
+            // A cast literal is never NULL, and nor is `depth + 1`.
+            ("depth", "i32")
         ]
     );
     assert_eq!(walk.params, [param(1, "id", "i64")]);
@@ -587,6 +765,173 @@ fn coalesce_without_a_literal_fallback_is_not_inferred() {
         assert!(
             reason.contains("cannot infer the type"),
             "{fallback}: {reason}"
+        );
+    }
+}
+
+/// A comparison is `bool`, NULL only when an operand can be.
+#[test]
+fn comparisons_are_bool() {
+    assert_eq!(
+        scalar(
+            "-- name: Expired :one\nSELECT expires_at <= now() AS expired FROM passes WHERE id = $1;"
+        ),
+        "bool"
+    );
+    assert_eq!(
+        scalar(
+            "-- name: Revoked :one\nSELECT revoked_at <= now() AS revoked FROM passes WHERE id = $1;"
+        ),
+        "Option<bool>"
+    );
+}
+
+/// Boolean logic and the `IS`, `IN`, `BETWEEN` and `LIKE` tests are `bool`;
+/// `IS [NOT] NULL` and `IS [NOT] DISTINCT FROM` never NULL.
+#[test]
+fn boolean_logic_is_bool() {
+    let row = one("-- name: Flags :one\nSELECT \
+             revoked_at IS NULL AS live, \
+             revoked_at IS DISTINCT FROM expires_at AS changed, \
+             NOT (seats > 0 AND label LIKE 'vip%') AS plain, \
+             seats BETWEEN 1 AND 4 OR seats IN (8, 10) AS small, \
+             label ILIKE $2 AS matched, \
+             discount <> price AS discounted \
+         FROM passes WHERE id = $1;");
+    assert_eq!(
+        row_columns(&row),
+        [
+            ("live", "bool"),
+            ("changed", "bool"),
+            ("plain", "bool"),
+            ("small", "bool"),
+            // The engine does not assume a parameter is never NULL.
+            ("matched", "Option<bool>"),
+            ("discounted", "Option<bool>"),
+        ]
+    );
+}
+
+/// Arithmetic takes its operands' type: integers widen to the larger, and
+/// `numeric` wins over integers.
+#[test]
+fn arithmetic_takes_its_operands_type() {
+    let row = one("-- name: Prices :one\nSELECT \
+             price * 0.8 AS sale, \
+             seats + 1 AS more, \
+             seats * id AS wide, \
+             -seats % 3 AS rest, \
+             discount / seats AS share \
+         FROM passes WHERE id = $1;");
+    assert_eq!(
+        row_columns(&row),
+        [
+            ("sale", "rust_decimal::Decimal"),
+            ("more", "i32"),
+            ("wide", "i64"),
+            ("rest", "i32"),
+            ("share", "Option<rust_decimal::Decimal>"),
+        ]
+    );
+}
+
+/// `CASE` takes the type its non-NULL branches share; a missing `ELSE` or a
+/// NULL branch makes it nullable.
+#[test]
+fn case_takes_the_type_its_branches_share() {
+    let row = one("-- name: Tiers :one\nSELECT \
+             CASE WHEN seats > 4 THEN 'group' WHEN seats > 1 THEN label ELSE 'solo' END AS tier, \
+             CASE seats WHEN 1 THEN price ELSE price * 2 END AS cost, \
+             CASE WHEN seats > 4 THEN seats END AS big, \
+             CASE WHEN revoked_at IS NULL THEN NULL ELSE seats + id END AS lost, \
+             CASE WHEN seats > 4 THEN discount ELSE price END AS offer \
+         FROM passes WHERE id = $1;");
+    assert_eq!(
+        row_columns(&row),
+        [
+            ("tier", "String"),
+            ("cost", "rust_decimal::Decimal"),
+            ("big", "Option<i16>"),
+            ("lost", "Option<i64>"),
+            ("offer", "Option<rust_decimal::Decimal>"),
+        ]
+    );
+}
+
+/// `||` is text.
+#[test]
+fn concatenation_is_text() {
+    let row = one(
+        "-- name: Labels :one\nSELECT label || ' (' || seats || ')' AS title, 'pass ' || revoked_at AS note \
+         FROM passes WHERE id = $1;",
+    );
+    assert_eq!(
+        row_columns(&row),
+        [("title", "String"), ("note", "Option<String>")]
+    );
+}
+
+/// Operands the engine cannot type, or types that do not combine, still
+/// fail with the `-- column:` hint.
+#[test]
+fn mixed_or_unknown_operands_still_fail() {
+    for expr in [
+        "label + 1",
+        "expires_at - now()",
+        "seats * $2::text",
+        "CASE WHEN seats > 1 THEN label ELSE seats END",
+        "CASE WHEN seats > 1 THEN NULL END",
+        "CASE WHEN seats > 1 THEN unknown_fn(seats) ELSE 1 END",
+        "upper(label) + 1",
+    ] {
+        let reason = failure(&format!(
+            "-- name: Q :one\nSELECT {expr} AS v FROM passes WHERE id = $1;"
+        ));
+        assert!(
+            reason.contains("cannot infer the type of result column `v`")
+                && reason.contains("add `-- column: v <RustType>`"),
+            "{expr}: {reason}"
+        );
+    }
+}
+
+/// A call to a function the schema defines takes its `RETURNS` type, and
+/// may be NULL unless a `-- column:` override says otherwise.
+#[test]
+fn schema_function_calls_take_their_return_type() {
+    assert_eq!(
+        scalar("-- name: Today :one\nSELECT tz_today() AS today;"),
+        "Option<chrono::NaiveDate>"
+    );
+    assert_eq!(
+        scalar(
+            "-- name: Today :one\n-- column: today chrono::NaiveDate\nSELECT tz_today() AS today;"
+        ),
+        "chrono::NaiveDate"
+    );
+    assert_eq!(
+        scalar(
+            "-- name: Left :one\nSELECT app.seats_left(id, seats) AS left_over FROM passes WHERE id = $1;"
+        ),
+        "Option<i32>"
+    );
+    // Typed, it combines like any other operand.
+    assert_eq!(
+        scalar(
+            "-- name: Due :one\nSELECT expires_at::date <= tz_today() AS due FROM passes WHERE id = $1;"
+        ),
+        "Option<bool>"
+    );
+}
+
+#[test]
+fn unknown_functions_and_unsupported_return_types_still_fail() {
+    for call in ["nobody_defined_me()", "touch()", "public.seats_left(1, 2)"] {
+        let reason = failure(&format!("-- name: Q :one\nSELECT {call} AS v;"));
+        assert!(
+            reason.contains("cannot infer the type of result column `v`")
+                && reason.contains("add `-- column: v <RustType>`"),
+            "{call}: {reason}"
         );
     }
 }

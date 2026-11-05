@@ -30,6 +30,9 @@ pub struct Report {
     pub table_failures: Vec<TableFailure>,
     /// Unsupported queries: skipped when lenient, fatal otherwise.
     pub query_failures: Vec<QueryFailure>,
+    /// Queries marked `-- rok:skip`: left ungenerated on purpose, never a
+    /// failure.
+    pub skipped_queries: Vec<SkippedQuery>,
     /// Problems the run found outside what it generates, such as a
     /// scaffolded file using what the configuration stopped generating.
     pub warnings: Vec<String>,
@@ -186,6 +189,35 @@ impl fmt::Display for QueryFailure {
             self.query,
             self.reason
         )
+    }
+}
+
+/// A query marked `-- rok:skip`, left ungenerated on purpose.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct SkippedQuery {
+    pub query: String,
+    /// The text after `-- rok:skip`; empty when there is none.
+    pub note: String,
+    /// The query file.
+    pub path: PathBuf,
+    /// 1-based line of the query's `-- name:` annotation.
+    pub line: usize,
+}
+
+/// `path:line: query `name` left ungenerated (`-- rok:skip`: note)`.
+impl fmt::Display for SkippedQuery {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}query `{}` left ungenerated (`-- rok:skip`",
+            location(Some(&self.path), Some(self.line)),
+            self.query
+        )?;
+        if !self.note.is_empty() {
+            write!(f, ": {}", self.note)?;
+        }
+        f.write_str(")")
     }
 }
 

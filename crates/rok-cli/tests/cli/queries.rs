@@ -104,10 +104,8 @@ WHERE p.category_id = $1::bigint AND (c.id = $2 OR p.id = $2) AND p.stock > $3;
         generated.contains("    pub id: ProductId,\n"),
         "{generated}"
     );
-    assert!(
-        generated.contains("    pub next_id: Option<i64>,\n"),
-        "{generated}"
-    );
+    // `p.id` is never NULL, and nor are `p.id + 1` and its cast.
+    assert!(generated.contains("    pub next_id: i64,\n"), "{generated}");
     assert!(
         generated.contains("    pub category_id: Option<CategoryId>,\n"),
         "{generated}"
@@ -400,7 +398,7 @@ fn unsupported_ctes_fail_with_path_and_line_diagnostics() -> Result<()> {
          WITH e AS (SELECT email FROM users) SELECT email FROM e;\n\
          \n\
          -- name: Countdown :many\n\
-         WITH RECURSIVE t (n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM t) SELECT n FROM t;\n\
+         WITH RECURSIVE t (n) AS (SELECT length('a') UNION ALL SELECT n + 1 FROM t) SELECT n FROM t;\n\
          \n\
          -- name: Purge :many\n\
          WITH gone AS (DELETE FROM users RETURNING id) SELECT id FROM gone;\n",

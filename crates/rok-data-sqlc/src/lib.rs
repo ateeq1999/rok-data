@@ -67,7 +67,9 @@ pub use api_config::{ApiAccess, ApiConfig, ApiEndpoint, ApiFramework, ApiPaginat
 pub use api_rules::ApiRule;
 pub use config::{Config, Conventions, Derive, Extractor, IdGeneration, RelationshipChange};
 pub use project::{App, Project, Target, discover_config, load_config, using_line};
-pub use report::{Error, QueryFailure, RefusedFile, Report, Result, ServedFeature, TableFailure};
+pub use report::{
+    Error, QueryFailure, RefusedFile, Report, Result, ServedFeature, SkippedQuery, TableFailure,
+};
 
 /// Generates database modules as described by `config`.
 ///

@@ -204,8 +204,10 @@ fn run(config: &Config, report: &mut Report, analysis: &mut Analysis) -> anyhow:
         let AnalyzedFile {
             queries,
             failures,
+            skipped,
             lines,
         } = analyze_query_file(&input.path, &parsed, &selected)?;
+        report.skipped_queries.extend(skipped);
         analysis
             .queries
             .extend(queries.iter().map(|query| LocatedQuery {

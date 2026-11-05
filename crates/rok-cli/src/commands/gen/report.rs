@@ -42,6 +42,10 @@ pub(super) fn print_report(
             eprintln!("error: {failure}");
         }
     }
+    // Left out on purpose, so a note rather than a warning or an error.
+    for skipped in &report.skipped_queries {
+        eprintln!("note: {skipped}");
+    }
     for warning in &report.warnings {
         eprintln!("warning: {warning}");
     }
@@ -168,6 +172,20 @@ pub(super) fn print_json_body(
     } else {
         (Vec::new(), cannot)
     };
+    // The `-- rok:skip` queries: never failures, in a strict run or not.
+    let skipped_on_purpose: Vec<Value> = report
+        .skipped_queries
+        .iter()
+        .map(|skipped| {
+            json!({
+                "kind": "query",
+                "name": skipped.query,
+                "note": skipped.note,
+                "path": display_path(&skipped.path),
+                "line": skipped.line,
+            })
+        })
+        .collect();
     let refused: Vec<Value> = report
         .refused
         .iter()
@@ -219,6 +237,7 @@ pub(super) fn print_json_body(
         "missing": paths(&report.missing),
         "changed": paths(&report.changed),
         "skipped": skipped,
+        "skipped_on_purpose": skipped_on_purpose,
         "failures": failures,
         "warnings": report.warnings,
         "newly_served": newly_served,
