@@ -17,6 +17,24 @@ use crate::cli::db::DbAction;
 use crate::cli::migrate::MigrateAction;
 use crate::cli::schema::SchemaAction;
 
+/// `error` with its whole chain of causes, `outer: inner: innermost` the way
+/// anyhow's `{:#}` prints one, so a wrapped error keeps what caused it
+/// ("failed to parse SQL schema: schema/0001_init.sql:2: invalid PostgreSQL
+/// SQL syntax: …"). A cause the message already ends with is not repeated.
+pub(crate) fn chain(error: impl std::error::Error) -> String {
+    let mut message = error.to_string();
+    let mut source = error.source();
+    while let Some(cause) = source {
+        let cause_message = cause.to_string();
+        if !message.ends_with(&cause_message) {
+            message.push_str(": ");
+            message.push_str(&cause_message);
+        }
+        source = cause.source();
+    }
+    message
+}
+
 /// Execute a parsed command; errors print `error: …` outside and exit 1.
 pub(crate) async fn execute(command: Command) -> Result<ExitCode, String> {
     match command {

@@ -135,7 +135,7 @@ fn generate(options: GenOptions) -> Result<ExitCode, String> {
                 } else {
                     print_report(&run.settings, report, None, None);
                 }
-                return print_bodies_then(bodies, multi, Err(error.to_string()));
+                return print_bodies_then(bodies, multi, Err(super::chain(&error)));
             }
         }
     }
@@ -179,7 +179,7 @@ fn check(options: GenOptions) -> Result<ExitCode, String> {
                 }
                 if !drift {
                     // Not a drift: the run failed for another reason.
-                    return print_bodies_then(bodies, multi, Err(error.to_string()));
+                    return print_bodies_then(bodies, multi, Err(super::chain(&error)));
                 }
                 findings.push(out_of_date_message(run));
                 continue;

@@ -9,6 +9,7 @@ use std::process::ExitCode;
 use rok_data::migration::{self, Migration};
 use rok_data::migration_file;
 
+use crate::commands::chain;
 use crate::context;
 use crate::output::{json_line, status_json};
 
@@ -71,9 +72,7 @@ pub(crate) async fn status(
     let connection = context::Connection::resolve(database_url)?;
     let db = connection.probe_into_db().await?;
     let migrations = load(dir)?;
-    let applied = migration_file::applied_or_empty(&db)
-        .await
-        .map_err(|e| e.to_string())?;
+    let applied = migration_file::applied_or_empty(&db).await.map_err(chain)?;
     let rows = migration_file::status_rows(&migrations, &applied);
     if json {
         json_line(status_json(&rows));
@@ -92,9 +91,7 @@ pub(crate) async fn up(
     let connection = context::Connection::resolve(database_url)?;
     let migrations = load(dir)?;
     let db = connection.probe_into_db().await?;
-    let done = migration::apply(&db, &migrations)
-        .await
-        .map_err(|e| e.to_string())?;
+    let done = migration::apply(&db, &migrations).await.map_err(chain)?;
     if json {
         let names: Vec<serde_json::Value> = done
             .iter()
@@ -127,7 +124,7 @@ pub(crate) async fn down(
     let db = connection.probe_into_db().await?;
     let done = migration::revert(&db, &migrations, steps)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(chain)?;
     if json {
         let names: Vec<serde_json::Value> = done
             .iter()
@@ -178,5 +175,5 @@ fn engine_table(rows: &[migration_file::StatusRow]) {
 /// The directory must contain exactly the `<version>_<name>` pair convention.
 /// See `rok_data::migration_file::load` for the guarantees.
 fn load(dir: &Path) -> Result<Vec<Migration>, String> {
-    migration_file::load(dir).map_err(|e| e.to_string())
+    migration_file::load(dir).map_err(chain)
 }

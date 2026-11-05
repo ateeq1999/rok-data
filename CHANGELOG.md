@@ -26,6 +26,12 @@ that it exists and won't ship a tag without it).
 
 **Fixed**
 
+- Errors show their causes: the CLI prints an error with its whole chain,
+  so `rok gen` on a schema with a syntax error says `error: failed to
+  parse SQL schema: schema/0001_init.sql:2: invalid PostgreSQL SQL
+  syntax: <the parser's message>` instead of stopping at `failed to parse
+  SQL schema`. The same goes for `--json` runs and for the database
+  errors of `rok migrate *`, `rok db *` and `rok schema *`.
 - Line endings don't change migrations. Migration staging (`rok gen
   --migration`) normalises CRLF to LF in the truth files and in the
   `.rok-schema.json` snapshot before comparing, as the engine does with

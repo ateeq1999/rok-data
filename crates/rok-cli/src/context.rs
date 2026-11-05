@@ -95,7 +95,12 @@ impl Connection {
         tokio::time::timeout(timeout, rok_data::sqlx::PgConnection::connect(self.url))
             .await
             .map_err(|_| "can't connect to the database: no answer within 10 seconds".to_owned())?
-            .map_err(|e| format!("can't connect to the database: {e}"))
+            .map_err(|e| {
+                format!(
+                    "can't connect to the database: {}",
+                    crate::commands::chain(e)
+                )
+            })
     }
 
     /// A one-connection `Db` for command work that must not hog a pool.
@@ -107,7 +112,12 @@ impl Connection {
             .acquire_timeout(timeout)
             .connect(self.url)
             .await
-            .map_err(|e| format!("can't connect to the database: {e}"))
+            .map_err(|e| {
+                format!(
+                    "can't connect to the database: {}",
+                    crate::commands::chain(e)
+                )
+            })
     }
 }
 
