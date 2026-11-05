@@ -143,3 +143,25 @@ or without them, and the server checks them.
 - **`T?` for every optional, nullable request field:** leaving a field out
   and clearing it could not be told apart, and the API's `PATCH`es tell
   them apart.
+
+## Amended 2026-11-03
+
+- **Layouts.** A `[clients]` entry may be a table with `dir` and
+  `layout`. `layout = "sources"` emits only a TypeScript or Dart Client's
+  source files, flat in `dir` (no README, manifest or `src/` level), so
+  the Client can sit inside the App that calls it (workspace ADR 0027,
+  amended the same day). The plain-string form is `layout = "package"`.
+  The Rust Client is always a crate.
+- **The TypeScript Client's types are zod schemas.** Each component
+  schema is emitted as `export const <name>Schema = z.object(...)` with
+  `export type <Name> = z.infer<...>`, and `oneOf` as `z.union`.
+- **Calls check responses.** Each call parses its response with the
+  response schema and throws a `ContractError` (the operation and zod's
+  issue paths) on a mismatch, apart from the HTTP `ApiError`. zod strips
+  unknown keys, so an older Client keeps working against a newer server.
+  Request bodies are sent unchecked; the server validates them.
+- **Annotations are read for TypeScript.** "Annotations are read past"
+  no longer holds for the TypeScript Client: `minLength`/`maxLength`,
+  `minimum`/`maximum`, `pattern` and `format` (`email`, `uuid`,
+  `date-time`) become zod rules, so the schemas carry the server's rules.
+  The Dart and Rust Clients still read past them.

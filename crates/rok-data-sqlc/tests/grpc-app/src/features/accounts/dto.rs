@@ -97,19 +97,34 @@ impl From<CreateAccountDto> for NewAccount {
 #[derive(Debug, Clone, Default, PartialEq, serde::Deserialize, rok_data::Input)]
 #[serde(default)]
 pub struct UpdateAccountDto {
-    /// The new value of the `email` column.
-    pub email: Option<String>,
     /// The new value of the `password_hash` column.
     pub password_hash: Option<String>,
+    /// The `email` column is immutable: naming it, even as `null`, is a `422`.
+    #[serde(deserialize_with = "present")]
+    #[rok(validate(custom(function = immutable, code = "immutable", message = "`email` can't be changed")))]
+    pub email: Option<serde_json::Value>,
 }
 
 impl From<UpdateAccountDto> for UpdateAccount {
     fn from(dto: UpdateAccountDto) -> Self {
         UpdateAccount {
-            email: dto.email,
             password_hash: dto.password_hash,
+            email: None,
         }
     }
+}
+
+/// Deserializes a field that is present, `null` included, as `Some`.
+fn present<'de, D>(deserializer: D) -> Result<Option<serde_json::Value>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    serde::Deserialize::deserialize(deserializer).map(Some)
+}
+
+/// Rejects a field naming an immutable column: no update changes one.
+fn immutable(_: &serde_json::Value) -> Result<(), String> {
+    Err("the column can't be changed".to_owned())
 }
 
 /// A `accounts` row as the API answers it.

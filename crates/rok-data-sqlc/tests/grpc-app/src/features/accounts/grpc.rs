@@ -70,8 +70,8 @@ impl AccountsRpc for AccountsService {
         let message = request.into_inner();
         let id = read(message.id, "id")?;
         let input = validated(UpdateAccountDto {
-            email: read(message.email, "email")?,
             password_hash: read(message.password_hash, "password_hash")?,
+            email: None,
         })?;
         let row = AccountsServiceApi::update(self, id, input).await?;
         Ok(Response::new(proto::Account::try_from(row)?))

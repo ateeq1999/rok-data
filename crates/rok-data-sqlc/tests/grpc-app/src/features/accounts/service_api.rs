@@ -107,14 +107,6 @@ pub trait AccountsServiceApi {
         id: AccountId,
         input: UpdateAccountDto,
     ) -> Result<Account, AppError> {
-        let mut failures = FieldFailures::default();
-        if let Some(email) = &input.email {
-            let taken = repo::email_taken(&mut *conn, email, Some(id)).await?;
-            if taken {
-                failures.taken("email");
-            }
-        }
-        failures.into_result()?;
         let row = Account::patch(&mut *conn, id, input.into()).await;
         row.map_err(or_not_found)
     }

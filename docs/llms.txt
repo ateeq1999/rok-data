@@ -34,11 +34,12 @@
 - [Migration audit](migration-audit.md): what the four source repositories held before consolidation.
 - [Migration plan](migration-plan.md): the original consolidation plan.
 - [Unified pipeline plan](unified-pipeline-plan.md): the 0.2.0 pipeline plan — schema-dir truth, front door, templates.
-- [Workspace ADRs](decisions/0001-runtime-lineage.md): deliberate cross-crate decisions, 0001–0032 (see the directory `docs/decisions/` for all); the latest, [0032](decisions/0032-member-repos-and-subcommand-clis.md), splits rok-data into member repos under one `rok`.
+- [Workspace ADRs](decisions/0001-runtime-lineage.md): deliberate cross-crate decisions, 0001–0033 (see the directory `docs/decisions/` for all); the latest, [0033](decisions/0033-template-modules-left-out-at-init.md), lets `rok init --without` leave a Template's Modules out.
 - [Engine specs](specs/0.3.0-model-shaped-data-layer.md): per-release specs (0.4.0 everyday verbs, sqlc absorption, input validation, 0.5.0 production templates) under `docs/specs/`.
 - [Desktop starter spec](specs/desktop-starter.md): the monorepo's desktop App (ADR 0031) on `clients/rust`: sign-up, the keychain session, My account, and the users screens for an admin.
 - [gRPC template spec](specs/grpc-api-template.md): gRPC as a third API framework (`framework = "grpc"`, engine ADR 0028): a `.proto` and a tonic service per Resource over the same service trait, and the `grpc-api` Template (workspace ADR 0030).
 - [Schema editing spec](specs/schema-editing.md): `rok schema column add|remove|change|rename` edit the schema dir in place and record renames for the next migration; every command takes a JSON payload through `-j` (inline, a path, `@path` or stdin).
+- [Starter feedback spec](specs/starter-feedback.md): the rok side of a project's first build on the Monorepo template — CI installs the `rok` release, `-w` for a Template's API App, Modules left out with `--without` (ADR 0033), one design-token source, and a first-run local setup.
 - [Toolchain split runbook](https://github.com/ateeq1999/rok-workspace/blob/main/docs/plan.md): the PowerShell + `gh` steps that split rok-data into member repos (ADR 0032): backups, the `rok-workspace` meta-repo, `rok-templates` out, `rok-v2` owning `rok`.
 - [Toasty patterns research](research/toasty-patterns.md): the study behind With-loading's shape.
 

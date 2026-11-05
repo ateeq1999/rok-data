@@ -111,7 +111,7 @@ pub(super) fn update_columns<'a>(feature: &Feature<'a>) -> Vec<&'a Column> {
 }
 
 /// The patch's immutable columns, which the update body rejects by name.
-fn rejected_columns<'a>(feature: &Feature<'a>) -> Vec<&'a Column> {
+pub(super) fn rejected_columns<'a>(feature: &Feature<'a>) -> Vec<&'a Column> {
     feature
         .table
         .update_columns()
