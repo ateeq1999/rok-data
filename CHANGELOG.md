@@ -35,6 +35,11 @@ that it exists and won't ship a tag without it).
 
 **Fixed**
 
+- "Next steps" run as printed: `rok gen` prints `rok migrate up` bare
+  when the project rule finds the staged pair's history dir from where it
+  ran (a Monorepo root printed `--dir apps/api/migrations`), `--app
+  <name>` at a root naming several Apps, and `--dir` only for a history
+  dir a flag named; `rok init <dir>` starts its steps with `cd <dir>`.
 - A failed `rok gen` step says what's done and what isn't: a run of
   several steps (each App's data layer and migration, the contract export,
   each Client) that fails ends with the steps done, the one that failed

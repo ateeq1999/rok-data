@@ -365,7 +365,12 @@ refused unless `--allow-destructive` is given; `--rename` records a
 rename instead of a drop and an add.
 
 The next steps name the staged pair's file: apply it with `rok migrate
-up` (with `--dir <path>` when the history dir is not `migrations`).
+up`, run from the same directory; it finds the history dir by the same
+rule, and the step adds `--app <name>` at a root naming several Apps, or
+`--dir <path>` for a history dir only `--migrations-dir` named. Every
+command the next steps print (here and in `rok init`, which starts with
+`cd <dir>` for a project made elsewhere) runs as printed from the
+directory `rok` ran in, and every path is relative to it.
 An `ALTER TABLE` the truth carries folds into the truth's tables when
 the model can represent it; a clause it cannot rides the pair as an
 extra step with the undo the truth's `-- rok:down` marker supplies.

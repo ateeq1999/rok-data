@@ -62,6 +62,7 @@ fn migrations(dir: &Path) -> Result<Vec<String>> {
 mod check;
 mod generate;
 mod json;
+mod next_steps;
 mod settings;
 mod staging;
 mod steps;

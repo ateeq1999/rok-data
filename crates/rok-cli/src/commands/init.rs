@@ -52,7 +52,7 @@ pub(crate) fn run(
         Some(content) => seed_schema(&dir, &content)?,
         None => false,
     };
-    next_steps(&scaffolded, template.as_deref(), seeded);
+    next_steps(&dir, &scaffolded, template.as_deref(), seeded);
     Ok(ExitCode::SUCCESS)
 }
 
@@ -95,6 +95,12 @@ fn seed_schema(dir: &Path, content: &str) -> Result<bool, String> {
     Ok(true)
 }
 
+/// Whether `dir` is the current directory.
+fn is_current_dir(dir: &Path) -> bool {
+    let full = |path: &Path| path.canonicalize().ok();
+    full(dir).is_some_and(|dir| Some(dir) == full(Path::new(".")))
+}
+
 /// Prints the numbered next steps.
 ///
 /// The front door is `rok gen`: the truth in the schema directory is the
@@ -103,8 +109,8 @@ fn seed_schema(dir: &Path, content: &str) -> Result<bool, String> {
 /// pairs into `migrations/`, the default history dir. A template's steps
 /// are the engine's, so `rok sqlc init` prints the same ones (a Monorepo
 /// template's name its Apps).
-fn next_steps(scaffolded: &Scaffolded, template: Option<&str>, seeded: bool) {
-    let steps = match template {
+fn next_steps(dir: &Path, scaffolded: &Scaffolded, template: Option<&str>, seeded: bool) {
+    let mut steps = match template {
         Some(template) => scaffolded.template_next_steps(template, "rok gen"),
         None => {
             let schema = if seeded {
@@ -122,6 +128,17 @@ fn next_steps(scaffolded: &Scaffolded, template: Option<&str>, seeded: bool) {
             .to_vec()
         }
     };
+    // The commands run as printed from where `rok init` ran: a project
+    // made elsewhere is `cd`ed into first.
+    if !is_current_dir(dir) {
+        let shown = display_path(dir);
+        let shown = if shown.contains(char::is_whitespace) {
+            format!("\"{shown}\"")
+        } else {
+            shown
+        };
+        steps.insert(0, format!("`cd {shown}`"));
+    }
     println!("\nNext steps:");
     for (number, step) in steps.iter().enumerate() {
         println!("  {}. {step}", number + 1);

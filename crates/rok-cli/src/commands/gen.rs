@@ -34,7 +34,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use rok_data_codegen::{Rename, StageOptions, Staged};
-use rok_data_sqlc::Config;
+use rok_data_sqlc::{Config, Project};
 use serde_json::Value;
 
 use crate::cli::r#gen::{GenAction, GenOptions};
@@ -53,10 +53,6 @@ use steps::Steps;
 /// pre-split layout (`rok init` before the history was separated) keeps
 /// its staged pairs.
 const DEFAULT_SCHEMA_DIR: &str = "migrations";
-
-/// The history dir the settings place the staged pairs in when nothing
-/// moves them: the same dir `rok migrate` reads by default.
-const DEFAULT_MIGRATIONS_DIR: &str = "migrations";
 
 /// `rok gen`: with the flags directly, or with the nested `rok gen check`
 /// CI mode. A value given at the group level and again on the leaf: the
@@ -126,7 +122,7 @@ fn generate(options: GenOptions) -> Result<ExitCode, String> {
                             steps.done();
                         }
                         if !run.settings.json {
-                            next_steps(&run.settings, staged.as_ref());
+                            next_steps(run, staged.as_ref());
                         }
                     }
                     Err(message) => return steps.fail(message, bodies, multi),
@@ -399,24 +395,51 @@ fn staged_drift(settings: &Settings) -> Result<Option<Pending>, String> {
     }))
 }
 
+/// What `rok migrate up` needs to read the run's history dir from where
+/// `rok gen` ran: nothing when the project rule finds it there (the App
+/// started in, a Monorepo's one App, a plain project's settings), `--app`
+/// at a root naming several Apps, and `--dir` for a history dir only a
+/// flag named.
+fn migrate_place(run: &Run) -> String {
+    let found = |app: Option<&str>| {
+        Project::current()
+            .and_then(|project| project.target(app))
+            .and_then(|target| target.migrations_dir())
+            .is_ok_and(|dir| same_dir(&dir, &run.settings.migrations_dir))
+    };
+    if found(None) {
+        String::new()
+    } else if let Some(app) = run.app.as_deref().filter(|app| found(Some(app))) {
+        format!(" --app {app}")
+    } else {
+        format!(" --dir {}", display_path(&run.settings.migrations_dir))
+    }
+}
+
+/// Whether two paths name one directory.
+fn same_dir(a: &Path, b: &Path) -> bool {
+    let full = |path: &Path| {
+        path.canonicalize()
+            .or_else(|_| std::path::absolute(path))
+            .unwrap_or_else(|_| path.to_path_buf())
+    };
+    full(a) == full(b)
+}
+
 /// The name a check's planned pair carries until it is staged for real.
 const PENDING_MIGRATION_NAME: &str = "pending";
 
 /// Prints the numbered next steps.
-fn next_steps(settings: &Settings, staged: Option<&Staged>) {
+///
+/// Each command runs as printed from the directory `rok gen` ran in, and
+/// each path is relative to it.
+fn next_steps(run: &Run, staged: Option<&Staged>) {
     let mut steps: Vec<String> = Vec::new();
     if let Some(staged) = staged {
-        // The runtime's loader reads the history dir's pairs (and skips
-        // the snapshot beside them); the --dir is the loader's own flag,
-        // needed only when the run moved the history off its default.
-        let dir = if settings.migrations_dir == Path::new(DEFAULT_MIGRATIONS_DIR) {
-            String::new()
-        } else {
-            format!(" --dir {}", display_path(&settings.migrations_dir))
-        };
         steps.push(format!(
-            "apply the staged pair ({}) with `rok migrate up{dir}`",
-            display_path(&staged.up)
+            "apply the staged pair ({}) with `rok migrate up{}`",
+            display_path(&staged.up),
+            migrate_place(run)
         ));
     }
     steps.push("`rok gen check` fails the build when the generated code is out of date".to_owned());
