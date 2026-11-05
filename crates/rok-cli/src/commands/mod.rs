@@ -7,6 +7,7 @@ pub mod r#gen;
 pub mod generate;
 pub mod init;
 pub mod migrate;
+mod place;
 pub mod schema;
 pub mod server;
 pub mod sqlc;
@@ -41,23 +42,47 @@ pub(crate) async fn execute(command: Command) -> Result<ExitCode, String> {
             action,
         } => r#gen::run(generation, action),
         Command::Migrate(action) => match action {
-            MigrateAction::Create { name, dir } => migrate::create(&name, &dir),
+            MigrateAction::Create { name, place } => {
+                migrate::create(&name, &place::migrations_dir(&place)?)
+            }
             MigrateAction::Status {
-                dir,
+                place,
                 database_url,
                 json,
-            } => migrate::status(&dir, database_url.as_deref(), json).await,
+            } => {
+                migrate::status(
+                    &place::migrations_dir(&place)?,
+                    database_url.as_deref(),
+                    json,
+                )
+                .await
+            }
             MigrateAction::Up {
-                dir,
+                place,
                 database_url,
                 json,
-            } => migrate::up(&dir, database_url.as_deref(), json).await,
+            } => {
+                migrate::up(
+                    &place::migrations_dir(&place)?,
+                    database_url.as_deref(),
+                    json,
+                )
+                .await
+            }
             MigrateAction::Down {
-                dir,
+                place,
                 database_url,
                 steps,
                 json,
-            } => migrate::down(&dir, database_url.as_deref(), steps, json).await,
+            } => {
+                migrate::down(
+                    &place::migrations_dir(&place)?,
+                    database_url.as_deref(),
+                    steps,
+                    json,
+                )
+                .await
+            }
         },
         Command::Db(action) => match action {
             DbAction::Check { database_url, json } => {
@@ -101,9 +126,10 @@ pub(crate) async fn execute(command: Command) -> Result<ExitCode, String> {
         },
         Command::Schema(action) => match action {
             SchemaAction::Dump { database_url } => schema::dump(database_url.as_deref()).await,
-            SchemaAction::Diff { dir, database_url } => {
-                schema::diff(&dir, database_url.as_deref()).await
-            }
+            SchemaAction::Diff {
+                place,
+                database_url,
+            } => schema::diff(&place::migrations_dir(&place)?, database_url.as_deref()).await,
         },
         Command::Server(action) => server::run(action),
     }

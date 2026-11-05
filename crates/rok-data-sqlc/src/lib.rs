@@ -66,7 +66,7 @@ pub mod queries;
 pub use api_config::{ApiAccess, ApiConfig, ApiEndpoint, ApiFramework, ApiPagination};
 pub use api_rules::ApiRule;
 pub use config::{Config, Conventions, Derive, Extractor, IdGeneration, RelationshipChange};
-pub use project::{discover_config, load_config};
+pub use project::{App, Project, Target, discover_config, load_config, using_line};
 pub use report::{Error, QueryFailure, RefusedFile, Report, Result, TableFailure};
 
 /// Generates database modules as described by `config`.

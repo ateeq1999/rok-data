@@ -13,7 +13,7 @@ use std::path::Path;
 use rok_data_sqlc::clients::{self, Mode, Outcome, Project};
 use serde_json::{Value, json};
 
-use super::resolve::project_file;
+use super::resolve::project;
 use crate::cli::r#gen::GenOptions;
 use crate::config::FILE;
 use crate::output::display_path;
@@ -21,13 +21,14 @@ use crate::output::display_path;
 /// The contract and Clients the run's project file names, when it is the
 /// canonical `rok.toml` and names any.
 pub(super) fn load(options: &GenOptions) -> Result<Option<Project>, String> {
-    let Some(file) = project_file(options) else {
+    let found = project(options)?;
+    let Some(file) = found.file() else {
         return Ok(None);
     };
     if file.file_name().and_then(|name| name.to_str()) != Some(FILE) {
         return Ok(None);
     }
-    Project::load(&file).map_err(|error| format!("{error:#}"))
+    Project::load(file).map_err(|error| format!("{error:#}"))
 }
 
 /// `rok gen`'s step: re-export the contract (not in a dry run), then emit
