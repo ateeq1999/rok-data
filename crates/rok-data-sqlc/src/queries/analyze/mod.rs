@@ -3,10 +3,13 @@
 //!
 //! Types are inferred only from contexts that determine them unambiguously:
 //! a comparison, `IN`, `= ANY`, `BETWEEN`, or `LIKE` against a known column;
-//! an `INSERT` value or `UPDATE … SET` target; `LIMIT`/`OFFSET`; and explicit
-//! casts. Anything else must be declared with `-- param:` or `-- column:`;
-//! the generator never guesses. A non-recursive, read-only CTE is analyzed
-//! like a `SELECT` and then acts as a table for the statement that follows.
+//! arithmetic with a numeric column; an `INSERT` value or `UPDATE … SET`
+//! target; `LIMIT`/`OFFSET`; and explicit casts. Anything else must be
+//! declared with `-- param:` or `-- column:`; the generator never guesses. A
+//! non-recursive, read-only CTE is analyzed like a `SELECT` and then acts as
+//! a table for the statement that follows. `UPDATE … FROM` and
+//! `DELETE … USING` see their target and the other tables together, like a
+//! join.
 
 mod conflict;
 mod params;
@@ -91,7 +94,9 @@ pub fn analyze_queries(
     let mut analyzed = Vec::new();
     let mut failures = Vec::new();
     let mut fn_names = HashSet::new();
-    for def in defs {
+    // A `-- rok:skip` query is left out on purpose: neither generated nor
+    // a failure.
+    for def in defs.iter().filter(|def| def.skip.is_none()) {
         let context = Context {
             tables,
             enums,

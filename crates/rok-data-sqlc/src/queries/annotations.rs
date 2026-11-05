@@ -7,9 +7,10 @@
 //! ```
 //!
 //! `-- name:` starts a query; `-- param:` and `-- column:` lines that follow
-//! it override inferred parameter and result-column types. Other full-line
-//! comments are dropped; everything else up to the next `-- name:` is the
-//! query's SQL.
+//! it override inferred parameter and result-column types, and
+//! `-- rok:skip [note]` leaves the query ungenerated on purpose. Other
+//! full-line comments are dropped; everything else up to the next
+//! `-- name:` is the query's SQL.
 
 use std::collections::HashSet;
 use std::fmt;
@@ -93,6 +94,9 @@ pub struct QueryDef {
     pub line: usize,
     pub params: Vec<ParamOverride>,
     pub columns: Vec<ColumnOverride>,
+    /// `-- rok:skip [note]`: the query is left ungenerated on purpose, with
+    /// the note as written (empty when there is none).
+    pub skip: Option<String>,
 }
 
 /// A query that cannot be generated, with the reason.
@@ -160,8 +164,15 @@ pub fn parse_query_file(text: &str) -> (Vec<QueryDef>, Vec<QueryFailure>) {
                     parse_param as fn(&str, &mut QueryDef) -> Result<(), String>,
                 ),
                 ("column:", parse_column),
+                ("rok:skip", parse_skip),
             ] {
-                if let Some(directive) = comment.strip_prefix(prefix) {
+                // `rok:skip` is a whole word, its note after a space.
+                let directive = comment.strip_prefix(prefix).filter(|rest| {
+                    prefix.ends_with(':')
+                        || rest.is_empty()
+                        || rest.starts_with(char::is_whitespace)
+                });
+                if let Some(directive) = directive {
                     match &mut pending {
                         Some(Pending {
                             def: Some(def),
@@ -270,6 +281,7 @@ fn start(header: &str, line: usize) -> Pending {
             line,
             params: Vec::new(),
             columns: Vec::new(),
+            skip: None,
         }),
         errors: Vec::new(),
         label,
@@ -339,6 +351,11 @@ fn parse_param(directive: &str, def: &mut QueryDef) -> Result<(), String> {
         rust_type: rust_type.map(str::to_owned),
         not_null,
     });
+    Ok(())
+}
+
+fn parse_skip(note: &str, def: &mut QueryDef) -> Result<(), String> {
+    def.skip = Some(note.to_owned());
     Ok(())
 }
 
@@ -467,6 +484,24 @@ mod tests {
             failures[0]
                 .reason
                 .contains("expected `-- param: $<N> <name>"),
+            "{failures:?}"
+        );
+    }
+
+    #[test]
+    fn rok_skip_marks_a_query_with_an_optional_note() {
+        let (queries, failures) = parse(
+            "-- name: Hand :one\n-- rok:skip written by hand in holds.rs\nSELECT 1;\n-- name: Bare :exec\n-- rok:skip\nSELECT 1;\n-- name: Kept :exec\nSELECT 1;",
+        );
+        assert!(failures.is_empty(), "{failures:?}");
+        let skips: Vec<Option<&str>> = queries.iter().map(|query| query.skip.as_deref()).collect();
+        assert_eq!(skips, [Some("written by hand in holds.rs"), Some(""), None]);
+
+        let (_, failures) = parse("-- rok:skip\n-- name: Q :exec\nSELECT 1;");
+        assert!(
+            failures[0]
+                .reason
+                .contains("`-- rok:skip` appears before any `-- name:`"),
             "{failures:?}"
         );
     }

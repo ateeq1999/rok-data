@@ -19,9 +19,23 @@ the *generated* API count as breaking (see ADR 0012).
   query always sets. `!` with a type (`-- param: $2 reviewer! Uuid`) is
   refused: write the type itself. `ParamOverride::rust_type` is an
   `Option`, and `ParamOverride::not_null` is new.
+- Typed queries support `UPDATE t SET … FROM a JOIN b …` and
+  `DELETE FROM t USING a, b …`, which failed as "not supported yet": a
+  column resolves across `t` and the other tables like a join, typing the
+  parameters and `RETURNING`. Joins in the target itself are still
+  refused, now saying to join in `FROM` / `USING`.
+- A placeholder in arithmetic with a numeric column takes the column's
+  type (`rooms_held + $2` is `i32`), as PostgreSQL types it. Other types
+  are not inferred (`held_at + $1` is an interval).
+- `-- rok:skip [note]` after a query's `-- name:` leaves it ungenerated on
+  purpose: not a failure in a strict run, and reported as a note
+  (``path:line: query `Name` left ungenerated (`-- rok:skip`: note)``).
+  `QueryDef::skip`, `Report::skipped_queries` and `SkippedQuery` are new.
 
 ### Changed
 
+- An ambiguous column names its candidates: "column `id` is ambiguous: it
+  could be `allocations.id` or `o.id`".
 - **Breaking (generated API):** a `BETWEEN` bound named by its column is
   `<column>_from` and `<column>_to` (`starts_on BETWEEN $2 AND $3` takes
   `starts_on_from`, `starts_on_to`), where they were `<column>` and
@@ -43,6 +57,9 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Fixed
 
+- A `RIGHT` or `FULL` join makes nullable only the tables joined before it
+  in the same `FROM` item, not those of another comma-separated item (or
+  an `UPDATE … FROM`'s target).
 - A foreign key whose column has neither an `_id` nor an
   `_<referenced column>` suffix names its relationship after the column
   and the referenced row: `offers.reviewed_by` referencing `users` gives

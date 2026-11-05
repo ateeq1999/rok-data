@@ -21,6 +21,15 @@ const SCHEMA: &str = "
         CREATE UNIQUE INDEX members_email_live ON members (email) WHERE deleted_at IS NULL;
         CREATE TABLE handles (id BIGSERIAL PRIMARY KEY, name TEXT NOT NULL);
         CREATE UNIQUE INDEX handles_name_ci ON handles (lower(name));
+        CREATE TABLE partners (id BIGSERIAL PRIMARY KEY, name TEXT NOT NULL, active BOOLEAN NOT NULL);
+        CREATE TABLE offers (id BIGSERIAL PRIMARY KEY, partner_id BIGINT NOT NULL REFERENCES partners (id), status TEXT NOT NULL);
+        CREATE TABLE allocations (
+            id BIGSERIAL PRIMARY KEY,
+            offer_id BIGINT NOT NULL REFERENCES offers (id),
+            rooms_held INTEGER NOT NULL,
+            rooms_total INTEGER NOT NULL,
+            held_at TIMESTAMPTZ
+        );
     ";
 
 fn analyze(queries: &str) -> (Vec<AnalyzedQuery>, Vec<QueryFailure>) {
@@ -233,6 +242,88 @@ fn a_type_free_override_needs_an_inferable_placeholder() {
     assert!(
         reason.contains("`-- param: $1 pattern <RustType>`"),
         "{reason}"
+    );
+}
+
+/// Karibu Pass's `HoldRooms`: an `UPDATE … FROM` with a join, typed like
+/// the equivalent join.
+const HOLD_ROOMS: &str = "UPDATE allocations SET rooms_held = rooms_held + $2, held_at = $3
+FROM offers o JOIN partners p ON p.id = o.partner_id
+WHERE o.id = allocations.offer_id AND allocations.id = $1 AND p.active AND o.status = $4
+  AND rooms_held + $2 <= rooms_total";
+
+#[test]
+fn update_from_resolves_columns_across_the_target_and_its_from_tables() {
+    let exec = one(&format!("-- name: HoldRooms :execrows\n{HOLD_ROOMS};"));
+    assert_eq!(
+        exec.params,
+        [
+            param(1, "id", "i64"),
+            param(2, "rooms_held", "i32"),
+            param(3, "held_at", "Option<chrono::DateTime<chrono::Utc>>"),
+            param(4, "status", "String"),
+        ]
+    );
+    assert_eq!(exec.result, ResultShape::None);
+
+    let returning = one(&format!(
+        "-- name: HoldRooms :maybe_one\n{HOLD_ROOMS}\nRETURNING allocations.id, rooms_held, o.status, p.name AS partner;"
+    ));
+    assert_eq!(returning.params, exec.params);
+    assert_eq!(
+        row_columns(&returning),
+        [
+            ("id", "i64"),
+            ("rooms_held", "i32"),
+            ("status", "String"),
+            ("partner", "String"),
+        ]
+    );
+}
+
+#[test]
+fn update_from_names_the_tables_of_an_ambiguous_column() {
+    let reason = failure(
+        "-- name: Q :exec\nUPDATE allocations SET rooms_held = 0 FROM offers o WHERE id = $1;",
+    );
+    assert!(reason.contains("column `id` is ambiguous"), "{reason}");
+    assert!(reason.contains("`allocations.id`"), "{reason}");
+    assert!(reason.contains("`o.id`"), "{reason}");
+}
+
+#[test]
+fn delete_using_resolves_columns_like_a_join() {
+    let query = one(
+        "-- name: DropRetired :many\nDELETE FROM allocations a USING offers o, partners p\nWHERE o.id = a.offer_id AND p.id = o.partner_id AND p.name = $1 AND o.status = $2\nRETURNING a.id, o.status;",
+    );
+    assert_eq!(
+        query.params,
+        [param(1, "name", "String"), param(2, "status", "String")]
+    );
+    assert_eq!(row_columns(&query), [("id", "i64"), ("status", "String")]);
+}
+
+#[test]
+fn a_rok_skip_query_is_neither_analyzed_nor_failed() {
+    let (analyzed, failures) = analyze(
+        "-- name: Untypeable :one\n-- rok:skip\nSELECT upper(name) FROM products;\n-- name: Kept :exec\nDELETE FROM products;",
+    );
+    assert!(failures.is_empty(), "{failures:?}");
+    let names: Vec<&str> = analyzed.iter().map(|query| query.name.as_str()).collect();
+    assert_eq!(names, ["Kept"]);
+}
+
+#[test]
+fn arithmetic_with_a_numeric_column_types_its_placeholder() {
+    let query = one(
+        "-- name: Q :exec\nUPDATE allocations SET rooms_held = rooms_total - $1 WHERE id = $2;",
+    );
+    assert_eq!(query.params[0], param(1, "rooms_total", "i32"));
+    // A timestamp plus a placeholder is a timestamp plus an interval: not
+    // settled by the column.
+    assert!(
+        failure("-- name: Q :exec\nUPDATE allocations SET held_at = held_at + $1;")
+            .contains("cannot infer the type of `$1`")
     );
 }
 

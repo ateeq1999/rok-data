@@ -24,6 +24,10 @@ impl<'a, 'c> Analysis<'a, 'c> {
                     self.compare(left, right)?;
                     self.compare(right, left)?;
                 }
+                if is_arithmetic(op) {
+                    self.arithmetic(left, right)?;
+                    self.arithmetic(right, left)?;
+                }
                 self.expr(left)?;
                 self.expr(right)
             }
@@ -120,6 +124,26 @@ impl<'a, 'c> Analysis<'a, 'c> {
             &column.sqlx_type,
             false,
         )
+    }
+
+    /// Types `value` from a numeric `column` it is added to, subtracted
+    /// from, multiplied or divided by: PostgreSQL takes the other operand's
+    /// type for the placeholder (`rooms_held + $2` is an `integer`). Other
+    /// types are left alone: a timestamp plus a placeholder is a timestamp
+    /// plus an interval. The plain type is used, never a typed id.
+    fn arithmetic(&mut self, column: &Expr, value: &Expr) -> Result<(), String> {
+        let Some(index) = placeholder(value) else {
+            return Ok(());
+        };
+        let Some(reference) = self.column_reference(column)? else {
+            return Ok(());
+        };
+        let column = self.reference_column(&reference);
+        if !is_numeric(&column.sqlx_type) {
+            return Ok(());
+        }
+        let (name, sqlx_type) = (column.rust_name.clone(), column.sqlx_type.clone());
+        self.assign(index, &name, &sqlx_type, &sqlx_type, false)
     }
 
     pub(super) fn typed_by_column(
@@ -302,6 +326,24 @@ fn is_comparison(op: &BinaryOperator) -> bool {
             | BinaryOperator::LtEq
             | BinaryOperator::Gt
             | BinaryOperator::GtEq
+    )
+}
+
+fn is_arithmetic(op: &BinaryOperator) -> bool {
+    matches!(
+        op,
+        BinaryOperator::Plus
+            | BinaryOperator::Minus
+            | BinaryOperator::Multiply
+            | BinaryOperator::Divide
+            | BinaryOperator::Modulo
+    )
+}
+
+fn is_numeric(sqlx_type: &str) -> bool {
+    matches!(
+        sqlx_type,
+        "i16" | "i32" | "i64" | "f32" | "f64" | "rust_decimal::Decimal"
     )
 }
 
