@@ -226,6 +226,50 @@ pub(super) async fn several_foreign_keys_to_one_table_get_distinct_names(pool: &
     assert_eq!(to_approve[&manager.id], vec![approved]);
 }
 
+/// `offers.created_by` and `offers.reviewed_by` have no `_id`: each
+/// relationship adds the referenced row's name (`created_by_user`,
+/// `reviewed_by_user`), and the inverses add those.
+pub(super) async fn foreign_keys_without_id_name_the_column_and_the_row(pool: &PgPool) {
+    use db::offers::models::NewOffer;
+    use db::offers::relationships::{load_created_by_user, load_reviewed_by_user};
+    use db::users::models::NewUser;
+    use db::users::relationships::load_offers_by_reviewed_by_user;
+
+    let user = async |email: &str| {
+        db::users::models::User::create(
+            pool,
+            NewUser {
+                email: email.to_owned(),
+            },
+        )
+        .await
+        .unwrap()
+    };
+    let seller = user("seller@example.com").await;
+    let reviewer = user("reviewer@example.com").await;
+    let offer = db::offers::models::Offer::create(
+        pool,
+        NewOffer {
+            created_by: seller.id,
+            reviewed_by: Some(reviewer.id),
+            price_cents: 500,
+        },
+    )
+    .await
+    .unwrap();
+    let offers = vec![offer.clone()];
+
+    let creators = load_created_by_user(pool, &offers).await.unwrap();
+    assert_eq!(creators[&seller.id], seller);
+    let reviewers = load_reviewed_by_user(pool, &offers).await.unwrap();
+    assert_eq!(reviewers[&reviewer.id], reviewer);
+    let reviewed = load_offers_by_reviewed_by_user(pool, &[seller.clone(), reviewer.clone()])
+        .await
+        .unwrap();
+    assert_eq!(reviewed[&reviewer.id], vec![offer]);
+    assert_eq!(reviewed[&seller.id], Vec::new());
+}
+
 /// A foreign key on a unique column is a has-one: one row per key.
 pub(super) async fn unique_foreign_key_loads_one_row(pool: &PgPool) {
     use db::user_profiles::models::NewUserProfile;

@@ -103,21 +103,25 @@ fn edges(tables: &[Table]) -> Vec<Edge> {
 /// The column without `_id` (`category_id` → `category`), or without the
 /// referenced column's name (`currency_code` referencing `code` →
 /// `currency`); a column named like the referenced one gives the referenced
-/// row's name (`user`), and any other column keeps its name.
+/// row's name (`user`). Any other column adds the referenced row's name
+/// (`reviewed_by` → `reviewed_by_user`): named like the column, the
+/// relationship would take the name of the search filter's field for it.
 fn belongs_to_name(column: &Column, parent_column: &Column, parent: &Table) -> String {
     let name = column.sql_name.to_snake_case();
     let referenced = parent_column.sql_name.to_snake_case();
+    let row = parent.struct_name.to_snake_case();
     if name == referenced {
-        return parent.struct_name.to_snake_case();
+        return row;
     }
     let stripped = name
         .strip_suffix("_id")
         .or_else(|| name.strip_suffix(&format!("_{referenced}")))
         .filter(|stripped| !stripped.is_empty());
-    match stripped {
-        Some(stripped) => rust_identifier(stripped).unwrap_or_else(|_| stripped.to_owned()),
-        None => column.rust_name.clone(),
-    }
+    let name = match stripped {
+        Some(stripped) => stripped.to_owned(),
+        None => format!("{name}_{row}"),
+    };
+    rust_identifier(&name).unwrap_or(name)
 }
 
 /// Whether `column` alone is a unique key of `table`, leaving out the

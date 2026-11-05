@@ -50,6 +50,14 @@ that it exists and won't ship a tag without it).
   (`migration::apply`) records the new checksum in its place.
   `docs/migration-guide.md` §To the next version says what to do for a
   file with mixed line endings.
+- A foreign key without `_id` names its relationship after the column
+  and the referenced row (rok-data-sqlc): `offers.reviewed_by` referencing
+  `users` gives `reviewed_by_user`, where the relationship was named
+  `reviewed_by` and `rok gen` failed on its collision with the search
+  filter's field for the column. Two such columns to one table
+  (`created_by`, `reviewed_by`) give two relationships; columns ending in
+  `_id` keep their names. A remaining collision names the
+  `[relationships]` entry that fixes it.
 
 ## [0.8.0] — the gRPC framework; `rok server update` and command examples
 

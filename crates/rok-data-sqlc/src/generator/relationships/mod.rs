@@ -43,9 +43,9 @@ pub fn infer(tables: &mut [Table], changes: &Changes, scope: Scope) -> Result<()
     for table in tables.iter() {
         check_names(table, &renamed)?;
         if scope == Scope::Run {
-            super::search::check_filter_fields(table, tables).map_err(|message| {
+            super::search::check_filter_fields(table, tables).map_err(|(name, message)| {
                 format!(
-                    "{message}; rename the relationship in {}",
+                    "{message}; rename the relationship in {}: `{name} = \"<new name>\"`",
                     location(&table.module_name, None)
                 )
             })?;

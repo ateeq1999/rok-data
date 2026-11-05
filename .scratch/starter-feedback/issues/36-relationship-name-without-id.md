@@ -6,8 +6,8 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `offers.reviewed_by UUID REFERENCES users (id)` generates, with `reviewed_by_user` (red first: today it fails)
-- [ ] `created_by` and `reviewed_by` to `users` give two relationships
-- [ ] Columns ending in `_id` keep today's names
+- [x] `offers.reviewed_by UUID REFERENCES users (id)` generates, with `reviewed_by_user` (red first: today it fails)
+- [x] `created_by` and `reviewed_by` to `users` give two relationships
+- [x] Columns ending in `_id` keep today's names
