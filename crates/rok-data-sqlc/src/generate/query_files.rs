@@ -8,7 +8,7 @@ use anyhow::{Context, bail};
 
 use super::read_text;
 use crate::queries::AnalyzedQuery;
-use crate::report::{QueryFailure, display_path};
+use crate::report::{QueryFailure, SkippedQuery, display_path};
 use crate::schema::Table;
 use crate::{generator, parser, queries};
 
@@ -101,6 +101,8 @@ fn query_module_name(path: &Path) -> anyhow::Result<String> {
 pub(super) struct AnalyzedFile {
     pub(super) queries: Vec<AnalyzedQuery>,
     pub(super) failures: Vec<QueryFailure>,
+    /// The queries marked `-- rok:skip`.
+    pub(super) skipped: Vec<SkippedQuery>,
     /// Each query's `-- name:` line, by query name.
     pub(super) lines: HashMap<String, usize>,
 }
@@ -160,9 +162,21 @@ pub(super) fn analyze_query_file(
             line: failure.line,
         })
         .collect();
+    let skipped = defs
+        .iter()
+        .filter_map(|def| {
+            def.skip.as_ref().map(|note| SkippedQuery {
+                query: def.name.clone(),
+                note: note.clone(),
+                path: path.to_path_buf(),
+                line: def.line,
+            })
+        })
+        .collect();
     Ok(AnalyzedFile {
         queries: analyzed,
         failures,
+        skipped,
         lines,
     })
 }

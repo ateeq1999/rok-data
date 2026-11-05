@@ -7,9 +7,10 @@
 //! ```
 //!
 //! `-- name:` starts a query; `-- param:` and `-- column:` lines that follow
-//! it override inferred parameter and result-column types. Other full-line
-//! comments are dropped; everything else up to the next `-- name:` is the
-//! query's SQL.
+//! it override inferred parameter and result-column types, and
+//! `-- rok:skip [note]` leaves the query ungenerated on purpose. Other
+//! full-line comments are dropped; everything else up to the next
+//! `-- name:` is the query's SQL.
 
 use std::collections::HashSet;
 use std::fmt;
@@ -62,12 +63,17 @@ impl ReturnMode {
     }
 }
 
-/// An explicit `-- param: $N name Type` override.
+/// An explicit `-- param:` override: `$N name Type` names and types the
+/// placeholder, `$N name` only names it, and `$N name!` names it and makes
+/// its inferred type not-null.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParamOverride {
     pub index: usize,
     pub name: String,
-    pub rust_type: String,
+    /// The type as written; `None` keeps the inferred one.
+    pub rust_type: Option<String>,
+    /// A trailing `!` on the name: the inferred type without its `Option`.
+    pub not_null: bool,
 }
 
 /// An explicit `-- column: name Type` override.
@@ -88,6 +94,9 @@ pub struct QueryDef {
     pub line: usize,
     pub params: Vec<ParamOverride>,
     pub columns: Vec<ColumnOverride>,
+    /// `-- rok:skip [note]`: the query is left ungenerated on purpose, with
+    /// the note as written (empty when there is none).
+    pub skip: Option<String>,
 }
 
 /// A query that cannot be generated, with the reason.
@@ -155,8 +164,15 @@ pub fn parse_query_file(text: &str) -> (Vec<QueryDef>, Vec<QueryFailure>) {
                     parse_param as fn(&str, &mut QueryDef) -> Result<(), String>,
                 ),
                 ("column:", parse_column),
+                ("rok:skip", parse_skip),
             ] {
-                if let Some(directive) = comment.strip_prefix(prefix) {
+                // `rok:skip` is a whole word, its note after a space.
+                let directive = comment.strip_prefix(prefix).filter(|rest| {
+                    prefix.ends_with(':')
+                        || rest.is_empty()
+                        || rest.starts_with(char::is_whitespace)
+                });
+                if let Some(directive) = directive {
                     match &mut pending {
                         Some(Pending {
                             def: Some(def),
@@ -265,6 +281,7 @@ fn start(header: &str, line: usize) -> Pending {
             line,
             params: Vec::new(),
             columns: Vec::new(),
+            skip: None,
         }),
         errors: Vec::new(),
         label,
@@ -296,12 +313,19 @@ fn finish(pending: Option<Pending>, queries: &mut Vec<QueryDef>, failures: &mut 
 }
 
 fn parse_param(directive: &str, def: &mut QueryDef) -> Result<(), String> {
-    let usage = "expected `-- param: $<N> <name> <RustType>`";
+    let usage =
+        "expected `-- param: $<N> <name> [<RustType>]` (or `<name>!` for a not-null inferred type)";
     let mut parts = directive.splitn(3, char::is_whitespace);
-    let (Some(placeholder), Some(name), Some(rust_type)) =
-        (parts.next(), parts.next(), parts.next())
-    else {
+    let (Some(placeholder), Some(name)) = (parts.next(), parts.next()) else {
         return Err(usage.to_owned());
+    };
+    let rust_type = parts
+        .next()
+        .map(str::trim)
+        .filter(|rust_type| !rust_type.is_empty());
+    let (name, not_null) = match name.strip_suffix('!') {
+        Some(name) => (name, true),
+        None => (name, false),
     };
     let index = placeholder
         .strip_prefix('$')
@@ -313,14 +337,25 @@ fn parse_param(directive: &str, def: &mut QueryDef) -> Result<(), String> {
             "parameter name `{name}` must be a snake_case identifier"
         ));
     }
+    if not_null && let Some(rust_type) = rust_type {
+        return Err(format!(
+            "`!` makes an inferred type not-null; with a type, write the type itself: `-- param: ${index} {name} {rust_type}`"
+        ));
+    }
     if def.params.iter().any(|param| param.index == index) {
         return Err(format!("`${index}` is overridden more than once"));
     }
     def.params.push(ParamOverride {
         index,
         name: name.to_owned(),
-        rust_type: rust_type.trim().to_owned(),
+        rust_type: rust_type.map(str::to_owned),
+        not_null,
     });
+    Ok(())
+}
+
+fn parse_skip(note: &str, def: &mut QueryDef) -> Result<(), String> {
+    def.skip = Some(note.to_owned());
     Ok(())
 }
 
@@ -400,7 +435,8 @@ mod tests {
             [ParamOverride {
                 index: 2,
                 name: "max_stock".to_owned(),
-                rust_type: "i32".to_owned()
+                rust_type: Some("i32".to_owned()),
+                not_null: false,
             }]
         );
         assert_eq!(
@@ -409,6 +445,64 @@ mod tests {
                 name: "total".to_owned(),
                 rust_type: "Option<i64>".to_owned()
             }]
+        );
+    }
+
+    #[test]
+    fn parses_type_free_and_not_null_param_overrides() {
+        let (queries, failures) =
+            parse("-- name: Q :many\n-- param: $1 from\n-- param: $2 reviewer!\nSELECT 1;");
+        assert!(failures.is_empty(), "{failures:?}");
+        assert_eq!(
+            queries[0].params,
+            [
+                ParamOverride {
+                    index: 1,
+                    name: "from".to_owned(),
+                    rust_type: None,
+                    not_null: false,
+                },
+                ParamOverride {
+                    index: 2,
+                    name: "reviewer".to_owned(),
+                    rust_type: None,
+                    not_null: true,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn rejects_a_bang_with_an_explicit_type_and_a_missing_name() {
+        let (_, failures) = parse("-- name: Q :many\n-- param: $1 reviewer! Uuid\nSELECT $1;");
+        assert!(
+            failures[0].reason.contains("`-- param: $1 reviewer Uuid`"),
+            "{failures:?}"
+        );
+        let (_, failures) = parse("-- name: Q :many\n-- param: $1\nSELECT $1;");
+        assert!(
+            failures[0]
+                .reason
+                .contains("expected `-- param: $<N> <name>"),
+            "{failures:?}"
+        );
+    }
+
+    #[test]
+    fn rok_skip_marks_a_query_with_an_optional_note() {
+        let (queries, failures) = parse(
+            "-- name: Hand :one\n-- rok:skip written by hand in holds.rs\nSELECT 1;\n-- name: Bare :exec\n-- rok:skip\nSELECT 1;\n-- name: Kept :exec\nSELECT 1;",
+        );
+        assert!(failures.is_empty(), "{failures:?}");
+        let skips: Vec<Option<&str>> = queries.iter().map(|query| query.skip.as_deref()).collect();
+        assert_eq!(skips, [Some("written by hand in holds.rs"), Some(""), None]);
+
+        let (_, failures) = parse("-- rok:skip\n-- name: Q :exec\nSELECT 1;");
+        assert!(
+            failures[0]
+                .reason
+                .contains("`-- rok:skip` appears before any `-- name:`"),
+            "{failures:?}"
         );
     }
 

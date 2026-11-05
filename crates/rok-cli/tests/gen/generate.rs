@@ -197,6 +197,54 @@ fn json_carries_the_untypeable_query() -> Result<()> {
     Ok(())
 }
 
+/// `-- rok:skip` leaves the query ungenerated on purpose: the strict run
+/// succeeds with a note, and `--json` lists it apart from failures.
+#[test]
+fn a_rok_skip_query_is_left_out_with_a_note() -> Result<()> {
+    let dir = expiry_project()?;
+    fs::write(
+        dir.path().join("queries/sessions.sql"),
+        EXPIRED_QUERY.replace(":one\n", ":one\n-- rok:skip written by hand\n"),
+    )?;
+    for args in [
+        &["gen", "--queries", "queries"][..],
+        &["gen", "check", "--queries", "queries"][..],
+    ] {
+        let output = run_in(dir.path(), args)?;
+        assert_success(&output);
+        let stderr = stderr(&output);
+        assert!(
+            stderr.contains(
+                "note: queries/sessions.sql:1: query `SessionExpiry` left ungenerated (`-- rok:skip`: written by hand)"
+            ),
+            "{args:?}: {stderr}"
+        );
+        assert!(!stderr.contains("error"), "{stderr}");
+    }
+    let queries = fs::read_to_string(dir.path().join("src/db/queries/sessions.rs"))?;
+    assert!(!queries.contains("session_expiry"), "{queries}");
+
+    let output = run_in(dir.path(), &["gen", "--queries", "queries", "--json"])?;
+    assert_success(&output);
+    let stdout = stdout(&output);
+    let body: serde_json::Value =
+        serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("{e}: {stdout}"));
+    assert_eq!(body["failures"], serde_json::json!([]), "{stdout}");
+    assert_eq!(body["skipped"], serde_json::json!([]), "{stdout}");
+    assert_eq!(
+        body["skipped_on_purpose"],
+        serde_json::json!([{
+            "kind": "query",
+            "name": "SessionExpiry",
+            "note": "written by hand",
+            "path": "queries/sessions.sql",
+            "line": 1,
+        }]),
+        "{stdout}"
+    );
+    Ok(())
+}
+
 /// A schema dir without a `.sql` file says so.
 #[test]
 fn an_empty_schema_dir_fails() -> Result<()> {
