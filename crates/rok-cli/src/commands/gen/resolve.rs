@@ -227,7 +227,7 @@ fn schema_inputs(entries: &[PathBuf]) -> Result<Vec<PathBuf>, String> {
             inputs.push(entry.clone());
             continue;
         }
-        let truth = rok_data_codegen::truth_files(entry).map_err(|e| e.to_string())?;
+        let truth = rok_data_codegen::truth_files(entry).map_err(crate::commands::chain)?;
         if truth.is_empty() {
             inputs.push(entry.clone());
         } else {

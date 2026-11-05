@@ -142,7 +142,7 @@ fn generate(options: GenOptions) -> Result<ExitCode, String> {
                 } else {
                     print_report(&run.settings, report, None, None);
                 }
-                return steps.fail(error.to_string(), bodies, multi);
+                return steps.fail(super::chain(&error), bodies, multi);
             }
         }
     }
@@ -186,7 +186,7 @@ fn check(options: GenOptions) -> Result<ExitCode, String> {
                 }
                 if !drift {
                     // Not a drift: the run failed for another reason.
-                    return print_bodies_then(bodies, multi, Err(error.to_string()));
+                    return print_bodies_then(bodies, multi, Err(super::chain(&error)));
                 }
                 findings.push(out_of_date_message(run));
                 continue;
@@ -321,7 +321,7 @@ fn stage(settings: &Settings) -> Result<Option<Staged>, String> {
         ));
     }
     let staged = rok_data_codegen::stage(&settings.stage_options(name, settings.engine.dry_run))
-        .map_err(|e| e.to_string())?;
+        .map_err(crate::commands::chain)?;
     Ok(Some(staged))
 }
 
@@ -378,7 +378,7 @@ impl Settings {
 /// failure. Any other staging problem fails the run with its message.
 fn staged_drift(settings: &Settings) -> Result<Option<Pending>, String> {
     let history = rok_data_codegen::existing_migrations(&settings.migrations_dir)
-        .map_err(|e| e.to_string())?;
+        .map_err(crate::commands::chain)?;
     let Some(base) = history.last().map(|migration| migration.stem.clone()) else {
         return Ok(None);
     };
@@ -386,7 +386,7 @@ fn staged_drift(settings: &Settings) -> Result<Option<Pending>, String> {
         match rok_data_codegen::stage(&settings.stage_options(PENDING_MIGRATION_NAME, true)) {
             Ok(staged) => staged,
             Err(error) if error.is_nothing_to_migrate() => return Ok(None),
-            Err(error) => return Err(error.to_string()),
+            Err(error) => return Err(crate::commands::chain(error)),
         };
     Ok(Some(Pending {
         base,

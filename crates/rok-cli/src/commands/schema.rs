@@ -11,6 +11,7 @@ use std::process::ExitCode;
 use rok_data::Db;
 use rok_data::migration_file;
 
+use crate::commands::chain;
 use crate::context;
 
 /// `rok schema dump`: approximate DDL for every user table.
@@ -21,9 +22,7 @@ pub(crate) async fn dump(database_url: Option<&str>) -> Result<ExitCode, String>
 }
 
 async fn dump_for(db: &Db) -> Result<ExitCode, String> {
-    let tables = rok_data::introspect::tables(db)
-        .await
-        .map_err(|e| e.to_string())?;
+    let tables = rok_data::introspect::tables(db).await.map_err(chain)?;
     if tables.is_empty() {
         println!("-- No user tables found in schema 'public'.");
         return Ok(ExitCode::SUCCESS);
@@ -32,7 +31,7 @@ async fn dump_for(db: &Db) -> Result<ExitCode, String> {
     for table in tables {
         let ddl = rok_data::introspect::dump_table(db, &table)
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(chain)?;
         println!();
         println!("{ddl}");
     }
@@ -48,7 +47,7 @@ pub(crate) async fn diff(dir: &Path, database_url: Option<&str>) -> Result<ExitC
     // Applied migrations — gracefully handle a never-migrated database.
     let applied = migration_file::applied_or_empty(&db)
         .await
-        .map_err(|e| e.to_string())?
+        .map_err(chain)?
         .into_iter()
         .map(|m| m.name)
         .collect::<Vec<_>>();

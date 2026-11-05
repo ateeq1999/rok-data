@@ -32,6 +32,14 @@ that it exists and won't ship a tag without it).
   for it. Each command prints one line on stderr naming the settings file
   and directories it read (`using App api: apps/api/rok-data-sqlc.toml
   (migrations apps/api/migrations)`). The rule is `rok_data_sqlc::Project`.
+- `rok` loads the App's `.env` for its database commands: `rok migrate
+  status|up|down`, `rok schema *` and `rok db *` read `apps/api/.env` (or
+  the `.env` beside a plain project's settings file), so `rok migrate up`
+  at a Monorepo root finds the App's `DATABASE_URL` without an `export`.
+  A variable already in the environment wins, the `using` line ends `,
+  loaded apps/api/.env` (`rok db *` and `rok schema dump` print `loaded
+  apps/api/.env`), and `--no-env-file` reads nothing. Since `rok db drop`
+  guards the database `DATABASE_URL` names, it now guards the `.env`'s too.
 
 **Fixed**
 
@@ -52,6 +60,16 @@ that it exists and won't ship a tag without it).
   `src/db`, not the `src/db` of the directory `rok gen` ran in; and a
   Monorepo's `rok gen --json` no longer prints the `api:` heading on
   stdout, so stdout is one JSON document.
+- Errors show their causes: the CLI prints an error with its whole chain,
+  so `rok gen` on a schema with a syntax error says `error: failed to
+  parse SQL schema: schema/0001_init.sql:2: invalid PostgreSQL SQL
+  syntax: <the parser's message>` instead of stopping at `failed to parse
+  SQL schema`. The same goes for `--json` runs and for the database
+  errors of `rok migrate *`, `rok db *` and `rok schema *`.
+- `rok sqlc check-arch` says it passed: a clean run prints `checked 3
+  features: no violations` on stdout (`, 2 warnings` added when
+  `--lenient` let layout violations through), where it printed nothing.
+  Its failures and exit codes are unchanged.
 - Casts keep nullability in generated queries (rok-data-sqlc, a change
   to the generated API). `count(*)::bigint AS owners` in a `:one` query
   is `i64`, where every cast was `Option`; a cast of a `NOT NULL` column

@@ -112,8 +112,23 @@ scaffolds), and their removal is deferred to 1.0.
   using --dir (migrations db/migrations)
   ```
 
-`rok schema dump` and `rok db *` read only the database URL
-(`--database-url`, else `DATABASE_URL`), so no project.
+`rok schema dump` and `rok db *` need no project, but find one the same
+way for its `.env` (below), and run without one.
+
+### The App's `.env`
+
+`rok migrate status|up|down`, `rok schema *` and `rok db *` load the
+`.env` of the App the rule finds (`apps/api/.env`), or the one beside a
+plain project's settings file, so its `DATABASE_URL` needs no `export`:
+
+- **Precedence:** a variable already in the environment wins over the
+  file's; `--database-url` wins over both.
+- **Report:** the `using` line ends `, loaded apps/api/.env`; `rok db *` and
+  `rok schema dump`, which have no `using` line, print `loaded
+  apps/api/.env`.
+- **Opting out:** `--no-env-file` reads nothing.
+- A `.env` with no project around it, or at a Monorepo root naming several
+  Apps, is not read.
 
 ## `rok init` — scaffold a project
 
@@ -996,7 +1011,9 @@ Apply the migrations first (`rok migrate up`): the queries are checked
 against the database as it is.
 
 
-`check-arch` prints each violation as `path:line: rule: message`. The rules
+`check-arch` prints each violation as `path:line: rule: message`; a run
+with none prints `checked 3 features: no violations` (with `, N warnings`
+when `--lenient` let layout violations through). The rules
 are the project's `AGENTS.md` six (the architecture guide states them):
 
 | Rule                  | Reports                                                                   |

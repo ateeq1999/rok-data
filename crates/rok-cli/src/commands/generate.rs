@@ -10,6 +10,7 @@ use std::process::ExitCode;
 use rok_data_codegen::{Rename, differences, write};
 
 use crate::cli::generate::{GenerateAction, GenerateOptions};
+use crate::commands::chain;
 use crate::config;
 use crate::context;
 
@@ -48,11 +49,11 @@ pub(crate) async fn generate(options: GenerateOptions) -> Result<ExitCode, Strin
         options.allow_destructive,
         options.strict,
     )?;
-    let generated = rok_data_codegen::generate(&gen_options).map_err(|e| e.to_string())?;
+    let generated = rok_data_codegen::generate(&gen_options).map_err(chain)?;
     for warning in &generated.warnings {
         eprintln!("warning: {warning}");
     }
-    let written = write(&gen_options, &generated).map_err(|e| e.to_string())?;
+    let written = write(&gen_options, &generated).map_err(chain)?;
     if let Some(name) = &generated.new_migration {
         println!("added migration `{name}`");
     }
@@ -78,7 +79,7 @@ pub(crate) async fn check(options: GenerateOptions) -> Result<ExitCode, String> 
         options.allow_destructive,
         options.strict,
     )?;
-    let generated = rok_data_codegen::generate(&gen_options).map_err(|e| e.to_string())?;
+    let generated = rok_data_codegen::generate(&gen_options).map_err(chain)?;
     for warning in &generated.warnings {
         eprintln!("warning: {warning}");
     }
