@@ -33,8 +33,7 @@ message CreateAccountRequest {
 
 message UpdateAccountRequest {
   string id = 1;
-  optional string email = 2;
-  optional string password_hash = 3;
+  optional string password_hash = 2;
 }
 
 message DeleteAccountRequest {

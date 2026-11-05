@@ -467,3 +467,41 @@ fn a_cursor_list_is_refused() -> Result<()> {
     assert!(error.contains("`plain` is in `api.cursor`"), "{error}");
     Ok(())
 }
+
+/// An immutable column (`[api.immutable]`) is set on create and never
+/// changed over gRPC, as over HTTP: the `Update` message has no field for
+/// it, and the service fills the update body's field naming it with
+/// `None`, so no update changes the column.
+#[test]
+fn an_immutable_column_is_not_in_the_update_message() -> Result<()> {
+    let project = Project::new(
+        "CREATE TABLE users (id BIGSERIAL PRIMARY KEY, email TEXT NOT NULL, name TEXT NOT NULL);",
+        &format!("{CONFIG}\n[api.immutable]\nusers = [\"email\"]\n"),
+    )?;
+    project.generate()?;
+
+    let proto = project.read("proto/users.proto")?;
+    let update = proto
+        .split("message UpdateUserRequest {\n")
+        .nth(1)
+        .and_then(|rest| rest.split("\n}\n").next())
+        .expect("the proto has the update message");
+    assert!(update.contains(" name = "), "{update}");
+    assert!(!update.contains("email"), "{update}");
+    let create = proto
+        .split("message CreateUserRequest {\n")
+        .nth(1)
+        .and_then(|rest| rest.split("\n}\n").next())
+        .expect("the proto has the create message");
+    assert!(create.contains(" email = "), "{create}");
+
+    let service = project.read("src/features/users/grpc.rs")?;
+    let update = service
+        .split("let input = validated(UpdateUserDto {\n")
+        .nth(1)
+        .and_then(|rest| rest.split("        })?;\n").next())
+        .expect("the service builds the update body");
+    assert!(update.contains("            email: None,\n"), "{update}");
+    assert!(update.contains("            name: "), "{update}");
+    Ok(())
+}

@@ -63,6 +63,21 @@ the *generated* API count as breaking (see ADR 0012).
   first, then their foreign keys) where the snapshot keeps it as
   written. The constant's doc comment says the tests run it.
 
+## Workspace 0.8.1 - 2026-11-04
+
+Published as `rok-data-sqlc` 0.8.1 with the workspace (root `CHANGELOG.md`).
+The release fixes the gRPC service of a feature with an immutable column;
+nothing else the engine generates changes from 0.8.0.
+
+### Fixed
+
+- Under `[api] framework = "grpc"`, a feature with an immutable column
+  (`[api.immutable]`) no longer generates a `grpc.rs` that fails to build
+  (`missing field` in the update body's initializer): the `Update` RPC
+  sets the body's field for the column to `None`. The `Update` message
+  still has no field for it, so the column stays unchangeable over gRPC,
+  as over HTTP (engine ADR 0028).
+
 ## Workspace 0.8.0 - 2026-11-03
 
 Published as `rok-data-sqlc` 0.8.0 with the workspace (root `CHANGELOG.md`).

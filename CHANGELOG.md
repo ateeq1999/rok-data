@@ -112,6 +112,15 @@ that it exists and won't ship a tag without it).
   `_id` keep their names. A remaining collision names the
   `[relationships]` entry that fixes it.
 
+## [0.8.1] — gRPC services compile with an immutable column
+
+**Fixed**
+
+- `[api] framework = "grpc"` with an `[api.immutable]` column now
+  generates code that compiles: the feature's `Update` RPC no longer
+  leaves out the update body's field for the column. The column stays
+  unchangeable over gRPC, as over HTTP.
+
 ## [0.8.0] — the gRPC framework; `rok server update` and command examples
 
 **Added**

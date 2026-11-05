@@ -56,6 +56,10 @@ fn generate_grpc_app() -> Result<Vec<PathBuf>> {
         .insert("accounts".into(), rok_data_sqlc::ApiAccess::Admin);
     api.hidden
         .insert("accounts".into(), vec!["password_hash".into()]);
+    // An account's email is set on create and never changed: the
+    // `UpdateAccountRequest` has no field for it.
+    api.immutable
+        .insert("accounts".into(), vec!["email".into()]);
     api.owner.insert("notes".into(), "owner_id".to_owned());
     config.api = Some(api);
 
