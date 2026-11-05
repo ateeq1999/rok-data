@@ -73,6 +73,12 @@ Date: 2026-11-03 · Status: accepted (implements workspace ADR 0030's generated-
   numbers. A list paged by cursor is refused: `List` pages by number.
   The field numbers still follow the column order, so a column added
   before others renumbers them — a wire-compatibility concern left open.
+- Settled with the per-column settings: they mean over gRPC what they
+  mean over HTTP. A hidden column (`[api.hidden]`) is in the create and
+  update messages but not the row message. An immutable column
+  (`[api.immutable]`) is in the create message and has no field in the
+  update message, so no RPC can name it; the service leaves the update
+  body's field for it, the one that rejects it over HTTP, at `None`.
 
 ## Considered Options
 
