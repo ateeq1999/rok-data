@@ -9,8 +9,10 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** 24
 
-**Status:** blocked
+**Status:** done
 
-- [ ] `rok migrate up` at a Monorepo root uses `apps/api/.env`'s `DATABASE_URL`
-- [ ] An exported `DATABASE_URL` overrides the file's
-- [ ] `--no-env-file` reads nothing
+- [x] `rok migrate up` at a Monorepo root uses `apps/api/.env`'s `DATABASE_URL`
+- [x] An exported `DATABASE_URL` overrides the file's
+- [x] `--no-env-file` reads nothing
+
+**Note (gen):** `rok gen` and `rok gen check` read no database today (staging a migration diffs the truth files against the snapshot), so there is no database step to load the `.env` for. When one is added, call `commands::env_file::load(env, Some(&target))` for its target and append `, loaded <file>` to its `using` line, as `commands::place::migrations_dir` does.

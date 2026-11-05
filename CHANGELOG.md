@@ -23,6 +23,14 @@ that it exists and won't ship a tag without it).
   for it. Each command prints one line on stderr naming the settings file
   and directories it read (`using App api: apps/api/rok-data-sqlc.toml
   (migrations apps/api/migrations)`). The rule is `rok_data_sqlc::Project`.
+- `rok` loads the App's `.env` for its database commands: `rok migrate
+  status|up|down`, `rok schema *` and `rok db *` read `apps/api/.env` (or
+  the `.env` beside a plain project's settings file), so `rok migrate up`
+  at a Monorepo root finds the App's `DATABASE_URL` without an `export`.
+  A variable already in the environment wins, the `using` line ends `,
+  loaded apps/api/.env` (`rok db *` and `rok schema dump` print `loaded
+  apps/api/.env`), and `--no-env-file` reads nothing. Since `rok db drop`
+  guards the database `DATABASE_URL` names, it now guards the `.env`'s too.
 
 **Fixed**
 

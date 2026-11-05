@@ -1689,6 +1689,7 @@ dependencies = [
  "chrono",
  "clap",
  "dirs",
+ "dotenvy",
  "keyring",
  "rok-data",
  "rok-data-codegen",
