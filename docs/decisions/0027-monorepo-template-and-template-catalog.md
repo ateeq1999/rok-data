@@ -83,3 +83,29 @@ Date: 2026-10-29 · Status: accepted (amends ADR 0022)
   folders included (about 1.5 MB together).
 - rok-templates gains code, not only data: the crate's "files and nothing
   else" doc and ADR 0022's "data only" no longer hold.
+
+## Amended 2026-11-03: each Client lives in its App
+
+The root `clients/` directory goes. A Client lives where the App that
+calls it keeps its data sources, by that App's own conventions:
+
+```text
+apps/web/src/lib/api/          the TypeScript Client, beside the hand-written client.ts
+apps/mobile/lib/app/data/api/  the Dart Client, under the repositories that use it
+apps/api/client/               the Rust Client, a crate: the API's tests prove it,
+                               and the desktop App's api provider wraps it
+```
+
+The TypeScript and Dart Clients are emitted as plain source directories
+(`layout = "sources"` on their `[clients]` entries: no README, manifest or
+`src/` level); the Rust Client stays a crate. The rest of an App reaches
+its Client only through a hand-written adapter that configures it.
+
+Why: a Client outside its App needed workarounds (the web App aliased
+TanStack Query to its own copy, because the Client sat where no
+`node_modules` was), was one more thing to copy when an App was taken
+elsewhere, and couldn't follow its App's layering. The Rust Client sits
+in the API, not the desktop App, because the API's tests depend on it and
+the API is never left out of a project. Existing projects are unaffected:
+`rok gen` reads the paths from `rok.toml`, and the plain-string
+`[clients]` form keeps the package layout.
