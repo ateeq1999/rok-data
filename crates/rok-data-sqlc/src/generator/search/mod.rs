@@ -68,8 +68,9 @@ pub fn filter_relationships<'a>(
 }
 
 /// Fails when a relationship filter field of `table` would be named like
-/// one of its column fields or its `include_deleted` switch.
-pub fn check_filter_fields(table: &Table, tables: &[Table]) -> Result<(), String> {
+/// one of its column fields or its `include_deleted` switch, giving the
+/// relationship's name and the message.
+pub fn check_filter_fields(table: &Table, tables: &[Table]) -> Result<(), (String, String)> {
     let relationships = filter_relationships(table, tables);
     if relationships.is_empty() {
         return Ok(());
@@ -97,10 +98,13 @@ pub fn check_filter_fields(table: &Table, tables: &[Table]) -> Result<(), String
     }
     for FilterRelationship { relationship, .. } in relationships {
         if let Some((_, field)) = fields.iter().find(|(name, _)| *name == relationship.name) {
-            return Err(format!(
-                "the `{}` relationship of `{}` collides with the search filter's {field}",
-                relationship.name,
-                table.display_name()
+            return Err((
+                relationship.name.clone(),
+                format!(
+                    "the `{}` relationship of `{}` collides with the search filter's {field}",
+                    relationship.name,
+                    table.display_name()
+                ),
             ));
         }
     }

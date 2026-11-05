@@ -65,8 +65,10 @@ impl Relations {
                         // attribute names nothing redundant.
                         Some(_) => format!("#[rok(belongs_to = {})]", other.struct_name),
                         // Any other edge (`currency_code` → `currency`, a
-                        // column named like the referenced row, a
-                        // multi-FK edge) states the name explicitly.
+                        // column named like the referenced row, a column
+                        // without `_id` (`reviewed_by` →
+                        // `reviewed_by_user`), a multi-FK edge) states the
+                        // name explicitly.
                         None => format!(
                             "#[rok(belongs_to({} = {}))]",
                             relationship.name, other.struct_name

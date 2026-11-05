@@ -420,7 +420,10 @@ page, per_page)` gives a page and its total in one round trip, and
 
 **Relationships.** Each foreign key between two tables generated together
 gives a belongs-to on the child (`category_id` gives `category`) and a has-many
-on the parent, named after the child module (`products`). If the foreign key
+on the parent, named after the child module (`products`). A column without
+`_id` adds the referenced row's name (`reviewed_by` referencing `users` gives
+`reviewed_by_user`), so the relationship doesn't take the name of the search
+filter's field for the column. If the foreign key
 column is unique, the parent gets a has-one instead. A `parent_id`
 self-reference gives `parent` and `children`. A join table (two `NOT NULL`
 foreign keys that together form a unique key) relates its two tables
