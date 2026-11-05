@@ -9,6 +9,8 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+## [0.8.1] — gRPC services compile with an immutable column
+
 **Fixed**
 
 - `[api] framework = "grpc"` with an `[api.immutable]` column now
