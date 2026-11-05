@@ -32,7 +32,7 @@ use self::results::result_shape;
 use super::annotations::{QueryDef, QueryFailure, ReturnMode};
 use crate::parser::TableFailure;
 use crate::parser::naming;
-use crate::schema::{EnumType, Table};
+use crate::schema::{EnumType, SqlFunction, Table};
 
 /// A bound parameter, in placeholder order.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -80,7 +80,8 @@ pub struct AnalyzedQuery {
 /// Analyzes each query against the schema.
 ///
 /// `tables` are all generatable tables, `enums` the generated enums (a cast
-/// to a database enum type infers it), `generated_modules` the resource
+/// to a database enum type infers it), `functions` the schema's functions (a
+/// call to one takes its `RETURNS` type), `generated_modules` the resource
 /// modules emitted in this run (whose row structs may be reused), and
 /// `unsupported` the tables the schema parser rejected, used to explain why a
 /// query referencing one of them cannot be generated.
@@ -88,6 +89,7 @@ pub fn analyze_queries(
     defs: &[QueryDef],
     tables: &[Table],
     enums: &[EnumType],
+    functions: &[SqlFunction],
     generated_modules: &HashSet<String>,
     unsupported: &[TableFailure],
 ) -> (Vec<AnalyzedQuery>, Vec<QueryFailure>) {
@@ -100,6 +102,7 @@ pub fn analyze_queries(
         let context = Context {
             tables,
             enums,
+            functions,
             unsupported,
             generated_modules,
         };
@@ -125,6 +128,8 @@ struct Context<'a> {
     tables: &'a [Table],
     /// The generated enums, for casts to an enum type.
     enums: &'a [EnumType],
+    /// The schema's functions, for calls to them.
+    functions: &'a [SqlFunction],
     unsupported: &'a [TableFailure],
     generated_modules: &'a HashSet<String>,
 }

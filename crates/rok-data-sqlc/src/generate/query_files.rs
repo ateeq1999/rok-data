@@ -148,6 +148,7 @@ pub(super) fn analyze_query_file(
         &defs,
         &tables,
         &parsed.schema.enums,
+        &parsed.schema.functions,
         &generated_modules,
         &parsed.failures,
     );

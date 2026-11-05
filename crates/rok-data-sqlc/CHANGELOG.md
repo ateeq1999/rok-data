@@ -13,6 +13,26 @@ the *generated* API count as breaking (see ADR 0012).
   the project it acts on (a Monorepo's App started inside, its App(s) at
   the root, or the nearest settings file), with `Target::migrations_dir`
   and `Target::using`, the line naming what a command read.
+- Everyday expressions in a query's result are typed, where they failed
+  to infer: comparisons, `BETWEEN`, `IN`, `LIKE`/`ILIKE`, `IS [NOT] NULL`,
+  `IS [NOT] DISTINCT FROM`, `AND`, `OR` and `NOT` are `bool`; arithmetic
+  takes its operands' shared type (integers widen, `numeric` wins over
+  integers); `CASE` takes the type its non-NULL branches share; `||` is
+  `String`; literals, `now()`, `current_timestamp` and `current_date` are
+  typed and never NULL. Each is `Option` when an operand can be NULL (an
+  `IS` test never is; a `CASE` without `ELSE` always can be), so
+  `expires_at <= now() AS expired` is `bool` on a `NOT NULL` column.
+  Operands it can't type, or types that don't combine, still fail with
+  the `-- column:` hint. The README's "Writing query files" has the
+  table.
+- A call to a function the schema dir defines is typed from its
+  `RETURNS`, and `Option` unless a `-- column:` override says otherwise:
+  `SELECT tz_today() AS today` is `Option<chrono::NaiveDate>` for
+  `CREATE FUNCTION tz_today() RETURNS date`. `Schema::functions` carries
+  each `CREATE FUNCTION`'s name, argument types and return type
+  (`SqlFunction`), after `CREATE OR REPLACE` and `DROP FUNCTION`, and
+  `analyze_queries` takes them. An unknown function, an unmapped return
+  type or overloads returning different types still fail with the hint.
 - `-- param: $2 from` renames a parameter and keeps its inferred type, and
   `-- param: $2 reviewer!` does that and drops the `Option` a nullable
   column gives it, for a value written to a nullable column that the
@@ -40,6 +60,9 @@ the *generated* API count as breaking (see ADR 0012).
   `<column>_from` and `<column>_to` (`starts_on BETWEEN $2 AND $3` takes
   `starts_on_from`, `starts_on_to`), where they were `<column>` and
   `<column>_2`. Other parameter names are unchanged.
+- **Breaking (generated API):** a cast of a literal in a query's result is
+  never NULL: `0::int AS depth` and `'active'::product_status` are `i32`
+  and `types::ProductStatus`, where they were `Option`.
 - **Breaking (generated API):** a cast in a query's result keeps the
   nullability of what it wraps, where every cast was `Option`.
   `count(*)::bigint` is `i64`; a cast of a `NOT NULL` column is its target

@@ -151,7 +151,7 @@ fn serde_rejects_interval_and_time_with_time_zone() -> Result<()> {
     assert!(!output.status.success());
     assert!(
         stderr.contains(
-            "column `span` of query `BlobSpans` maps to `Option<sqlx::postgres::types::PgInterval>`"
+            "column `span` of query `BlobSpans` maps to `sqlx::postgres::types::PgInterval`"
         ),
         "{stderr}"
     );

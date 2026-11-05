@@ -640,11 +640,46 @@ a `{Name}Row` struct.
 **A cast takes its target type and keeps the nullability of what it
 wraps.** `count(*)::bigint` is `i64`, and so is `stock::bigint` for a
 `NOT NULL` column `stock`, unless the column is on the outer side of a
-join. A cast of anything else, such as `sum(stock)::bigint` or `0::int`,
-is `Option`. `coalesce(x, <literal>)`, whose last argument is a literal
-other than `NULL`, is never NULL: it takes `x`'s type when `x` is a
-column, a cast or a `count`, and a cast of it is not `Option`
-(`coalesce(sum(stock), 0)::bigint` is `i64`).
+join; so is a cast literal (`0::int` is `i32`). A cast of anything else,
+such as `sum(stock)::bigint` or `$1::int`, is `Option`.
+`coalesce(x, <literal>)`, whose last argument is a literal other than
+`NULL`, is never NULL: it takes `x`'s type when the engine types `x`, and
+a cast of it is not `Option` (`coalesce(sum(stock), 0)::bigint` is `i64`).
+
+**Everyday expressions are typed, and NULL when an operand can be.** An
+expression is `Option` unless every operand is never NULL: a `NOT NULL`
+column off the outer side of a join, a literal, `count(…)`, a clock
+function, or such an expression itself. A parameter may be NULL.
+
+| Expression | Type |
+| --- | --- |
+| `=`, `<>`, `<`, `<=`, `>`, `>=`, `BETWEEN`, `IN (…)`, `LIKE`, `ILIKE`, `~`, `AND`, `OR`, `NOT` | `bool` |
+| `IS [NOT] NULL`, `IS [NOT] DISTINCT FROM`, `IS [NOT] TRUE` | `bool`, never NULL |
+| `+`, `-`, `*`, `/`, `%` | the operands' shared type: integers widen to the larger, `numeric` wins over integers, floats over `numeric` |
+| `CASE` | the type its non-NULL branches share (numeric ones widen as above); `Option` with a NULL branch or no `ELSE` |
+| `\|\|` | `String` |
+| `now()`, `current_timestamp` | `chrono::DateTime<chrono::Utc>`, never NULL |
+| `current_date` | `chrono::NaiveDate`, never NULL |
+| `localtimestamp`, `localtime` | `chrono::NaiveDateTime`, `chrono::NaiveTime`, never NULL |
+
+A literal is `i32`, `i64` when it doesn't fit, `numeric` with a decimal
+point, and a quoted string `String`. So `expires_at <= now() AS expired`
+is `bool` for a `NOT NULL` column `expires_at` and `Option<bool>` for a
+nullable one, and `price * 0.8` is `rust_decimal::Decimal`. Arithmetic
+uses a key column's plain type, not its typed id. An operand the engine
+can't type, or types that don't combine (`label + 1`, `expires_at -
+now()`, a `CASE` with a `text` and an `integer` branch), still fails with
+the `-- column:` hint.
+
+**A call to a function the schema defines takes its `RETURNS` type.** With
+`CREATE FUNCTION tz_today() RETURNS date …` in the schema,
+`SELECT tz_today() AS today` is `Option<chrono::NaiveDate>`: a function
+may return NULL, so the call is `Option` until a `-- column: today
+chrono::NaiveDate` override says it doesn't. An unqualified call matches
+the function in any schema, as a table name does. A function the schema
+doesn't define, a `RETURNS` type the engine doesn't map (`trigger`,
+`void`, `TABLE (…)`), or overloads returning different types fail with
+the hint.
 
 Where you know more than the inference, a `-- column: <name> <RustType>`
 override settles the type: `-- column: total i64` for `sum(stock)::bigint
