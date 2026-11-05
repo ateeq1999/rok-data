@@ -1101,7 +1101,8 @@ search_endpoint = true            # POST /search with per-field filters; off by 
 pagination      = "compact"       # the default; or "paginator" / "resource": a list's JSON shape
 cursor          = ["events"]      # tables whose list pages by cursor (`?cursor=`), not page number
 openapi         = true            # the default: utoipa schemas for the OpenAPI document
-exclude         = ["audit_log"]   # tables with no API feature
+exclude         = ["audit_log"]   # tables with no API feature (every other one is served)
+include         = ["projects"]    # or instead: the only tables served (setting both is an error)
 
 [api.skip]                   # by table: endpoints to leave out
 invoices = ["list", "get_one", "create", "update", "remove"]
@@ -1137,7 +1138,7 @@ handle = ["alphaNumeric(allowDashes)", "minLength(3)", { regex = "^[a-z0-9-]+$" 
 
 `[api]` configures the generated API features (engine ADR 0016). Without `output`
 (or `-a`), every other `[api]` key is ignored. Its single keys and
-`exclude` layer like the top-level keys; its table-keyed sections merge by
+`exclude` and `include` layer like the top-level keys; its table-keyed sections merge by
 table. A table key is the table's SQL, schema-qualified or module name. Each
 table it names must be generated and each column must exist, or the run
 fails naming the key, the table and the column (`api.owner.invoices`).

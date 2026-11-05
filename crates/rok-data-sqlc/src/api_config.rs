@@ -57,8 +57,13 @@ pub struct ApiConfig {
     /// data layer's types inside them. On by default; off, nothing
     /// generated mentions utoipa.
     pub openapi: bool,
-    /// Tables to generate no API feature for.
+    /// Tables to generate no API feature for. Every other table is served,
+    /// unless [`include`](Self::include) is set.
     pub exclude: Vec<String>,
+    /// The only tables to generate an API feature for: an allowlist, in
+    /// place of [`exclude`](Self::exclude) (setting both fails the run).
+    /// `None`, the default, serves every table not excluded.
+    pub include: Option<Vec<String>>,
     /// Endpoints to leave out, by table.
     pub skip: BTreeMap<String, Vec<ApiEndpoint>>,
     /// Route bases, by table: each starts with `/` and is unique. A table
@@ -105,6 +110,7 @@ impl ApiConfig {
             cursor: Vec::new(),
             openapi: true,
             exclude: Vec::new(),
+            include: None,
             skip: BTreeMap::new(),
             routes: BTreeMap::new(),
             access: BTreeMap::new(),
@@ -337,6 +343,27 @@ pub(crate) fn check(
             )
         })?;
         excluded.push(table);
+    }
+    if let Some(include) = &api.include {
+        if !api.exclude.is_empty() {
+            return Err(
+                "`api.include` and `api.exclude` are both set in the configuration; list the tables to serve in `include` or the ones to keep private in `exclude`, not both"
+                    .to_owned(),
+            );
+        }
+        let mut included = Vec::new();
+        for key in include {
+            included.push(find_table(tables, key).ok_or_else(|| {
+                format!(
+                    "`api.include` in the configuration names `{key}`, which is no generated table of the schema"
+                )
+            })?);
+        }
+        excluded.extend(
+            tables
+                .iter()
+                .filter(|table| !included.iter().any(|other| same(other, table))),
+        );
     }
     for key in api.skip.keys() {
         entry_table(tables, "skip", key)?;

@@ -9,7 +9,8 @@ OpenAPI document. Run `rok sqlc generate` after changing any of them.
 The [README's configuration reference](../../README.md#rok-data-sqlctoml) lists
 every key in one block. The same keys work in the JSON payload (`-j`), and
 the layers merge as the README describes: `[api]`'s single keys and
-`exclude` like the top-level keys, its table-keyed sections table by table.
+`exclude` and `include` like the top-level keys, its table-keyed sections
+table by table.
 
 ## Table keys
 
@@ -217,6 +218,35 @@ exclude = ["audit_log", "sessions"]
 Tables that get no feature. They stay in the data layer, so services can
 still read and write them through `crate::db`, and relationship routes to
 them are not generated.
+
+Every other table is served, so a table a migration adds gets routes on the
+next run. That run says so once, on stderr (and in the report's
+`newly_served`):
+
+```text
+warning: now serving `/api/v1/sessions` (list, create, get_one, update, remove); add `sessions` to `[api] exclude` to keep it private
+```
+
+A table is new to the API when its directory under `api.output` holds no
+generated `mod.rs` yet.
+
+Excluding a table that was served removes its generated feature files and,
+while it is still exactly as scaffolded, its `service.rs` and the folder. An
+edited `service.rs` stays (it is yours) and each run lists it as no longer
+wired in, until you move what you need and delete it.
+
+## `include`
+
+```toml
+[api]
+output = "src/features"
+include = ["projects", "tasks"]
+```
+
+The only tables that get a feature: an allowlist, for a project that would
+rather opt tables in than out. A new table stays private until it is
+named here. `include` and `exclude` say the same thing two ways, so setting
+both fails the run, naming both. Without either, every table is served.
 
 ## `access`
 

@@ -35,7 +35,7 @@ mod rules;
 mod schemas;
 mod scope;
 mod search;
-mod service;
+pub(super) mod service;
 pub mod shared;
 mod unique;
 
@@ -45,8 +45,8 @@ use self::feature::Endpoint;
 pub use self::feature::Feature;
 use self::framework::Framework;
 pub(crate) use self::layout::push_signature;
-use crate::ApiConfig;
 use crate::schema::Table;
+use crate::{ApiConfig, ServedFeature};
 
 /// The API features of `tables` (the run's tables, kept ones included), in
 /// table order, each with its relations to the others.
@@ -148,4 +148,28 @@ pub fn owned_dirs(api: &ApiConfig) -> [PathBuf; 3] {
         shared::shared_dir(api),
         proto::proto_dir(api),
     ]
+}
+
+/// The features `api` serves for `tables`, each with its module name, as
+/// [`ServedFeature`]s. A table whose feature fails to build is left out;
+/// planning the files reports that failure.
+pub fn served(tables: &[Table], api: &ApiConfig) -> Vec<(String, ServedFeature)> {
+    let grpc = api.framework == crate::ApiFramework::Grpc;
+    tables
+        .iter()
+        .filter_map(|table| Feature::of(table, api, tables).ok().flatten())
+        .map(|feature| {
+            let served = ServedFeature {
+                table: feature.table.display_name(),
+                route: (!grpc).then(|| feature.url.clone()),
+                endpoints: feature
+                    .endpoints
+                    .iter()
+                    .map(|endpoint| endpoint.config())
+                    .collect(),
+                included: api.include.is_some(),
+            };
+            (feature.module().to_owned(), served)
+        })
+        .collect()
 }

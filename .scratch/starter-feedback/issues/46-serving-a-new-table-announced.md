@@ -6,8 +6,8 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A new table prints the line once; the next run doesn't
-- [ ] `include` serves only the named tables; `include` + `exclude` fails
-- [ ] Docs: the configuring guide and the template READMEs mention `include`
+- [x] A new table prints the line once; the next run doesn't (first time = the feature directory under `api.output` holds no generated `mod.rs` before the run)
+- [x] `include` serves only the named tables; `include` + `exclude` fails
+- [x] Docs: the configuring guide and the template READMEs mention `include` (the engine README's reference, the CLI reference and the `init` skeleton's `rok-data-sqlc.toml`; the rok-templates READMEs live in that member repo)

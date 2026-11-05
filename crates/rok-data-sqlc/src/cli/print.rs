@@ -55,6 +55,16 @@ pub(super) fn print_report(config: &Config, report: &Report) {
     for warning in &report.warnings {
         eprintln!("warning: {warning}");
     }
+    for served in &report.newly_served {
+        eprintln!("warning: {served}");
+    }
+    for path in &report.unwired {
+        eprintln!(
+            "warning: {} is no longer wired in: its feature is no longer generated; \
+             delete it, or serve the table again",
+            display_path(path)
+        );
+    }
     for path in &report.written {
         if config.dry_run {
             println!("would write {}", display_path(path));

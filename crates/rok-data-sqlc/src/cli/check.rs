@@ -27,6 +27,13 @@ pub(super) fn check(
     for warning in &report.warnings {
         eprintln!("warning: {warning}");
     }
+    for path in &report.unwired {
+        eprintln!(
+            "warning: {} is no longer wired in: its feature is no longer generated; \
+             delete it, or serve the table again",
+            crate::report::display_path(path)
+        );
+    }
     println!(
         "generated code is up to date ({} files)",
         report.unchanged.len()

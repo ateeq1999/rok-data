@@ -471,7 +471,15 @@ fn openapi_off_warns_about_a_scaffolded_document() -> Result<()> {
     let dir = api_project(config)?;
     let output = run_binary_in(dir.path(), &["g"]);
     assert_success(&output);
-    assert!(!stderr(&output).contains("warning"), "{}", stderr(&output));
+    // The first run announces each table it starts serving, and warns of
+    // nothing else.
+    let first = stderr(&output);
+    assert!(
+        first
+            .lines()
+            .all(|line| line.starts_with("warning: now serving")),
+        "{first}"
+    );
 
     fs::write(
         dir.path().join("src/openapi.rs"),

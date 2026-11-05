@@ -9,6 +9,23 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+**Added**
+
+- `rok gen` announces a table the API serves for the first time, once,
+  on stderr: ``warning: now serving `/api/v1/posts` (list, create,
+  get_one, update, remove); add `posts` to `[api] exclude` to keep it
+  private``, and `--json` carries it in `newly_served`. Every table is
+  served by default, so a new migration's table no longer goes public
+  unnoticed. `[api] include` is the allowlist alternative to `exclude`
+  (setting both is an error naming both).
+- When a table's API feature is no longer generated (the table excluded
+  or dropped), `rok gen` removes its scaffolded `service.rs` and the
+  folder too while the file is still exactly as scaffolded (CRLF aside),
+  where it left an orphan no `mod` declared. An edited one stays and is
+  listed on stderr (`warning: src/features/users/service.rs is no longer
+  wired in: ...`) and in `--json`'s `unwired`; `rok gen check` reports
+  the unedited one as stale and lists the edited one without failing.
+
 **Changed**
 
 - Query parameter names (rok-data-sqlc): a `BETWEEN` bound is

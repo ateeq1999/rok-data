@@ -279,6 +279,7 @@ fn stale_features_and_shared_tools_are_removed_but_never_the_users_files() -> Re
     assert_eq!(fs::read_to_string(&service)?, "// mine now\n");
     assert!(mine.is_file() && own_tool.is_file());
     assert!(!report.stale.contains(&service));
+    assert_eq!(report.unwired, std::slice::from_ref(&service));
     assert!(project.path("src/features/articles/handlers.rs").is_file());
     assert!(!project.read("src/features/generated.rs")?.contains("posts"));
     Ok(())
@@ -521,5 +522,183 @@ fn an_immutable_column_is_created_but_never_updated() -> Result<()> {
         update.contains("pub email: Option<serde_json::Value>,"),
         "{update}"
     );
+    Ok(())
+}
+
+/// A table served for the first time (its feature directory held no
+/// generated `mod.rs` before the run) is reported once, with its route and
+/// endpoints; the next run serves it again without reporting it.
+#[test]
+fn a_table_served_for_the_first_time_is_reported_once() -> Result<()> {
+    let project = Project::new("CREATE TABLE users (id UUID PRIMARY KEY, email TEXT NOT NULL);\n")?;
+    let mut config = project.config();
+    let report = rok_data_sqlc::generate(&config)?;
+    let served: Vec<String> = report
+        .newly_served
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    assert_eq!(
+        served,
+        [
+            "now serving `/api/v1/users` (list, create, get_one, update, remove); \
+             add `users` to `[api] exclude` to keep it private"
+        ],
+    );
+    assert_eq!(report.newly_served[0].table, "users");
+    assert_eq!(
+        report.newly_served[0].route.as_deref(),
+        Some("/api/v1/users")
+    );
+
+    fs::write(
+        project.path("schema.sql"),
+        "CREATE TABLE users (id UUID PRIMARY KEY, email TEXT NOT NULL);\n\
+         CREATE TABLE posts (id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL);\n",
+    )?;
+    api(&mut config)
+        .skip
+        .insert("posts".into(), vec![ApiEndpoint::Remove]);
+    let report = rok_data_sqlc::generate(&config)?;
+    let served: Vec<&str> = report
+        .newly_served
+        .iter()
+        .map(|s| s.table.as_str())
+        .collect();
+    assert_eq!(served, ["posts"]);
+    assert_eq!(
+        report.newly_served[0].endpoints,
+        [
+            ApiEndpoint::List,
+            ApiEndpoint::Create,
+            ApiEndpoint::GetOne,
+            ApiEndpoint::Update
+        ]
+    );
+
+    let report = rok_data_sqlc::generate(&config)?;
+    assert!(report.newly_served.is_empty(), "{:?}", report.newly_served);
+    Ok(())
+}
+
+/// `[api] include` is an allowlist: only the tables it names get a feature,
+/// and the announcement says it names them.
+#[test]
+fn include_serves_only_the_named_tables() -> Result<()> {
+    let project = Project::new(SCHEMA)?;
+    let mut config = project.config();
+    api(&mut config).include = Some(vec!["posts".into()]);
+    let report = rok_data_sqlc::generate(&config)?;
+
+    assert!(project.path("src/features/posts/mod.rs").is_file());
+    for absent in ["users", "tags", "events", "post_tags"] {
+        assert!(!project.path(&format!("src/features/{absent}")).exists());
+    }
+    let served: Vec<String> = report
+        .newly_served
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    assert_eq!(
+        served,
+        [
+            "now serving `/api/v1/posts` (list, create, get_one, update, remove); \
+          `[api] include` names `posts`"
+        ]
+    );
+    Ok(())
+}
+
+/// `include` and `exclude` are two ways to say the same thing; setting both
+/// is a configuration error naming both, and so is an `include` entry that
+/// names no table.
+#[test]
+fn include_and_exclude_together_fail() -> Result<()> {
+    let project = Project::new(SCHEMA)?;
+    let mut config = project.config();
+    api(&mut config).include = Some(vec!["posts".into()]);
+    api(&mut config).exclude = vec!["tags".into()];
+    let error = rok_data_sqlc::generate(&config).unwrap_err().to_string();
+    assert!(
+        error.contains("`api.include`") && error.contains("`api.exclude`"),
+        "{error}"
+    );
+    assert!(!project.path("src/features").exists());
+
+    api(&mut config).exclude.clear();
+    api(&mut config).include = Some(vec!["nope".into()]);
+    let error = rok_data_sqlc::generate(&config).unwrap_err().to_string();
+    assert!(
+        error.contains("`api.include`") && error.contains("`nope`"),
+        "{error}"
+    );
+    Ok(())
+}
+
+/// A feature no longer generated (its table excluded, or dropped) loses its
+/// `service.rs` too while it is still as scaffolded, and the folder with
+/// it; an edited one stays, listed as no longer wired in. A check reports
+/// the first as stale and lists the second.
+#[test]
+fn a_feature_no_longer_generated_loses_its_unedited_service() -> Result<()> {
+    let project = Project::new(SCHEMA)?;
+    let mut config = project.config();
+    rok_data_sqlc::generate(&config)?;
+    let (tags, events) = (
+        project.path("src/features/tags/service.rs"),
+        project.path("src/features/events/service.rs"),
+    );
+    // A checkout with CRLF line endings still holds the scaffolded text.
+    let scaffolded = fs::read_to_string(&tags)?;
+    fs::write(&tags, scaffolded.replace('\n', "\r\n"))?;
+    fs::write(&events, "// mine now\n")?;
+
+    api(&mut config).exclude = vec!["tags".into(), "events".into()];
+    let mut check = config.clone();
+    check.check = true;
+    let error = rok_data_sqlc::generate(&check).unwrap_err();
+    assert!(error.report().stale.contains(&tags), "{error:?}");
+    assert!(!error.report().stale.contains(&events), "{error:?}");
+    assert_eq!(error.report().unwired, std::slice::from_ref(&events));
+    assert!(tags.is_file());
+
+    let report = rok_data_sqlc::generate(&config)?;
+    assert!(report.stale.contains(&tags), "{report:?}");
+    assert!(!project.path("src/features/tags").exists());
+    assert_eq!(report.unwired, std::slice::from_ref(&events));
+    assert_eq!(fs::read_to_string(&events)?, "// mine now\n");
+    assert!(!project.path("src/features/events/mod.rs").exists());
+
+    // The leftover stays listed on later runs, until it is deleted.
+    let report = rok_data_sqlc::generate(&config)?;
+    assert_eq!(report.unwired, std::slice::from_ref(&events));
+    fs::remove_file(&events)?;
+    let report = rok_data_sqlc::generate(&config)?;
+    assert!(report.unwired.is_empty());
+    Ok(())
+}
+
+/// A dropped table's unedited `service.rs` goes too; a hand-written
+/// feature's, beside its own `mod.rs`, is never touched or listed.
+#[test]
+fn a_dropped_tables_service_goes_but_a_hand_written_feature_stays() -> Result<()> {
+    let project = Project::new(SCHEMA)?;
+    let config = project.config();
+    rok_data_sqlc::generate(&config)?;
+    let own = project.path("src/features/billing");
+    fs::create_dir_all(&own)?;
+    fs::write(own.join("mod.rs"), "pub mod service;\n")?;
+    fs::write(own.join("service.rs"), "pub struct BillingService;\n")?;
+
+    fs::write(
+        project.path("schema.sql"),
+        SCHEMA.replace("CREATE TABLE events (kind TEXT NOT NULL);\n", ""),
+    )?;
+    let report = rok_data_sqlc::generate(&config)?;
+    let events = project.path("src/features/events/service.rs");
+    assert!(report.stale.contains(&events), "{report:?}");
+    assert!(!project.path("src/features/events").exists());
+    assert!(report.unwired.is_empty(), "{report:?}");
+    assert!(own.join("service.rs").is_file());
     Ok(())
 }

@@ -119,14 +119,19 @@ pub struct Feature<'a> {
 
 impl<'a> Feature<'a> {
     /// The feature of `table` (one of `tables`) under `api`, or `None` when
-    /// the table has no API: it is excluded, or a join table. Its
-    /// relations are left empty. Fails on a list with nothing to sort by.
+    /// the table has no API: it is excluded (or `include` leaves it out),
+    /// or a join table. Its relations are left empty. Fails on a list with
+    /// nothing to sort by.
     pub fn of(
         table: &'a Table,
         api: &'a ApiConfig,
         tables: &'a [Table],
     ) -> Result<Option<Self>, String> {
-        let excluded = api.exclude.iter().any(|key| names(table, key));
+        let excluded = api.exclude.iter().any(|key| names(table, key))
+            || api
+                .include
+                .as_ref()
+                .is_some_and(|include| !include.iter().any(|key| names(table, key)));
         if excluded || join_pair(table).is_some() {
             return Ok(None);
         }
