@@ -13,9 +13,19 @@ the *generated* API count as breaking (see ADR 0012).
   the project it acts on (a Monorepo's App started inside, its App(s) at
   the root, or the nearest settings file), with `Target::migrations_dir`
   and `Target::using`, the line naming what a command read.
+- `-- param: $2 from` renames a parameter and keeps its inferred type, and
+  `-- param: $2 reviewer!` does that and drops the `Option` a nullable
+  column gives it, for a value written to a nullable column that the
+  query always sets. `!` with a type (`-- param: $2 reviewer! Uuid`) is
+  refused: write the type itself. `ParamOverride::rust_type` is an
+  `Option`, and `ParamOverride::not_null` is new.
 
 ### Changed
 
+- **Breaking (generated API):** a `BETWEEN` bound named by its column is
+  `<column>_from` and `<column>_to` (`starts_on BETWEEN $2 AND $3` takes
+  `starts_on_from`, `starts_on_to`), where they were `<column>` and
+  `<column>_2`. Other parameter names are unchanged.
 - **Breaking (generated API):** a cast in a query's result keeps the
   nullability of what it wraps, where every cast was `Option`.
   `count(*)::bigint` is `i64`; a cast of a `NOT NULL` column is its target

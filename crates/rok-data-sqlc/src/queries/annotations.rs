@@ -62,12 +62,17 @@ impl ReturnMode {
     }
 }
 
-/// An explicit `-- param: $N name Type` override.
+/// An explicit `-- param:` override: `$N name Type` names and types the
+/// placeholder, `$N name` only names it, and `$N name!` names it and makes
+/// its inferred type not-null.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParamOverride {
     pub index: usize,
     pub name: String,
-    pub rust_type: String,
+    /// The type as written; `None` keeps the inferred one.
+    pub rust_type: Option<String>,
+    /// A trailing `!` on the name: the inferred type without its `Option`.
+    pub not_null: bool,
 }
 
 /// An explicit `-- column: name Type` override.
@@ -296,12 +301,19 @@ fn finish(pending: Option<Pending>, queries: &mut Vec<QueryDef>, failures: &mut 
 }
 
 fn parse_param(directive: &str, def: &mut QueryDef) -> Result<(), String> {
-    let usage = "expected `-- param: $<N> <name> <RustType>`";
+    let usage =
+        "expected `-- param: $<N> <name> [<RustType>]` (or `<name>!` for a not-null inferred type)";
     let mut parts = directive.splitn(3, char::is_whitespace);
-    let (Some(placeholder), Some(name), Some(rust_type)) =
-        (parts.next(), parts.next(), parts.next())
-    else {
+    let (Some(placeholder), Some(name)) = (parts.next(), parts.next()) else {
         return Err(usage.to_owned());
+    };
+    let rust_type = parts
+        .next()
+        .map(str::trim)
+        .filter(|rust_type| !rust_type.is_empty());
+    let (name, not_null) = match name.strip_suffix('!') {
+        Some(name) => (name, true),
+        None => (name, false),
     };
     let index = placeholder
         .strip_prefix('$')
@@ -313,13 +325,19 @@ fn parse_param(directive: &str, def: &mut QueryDef) -> Result<(), String> {
             "parameter name `{name}` must be a snake_case identifier"
         ));
     }
+    if not_null && let Some(rust_type) = rust_type {
+        return Err(format!(
+            "`!` makes an inferred type not-null; with a type, write the type itself: `-- param: ${index} {name} {rust_type}`"
+        ));
+    }
     if def.params.iter().any(|param| param.index == index) {
         return Err(format!("`${index}` is overridden more than once"));
     }
     def.params.push(ParamOverride {
         index,
         name: name.to_owned(),
-        rust_type: rust_type.trim().to_owned(),
+        rust_type: rust_type.map(str::to_owned),
+        not_null,
     });
     Ok(())
 }
@@ -400,7 +418,8 @@ mod tests {
             [ParamOverride {
                 index: 2,
                 name: "max_stock".to_owned(),
-                rust_type: "i32".to_owned()
+                rust_type: Some("i32".to_owned()),
+                not_null: false,
             }]
         );
         assert_eq!(
@@ -409,6 +428,46 @@ mod tests {
                 name: "total".to_owned(),
                 rust_type: "Option<i64>".to_owned()
             }]
+        );
+    }
+
+    #[test]
+    fn parses_type_free_and_not_null_param_overrides() {
+        let (queries, failures) =
+            parse("-- name: Q :many\n-- param: $1 from\n-- param: $2 reviewer!\nSELECT 1;");
+        assert!(failures.is_empty(), "{failures:?}");
+        assert_eq!(
+            queries[0].params,
+            [
+                ParamOverride {
+                    index: 1,
+                    name: "from".to_owned(),
+                    rust_type: None,
+                    not_null: false,
+                },
+                ParamOverride {
+                    index: 2,
+                    name: "reviewer".to_owned(),
+                    rust_type: None,
+                    not_null: true,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn rejects_a_bang_with_an_explicit_type_and_a_missing_name() {
+        let (_, failures) = parse("-- name: Q :many\n-- param: $1 reviewer! Uuid\nSELECT $1;");
+        assert!(
+            failures[0].reason.contains("`-- param: $1 reviewer Uuid`"),
+            "{failures:?}"
+        );
+        let (_, failures) = parse("-- name: Q :many\n-- param: $1\nSELECT $1;");
+        assert!(
+            failures[0]
+                .reason
+                .contains("expected `-- param: $<N> <name>"),
+            "{failures:?}"
         );
     }
 

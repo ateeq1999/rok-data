@@ -546,8 +546,8 @@ A query file holds SQL statements, each starting with a `-- name:` line:
 
 ```text
 -- name: <Name> :<mode>
--- param: $<n> <name> <RustType>     (optional, repeatable)
--- column: <name> <RustType>        (optional, repeatable)
+-- param: $<n> <name>[!] [<RustType>] (optional, repeatable)
+-- column: <name> <RustType>          (optional, repeatable)
 <one SQL statement>
 ```
 
@@ -576,6 +576,22 @@ are:
 
 A placeholder anywhere else fails generation. The error names the fix, a
 `-- param:` override.
+
+**Parameter names come from the column.** A parameter takes the name of
+the column that types it (`_list` for `= ANY`, `param_<n>` for a bare
+cast), and a second one with the same name gets `_2`, `_3`. `BETWEEN`'s
+bounds are `<column>_from` and `<column>_to`. A `-- param:` override
+comes in three forms:
+
+- `-- param: $2 since` names the parameter `since` and keeps its inferred
+  type;
+- `-- param: $2 reviewer!` names it `reviewer` and keeps its inferred type
+  without the `Option` a nullable column gives it;
+- `-- param: $2 reviewer Uuid` names it and takes `Uuid` as written.
+
+`!` is for a value written to a nullable column that the query always
+sets, as in `UPDATE offers SET reviewed_by = $2`. It can't go with a
+written type, which is used as is.
 
 **Keys keep their typed ids.** A parameter typed by a primary key or foreign
 key column takes that table's typed id, and so does a result column taken

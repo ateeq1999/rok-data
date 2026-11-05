@@ -11,7 +11,7 @@ use sqlparser::ast::{
 
 use super::{Analysis, Param, Slot};
 use crate::parser::postgres::map_type;
-use crate::queries::annotations::QueryDef;
+use crate::queries::annotations::{ParamOverride, QueryDef};
 use crate::schema::Column;
 
 impl<'a, 'c> Analysis<'a, 'c> {
@@ -52,8 +52,8 @@ impl<'a, 'c> Analysis<'a, 'c> {
             Expr::Between {
                 expr, low, high, ..
             } => {
-                self.compare(expr, low)?;
-                self.compare(expr, high)?;
+                self.compare_named(expr, low, "_from")?;
+                self.compare_named(expr, high, "_to")?;
                 self.expr(expr)?;
                 self.expr(low)?;
                 self.expr(high)
@@ -100,6 +100,12 @@ impl<'a, 'c> Analysis<'a, 'c> {
     /// Types `value` from `column` when `value` is a placeholder and `column`
     /// a column reference.
     fn compare(&mut self, column: &Expr, value: &Expr) -> Result<(), String> {
+        self.compare_named(column, value, "")
+    }
+
+    /// [`Self::compare`], naming the placeholder after the column with
+    /// `suffix` (`_from` and `_to` for `BETWEEN`'s bounds).
+    fn compare_named(&mut self, column: &Expr, value: &Expr, suffix: &str) -> Result<(), String> {
         let Some(index) = placeholder_or_cast(value) else {
             return Ok(());
         };
@@ -109,7 +115,7 @@ impl<'a, 'c> Analysis<'a, 'c> {
         let column = self.reference_column(&reference).clone();
         self.assign(
             index,
-            &column.rust_name,
+            &format!("{}{suffix}", column.rust_name),
             column.value_type(),
             &column.sqlx_type,
             false,
@@ -224,21 +230,28 @@ impl<'a, 'c> Analysis<'a, 'c> {
                     "`${index}` is never used, but `${highest}` is; PostgreSQL cannot infer the type of an unused placeholder"
                 ));
             }
-            let (name, rust_type) = if let Some(override_) =
-                def.params.iter().find(|override_| override_.index == index)
-            {
-                (override_.name.clone(), override_.rust_type.clone())
-            } else if let Some(slot) = self.slots.get(&index) {
-                let rust_type = if slot.nullable {
-                    format!("Option<{}>", slot.base)
-                } else {
-                    slot.base.clone()
-                };
-                (slot.name.clone(), rust_type)
-            } else {
-                return Err(format!(
-                    "cannot infer the type of `${index}` from its context; add `-- param: ${index} <name> <RustType>`"
-                ));
+            let override_ = def.params.iter().find(|override_| override_.index == index);
+            let slot = self.slots.get(&index);
+            let (name, rust_type) = match (override_, slot) {
+                (
+                    Some(ParamOverride {
+                        name,
+                        rust_type: Some(rust_type),
+                        ..
+                    }),
+                    _,
+                ) => (name.clone(), rust_type.clone()),
+                (Some(override_), Some(slot)) => (
+                    override_.name.clone(),
+                    slot_type(slot, slot.nullable && !override_.not_null),
+                ),
+                (None, Some(slot)) => (slot.name.clone(), slot_type(slot, slot.nullable)),
+                (override_, None) => {
+                    let name = override_.map_or("<name>", |override_| &override_.name);
+                    return Err(format!(
+                        "cannot infer the type of `${index}` from its context; add `-- param: ${index} {name} <RustType>`"
+                    ));
+                }
             };
             let name = unique_name(&name, &mut names);
             params.push(Param {
@@ -248,6 +261,15 @@ impl<'a, 'c> Analysis<'a, 'c> {
             });
         }
         Ok(params)
+    }
+}
+
+/// A slot's Rust type, wrapped in `Option` when `nullable`.
+fn slot_type(slot: &Slot, nullable: bool) -> String {
+    if nullable {
+        format!("Option<{}>", slot.base)
+    } else {
+        slot.base.clone()
     }
 }
 

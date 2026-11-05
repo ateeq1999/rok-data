@@ -131,8 +131,8 @@ fn infers_params_from_in_any_between_like_and_casts() {
         query.params,
         [
             param(1, "sku", "String"),
-            param(2, "stock", "i32"),
-            param(3, "stock_2", "i32"),
+            param(2, "stock_from", "i32"),
+            param(3, "stock_to", "i32"),
             param(4, "category_id", "i64"),
             param(5, "category_id_2", "i64"),
             param(6, "id_list", "Vec<uuid::Uuid>"),
@@ -168,6 +168,72 @@ fn update_set_and_upsert_assignments_are_typed() {
         "-- name: Upsert :exec\nINSERT INTO products (id, sku, name, category_id) VALUES ($1, $2, $3, $4)\nON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, stock = $5;",
     );
     assert_eq!(upsert.params[4], param(5, "stock", "i32"));
+}
+
+#[test]
+fn between_bounds_are_named_from_and_to() {
+    let query = one(
+        "-- name: InStock :many\nSELECT id FROM products WHERE stock BETWEEN $1 AND $2 AND stock NOT BETWEEN $3 AND $4::int;",
+    );
+    assert_eq!(
+        query.params,
+        [
+            param(1, "stock_from", "i32"),
+            param(2, "stock_to", "i32"),
+            param(3, "stock_from_2", "i32"),
+            param(4, "stock_to_2", "i32"),
+        ]
+    );
+}
+
+#[test]
+fn a_param_override_without_a_type_renames_and_keeps_the_inferred_type() {
+    let query = one(
+        "-- name: InStock :many\n-- param: $1 from\n-- param: $2 to\nSELECT id FROM products WHERE category_id = $3 AND stock BETWEEN $1 AND $2;",
+    );
+    assert_eq!(
+        query.params,
+        [
+            param(1, "from", "i32"),
+            param(2, "to", "i32"),
+            param(3, "category_id", "i64"),
+        ]
+    );
+}
+
+#[test]
+fn a_bang_marks_a_nullable_columns_param_not_null() {
+    let query = one(
+        "-- name: Annotate :exec\n-- param: $2 note!\n-- param: $3 memo!\nUPDATE products SET note = $2 WHERE id = $1 AND note <> $3;",
+    );
+    assert_eq!(
+        query.params,
+        [
+            param(1, "id", "uuid::Uuid"),
+            param(2, "note", "String"),
+            param(3, "memo", "String"),
+        ]
+    );
+    let typed_id = one(
+        "-- name: Reparent :exec\n-- param: $1 parent!\nUPDATE nodes SET parent_id = $1 WHERE id = $2;",
+    );
+    assert_eq!(typed_id.params[0].name, "parent");
+    assert!(
+        !typed_id.params[0].rust_type.starts_with("Option<"),
+        "{:?}",
+        typed_id.params
+    );
+}
+
+#[test]
+fn a_type_free_override_needs_an_inferable_placeholder() {
+    let reason = failure(
+        "-- name: Q :many\n-- param: $1 pattern\nSELECT id FROM products WHERE lower(name) = lower($1);",
+    );
+    assert!(
+        reason.contains("`-- param: $1 pattern <RustType>`"),
+        "{reason}"
+    );
 }
 
 #[test]

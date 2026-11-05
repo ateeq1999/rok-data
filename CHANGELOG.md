@@ -11,6 +11,12 @@ that it exists and won't ship a tag without it).
 
 **Changed**
 
+- Query parameter names (rok-data-sqlc): a `BETWEEN` bound is
+  `<column>_from` / `<column>_to` (was `<column>` / `<column>_2`);
+  `-- param: $2 from` renames without restating the type, and
+  `-- param: $2 reviewer!` also makes a nullable column's value required
+  (`Uuid`, not `Option<Uuid>`).
+
 - `rok gen` and `rok gen check` fail on a table or query they can't
   generate, where they skipped it with a warning that scrolled past. A
   query whose result column can't be typed (`expires_at <= now() AS
