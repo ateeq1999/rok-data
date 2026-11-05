@@ -52,6 +52,13 @@ that it exists and won't ship a tag without it).
   `src/db`, not the `src/db` of the directory `rok gen` ran in; and a
   Monorepo's `rok gen --json` no longer prints the `api:` heading on
   stdout, so stdout is one JSON document.
+- Casts keep nullability in generated queries (rok-data-sqlc, a change
+  to the generated API). `count(*)::bigint AS owners` in a `:one` query
+  is `i64`, where every cast was `Option`; a cast of a `NOT NULL` column
+  is not `Option` unless the column is on the outer side of a join; and
+  `coalesce(x, <literal>)` is never NULL. Any other cast stays `Option`,
+  and a `-- column:` override settles what inference can't (the engine's
+  README, "Writing query files").
 - Line endings don't change migrations. Migration staging (`rok gen
   --migration`) normalises CRLF to LF in the truth files and in the
   `.rok-schema.json` snapshot before comparing, as the engine does with

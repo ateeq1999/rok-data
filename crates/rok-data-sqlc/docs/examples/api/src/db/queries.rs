@@ -32,7 +32,7 @@ pub struct ProjectStatsRow {
     /// The `projects` column.
     pub projects: i64,
     /// The `open_tasks` column.
-    pub open_tasks: Option<i64>,
+    pub open_tasks: i64,
 }
 
 /// Runs the `ProjectStats` query (`:one`).

@@ -16,7 +16,7 @@ impl From<ProjectStatsRow> for StatsResponse {
     fn from(row: ProjectStatsRow) -> Self {
         StatsResponse {
             projects: row.projects,
-            open_tasks: row.open_tasks.unwrap_or(0),
+            open_tasks: row.open_tasks,
         }
     }
 }
