@@ -190,6 +190,12 @@ From the notes on Karibu Pass's ticket 09:
 - **Query-parameter enums reach the contract:** generated features register the schemas their query-parameter structs use, and the contract error names the `components(schemas(...))` line a hand-written one needs.
 - **Boolean-switched queries:** `$2::bool` with `CASE WHEN $2 THEN … END` in `WHERE` and `ORDER BY` is tested and documented.
 
+From the notes on Karibu Pass's ticket 10 (its member check repeats in tickets 42 and 44; a generated membership extractor waits for a second project to ask):
+
+- **A page on what typed queries support:** one engine docs page with a table of SQL forms, whether each is typed, the override when it isn't, and the test that proves it. Each ticket that adds a form updates it.
+- **Results of parameter arithmetic:** `price * $1 AS x` takes the type its parameter took (the numeric column's), nullable when the column is.
+- **`cargo run` at the Monorepo root starts the API:** `default-members = ["apps/api"]`, and the root scripts name the package (ticket 50).
+
 ## Out of Scope
 
 - **Karibu Pass's product work:** phone and SMS sign-in (its ADR-0006), its tickets, removing its sample data, its repo-wide reformat and its own visual-check scripts. A phone sign-in Module may come later.
