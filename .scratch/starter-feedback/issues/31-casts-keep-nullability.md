@@ -6,8 +6,8 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `count(*)::bigint AS owners` in a `:one` query generates `i64` (red first)
-- [ ] A nullable column cast stays `Option<_>`
-- [ ] `-- column:` override documented in the queries guide
+- [x] `count(*)::bigint AS owners` in a `:one` query generates `i64` (red first)
+- [x] A nullable column cast stays `Option<_>`
+- [x] `-- column:` override documented in the queries guide

@@ -115,7 +115,8 @@ fn casts_to_interval_bytea_and_timetz_infer_their_mapped_types() {
         types[1..],
         [
             format!("Option<{interval}>"),
-            "Option<Vec<u8>>".to_owned(),
+            // `sku` is `NOT NULL`, and a cast keeps that.
+            "Vec<u8>".to_owned(),
             format!("Option<{time_tz}>"),
         ]
     );
@@ -515,4 +516,77 @@ fn case_insensitive_unique_keys_are_not_column_targets() {
         ),
         "ON CONFLICT (name) matches no unique key; unique keys of `handles`: (id)"
     );
+}
+
+fn scalar(queries: &str) -> String {
+    match one(queries).result {
+        ResultShape::Scalar(rust_type) => rust_type,
+        other => panic!("expected a scalar, got {other:?}"),
+    }
+}
+
+/// A cast keeps the nullability of what it wraps: `count(*)` is never NULL.
+#[test]
+fn a_cast_count_is_not_null() {
+    assert_eq!(
+        scalar("-- name: Owners :one\nSELECT count(*)::bigint AS owners FROM products;"),
+        "i64"
+    );
+}
+
+#[test]
+fn a_cast_not_null_column_is_not_null() {
+    assert_eq!(
+        scalar("-- name: Stock :one\nSELECT stock::bigint AS stock FROM products WHERE id = $1;"),
+        "i64"
+    );
+}
+
+#[test]
+fn a_cast_nullable_column_stays_nullable() {
+    assert_eq!(
+        scalar("-- name: Note :one\nSELECT note::varchar AS note FROM products WHERE id = $1;"),
+        "Option<String>"
+    );
+}
+
+/// The outer side of a join can be NULL even where the column is `NOT NULL`.
+#[test]
+fn a_cast_outer_join_column_stays_nullable() {
+    assert_eq!(
+        scalar(
+            "-- name: Stock :one\nSELECT p.stock::bigint AS stock FROM categories c LEFT JOIN products p ON p.category_id = c.id WHERE c.id = $1;"
+        ),
+        "Option<i64>"
+    );
+}
+
+/// `coalesce` whose last argument is a non-NULL literal is never NULL.
+#[test]
+fn coalesce_with_a_literal_fallback_is_not_null() {
+    assert_eq!(
+        scalar(
+            "-- name: Note :one\nSELECT coalesce(note, '') AS note FROM products WHERE id = $1;"
+        ),
+        "String"
+    );
+    assert_eq!(
+        scalar(
+            "-- name: Stock :one\nSELECT coalesce(p.stock, 0) AS stock FROM categories c LEFT JOIN products p ON p.category_id = c.id WHERE c.id = $1;"
+        ),
+        "i32"
+    );
+}
+
+#[test]
+fn coalesce_without_a_literal_fallback_is_not_inferred() {
+    for fallback in ["NULL", "sku", "$1"] {
+        let reason = failure(&format!(
+            "-- name: Note :one\nSELECT coalesce(note, {fallback}) AS note FROM products;"
+        ));
+        assert!(
+            reason.contains("cannot infer the type"),
+            "{fallback}: {reason}"
+        );
+    }
 }
