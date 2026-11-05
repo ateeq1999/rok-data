@@ -169,6 +169,19 @@ From the notes on Karibu Pass's tickets 05 and 06 (the rest of those notes are t
 - **Set-returning functions:** `generate_series` and `unnest` in `FROM` are typed. Batches use `unnest($1::date[])`, documented.
 - **Root scripts:** the Monorepo root has a scripts-only `package.json` (`dev:web`, `dev:api`, `test:web`), with no workspaces.
 
+From the notes on Karibu Pass's tickets 07 and 08:
+
+- **A required parameter without restating its type:** `-- param: $2 reviewer!` (ticket 48).
+- **Everyday expressions are typed:** comparisons and boolean logic are `bool`, arithmetic takes its operands' type (`numeric` over integers), `CASE` the type its branches share, and `||` is text; each is nullable when an operand is.
+- **The repeated role check** is tickets 42 and 44.
+- **Permission before validation:** a `check-arch` rule fails a handler whose body extractor comes before its caller extractor, `rok add feature` scaffolds the caller first, and the template docs put role checks in extractors, so a 403 always comes before a 422.
+- **rust-analyzer builds apart:** every template ships `.vscode/settings.json` with `"rust-analyzer.cargo.targetDir": true`, so the editor never competes for `cargo test`'s build lock.
+- **`UPDATE … FROM` and `DELETE … USING`** are typed like the equivalent join. `-- rok:skip` leaves one query ungenerated on purpose without `--lenient`.
+- **Data-modifying CTEs** are typed from their final statement.
+- **`-- returns: <RowType>`** reuses an existing row type, failing on any column mismatch.
+- **Transaction control in services:** `check-arch` rule 2 allows a `Transaction` and its `begin` (a savepoint), `commit` and `rollback`, and still forbids SQL. The template's `AGENTS.md` documents the `ON CONFLICT … DO NOTHING` + `:execrows` retry, and the templates enable `reqwest`'s `json` feature.
+- **A provider that calls back:** the templates gain a `SignedWebhook` extractor (headers and raw body, with a verifier you plug in) as part of the security Capability, and a guide recipe for a provider with real and fake transports chosen by `<NAME>_TRANSPORT`. No vendor is shipped.
+
 ## Out of Scope
 
 - **Karibu Pass's product work:** phone and SMS sign-in (its ADR-0006), its tickets, removing its sample data, its repo-wide reformat and its own visual-check scripts. A phone sign-in Module may come later.
