@@ -3,8 +3,8 @@
 //!
 //! Types are inferred only from contexts that determine them unambiguously:
 //! a comparison, `IN`, `= ANY`, `BETWEEN`, or `LIKE` against a known column;
-//! arithmetic with a numeric column; an `INSERT` value or `UPDATE … SET`
-//! target; `LIMIT`/`OFFSET`; and explicit casts. Anything else must be
+//! arithmetic with a numeric column; an `INSERT` value (of `VALUES` or a
+//! `SELECT`) or `UPDATE … SET` target; `LIMIT`/`OFFSET`; and explicit casts. Anything else must be
 //! declared with `-- param:` or `-- column:`; the generator never guesses. A
 //! non-recursive, read-only CTE is analyzed like a `SELECT` and then acts as
 //! a table for the statement that follows. `UPDATE … FROM` and

@@ -43,6 +43,11 @@ that it exists and won't ship a tag without it).
   listed on stderr (`warning: src/features/users/service.rs is no longer
   wired in: ...`) and in `--json`'s `unwired`; `rok gen check` reports
   the unedited one as stale and lists the edited one without failing.
+- Typed queries (rok-data-sqlc) support `INSERT INTO t (cols) SELECT …`,
+  where it failed "use VALUES": each selected value is typed from the
+  column it fills, as with `VALUES`, with `ON CONFLICT` and `RETURNING`.
+  A `SELECT` returning the wrong number of values fails naming both
+  counts.
 
 **Changed**
 

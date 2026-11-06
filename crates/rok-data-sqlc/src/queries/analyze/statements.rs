@@ -40,21 +40,29 @@ impl<'a, 'c> Analysis<'a, 'c> {
                         .collect::<Result<_, _>>()?
                 };
                 let Some(source) = &insert.source else {
-                    return Err("INSERT without VALUES is not supported".to_owned());
+                    return Err("INSERT without VALUES or SELECT is not supported".to_owned());
                 };
-                let SetExpr::Values(values) = source.body.as_ref() else {
-                    return Err("INSERT … SELECT is not supported yet; use VALUES".to_owned());
-                };
-                for row in &values.rows {
-                    if row.len() != columns.len() {
-                        return Err(format!(
-                            "a VALUES row has {} values for {} columns",
-                            row.len(),
-                            columns.len()
-                        ));
+                match source.body.as_ref() {
+                    SetExpr::Values(values) => {
+                        for row in &values.rows {
+                            if row.len() != columns.len() {
+                                return Err(format!(
+                                    "a VALUES row has {} values for {} columns",
+                                    row.len(),
+                                    columns.len()
+                                ));
+                            }
+                            for (column, value) in columns.iter().zip(row) {
+                                self.typed_by_column(value, column, column.nullable, "")?;
+                            }
+                        }
                     }
-                    for (column, value) in columns.iter().zip(row) {
-                        self.typed_by_column(value, column, column.nullable, "")?;
+                    SetExpr::Select(select) => self.insert_select(source, select, &columns)?,
+                    _ => {
+                        return Err(
+                            "INSERT takes VALUES or a plain SELECT (no UNION or nesting)"
+                                .to_owned(),
+                        );
                     }
                 }
 
@@ -149,7 +157,68 @@ impl<'a, 'c> Analysis<'a, 'c> {
         outputs
     }
 
-    fn query_body(&mut self, query: &Query) -> Result<Vec<Output>, String> {
+    /// `INSERT … SELECT`: each value the `SELECT` returns is typed from the
+    /// column it fills, as a `VALUES` row's is. The `SELECT` runs in its own
+    /// scope, without the target: its `FROM` names the tables it reads,
+    /// the target included.
+    fn insert_select(
+        &mut self,
+        source: &Query,
+        select: &Select,
+        columns: &[&Column],
+    ) -> Result<(), String> {
+        let values = select
+            .projection
+            .iter()
+            .map(|item| match item {
+                SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } => Ok(expr),
+                SelectItem::Wildcard(_) | SelectItem::QualifiedWildcard(..) => Err(
+                    "INSERT … SELECT * is not supported; select each value the columns take"
+                        .to_owned(),
+                ),
+            })
+            .collect::<Result<Vec<&Expr>, String>>()?;
+        if values.len() != columns.len() {
+            return Err(format!(
+                "the SELECT returns {} values for {} columns",
+                values.len(),
+                columns.len()
+            ));
+        }
+        let outer_scope = std::mem::take(&mut self.scope);
+        let visible = self.ctes.len();
+        let typed = self.insert_select_values(source, select, columns, &values);
+        self.scope = outer_scope;
+        self.ctes.truncate(visible);
+        typed
+    }
+
+    fn insert_select_values(
+        &mut self,
+        source: &Query,
+        select: &Select,
+        columns: &[&Column],
+        values: &[&Expr],
+    ) -> Result<(), String> {
+        self.with_clause(source)?;
+        for table in &select.from {
+            self.scope_table(table)?;
+        }
+        for (column, value) in columns.iter().zip(values) {
+            self.typed_by_column(value, column, column.nullable, "")?;
+        }
+        if let Some(selection) = &select.selection {
+            self.expr(selection)?;
+        }
+        if let Some(having) = &select.having {
+            self.expr(having)?;
+        }
+        self.limit_clause(source)
+    }
+
+    /// Analyzes the query's CTEs, making each visible to those after it and
+    /// to the query's body.
+    fn with_clause(&mut self, query: &Query) -> Result<(), String> {
         if let Some(with) = &query.with {
             for cte in &with.cte_tables {
                 match cte.query.body.as_ref() {
@@ -163,12 +232,10 @@ impl<'a, 'c> Analysis<'a, 'c> {
                 }
             }
         }
-        let SetExpr::Select(select) = query.body.as_ref() else {
-            return Err(
-                "only a plain SELECT is supported (no UNION, VALUES, or nesting)".to_owned(),
-            );
-        };
-        let outputs = self.select(select)?;
+        Ok(())
+    }
+
+    fn limit_clause(&mut self, query: &Query) -> Result<(), String> {
         match &query.limit_clause {
             Some(LimitClause::LimitOffset { limit, offset, .. }) => {
                 if let Some(limit) = limit {
@@ -177,14 +244,24 @@ impl<'a, 'c> Analysis<'a, 'c> {
                 if let Some(offset) = offset {
                     self.typed_as(&offset.value, "offset", "i64")?;
                 }
+                Ok(())
             }
             Some(LimitClause::OffsetCommaLimit { .. }) => {
-                return Err(
-                    "`LIMIT offset, count` is MySQL syntax; use LIMIT … OFFSET …".to_owned(),
-                );
+                Err("`LIMIT offset, count` is MySQL syntax; use LIMIT … OFFSET …".to_owned())
             }
-            None => {}
+            None => Ok(()),
         }
+    }
+
+    fn query_body(&mut self, query: &Query) -> Result<Vec<Output>, String> {
+        self.with_clause(query)?;
+        let SetExpr::Select(select) = query.body.as_ref() else {
+            return Err(
+                "only a plain SELECT is supported (no UNION, VALUES, or nesting)".to_owned(),
+            );
+        };
+        let outputs = self.select(select)?;
+        self.limit_clause(query)?;
         Ok(outputs)
     }
 

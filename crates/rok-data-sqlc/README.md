@@ -622,8 +622,8 @@ are:
 - arithmetic with a numeric column (`rooms_held + $2` takes `rooms_held`'s
   type; a timestamp plus `$n` is not settled, since `$n` is an interval);
 - `= ANY($n)`, which takes a slice;
-- an `INSERT … VALUES` position, an `UPDATE … SET` target, or
-  `ON CONFLICT … DO UPDATE SET`;
+- an `INSERT … VALUES` position or a value of an `INSERT … SELECT`, an
+  `UPDATE … SET` target, or `ON CONFLICT … DO UPDATE SET`;
 - `LIMIT`/`OFFSET` (`i64`);
 - an explicit cast to a supported type, including an enum type
   (`$1::product_status` takes `types::ProductStatus`, and
@@ -762,6 +762,21 @@ pub async fn search_product_names<'e, E>(
   across all of them, in the `SET` values, `WHERE` and `RETURNING`. An
   unqualified column more than one of them has fails, naming each
   (`` `allocations.id` or `o.id` ``); qualify it.
+- `INSERT INTO t (cols) SELECT …` is typed like `VALUES`: each value the
+  `SELECT` returns fills a column and is typed from it, and its `FROM`
+  and `WHERE` see only the `SELECT`'s own tables (name `t` there to read
+  it). `ON CONFLICT` and `RETURNING` work as with `VALUES`. A `SELECT`
+  returning more or fewer values than there are columns fails, naming
+  both counts (`the SELECT returns 2 values for 3 columns`). `SELECT *`
+  fails too: select each value.
+
+  ```sql
+  -- name: AddPhoto :exec
+  INSERT INTO partner_photos (id, partner_id, media_id, caption, sort)
+  SELECT $1, $2, $3, $4, coalesce(max(sort) + 1, 0)
+  FROM partner_photos WHERE partner_id = $2
+  ON CONFLICT DO NOTHING;
+  ```
 - An `ON CONFLICT (cols)` target must be one of the table's unique keys, and
   `ON CONFLICT ON CONSTRAINT name` must name its primary key or a unique
   constraint: the declared name, or PostgreSQL's default for an unnamed one

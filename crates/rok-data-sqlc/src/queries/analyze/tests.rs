@@ -48,6 +48,14 @@ const SCHEMA: &str = "
             rooms_total INTEGER NOT NULL,
             held_at TIMESTAMPTZ
         );
+        CREATE TABLE media (id UUID PRIMARY KEY, url TEXT NOT NULL);
+        CREATE TABLE partner_photos (
+            id UUID PRIMARY KEY,
+            partner_id BIGINT NOT NULL REFERENCES partners (id),
+            media_id UUID NOT NULL REFERENCES media (id),
+            caption TEXT,
+            sort INTEGER NOT NULL
+        );
     ";
 
 fn analyze(queries: &str) -> (Vec<AnalyzedQuery>, Vec<QueryFailure>) {
@@ -360,6 +368,64 @@ fn update_from_resolves_columns_across_the_target_and_its_from_tables() {
             ("status", "String"),
             ("partner", "String"),
         ]
+    );
+}
+
+/// Karibu Pass's `AddPhoto`: an `INSERT … SELECT` whose values fill the
+/// target's columns, typed from them as `VALUES` is, while its `FROM` and
+/// `WHERE` see only the `SELECT`'s own tables.
+const ADD_PHOTO: &str = "INSERT INTO partner_photos (id, partner_id, media_id, caption, sort)
+SELECT $1, $2, $3, $4, coalesce(max(sort) + 1, 0)
+FROM partner_photos WHERE partner_id = $2
+ON CONFLICT DO NOTHING";
+
+#[test]
+fn insert_select_types_its_values_from_the_target_columns() {
+    let exec = one(&format!("-- name: AddPhoto :exec\n{ADD_PHOTO};"));
+    assert_eq!(
+        exec.params,
+        [
+            param(1, "id", "uuid::Uuid"),
+            param(2, "partner_id", "i64"),
+            param(3, "media_id", "uuid::Uuid"),
+            param(4, "caption", "Option<String>"),
+        ]
+    );
+    assert_eq!(exec.result, ResultShape::None);
+
+    let returning = one(&format!(
+        "-- name: AddPhoto :maybe_one\n{ADD_PHOTO}\nRETURNING id, sort;"
+    ));
+    assert_eq!(returning.params, exec.params);
+    assert_eq!(
+        row_columns(&returning),
+        [("id", "uuid::Uuid"), ("sort", "i32")]
+    );
+}
+
+#[test]
+fn insert_select_upserts_like_values() {
+    let query = one(
+        "-- name: CopyStock :exec\nINSERT INTO products (id, sku, name, category_id, stock)\nSELECT $1, sku, name, category_id, stock FROM products WHERE id = $2\nON CONFLICT (id) DO UPDATE SET stock = EXCLUDED.stock + $3;",
+    );
+    assert_eq!(
+        query.params,
+        [
+            param(1, "id", "uuid::Uuid"),
+            param(2, "id_2", "uuid::Uuid"),
+            param(3, "stock", "i32"),
+        ]
+    );
+}
+
+#[test]
+fn insert_select_with_the_wrong_number_of_values_fails_naming_them() {
+    let reason = failure(
+        "-- name: Q :exec\nINSERT INTO partner_photos (id, partner_id, media_id) SELECT $1, $2 FROM partners WHERE id = $2;",
+    );
+    assert!(
+        reason.contains("the SELECT returns 2 values for 3 columns"),
+        "{reason}"
     );
 }
 

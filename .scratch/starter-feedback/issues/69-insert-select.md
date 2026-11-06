@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Karibu's `AddPhoto` shape (`INSERT … SELECT $1, $2, $3, $4, coalesce(max(sort) + 1, 0) FROM partner_photos WHERE partner_id = $2 ON CONFLICT …`) generates with `:exec` and with `RETURNING`
-- [ ] A column-count mismatch fails naming it
+- [x] Karibu's `AddPhoto` shape (`INSERT … SELECT $1, $2, $3, $4, coalesce(max(sort) + 1, 0) FROM partner_photos WHERE partner_id = $2 ON CONFLICT …`) generates with `:exec` and with `RETURNING`
+- [x] A column-count mismatch fails naming it

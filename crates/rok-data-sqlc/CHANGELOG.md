@@ -83,6 +83,14 @@ the *generated* API count as breaking (see ADR 0012).
   purpose: not a failure in a strict run, and reported as a note
   (``path:line: query `Name` left ungenerated (`-- rok:skip`: note)``).
   `QueryDef::skip`, `Report::skipped_queries` and `SkippedQuery` are new.
+- `INSERT INTO t (cols) SELECT …` is typed, where it failed "INSERT …
+  SELECT is not supported yet; use VALUES": each value the `SELECT`
+  returns is typed from the column it fills, as a `VALUES` row's is, and
+  the `SELECT`'s `FROM`, `WHERE` and `HAVING` resolve against its own
+  tables (the target only when the `FROM` names it). `ON CONFLICT` and
+  `RETURNING` work as with `VALUES`. A `SELECT` returning another number
+  of values than there are columns fails "the SELECT returns 2 values for
+  3 columns"; `SELECT *` fails asking for each value.
 
 ### Changed
 
