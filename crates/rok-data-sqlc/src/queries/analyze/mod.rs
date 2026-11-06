@@ -9,7 +9,7 @@
 //! non-recursive, read-only CTE is analyzed like a `SELECT` and then acts as
 //! a table for the statement that follows. `UPDATE … FROM` and
 //! `DELETE … USING` see their target and the other tables together, like a
-//! join.
+//! join. A subquery sees its own tables first, then the enclosing query's.
 
 mod conflict;
 mod params;
@@ -19,11 +19,12 @@ mod statements;
 #[cfg(test)]
 mod tests;
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ops::Deref;
 use std::rc::Rc;
 
 use heck::ToSnakeCase;
+use sqlparser::ast::Query;
 use sqlparser::dialect::PostgreSqlDialect;
 use sqlparser::parser::Parser;
 
@@ -241,9 +242,17 @@ struct Slot {
 struct Analysis<'a, 'c> {
     context: &'c Context<'a>,
     scope: Vec<ScopeEntry<'a>>,
+    /// Where each enclosing subquery's own tables start in `scope`,
+    /// innermost last: a subquery sees the tables of the queries around it,
+    /// and its own come first.
+    levels: Vec<usize>,
     /// CTEs visible by name, in definition order.
     ctes: Vec<Rc<Table>>,
     slots: BTreeMap<usize, Slot>,
+    /// The type of each analyzed subquery's one column, by its address in
+    /// the statement (which outlives the analysis); `None` when it returns
+    /// several columns or the engine can't type it.
+    subquery_types: HashMap<*const Query, Option<String>>,
     /// The `WHERE` of an `ON CONFLICT (cols) WHERE … DO` target, taken out of
     /// the SQL before parsing (see [`take_conflict_predicate`]).
     conflict_predicate: Option<sqlparser::ast::Expr>,
@@ -254,9 +263,28 @@ impl<'a, 'c> Analysis<'a, 'c> {
         Self {
             context,
             scope: Vec::new(),
+            levels: Vec::new(),
             ctes: Vec::new(),
             slots: BTreeMap::new(),
+            subquery_types: HashMap::new(),
             conflict_predicate: None,
         }
+    }
+
+    /// Where the innermost query's own tables start in `scope`.
+    fn floor(&self) -> usize {
+        self.levels.last().copied().unwrap_or(0)
+    }
+
+    /// Runs `analyze` in a scope of its own, which sees none of the tables
+    /// in scope now (a CTE, a recursive term, an `INSERT … SELECT`), and
+    /// restores the scope after.
+    fn in_own_scope<T>(&mut self, analyze: impl FnOnce(&mut Self) -> T) -> T {
+        let scope = std::mem::take(&mut self.scope);
+        let levels = std::mem::take(&mut self.levels);
+        let result = analyze(self);
+        self.scope = scope;
+        self.levels = levels;
+        result
     }
 }

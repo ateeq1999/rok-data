@@ -82,10 +82,11 @@ impl<'a, 'c> Analysis<'a, 'c> {
             })
     }
 
+    /// The table or alias `qualifier` names: the innermost query's first.
     pub(super) fn scope_entry(&self, qualifier: &str) -> Result<usize, String> {
         self.scope
             .iter()
-            .position(|entry| entry.qualifier == qualifier)
+            .rposition(|entry| entry.qualifier == qualifier)
             .ok_or_else(|| format!("`{qualifier}` is not a table or alias in FROM"))
     }
 
@@ -118,20 +119,32 @@ impl<'a, 'c> Analysis<'a, 'c> {
             return Ok(Some(Reference { entry, column }));
         }
 
-        let matches: Vec<Reference> = self
-            .scope
-            .iter()
-            .enumerate()
-            .filter(|(_, entry)| entry.qualifier != "excluded")
-            .filter_map(|(entry, scope_entry)| {
-                scope_entry
-                    .table
-                    .columns
-                    .iter()
-                    .position(|column| column.sql_name == name)
-                    .map(|column| Reference { entry, column })
-            })
-            .collect();
+        // An unqualified column is the innermost query's when its tables
+        // have it, otherwise the next enclosing query's, as in PostgreSQL.
+        let mut end = self.scope.len();
+        let mut matches: Vec<Reference> = Vec::new();
+        for &start in std::iter::once(&0).chain(&self.levels).rev() {
+            matches = self.scope[start..end]
+                .iter()
+                .enumerate()
+                .filter(|(_, entry)| entry.qualifier != "excluded")
+                .filter_map(|(offset, scope_entry)| {
+                    scope_entry
+                        .table
+                        .columns
+                        .iter()
+                        .position(|column| column.sql_name == name)
+                        .map(|column| Reference {
+                            entry: start + offset,
+                            column,
+                        })
+                })
+                .collect();
+            if !matches.is_empty() {
+                break;
+            }
+            end = start;
+        }
         match matches.as_slice() {
             [reference] => Ok(Some(*reference)),
             [] if self.scope.is_empty() => {

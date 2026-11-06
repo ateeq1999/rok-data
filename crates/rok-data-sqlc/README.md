@@ -687,10 +687,25 @@ a `{Name}Row` struct.
 wraps.** `count(*)::bigint` is `i64`, and so is `stock::bigint` for a
 `NOT NULL` column `stock`, unless the column is on the outer side of a
 join; so is a cast literal (`0::int` is `i32`). A cast of anything else,
-such as `sum(stock)::bigint` or `$1::int`, is `Option`.
-`coalesce(x, <literal>)`, whose last argument is a literal other than
-`NULL`, is never NULL: it takes `x`'s type when the engine types `x`, and
-a cast of it is not `Option` (`coalesce(sum(stock), 0)::bigint` is `i64`).
+such as `sum(stock)::bigint` or `$1::int`, is `Option`. A cast to the
+plain type a typed id wraps keeps the typed id: `media_id::uuid` is
+`MediaId` for a `media_id` key column, while `media_id::text` is
+`String`.
+
+`coalesce(…)` takes the type its arguments share, as a `CASE` does; a
+literal argument takes the others' type, so `coalesce(category_id, 0)`
+keeps the typed id, and arguments of one plain type under different
+typed ids take the plain type. It is never NULL when one of its arguments
+never is, such as a literal other than `NULL`, so a cast of it is not
+`Option` (`coalesce(sum(stock), 0)::bigint` is `i64`). A scalar subquery
+`(SELECT …)` takes the type of its one column and may be NULL; it sees
+the tables of the query around it, so
+`coalesce(p.cover_media_id, (SELECT ph.media_id FROM partner_photos ph
+WHERE ph.partner_id = p.id LIMIT 1))::uuid` is `Option<MediaId>`. A
+placeholder inside a subquery (scalar, `EXISTS` or `IN`) is typed from
+the subquery's own tables, which come first, as in PostgreSQL; a
+subquery the engine can't analyze stays untyped instead of failing the
+query.
 
 **Everyday expressions are typed, and NULL when an operand can be.** An
 expression is `Option` unless every operand is never NULL: a `NOT NULL`
@@ -701,6 +716,8 @@ function, or such an expression itself. A parameter may be NULL.
 | --- | --- |
 | `=`, `<>`, `<`, `<=`, `>`, `>=`, `BETWEEN`, `IN (…)`, `LIKE`, `ILIKE`, `~`, `AND`, `OR`, `NOT` | `bool` |
 | `IS [NOT] NULL`, `IS [NOT] DISTINCT FROM`, `IS [NOT] TRUE` | `bool`, never NULL |
+| `EXISTS (…)`, `NOT EXISTS (…)` | `bool`, never NULL |
+| `x IN (SELECT …)` | `bool` |
 | `+`, `-`, `*`, `/`, `%` | the operands' shared type: integers widen to the larger, `numeric` wins over integers, floats over `numeric` |
 | `CASE` | the type its non-NULL branches share (numeric ones widen as above); `Option` with a NULL branch or no `ELSE` |
 | `\|\|` | `String` |
@@ -731,6 +748,9 @@ Where you know more than the inference, a `-- column: <name> <RustType>`
 override settles the type: `-- column: total i64` for `sum(stock)::bigint
 AS total` under a `GROUP BY` (every group has a row, and `stock` is
 `NOT NULL`), or `-- column: total Option<i64>` to keep a column optional.
+As with `-- param:`, the type may name a generated typed id or enum,
+and the query file imports it: `-- column: cover Option<MediaId>`,
+`-- column: kind types::PartnerKind`.
 
 Any other expression needs an alias and a `-- column:` override, and a
 parameter rok-data-sqlc can't type needs a `-- param:` override:

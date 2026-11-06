@@ -58,7 +58,13 @@ that it exists and won't ship a tag without it).
   (`Uuid`, not `Option<Uuid>`).
 - Typed queries (rok-data-sqlc) support `UPDATE … FROM` and
   `DELETE … USING`, typed like the equivalent join, and a placeholder in
-  arithmetic with a numeric column takes its type. `-- rok:skip [note]`
+  arithmetic with a numeric column takes its type. A cast to a typed
+  id's own plain type keeps the typed id (`coalesce(p.cover_media_id,
+  (SELECT ph.media_id …))::uuid` is `Option<MediaId>`, not
+  `Option<uuid::Uuid>`), `coalesce` takes the type its arguments share,
+  a scalar subquery its column's, `EXISTS (…)` / `NOT EXISTS (…)` are a
+  never-null `bool`, and placeholders inside subqueries are typed.
+  `-- rok:skip [note]`
   leaves one query ungenerated on purpose: `rok gen` prints a `note:`
   instead of failing without `--lenient`, and `--json` lists it under
   `skipped_on_purpose`, apart from `failures` and `skipped`.

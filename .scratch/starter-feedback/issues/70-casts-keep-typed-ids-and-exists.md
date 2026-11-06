@@ -9,8 +9,8 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The `coalesce(...)::uuid` over two `media.id` columns is `Option<MediaId>`
-- [ ] `(EXISTS (…))::boolean` is `bool`
-- [ ] `-- column:` with a typed id and an enum generates those types
+- [x] The `coalesce(...)::uuid` over two `media.id` columns is `Option<MediaId>`
+- [x] `(EXISTS (…))::boolean` is `bool`
+- [x] `-- column:` with a typed id and an enum generates those types
