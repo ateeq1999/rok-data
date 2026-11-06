@@ -84,6 +84,10 @@ pub struct Operation {
     /// Whether it carries the bearer auth marker: the client sends the
     /// session's token, and a `401` means the token is no longer good.
     pub secured: bool,
+    /// Whether signing in is optional (the empty requirement is among its
+    /// security requirements, beside a bearer one): the client sends the
+    /// token when there is one.
+    pub optional_sign_in: bool,
 }
 
 /// A path, query or header parameter.
@@ -126,7 +130,7 @@ pub(super) fn parse_path(
     item: &Value,
     at: &str,
     bearer: &[String],
-    default_security: Option<bool>,
+    default_security: Option<Security>,
 ) -> Result<Vec<Operation>> {
     let item = object(item, at)?;
     let methods = ["get", "post", "put", "patch", "delete"];
@@ -155,7 +159,7 @@ fn parse_operation(
     value: &Value,
     at: &str,
     bearer: &[String],
-    default_security: Option<bool>,
+    default_security: Option<Security>,
 ) -> Result<Operation> {
     let map = object(value, at)?;
     only(
@@ -196,9 +200,9 @@ fn parse_operation(
         None => None,
     };
     let response = success(map, at)?;
-    let secured = match map.get("security") {
-        Some(value) => secured(value, &pointer(at, "security"), bearer)?,
-        None => default_security.unwrap_or(false),
+    let security = match map.get("security") {
+        Some(value) => security(value, &pointer(at, "security"), bearer)?,
+        None => default_security.unwrap_or_default(),
     };
     Ok(Operation {
         path: path.to_owned(),
@@ -214,7 +218,8 @@ fn parse_operation(
         header_params,
         body,
         response,
-        secured,
+        secured: security.secured,
+        optional_sign_in: security.secured && security.optional,
     })
 }
 
@@ -403,18 +408,32 @@ fn success(map: &Map<String, Value>, at: &str) -> Result<Response> {
     })
 }
 
-/// Whether the security requirements at `at` ask for one of the `bearer`
-/// schemes. `[]` is a public operation; a requirement naming a scheme the
-/// components do not define is refused.
-pub(super) fn secured(value: &Value, at: &str, bearer: &[String]) -> Result<bool> {
+/// What a list of security requirements asks.
+#[derive(Debug, Clone, Copy, Default)]
+pub(super) struct Security {
+    /// One of them names a bearer scheme.
+    secured: bool,
+    /// One of them is empty (`{}`): signing in is optional.
+    optional: bool,
+}
+
+/// What the security requirements at `at` ask: whether one names one of
+/// the `bearer` schemes, and whether one is empty. `[]` is a public
+/// operation; a requirement naming a scheme the components do not define
+/// is refused.
+pub(super) fn security(value: &Value, at: &str, bearer: &[String]) -> Result<Security> {
     let list = value.as_array().ok_or_else(|| Error::Invalid {
         at: at.to_owned(),
         message: "expected a list of security requirements".to_owned(),
     })?;
-    let mut secured = false;
+    let mut security = Security::default();
     for (index, requirement) in list.iter().enumerate() {
         let here = pointer(at, &index.to_string());
-        for name in object(requirement, &here)?.keys() {
+        let names = object(requirement, &here)?;
+        if names.is_empty() {
+            security.optional = true;
+        }
+        for name in names.keys() {
             if !bearer.contains(name) {
                 return Err(Error::Invalid {
                     at: here,
@@ -423,8 +442,8 @@ pub(super) fn secured(value: &Value, at: &str, bearer: &[String]) -> Result<bool
                     ),
                 });
             }
-            secured = true;
+            security.secured = true;
         }
     }
-    Ok(secured)
+    Ok(security)
 }

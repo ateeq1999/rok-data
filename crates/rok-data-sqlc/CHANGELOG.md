@@ -86,6 +86,14 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Changed
 
+- `check-arch`'s `rule-4` message ends "; a pure helper with no feature
+  state belongs in shared/". The rule and the `AGENTS.md` rule text are
+  unchanged.
+- Clients: `Operation::optional_sign_in` is set when an operation's (or
+  the document's) security requirements hold the empty one beside a
+  bearer one; the Rust Client then documents the call as "Sends the
+  session's token when there is one." instead of "Sends the session's
+  token.".
 - An ambiguous column names its candidates: "column `id` is ambiguous: it
   could be `allocations.id` or `o.id`".
 - **Breaking (generated API):** a `BETWEEN` bound named by its column is

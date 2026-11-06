@@ -233,7 +233,9 @@ fn call(named: &Named<'_>, types: &mut Types<'_>) -> Result<(String, bool), Erro
     let summary = op.summary.as_deref();
     let fallback = format!("`{} {}`.", op.method.upper(), op.path);
     let mut text = doc(summary, &fallback, "    ");
-    if op.secured {
+    if op.optional_sign_in {
+        text.push_str("    ///\n    /// Sends the session's token when there is one.\n");
+    } else if op.secured {
         text.push_str("    ///\n    /// Sends the session's token.\n");
     }
     for line in header_docs {

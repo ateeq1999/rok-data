@@ -47,6 +47,9 @@ pub(super) fn generate(
         println!("clients:");
     }
     if export {
+        // The export builds the App: say so first (on stderr, so `--json`'s
+        // stdout stays one document), or a slow first build is silent.
+        eprintln!("exporting the contract (building the App, slow the first time)\u{2026}");
         project.export().map_err(|error| format!("{error:#}"))?;
         steps.done();
         if !options.json {

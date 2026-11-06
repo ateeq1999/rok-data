@@ -303,11 +303,13 @@ rust = "clients/rust"
 
 - `rok gen` re-exports the contract — it runs `export` from the project
   file's directory with `document`'s path appended, which builds the api
-  App — then emits each client from the document. A client's files carry
-  the generated marker: changed ones are rewritten, one whose marker is
-  gone is refused (the run fails, writing nothing for that client) unless
-  `--force`, and a marked file no longer emitted is removed as stale. A
-  `--dry-run` neither exports nor writes, and prints `would write`.
+  App (it prints `exporting the contract (building the App, slow the first
+  time)…` on stderr first) — then emits each client from the document. A
+  client's files carry the generated marker: changed ones are rewritten,
+  one whose marker is gone is refused (the run fails, writing nothing for
+  that client) unless `--force`, and a marked file no longer emitted is
+  removed as stale. A `--dry-run` neither exports nor writes, and prints
+  `would write`.
 - `rok gen check` builds and writes nothing: each client is emitted in
   memory from the document as it is, and a missing, changed or stale file
   fails the check with ``the `ts` client is out of date with <document>``.
