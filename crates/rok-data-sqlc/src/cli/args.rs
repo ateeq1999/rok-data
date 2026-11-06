@@ -31,6 +31,9 @@ pub(super) struct ModeArgs {
     /// The number of affected rows (`:execrows`)
     #[arg(short = 'r', long)]
     execrows: bool,
+    /// One page of rows and the total across every page (`:page`)
+    #[arg(short = 'p', long)]
+    page: bool,
 }
 
 impl ModeArgs {
@@ -41,6 +44,7 @@ impl ModeArgs {
             (self.many, ReturnMode::Many),
             (self.exec, ReturnMode::Exec),
             (self.execrows, ReturnMode::ExecRows),
+            (self.page, ReturnMode::Page),
         ]
         .into_iter()
         .find_map(|(set, mode)| set.then_some(mode))

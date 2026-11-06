@@ -10,7 +10,7 @@ use sqlparser::ast::{
 use super::{Analysis, Context, Output, OutputColumn, ResultShape};
 use crate::parser::naming;
 use crate::parser::postgres::{ident_name, map_type, object_leaf_name};
-use crate::queries::annotations::QueryDef;
+use crate::queries::annotations::{QueryDef, ReturnMode};
 use crate::schema::Column;
 
 impl<'a, 'c> Analysis<'a, 'c> {
@@ -463,7 +463,10 @@ pub(super) fn result_shape(
     if let Some(model) = reusable_model(def, &outputs, context) {
         return Ok(model);
     }
-    if let [column] = columns.as_slice() {
+    // A page holds rows: one column is still a `{Name}Row`.
+    if let [column] = columns.as_slice()
+        && def.mode != ReturnMode::Page
+    {
         return Ok(ResultShape::Scalar(column.rust_type.clone()));
     }
     Ok(ResultShape::Row(columns))

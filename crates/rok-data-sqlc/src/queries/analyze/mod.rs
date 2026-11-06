@@ -150,6 +150,10 @@ fn analyze_one(def: &QueryDef, context: &Context<'_>) -> Result<AnalyzedQuery, S
         }
     };
 
+    if def.mode == ReturnMode::Page {
+        super::page::check(statement)?;
+    }
+
     let mut analysis = Analysis::new(context);
     analysis.conflict_predicate = conflict.predicate;
     let outputs = analysis.statement(statement)?;

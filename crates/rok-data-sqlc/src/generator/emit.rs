@@ -484,6 +484,19 @@ pub fn push_doc(output: &mut String, indent: usize, lines: &[&str]) {
 /// it fits, otherwise one parameter per line), the shared executor bound, and
 /// the opening brace.
 pub fn push_fn_head(output: &mut String, name: &str, params: &[String], returns: &str) {
+    push_fn_head_bound(output, name, params, returns, "rok_data::Executor<'e>");
+}
+
+/// [`push_fn_head`] with another bound on `E`, such as
+/// `sqlx::Acquire<'e, Database = sqlx::Postgres>` for a function running two
+/// statements on one connection.
+pub fn push_fn_head_bound(
+    output: &mut String,
+    name: &str,
+    params: &[String],
+    returns: &str,
+    bound: &str,
+) {
     let mut all_params = vec!["executor: E".to_owned()];
     all_params.extend(params.iter().cloned());
 
@@ -502,7 +515,7 @@ pub fn push_fn_head(output: &mut String, name: &str, params: &[String], returns:
         output.push_str(&close);
         output.push('\n');
     }
-    output.push_str("where\n    E: rok_data::Executor<'e>,\n{\n");
+    output.push_str(&format!("where\n    E: {bound},\n{{\n"));
 }
 
 /// Renders `a && b && c` at `indent`, wrapped the way rustfmt wraps it.

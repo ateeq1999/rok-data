@@ -58,7 +58,7 @@ A file of annotated SQL statements a developer writes; each annotated statement 
 _Avoid_: schema (for DML content), script
 
 **Return mode**:
-The `:one`, `:maybe_one`, `:many`, `:exec`, or `:execrows` suffix of a query annotation, choosing how rows are fetched and what the generated function returns.
+The `:one`, `:maybe_one`, `:many`, `:exec`, `:execrows`, or `:page` suffix of a query annotation, choosing how rows are fetched and what the generated function returns.
 _Avoid_: command, kind
 
 **Query override**:

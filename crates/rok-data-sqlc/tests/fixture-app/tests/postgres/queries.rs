@@ -215,3 +215,84 @@ pub(super) async fn partial_index_upserts_and_recursive_ctes(pool: &PgPool) {
         ]
     );
 }
+
+/// A `:page` query (Karibu Pass's partner bookings: a date range and a
+/// search across four columns) returns one page of its rows, in its order,
+/// with the total across every page; past the last page the page is empty
+/// and still reports the total.
+pub(super) async fn page_queries_return_rows_and_the_total(pool: &PgPool) {
+    use chrono::NaiveDate;
+    use db::queries::bookings::{PartnerBookingsParams, partner_bookings};
+
+    sqlx::raw_sql(
+        "INSERT INTO bookings (partner_id, reference, guest_name, guest_email, offer_title, starts_on) VALUES
+            (1, 'KB-001', 'Amina Otieno', 'amina@example.com', 'Lamu dhow trip', '2026-03-01'),
+            (1, 'KB-002', 'Brian Kip', 'brian@example.com', 'Safari lodge', '2026-03-05'),
+            (1, 'KB-003', 'Chao Li', 'chao@lamu.example', 'City walk', '2026-03-09'),
+            (1, 'LAMU-4', 'Dana Rose', 'dana@example.com', 'Beach day', '2026-03-12'),
+            (1, 'KB-005', 'Lamuel Grey', 'lg@example.com', 'Night market', '2026-03-20'),
+            (1, 'KB-006', 'Erin Moss', 'erin@example.com', 'Lamu food tour', '2026-04-02'),
+            (2, 'KB-007', 'Fay Lamu', 'fay@example.com', 'Lamu dhow trip', '2026-03-03')",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+
+    let march = |page, per_page| {
+        partner_bookings(
+            pool,
+            PartnerBookingsParams {
+                partner_id: 1,
+                starts_on_from: NaiveDate::from_ymd_opt(2026, 3, 1).unwrap(),
+                starts_on_to: NaiveDate::from_ymd_opt(2026, 3, 31).unwrap(),
+                search: "%lamu%".to_owned(),
+            },
+            page,
+            per_page,
+        )
+    };
+    let references = |page: &rok_data::Page<_>| -> Vec<String> {
+        page.items
+            .iter()
+            .map(|row: &db::queries::bookings::PartnerBookingsRow| row.reference.clone())
+            .collect()
+    };
+
+    // Each of the four columns matches once in March: the offer title
+    // (KB-001), the guest email (KB-003), the reference (LAMU-4) and the
+    // guest name (KB-005). April's and partner 2's don't count.
+    let first = march(1, 3).await.unwrap();
+    assert_eq!(references(&first), ["KB-005", "LAMU-4", "KB-003"]);
+    assert_eq!((first.total, first.page, first.per_page), (4, 1, 3));
+
+    let second = march(2, 3).await.unwrap();
+    assert_eq!(references(&second), ["KB-001"]);
+    assert_eq!(second.total, 4);
+
+    let past = march(5, 3).await.unwrap();
+    assert!(past.items.is_empty());
+    assert_eq!((past.total, past.page), (4, 5));
+
+    // A caller's transaction runs both statements inside it.
+    let mut tx = pool.begin().await.unwrap();
+    let inside = partner_bookings(
+        &mut *tx,
+        PartnerBookingsParams {
+            partner_id: 2,
+            starts_on_from: NaiveDate::from_ymd_opt(2026, 3, 1).unwrap(),
+            starts_on_to: NaiveDate::from_ymd_opt(2026, 3, 31).unwrap(),
+            search: "%LAMU%".to_owned(),
+        },
+        1,
+        10,
+    )
+    .await
+    .unwrap();
+    assert_eq!((references(&inside), inside.total), (vec!["KB-007".to_owned()], 1));
+    tx.rollback().await.unwrap();
+
+    assert!(matches!(
+        march(1, 0).await,
+        Err(rok_data::Error::InvalidQuery(_))
+    ));
+}

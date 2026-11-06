@@ -116,6 +116,68 @@ fn infers_params_from_comparisons_and_limits() {
     assert_eq!(columns[1].rust_name, "sku");
 }
 
+/// A `:page` query is written once, with its `WHERE` and `ORDER BY`: its
+/// parameters and rows are the query's own, the page is the function's.
+#[test]
+fn a_page_query_is_analyzed_like_a_many() {
+    let query = one(
+        "-- name: ProductsPage :page\nSELECT id, sku FROM products WHERE category_id = $1 AND (sku ILIKE $2 OR name ILIKE $2) ORDER BY sku;",
+    );
+    assert_eq!(query.mode, ReturnMode::Page);
+    assert_eq!(
+        query.params,
+        [param(1, "category_id", "i64"), param(2, "sku", "String")]
+    );
+    assert!(matches!(query.result, ResultShape::Row(_)), "{query:?}");
+}
+
+/// A page holds rows, so even one column is a `{Name}Row`.
+#[test]
+fn a_one_column_page_is_a_row() {
+    let query = one("-- name: Skus :page\nSELECT sku FROM products ORDER BY sku;");
+    let ResultShape::Row(columns) = &query.result else {
+        panic!("expected a row struct, got {:?}", query.result);
+    };
+    assert_eq!(columns[0].rust_name, "sku");
+}
+
+#[test]
+fn a_page_query_with_its_own_limit_or_offset_fails_naming_it() {
+    let expected = |clause: &str| {
+        format!(
+            "a `:page` query takes no `{clause}`: the generated function adds `LIMIT`/`OFFSET` from its `page` and `per_page`"
+        )
+    };
+    assert_eq!(
+        failure("-- name: P :page\nSELECT id FROM products ORDER BY sku LIMIT 10;"),
+        expected("LIMIT")
+    );
+    assert_eq!(
+        failure("-- name: P :page\nSELECT id FROM products ORDER BY sku OFFSET $1;"),
+        expected("OFFSET")
+    );
+    assert_eq!(
+        failure("-- name: P :page\nSELECT id FROM products ORDER BY sku FETCH FIRST 5 ROWS ONLY;"),
+        expected("FETCH")
+    );
+}
+
+#[test]
+fn a_page_query_needs_an_order_by() {
+    assert_eq!(
+        failure("-- name: P :page\nSELECT id FROM products WHERE stock > 0;"),
+        "a `:page` query needs an `ORDER BY`: without one its pages hold rows in no particular order, so a row can show on two pages or none"
+    );
+}
+
+#[test]
+fn a_page_query_is_a_select() {
+    assert_eq!(
+        failure("-- name: P :page\nDELETE FROM products WHERE stock = 0 RETURNING id;"),
+        "a `:page` query is a `SELECT`; this one is a `DELETE`"
+    );
+}
+
 #[test]
 fn casts_to_interval_bytea_and_timetz_infer_their_mapped_types() {
     let query = one(
@@ -708,6 +770,17 @@ fn scalar(queries: &str) -> String {
 fn a_cast_count_is_not_null() {
     assert_eq!(
         scalar("-- name: Owners :one\nSELECT count(*)::bigint AS owners FROM products;"),
+        "i64"
+    );
+}
+
+/// Ticket 31's rule holds with a `FILTER`: a count is never NULL.
+#[test]
+fn a_cast_filtered_count_is_not_null() {
+    assert_eq!(
+        scalar(
+            "-- name: Restocked :one\nSELECT count(*) FILTER (WHERE stock > 0)::bigint AS restocked FROM products;"
+        ),
         "i64"
     );
 }
