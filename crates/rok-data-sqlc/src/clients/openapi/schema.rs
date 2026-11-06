@@ -250,6 +250,32 @@ fn string_enum(values: &Value, kind: &str, at: &str) -> Result<Schema> {
     Ok(Schema::StringEnum(strings))
 }
 
+/// A property's description: its own, or, for a `oneOf` or `anyOf` of
+/// one branch besides `null`, that branch's. utoipa writes a documented
+/// `Option<SomeEnum>` field as `oneOf: [null, {$ref, description}]`, the
+/// description inside the `$ref`'s branch, where a Client would lose it.
+fn description(schema: &Value) -> Option<String> {
+    let text = |value: &Value| {
+        value
+            .get("description")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+    };
+    if let Some(own) = text(schema) {
+        return Some(own);
+    }
+    let branches = ["oneOf", "anyOf"]
+        .iter()
+        .find_map(|key| schema.get(key).and_then(Value::as_array))?;
+    let mut real = branches
+        .iter()
+        .filter(|branch| branch.get("type").and_then(Value::as_str) != Some("null"));
+    match (real.next(), real.next()) {
+        (Some(only), None) => text(only),
+        _ => None,
+    }
+}
+
 /// An object schema: its properties, which of them are required, and a
 /// map's value schema.
 fn object_schema(map: &Map<String, Value>, at: &str) -> Result<Schema> {
@@ -267,10 +293,7 @@ fn object_schema(map: &Map<String, Value>, at: &str) -> Result<Schema> {
                 name: name.clone(),
                 schema: Schema::parse(schema, &here)?,
                 required: required.contains(&name.as_str()),
-                description: schema
-                    .get("description")
-                    .and_then(Value::as_str)
-                    .map(str::to_owned),
+                description: description(schema),
             });
         }
     }

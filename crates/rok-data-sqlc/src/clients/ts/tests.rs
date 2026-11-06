@@ -254,3 +254,29 @@ fn an_optional_header_leaves_the_options_optional() {
          queryFn: ({ signal }) => api.things.getOne(id, { ...headers, signal }),\n      }),\n"
     ));
 }
+
+/// Karibu Pass's `NextPayout`, read: `status` a documented
+/// `Option<PayoutStatus>`, `kind` the same with a description of its own.
+fn next_payout() -> Document {
+    let json = json!({
+        "openapi": "3.1.0", "info": {}, "paths": {},
+        "components": crate::clients::openapi::tests::next_payout(),
+    });
+    Document::parse(&json.to_string()).unwrap_or_else(|err| panic!("{err}"))
+}
+
+/// A nullable enum field keeps the comment utoipa writes in its `$ref`
+/// branch; a description of its own wins.
+#[test]
+fn a_nullable_enum_field_keeps_its_comment() {
+    let files = emitted(&next_payout());
+    let types = file(&files, "src/types.ts");
+    assert!(
+        types.contains("  /** Where the payout is. */\n  status?: null | PayoutStatus\n"),
+        "{types}"
+    );
+    assert!(
+        types.contains("  /** The payout's own kind. */\n  kind?: null | PayoutStatus\n"),
+        "{types}"
+    );
+}

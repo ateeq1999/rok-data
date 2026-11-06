@@ -323,3 +323,29 @@ fn an_optional_header_is_nullable() {
     );
     assert!(client.contains("      headers: {'X-Trace-Id': xTraceId},\n"));
 }
+
+/// Karibu Pass's `NextPayout`, read: `status` a documented
+/// `Option<PayoutStatus>`, `kind` the same with a description of its own.
+fn next_payout() -> Document {
+    let json = json!({
+        "openapi": "3.1.0", "info": {}, "paths": {},
+        "components": crate::clients::openapi::tests::next_payout(),
+    });
+    Document::parse(&json.to_string()).unwrap_or_else(|err| panic!("{err}"))
+}
+
+/// A nullable enum field keeps the comment utoipa writes in its `$ref`
+/// branch; a description of its own wins.
+#[test]
+fn a_nullable_enum_field_keeps_its_comment() {
+    let files = emitted(&next_payout());
+    let models = file(&files, "lib/src/models.dart");
+    assert!(
+        models.contains("  /// Where the payout is.\n  final PayoutStatus? status;\n"),
+        "{models}"
+    );
+    assert!(
+        models.contains("  /// The payout's own kind.\n  final PayoutStatus? kind;\n"),
+        "{models}"
+    );
+}

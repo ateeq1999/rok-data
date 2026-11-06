@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `NextPayout.status`'s comment reaches the TypeScript, Dart and Rust Clients (emission tests)
-- [ ] A property's own description still wins
+- [x] `NextPayout.status`'s comment reaches the TypeScript, Dart and Rust Clients (emission tests)
+- [x] A property's own description still wins

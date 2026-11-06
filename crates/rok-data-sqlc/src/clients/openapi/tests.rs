@@ -336,3 +336,47 @@ fn document_security_is_the_default_and_an_empty_list_opts_out() -> Result<()> {
     assert!(!operation(&document, Method::Get, "/b").secured);
     Ok(())
 }
+
+/// utoipa writes a documented `Option<SomeEnum>` field as a `oneOf` of
+/// `null` and a `$ref` holding the description: a property with no
+/// description of its own takes its one branch's, and its own wins.
+#[test]
+fn a_nullable_reference_takes_its_branch_description() -> Result<()> {
+    let document = Document::parse(&document(json!({}), next_payout()))?;
+    let Some(Schema::Object { properties, .. }) = document.schemas.get("NextPayout") else {
+        panic!("not an object");
+    };
+    let description = |name: &str| {
+        properties
+            .iter()
+            .find(|p| p.name == name)
+            .and_then(|p| p.description.as_deref())
+    };
+    assert_eq!(description("status"), Some("Where the payout is."));
+    assert_eq!(description("kind"), Some("The payout's own kind."));
+    assert_eq!(description("amount"), Some("The amount, in cents."));
+    Ok(())
+}
+
+/// Karibu Pass's `NextPayout`: `status` a documented `Option<PayoutStatus>`,
+/// `kind` the same with a description of its own.
+pub(crate) fn next_payout() -> Value {
+    let status = json!({"oneOf": [
+        {"type": "null"},
+        {"$ref": "#/components/schemas/PayoutStatus", "description": "Where the payout is."},
+    ]});
+    let mut kind = status.clone();
+    kind["description"] = json!("The payout's own kind.");
+    json!({"schemas": {
+        "PayoutStatus": {"type": "string", "enum": ["pending", "paid"]},
+        "NextPayout": {
+            "type": "object",
+            "required": ["amount"],
+            "properties": {
+                "amount": {"type": "integer", "description": "The amount, in cents."},
+                "status": status,
+                "kind": kind,
+            },
+        },
+    }})
+}

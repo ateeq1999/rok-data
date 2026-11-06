@@ -111,6 +111,11 @@ the *generated* API count as breaking (see ADR 0012).
   `client.documents().update(&id, &body, &version)`. The runtimes quote a
   bare `If-Match`/`If-None-Match` value as an entity tag. A cookie
   parameter is still refused (engine ADR 0027, amended).
+- A documented `Option<SomeEnum>` field keeps its comment in every
+  Client: utoipa writes it as `oneOf: [null, {$ref, description}]`, and
+  the contract reader now gives a property with no description of its
+  own, a `oneOf` or `anyOf` of one branch besides `null`, that branch's
+  description. A property's own description still wins.
 - `GeneratedApiDoc` registers the enum a path parameter takes (an enum
   key, a `by-` lookup over an enum column, a relation's `{other}`):
   utoipa writes the parameter as a `$ref` and doesn't collect it, so the

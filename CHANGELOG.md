@@ -85,6 +85,9 @@ that it exists and won't ship a tag without it).
   `update(id, body, ifMatch: version)` in Dart,
   `update(&id, &body, &version)` in Rust (a bare version is quoted as an
   entity tag).
+- A documented `Option<SomeEnum>` field keeps its comment in the
+  TypeScript, Dart and Rust Clients (utoipa puts the description inside
+  the `$ref` branch of its `oneOf` with `null`).
 - Query-parameter enums reach the contract: generated features register
   every enum their path parameters take, and when `rok gen` finds a `$ref`
   the contract doesn't define (a hand-written `IntoParams` struct's

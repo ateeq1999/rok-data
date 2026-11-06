@@ -283,4 +283,4 @@ fn bearer_schemes(components: &Map<String, Value>) -> Result<Vec<String>> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
