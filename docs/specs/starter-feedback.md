@@ -196,6 +196,11 @@ From the notes on Karibu Pass's ticket 10 (its member check repeats in tickets 4
 - **Results of parameter arithmetic:** `price * $1 AS x` takes the type its parameter took (the numeric column's), nullable when the column is.
 - **`cargo run` at the Monorepo root starts the API:** `default-members = ["apps/api"]`, and the root scripts name the package (ticket 50).
 
+From the notes on Karibu Pass's ticket 11 (its query-string enum is ticket 61, now first in the next engine batch):
+
+- **Guards:** two authorization rules copied five times is the second ask, so ticket 44 becomes a `Guard` trait and an `Allowed<G: Guard>` extractor in the templates' security Capability. A project writes each rule once (one `impl Guard`, backed by a shared query), and handlers take `Allowed<Finance>`.
+- **A pinned toolchain:** every template ships `rust-toolchain.toml` pinning the stable channel the gates test, so new lints arrive with a rok-templates release, not with a developer's newer toolchain.
+
 ## Out of Scope
 
 - **Karibu Pass's product work:** phone and SMS sign-in (its ADR-0006), its tickets, removing its sample data, its repo-wide reformat and its own visual-check scripts. A phone sign-in Module may come later.
