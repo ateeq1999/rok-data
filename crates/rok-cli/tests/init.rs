@@ -436,8 +436,8 @@ fn init_rejects_a_malformed_org_and_an_org_without_a_template() -> Result<()> {
 #[test]
 fn the_offered_templates_are_the_engines() {
     let offered: Vec<&str> = rok_data_sqlc::init::template_names().collect();
-    assert_eq!(offered, vec!["actix", "axum", "monorepo"]);
-    for template in ["actix-api", "axum-api", "monorepo"] {
+    assert_eq!(offered, vec!["actix", "axum", "grpc", "monorepo"]);
+    for template in ["actix-api", "axum-api", "grpc-api", "monorepo"] {
         assert!(
             rok_templates::find(template).is_some(),
             "the offered template `{template}` is not in rok-templates"

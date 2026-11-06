@@ -1776,9 +1776,9 @@ dependencies = [
 
 [[package]]
 name = "rok-templates"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4feac0bccedcd41fc311cc779845483c709b35c0b3fc4576f60be3cccaa37d3a"
+checksum = "8ab3cccc93d5f89c2b226d51fec29278307ff1e22269bc2c74f73aa48a080150"
 
 [[package]]
 name = "rust_decimal"

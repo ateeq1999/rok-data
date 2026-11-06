@@ -6,7 +6,7 @@ Spec: `docs/specs/grpc-api-template.md`
 
 **Blocked by:** 07
 
-**Status:** blocked
+**Status:** done
 
-- [ ] `rok init my-api --template grpc` writes the project; an unknown template's error lists `grpc`
-- [ ] Tests, CLI reference, examples and guide updated
+- [x] `rok init my-api --template grpc` writes the project; an unknown template's error lists `grpc`
+- [x] Tests, CLI reference, examples and guide updated

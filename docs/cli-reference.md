@@ -144,10 +144,20 @@ schema seeding and the report.
 
 | Flag                  | Meaning                                                            |
 | --------------------- | ------------------------------------------------------------------ |
-| `-t, --template NAME` | copy this Template instead of the skeleton (`actix`, `axum`, or `monorepo`)      |
+| `-t, --template NAME` | copy this Template instead of the skeleton (`actix`, `axum`, `grpc`, or `monorepo`) |
 | `-o, --org ORG`       | the org a Monorepo template's Apps are named under (default `com.example`); a reverse-domain name; only with `--template` |
 | `-w, --api-framework FW` | the skeleton's web framework: `actix_web` (the default) or `axum`; not with `--template`, which has its own |
 | `-s, --schema PATH`   | seed the truth directory (`schema/`) with this file's content       |
+
+**The grpc template.** `--template grpc` writes the `grpc-api` project, a
+tonic API over the `axum` template's schema, configuration and data layer:
+its `build.rs` (compiling `proto/` with protox, so no `protoc` is
+installed), the server wiring under `src/app/` (the caller check, health,
+reflection), the hand-written streaming RPC `proto/user_events.proto` and
+its feature, the tests and the pinned `Cargo.lock`. `rok gen` then writes
+each Resource's `.proto` under `proto/` and its tonic service
+(`src/features/<resource>/grpc.rs`), calling the same service trait the
+HTTP handlers call.
 
 **Renaming a Monorepo template's Apps.** `--template monorepo` names every
 App after the project — the project directory's name, split into words at
@@ -176,7 +186,7 @@ the project holds is kept as it is (an App's existing `Cargo.toml` names
 the crate its Rust files use), and generated files are not copied. Firebase
 configuration stays a placeholder (`apps/mobile/docs/push-notifications.md`
 points to the recipe in `rok-templates/docs/guide/recipes/`).
-A single-app template has no Apps to name: `--org` with `actix` or `axum` is
+A single-app template has no Apps to name: `--org` with `actix`, `axum` or `grpc` is
 an error.
 
 **What a Monorepo scaffold writes.** `--template monorepo` writes the root
@@ -958,7 +968,7 @@ is a library; `rok` forwards the tokens verbatim). Subcommand set:
 | Command        | Alias | One-liner                                                                 |
 | -------------- | ----- | ------------------------------------------------------------------------- |
 | `generate`     | `g`   | parse the schema and emit `src/db/<table>/{…}` modules, optional api/openapi |
-| `init`         | `i`   | scaffold a project (engine ADR 0016 skeleton, `-w axum` for axum, or `--template actix`/`axum`/`monorepo`; `-o, --org ORG` names a Monorepo's Apps under ORG, as `rok init` does), files-if-absent |
+| `init`         | `i`   | scaffold a project (engine ADR 0016 skeleton, `-w axum` for axum, or `--template actix`/`axum`/`grpc`/`monorepo`; `-o, --org ORG` names a Monorepo's Apps under ORG, as `rok init` does), files-if-absent |
 | `check`        | `c`   | the generated code is up to date; with `--db`, every annotated query agrees with the database; any difference → exit 1 |
 | `check-arch`   | `a`   | check `src/` layout against the engine's ADR 0016 rules; violations → exit 1. Finds its project by [the one rule](#finding-the-project): inside an App, that App; at a Monorepo root, every App; a plain `rok.toml` or `rok-data-sqlc.toml` with `[api] output` |
 | `query add`    | `q a` | append one annotated query to a query file and generate; kept only if it generates |
@@ -976,7 +986,7 @@ Executive summary of the main flags (full text: `rok sqlc generate --help`):
 | `-d, --derive <NAME>` | extra derives (`serde`, `validate`, …); `-e` engine features           |
 | `-W, --watch`         | regenerate on every change to the schema, the query files or the config file, until interrupted (not with `-k`/`-n`) |
 
-`init` next steps and the `--template` list (`actix`, `axum`, `monorepo`) print on stdout;
+`init` next steps and the `--template` list (`actix`, `axum`, `grpc`, `monorepo`) print on stdout;
 the scaffolder never overwrites existing files. Templates ship their own
 `README.md` with the dependency list to add.
 

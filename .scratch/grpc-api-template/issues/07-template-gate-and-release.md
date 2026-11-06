@@ -6,7 +6,7 @@ Spec: `docs/specs/grpc-api-template.md`
 
 **Blocked by:** 04, 05, 06
 
-**Status:** blocked
+**Status:** done
 
-- [ ] Gate added and green locally and in CI
-- [ ] rok-templates release published with the `grpc` template
+- [x] Gate added and green locally and in CI
+- [x] rok-templates release published with the `grpc` template

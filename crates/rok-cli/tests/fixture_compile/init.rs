@@ -308,3 +308,41 @@ fn init_with_resource_pagination_builds() -> Result<()> {
     let manifest = write_manifest(dir, "init-e2e-resource", &[])?;
     ensure_clippy_clean(dir, &manifest)
 }
+
+/// `rok init --template grpc` (the tonic API, spec `grpc-api-template`),
+/// as a user gets it: `init`, then `rok sqlc generate` writing the
+/// `.proto` files and the tonic services this engine makes. It passes
+/// `cargo clippy --all-targets -- -D warnings` with `PROTOC` pointing
+/// nowhere: `build.rs` compiles `proto/` with protox, no `protoc` needed.
+#[test]
+fn init_grpc_template_then_generate_builds_without_protoc() -> Result<()> {
+    if let Some(reason) = common::generated_code_skip_reason(&api_app_dir()) {
+        eprintln!("{reason}");
+        return Ok(());
+    }
+    let project = tempfile::TempDir::new()?;
+    let dir = project.path();
+    rok_data_sqlc(dir, &["init", "--template", "grpc"])?;
+    ensure!(
+        !dir.join("src/features/users/grpc.rs").exists(),
+        "`init` copied a generated file"
+    );
+    common::rok_data_patch_shim(dir)?;
+    rok_data_sqlc(dir, &["g"])?;
+    for generated in ["proto/users.proto", "src/features/users/grpc.rs"] {
+        ensure!(dir.join(generated).exists(), "`g` wrote no `{generated}`");
+    }
+    let output = cargo(
+        dir,
+        &["clippy", "--quiet", "--all-targets", "--", "-D", "warnings"],
+    )
+    .env("PROTOC", dir.join("no-such-protoc"))
+    .output()
+    .context("failed to run cargo clippy")?;
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    ensure!(
+        output.status.success() && !stderr.contains("warning"),
+        "the grpc project `init` and `g` made fails `cargo clippy --all-targets -- -D warnings`:\n{stderr}"
+    );
+    Ok(())
+}

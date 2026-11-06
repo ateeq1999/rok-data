@@ -1,7 +1,7 @@
 ---
 title: Getting started with rok-data
 description: The front door (rok init / rok gen, a single API or the monorepo template), the runtime by hand, and the two legacy generators.
-updated: 2026-11-02
+updated: 2026-11-06
 kind: guide
 source: README.md, docs/cli-reference.md, crates/rok-data/tests/docs/getting_started.rs (compiled samples)
 ---
@@ -94,6 +94,21 @@ $ cd my-api && rok gen
 The `axum` template is a complete axum application — the app, its `users`
 and `audit-log` features, the OpenAPI document and the tests — and the
 `actix` template is its actix-web twin.
+
+The same API over gRPC:
+
+```console
+$ rok init my-api --template grpc
+$ cd my-api && rok gen
+```
+
+The `grpc` template is a tonic server over the `axum` template's schema and
+data layer: `rok gen` writes each Resource's `.proto` under `proto/` and a
+tonic service calling the same service trait as the HTTP handlers, so the
+business logic in a feature's `service.rs` serves both. It adds a caller
+check (the axum API's tokens and API keys), health, reflection and a
+streaming RPC; `build.rs` compiles the protos with protox, so you don't
+install `protoc`. Its README says how to run it and call it with `grpcurl`.
 
 ### A backend and its apps: the monorepo template
 

@@ -31,6 +31,10 @@ pub const EXAMPLES: &[(&str, &[Example])] = &[
                 "The same skeleton, written for axum.",
             ),
             ex(
+                "rok init shop --template grpc",
+                "A tonic gRPC API: `rok gen` writes a .proto and a service per Resource; no protoc needed.",
+            ),
+            ex(
                 "rok init shop --template monorepo --org com.acme",
                 "A monorepo: the axum API with web, mobile and desktop Apps, named under com.acme.",
             ),
