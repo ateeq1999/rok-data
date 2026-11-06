@@ -40,21 +40,29 @@ impl<'a, 'c> Analysis<'a, 'c> {
                         .collect::<Result<_, _>>()?
                 };
                 let Some(source) = &insert.source else {
-                    return Err("INSERT without VALUES is not supported".to_owned());
+                    return Err("INSERT without VALUES or SELECT is not supported".to_owned());
                 };
-                let SetExpr::Values(values) = source.body.as_ref() else {
-                    return Err("INSERT … SELECT is not supported yet; use VALUES".to_owned());
-                };
-                for row in &values.rows {
-                    if row.len() != columns.len() {
-                        return Err(format!(
-                            "a VALUES row has {} values for {} columns",
-                            row.len(),
-                            columns.len()
-                        ));
+                match source.body.as_ref() {
+                    SetExpr::Values(values) => {
+                        for row in &values.rows {
+                            if row.len() != columns.len() {
+                                return Err(format!(
+                                    "a VALUES row has {} values for {} columns",
+                                    row.len(),
+                                    columns.len()
+                                ));
+                            }
+                            for (column, value) in columns.iter().zip(row) {
+                                self.typed_by_column(value, column, column.nullable, "")?;
+                            }
+                        }
                     }
-                    for (column, value) in columns.iter().zip(row) {
-                        self.typed_by_column(value, column, column.nullable, "")?;
+                    SetExpr::Select(select) => self.insert_select(source, select, &columns)?,
+                    _ => {
+                        return Err(
+                            "INSERT takes VALUES or a plain SELECT (no UNION or nesting)"
+                                .to_owned(),
+                        );
                     }
                 }
 
@@ -142,6 +150,41 @@ impl<'a, 'c> Analysis<'a, 'c> {
         }
     }
 
+    /// Analyzes a subquery (scalar, `EXISTS` or `IN`): its own tables come
+    /// first, and it sees the tables of the queries around it, so a
+    /// correlated column resolves. Its placeholders are typed, and the type
+    /// of its one column is recorded for the result typing.
+    ///
+    /// A subquery the engine can't analyze (a form it doesn't support) is
+    /// left untyped rather than failing the query, as subqueries were before
+    /// they were analyzed: its placeholders still need their type from
+    /// elsewhere, and a result column drawn from it still needs a
+    /// `-- column:` override.
+    pub(super) fn subquery(&mut self, query: &Query) {
+        let key = std::ptr::from_ref(query);
+        if self.subquery_types.contains_key(&key) {
+            return;
+        }
+        let depth = self.scope.len();
+        self.levels.push(depth);
+        let outputs = self.query(query);
+        self.levels.pop();
+        self.scope.truncate(depth);
+        let value_type = match outputs.as_deref() {
+            Ok([output]) => {
+                output
+                    .rust_type
+                    .as_deref()
+                    .map(|rust_type| match Shape::of(rust_type) {
+                        Shape::Optional(inner) => inner.to_owned(),
+                        Shape::List(_) | Shape::Value(_) => rust_type.to_owned(),
+                    })
+            }
+            _ => None,
+        };
+        self.subquery_types.insert(key, value_type);
+    }
+
     fn query(&mut self, query: &Query) -> Result<Vec<Output>, String> {
         let visible = self.ctes.len();
         let outputs = self.query_body(query);
@@ -149,7 +192,68 @@ impl<'a, 'c> Analysis<'a, 'c> {
         outputs
     }
 
-    fn query_body(&mut self, query: &Query) -> Result<Vec<Output>, String> {
+    /// `INSERT … SELECT`: each value the `SELECT` returns is typed from the
+    /// column it fills, as a `VALUES` row's is. The `SELECT` runs in its own
+    /// scope, without the target: its `FROM` names the tables it reads,
+    /// the target included.
+    fn insert_select(
+        &mut self,
+        source: &Query,
+        select: &Select,
+        columns: &[&Column],
+    ) -> Result<(), String> {
+        let values = select
+            .projection
+            .iter()
+            .map(|item| match item {
+                SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } => Ok(expr),
+                SelectItem::Wildcard(_) | SelectItem::QualifiedWildcard(..) => Err(
+                    "INSERT … SELECT * is not supported; select each value the columns take"
+                        .to_owned(),
+                ),
+            })
+            .collect::<Result<Vec<&Expr>, String>>()?;
+        if values.len() != columns.len() {
+            return Err(format!(
+                "the SELECT returns {} values for {} columns",
+                values.len(),
+                columns.len()
+            ));
+        }
+        let visible = self.ctes.len();
+        let typed = self.in_own_scope(|analysis| {
+            analysis.insert_select_values(source, select, columns, &values)
+        });
+        self.ctes.truncate(visible);
+        typed
+    }
+
+    fn insert_select_values(
+        &mut self,
+        source: &Query,
+        select: &Select,
+        columns: &[&Column],
+        values: &[&Expr],
+    ) -> Result<(), String> {
+        self.with_clause(source)?;
+        for table in &select.from {
+            self.scope_table(table)?;
+        }
+        for (column, value) in columns.iter().zip(values) {
+            self.typed_by_column(value, column, column.nullable, "")?;
+        }
+        if let Some(selection) = &select.selection {
+            self.expr(selection)?;
+        }
+        if let Some(having) = &select.having {
+            self.expr(having)?;
+        }
+        self.limit_clause(source)
+    }
+
+    /// Analyzes the query's CTEs, making each visible to those after it and
+    /// to the query's body.
+    fn with_clause(&mut self, query: &Query) -> Result<(), String> {
         if let Some(with) = &query.with {
             for cte in &with.cte_tables {
                 match cte.query.body.as_ref() {
@@ -163,12 +267,10 @@ impl<'a, 'c> Analysis<'a, 'c> {
                 }
             }
         }
-        let SetExpr::Select(select) = query.body.as_ref() else {
-            return Err(
-                "only a plain SELECT is supported (no UNION, VALUES, or nesting)".to_owned(),
-            );
-        };
-        let outputs = self.select(select)?;
+        Ok(())
+    }
+
+    fn limit_clause(&mut self, query: &Query) -> Result<(), String> {
         match &query.limit_clause {
             Some(LimitClause::LimitOffset { limit, offset, .. }) => {
                 if let Some(limit) = limit {
@@ -177,14 +279,24 @@ impl<'a, 'c> Analysis<'a, 'c> {
                 if let Some(offset) = offset {
                     self.typed_as(&offset.value, "offset", "i64")?;
                 }
+                Ok(())
             }
             Some(LimitClause::OffsetCommaLimit { .. }) => {
-                return Err(
-                    "`LIMIT offset, count` is MySQL syntax; use LIMIT … OFFSET …".to_owned(),
-                );
+                Err("`LIMIT offset, count` is MySQL syntax; use LIMIT … OFFSET …".to_owned())
             }
-            None => {}
+            None => Ok(()),
         }
+    }
+
+    fn query_body(&mut self, query: &Query) -> Result<Vec<Output>, String> {
+        self.with_clause(query)?;
+        let SetExpr::Select(select) = query.body.as_ref() else {
+            return Err(
+                "only a plain SELECT is supported (no UNION, VALUES, or nesting)".to_owned(),
+            );
+        };
+        let outputs = self.select(select)?;
+        self.limit_clause(query)?;
         Ok(outputs)
     }
 
@@ -200,9 +312,7 @@ impl<'a, 'c> Analysis<'a, 'c> {
                 "data-modifying CTE `{name}` (INSERT, UPDATE, or DELETE inside WITH) is not supported yet"
             ));
         }
-        let outer_scope = std::mem::take(&mut self.scope);
-        let outputs = self.query(&cte.query);
-        self.scope = outer_scope;
+        let outputs = self.in_own_scope(|analysis| analysis.query(&cte.query));
         let table = self.cte_table(cte, outputs?)?;
         self.ctes.push(Rc::new(table));
         Ok(())
@@ -252,17 +362,14 @@ impl<'a, 'c> Analysis<'a, 'c> {
 
     /// One term of a set operation, analyzed in its own scope.
     fn term(&mut self, body: &SetExpr) -> Result<Vec<Output>, String> {
-        let outer_scope = std::mem::take(&mut self.scope);
-        let outputs = match body {
-            SetExpr::Select(select) => self.select(select),
-            SetExpr::Query(query) => self.query(query),
+        self.in_own_scope(|analysis| match body {
+            SetExpr::Select(select) => analysis.select(select),
+            SetExpr::Query(query) => analysis.query(query),
             _ => Err(
                 "a recursive CTE's terms must each be a plain SELECT (no nested UNION or VALUES)"
                     .to_owned(),
             ),
-        };
-        self.scope = outer_scope;
-        outputs
+        })
     }
 
     /// The table a CTE's result columns make, named by its column list or
@@ -412,7 +519,12 @@ impl<'a, 'c> Analysis<'a, 'c> {
             .as_ref()
             .map(|alias| ident_name(&alias.name))
             .unwrap_or_else(|| table.sql_name.clone());
-        if self.scope.iter().any(|entry| entry.qualifier == qualifier) {
+        // A subquery's table may take a name an outer query's has: it
+        // shadows that one.
+        if self.scope[self.floor()..]
+            .iter()
+            .any(|entry| entry.qualifier == qualifier)
+        {
             return Err(format!(
                 "`{qualifier}` appears twice in FROM; alias one of them"
             ));

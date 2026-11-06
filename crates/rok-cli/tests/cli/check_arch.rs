@@ -291,8 +291,8 @@ fn rule_4_a_feature_referring_to_another_feature_is_reported() -> Result<()> {
     assert_violations(
         &check_arch(&dir, &[]),
         &[
-            "src/features/notes/dto.rs:4: rule-4: `crate::features::labels::service::LabelsService`: feature `notes` refers to another feature; declare a port in its service.rs instead",
-            "src/features/notes/dto.rs:5: rule-4: `crate::features::labels::service::LabelsService`: feature `notes` refers to another feature; declare a port in its service.rs instead",
+            "src/features/notes/dto.rs:4: rule-4: `crate::features::labels::service::LabelsService`: feature `notes` refers to another feature; declare a port in its service.rs instead; a pure helper with no feature state belongs in shared/",
+            "src/features/notes/dto.rs:5: rule-4: `crate::features::labels::service::LabelsService`: feature `notes` refers to another feature; declare a port in its service.rs instead; a pure helper with no feature state belongs in shared/",
         ],
     );
     Ok(())

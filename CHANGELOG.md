@@ -50,9 +50,25 @@ that it exists and won't ship a tag without it).
   listed on stderr (`warning: src/features/users/service.rs is no longer
   wired in: ...`) and in `--json`'s `unwired`; `rok gen check` reports
   the unedited one as stale and lists the edited one without failing.
+- Typed queries (rok-data-sqlc) support `INSERT INTO t (cols) SELECT …`,
+  where it failed "use VALUES": each selected value is typed from the
+  column it fills, as with `VALUES`, with `ON CONFLICT` and `RETURNING`.
+  A `SELECT` returning the wrong number of values fails naming both
+  counts.
 
 **Changed**
 
+- `check-arch` rule 4's message adds where a helper goes: "…declare a
+  port in its service.rs instead; a pure helper with no feature state
+  belongs in shared/". The rule is unchanged.
+- `rok gen` prints `exporting the contract (building the App, slow the
+  first time)…` on stderr before the contract export, so a long first
+  build isn't silent (`--json`'s stdout is unchanged).
+- The Rust Client documents an operation whose sign-in is optional
+  (`security((), ("bearer_auth" = []))`, OpenAPI `[{}, {"bearer_auth":
+  []}]`) as "Sends the session's token when there is one."; a
+  required-auth operation keeps "Sends the session's token.". The TS
+  and Dart Clients make no such claim.
 - Query parameter names (rok-data-sqlc): a `BETWEEN` bound is
   `<column>_from` / `<column>_to` (was `<column>` / `<column>_2`);
   `-- param: $2 from` renames without restating the type, and
@@ -60,7 +76,13 @@ that it exists and won't ship a tag without it).
   (`Uuid`, not `Option<Uuid>`).
 - Typed queries (rok-data-sqlc) support `UPDATE … FROM` and
   `DELETE … USING`, typed like the equivalent join, and a placeholder in
-  arithmetic with a numeric column takes its type. `-- rok:skip [note]`
+  arithmetic with a numeric column takes its type. A cast to a typed
+  id's own plain type keeps the typed id (`coalesce(p.cover_media_id,
+  (SELECT ph.media_id …))::uuid` is `Option<MediaId>`, not
+  `Option<uuid::Uuid>`), `coalesce` takes the type its arguments share,
+  a scalar subquery its column's, `EXISTS (…)` / `NOT EXISTS (…)` are a
+  never-null `bool`, and placeholders inside subqueries are typed.
+  `-- rok:skip [note]`
   leaves one query ungenerated on purpose: `rok gen` prints a `note:`
   instead of failing without `--lenient`, and `--json` lists it under
   `skipped_on_purpose`, apart from `failures` and `skipped`.

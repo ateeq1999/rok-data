@@ -545,7 +545,7 @@ impl Layout {
             ),
             Rule::CrossFeature => format!(
                 "`{target}`: feature `{}` refers to another feature; declare a port in its \
-                 service.rs instead",
+                 service.rs instead; a pure helper with no feature state belongs in shared/",
                 self.feature_of(rel).unwrap_or_default()
             ),
             Rule::SharedToFeatures => format!("`{target}`: shared/ refers to the features"),

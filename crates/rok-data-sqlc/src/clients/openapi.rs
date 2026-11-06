@@ -187,7 +187,7 @@ impl Document {
             }
         }
         let default_security = match root.get("security") {
-            Some(value) => Some(operation::secured(value, "#/security", &bearer)?),
+            Some(value) => Some(operation::security(value, "#/security", &bearer)?),
             None => None,
         };
         let mut operations = Vec::new();

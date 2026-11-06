@@ -19,7 +19,7 @@ impl<'a, 'c> Analysis<'a, 'c> {
         for item in items {
             match item {
                 SelectItem::Wildcard(_) => {
-                    for entry_index in 0..self.scope.len() {
+                    for entry_index in self.floor()..self.scope.len() {
                         if self.scope[entry_index].qualifier == "excluded" {
                             continue;
                         }
@@ -122,9 +122,9 @@ impl<'a, 'c> Analysis<'a, 'c> {
 
     /// Whether `expr` is never NULL, as far as the engine can tell: a
     /// literal, `count`, `now()` and the other clock functions, `coalesce`
-    /// with a literal fallback, a `NOT NULL` column that is not on the outer
-    /// side of a join, an `IS [NOT] NULL`-style test, or an operator or cast
-    /// none of whose operands can be NULL.
+    /// with an argument that is never NULL, a `NOT NULL` column that is not
+    /// on the outer side of a join, an `IS [NOT] NULL`-style test, `[NOT]
+    /// EXISTS`, or an operator or cast none of whose operands can be NULL.
     fn never_null(&self, expr: &Expr) -> Result<bool, String> {
         if let Some(reference) = self.column_reference(expr)? {
             let entry = &self.scope[reference.entry];
@@ -136,12 +136,12 @@ impl<'a, 'c> Analysis<'a, 'c> {
             | Expr::UnaryOp { expr: inner, .. } => self.never_null(inner)?,
             Expr::Value(_) => is_non_null_literal(expr),
             Expr::TypedString(_) => true,
-            Expr::Function(function) => {
-                is_count(function)
-                    || clock_type(function).is_some()
-                    || coalesce_with_literal_fallback(function).is_some()
-            }
+            Expr::Function(function) => match coalesce_arguments(function) {
+                Some(arguments) => self.any_never_null(arguments)?,
+                None => is_count(function) || clock_type(function).is_some(),
+            },
             _ if is_is_test(expr) => true,
+            Expr::Exists { .. } => true,
             Expr::BinaryOp { left, op, right } if is_typed_operator(op) => {
                 self.all_never_null([&**left, &**right])?
             }
@@ -178,6 +178,68 @@ impl<'a, 'c> Analysis<'a, 'c> {
             }
         }
         Ok(true)
+    }
+
+    fn any_never_null(&self, exprs: Vec<&Expr>) -> Result<bool, String> {
+        for expr in exprs {
+            if self.never_null(expr)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    /// The plain type under `value_type`: the column type a typed id wraps
+    /// (`uuid::Uuid` for `MediaId`), or `value_type` itself.
+    fn plain_type<'t>(&'t self, value_type: &'t str) -> &'t str {
+        self.context
+            .tables
+            .iter()
+            .flat_map(|table| &table.columns)
+            .find(|column| {
+                column
+                    .typed_id
+                    .as_ref()
+                    .is_some_and(|id| id.name == value_type)
+            })
+            .map_or(value_type, |column| column.sqlx_type.as_str())
+    }
+
+    /// The type of `coalesce(…)`: the type its arguments share, as a `CASE`'s
+    /// branches do. A literal takes the other arguments' type, as in
+    /// PostgreSQL, so `coalesce(category_id, 0)` keeps the typed id; and
+    /// arguments of one plain type under different typed ids (or none) take
+    /// the plain type.
+    fn coalesce_type(&self, arguments: &[&Expr]) -> Result<Option<String>, String> {
+        let typed: Vec<&Expr> = arguments
+            .iter()
+            .copied()
+            .filter(|argument| !is_non_null_literal(argument) && !is_null_literal(argument))
+            .collect();
+        let arguments = if typed.is_empty() {
+            arguments
+        } else {
+            typed.as_slice()
+        };
+        let mut types = Vec::new();
+        for argument in arguments
+            .iter()
+            .filter(|argument| !is_null_literal(argument))
+        {
+            match self.value_type(argument)? {
+                Some(value_type) => types.push(value_type),
+                None => return Ok(None),
+            }
+        }
+        if let Some(shared) = shared_type(types.clone()) {
+            return Ok(Some(shared));
+        }
+        Ok(shared_type(
+            types
+                .iter()
+                .map(|value_type| self.plain_type(value_type).to_owned())
+                .collect(),
+        ))
     }
 
     /// The `RETURNS` type of the schema function `function` calls: an
@@ -221,7 +283,9 @@ impl<'a, 'c> Analysis<'a, 'c> {
     fn number_type(&self, expr: &Expr) -> Result<Option<Number>, String> {
         let value_type = match self.column_reference(expr)? {
             Some(reference) => Some(self.reference_column(&reference).sqlx_type.clone()),
-            None => self.value_type(expr)?,
+            None => self
+                .value_type(expr)?
+                .map(|value_type| self.plain_type(&value_type).to_owned()),
         };
         Ok(value_type.as_deref().and_then(Number::of))
     }
@@ -241,13 +305,31 @@ impl<'a, 'c> Analysis<'a, 'c> {
             Expr::Value(value) => literal_type(&value.value),
             Expr::TypedString(typed) => Some(map_type(&typed.data_type, self.context.enums)?.1),
             Expr::Function(function) if is_count(function) => Some("i64".to_owned()),
-            Expr::Function(function) => match coalesce_with_literal_fallback(function) {
-                Some(first) => self.value_type(first)?,
+            Expr::Function(function) => match coalesce_arguments(function) {
+                Some(arguments) => self.coalesce_type(&arguments)?,
                 None => clock_type(function)
                     .map(str::to_owned)
                     .or_else(|| self.schema_function_type(function)),
             },
-            Expr::Cast { data_type, .. } => Some(map_type(data_type, self.context.enums)?.1),
+            // A cast to the plain type a typed id wraps keeps the typed id:
+            // `media_id::uuid` is still a `MediaId`.
+            Expr::Cast {
+                expr: inner,
+                data_type,
+                ..
+            } => {
+                let target = map_type(data_type, self.context.enums)?.1;
+                match self.value_type(inner)? {
+                    Some(value_type) if self.plain_type(&value_type) == target => Some(value_type),
+                    _ => Some(target),
+                }
+            }
+            Expr::Subquery(query) => self
+                .subquery_types
+                .get(&std::ptr::from_ref(query.as_ref()))
+                .cloned()
+                .flatten(),
+            Expr::Exists { .. } | Expr::InSubquery { .. } => Some("bool".to_owned()),
             Expr::BinaryOp { op, .. } if is_boolean_operator(op) => Some("bool".to_owned()),
             Expr::BinaryOp {
                 left,
@@ -366,9 +448,8 @@ fn literal_type(value: &Value) -> Option<String> {
     )
 }
 
-/// The first argument of `coalesce(x, ..., <literal>)` whose last argument
-/// is a literal other than NULL, so the call is never NULL.
-fn coalesce_with_literal_fallback(function: &Function) -> Option<&Expr> {
+/// The arguments of a `coalesce(…)` call with at least one.
+fn coalesce_arguments(function: &Function) -> Option<Vec<&Expr>> {
     if !object_leaf_name(&function.name).eq_ignore_ascii_case("coalesce") {
         return None;
     }
@@ -383,10 +464,7 @@ fn coalesce_with_literal_fallback(function: &Function) -> Option<&Expr> {
             _ => None,
         })
         .collect::<Option<_>>()?;
-    match arguments.as_slice() {
-        [first, .., last] if is_non_null_literal(last) => Some(first),
-        _ => None,
-    }
+    (!arguments.is_empty()).then_some(arguments)
 }
 
 /// A literal other than NULL or a placeholder, possibly signed (`-1`).

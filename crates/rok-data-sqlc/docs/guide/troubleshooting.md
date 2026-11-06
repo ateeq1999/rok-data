@@ -288,7 +288,7 @@ A service writes no SQL. Put the query in a query file, so the data layer
 generates a function for it, and call that.
 
 ```text
-src/features/users/service.rs:35: rule-4: `crate::features::articles::ArticlesService::new`: feature `users` refers to another feature; declare a port in its service.rs instead
+src/features/users/service.rs:35: rule-4: `crate::features::articles::ArticlesService::new`: feature `users` refers to another feature; declare a port in its service.rs instead; a pure helper with no feature state belongs in shared/
 ```
 
 Declare a port trait in this feature's `service.rs` and implement it in
