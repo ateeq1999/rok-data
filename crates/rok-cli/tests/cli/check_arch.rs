@@ -464,6 +464,36 @@ fn a_feature_calls_its_own_query_module_but_not_another_features() -> Result<()>
     Ok(())
 }
 
+/// `db::queries::shared` holds reads any feature may call (generated from
+/// `queries/shared/*.sql`): two features call it, and still not each other's
+/// query module.
+#[test]
+fn any_feature_calls_the_shared_queries() -> Result<()> {
+    let mut files = NOTES.to_vec();
+    files.push(("src/features/labels/mod.rs", "pub mod service;\n"));
+    files.push((
+        "src/features/labels/service.rs",
+        "use crate::db::queries::shared::membership;\n\
+         pub struct LabelsService;\n\
+         pub fn f() { membership::role_of(); crate::db::queries::shared::membership::is_member(); }\n",
+    ));
+    let dir = project(&files)?;
+    fs::write(
+        dir.path().join("src/features/notes/service.rs"),
+        "use crate::db::queries::shared;\n\
+         use crate::db::queries::shared::membership::role_of;\n\
+         pub fn f() { role_of(); shared::membership::is_member(); }\n\
+         pub fn g() { crate::db::queries::labels::rename(); }\n",
+    )?;
+    assert_violations(
+        &check_arch(&dir, &[]),
+        &["src/features/notes/service.rs:4: cross-feature-query: \
+           `crate::db::queries::labels::rename`: feature `notes` calls another feature's query \
+           module; declare a port in its service.rs and implement it in app.rs"],
+    );
+    Ok(())
+}
+
 /// A project breaking each layout check once.
 fn badly_laid_out() -> Result<TempDir> {
     let mut files = NOTES.to_vec();

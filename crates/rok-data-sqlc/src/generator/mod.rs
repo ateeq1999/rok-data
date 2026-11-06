@@ -56,18 +56,23 @@ pub enum QueriesModule<'a> {
     /// Generate `queries.rs` from these analyzed queries (one query file).
     Generate(&'a [AnalyzedQuery]),
     /// Generate `queries/<name>.rs` per query file, declared by a generated
-    /// `queries/mod.rs`.
+    /// `queries/mod.rs`, and `queries/shared/<name>.rs` per shared query
+    /// file, declared by `queries/shared/mod.rs`.
     GenerateModules(&'a [QueryModule]),
     /// A previous run generated `queries.rs` or `queries/mod.rs`; keep
     /// declaring it in `mod.rs`.
     Keep,
 }
 
-/// The analyzed queries of one query file, generated as `queries/<name>.rs`.
+/// The analyzed queries of one query file, generated as `queries/<name>.rs`
+/// (or `queries/shared/<name>.rs`).
 #[derive(Debug, Clone)]
 pub struct QueryModule {
     /// The module name: the query file's stem.
     pub name: String,
+    /// Whether the file is in the query directory's `shared/`: reads any
+    /// feature may call, generated under `queries::shared`.
+    pub shared: bool,
     pub queries: Vec<AnalyzedQuery>,
 }
 
@@ -255,13 +260,25 @@ pub fn plan_files_with_queries(
         }
         QueriesModule::GenerateModules(modules) => {
             let dir = output.join("queries");
+            let shared_dir = dir.join(queries::SHARED);
             for module in modules {
+                let (parent, depth) = if module.shared {
+                    (&shared_dir, 2)
+                } else {
+                    (&dir, 1)
+                };
                 files.push((
-                    dir.join(format!("{}.rs", module.name)),
-                    queries::render_nested(&module.queries, tables, serde),
+                    parent.join(format!("{}.rs", module.name)),
+                    queries::render_nested(&module.queries, tables, depth, serde),
                 ));
             }
             files.push((dir.join("mod.rs"), queries::render_mod(modules)));
+            if modules.iter().any(|module| module.shared) {
+                files.push((
+                    shared_dir.join("mod.rs"),
+                    queries::render_shared_mod(modules),
+                ));
+            }
         }
         QueriesModule::None | QueriesModule::Keep => {}
     }

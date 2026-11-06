@@ -9,6 +9,13 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Added
 
+- Shared reads: a query directory's `shared/` (`queries/shared/*.sql`)
+  generates `db::queries::shared::<file stem>`, one module per file, which
+  any feature may call: `check-arch`'s `cross-feature-query` rule never
+  reports `queries::shared`. Only reads are allowed there: a `:exec` or
+  `:execrows` query, or an INSERT, UPDATE, DELETE or MERGE, fails the run
+  (with or without `--lenient`), naming the file, the line and the query.
+  `shared` is reserved: a top-level `queries/shared.sql` fails the run.
 - `[api] include`: the only tables to serve, an allowlist in place of
   `exclude` (setting both fails the run, naming both; without either
   every table is served, as before). `ApiConfig::include`.

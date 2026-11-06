@@ -11,6 +11,12 @@ that it exists and won't ship a tag without it).
 
 **Added**
 
+- Shared reads: `queries/shared/<name>.sql` generates
+  `db::queries::shared::<name>`, which any feature may call
+  (`check-arch` allows it, and still refuses another feature's query
+  module). It holds reads only: a `:exec`/`:execrows` query or an
+  INSERT, UPDATE, DELETE or MERGE fails `rok gen`, naming the file, the
+  line and the query.
 - `rok gen` announces a table the API serves for the first time, once,
   on stderr: ``warning: now serving `/api/v1/posts` (list, create,
   get_one, update, remove); add `posts` to `[api] exclude` to keep it

@@ -23,6 +23,7 @@ pub mod note_labels;
 pub mod notes;
 pub mod nullable;
 pub mod pool;
+pub mod queries;
 pub mod schema;
 pub mod search;
 
