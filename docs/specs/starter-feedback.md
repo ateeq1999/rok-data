@@ -230,6 +230,11 @@ From the notes on Karibu Pass's ticket 17 (its schema-file order is ticket 30 an
 - **Set operations:** `UNION`, `UNION ALL`, `INTERSECT` and `EXCEPT` type at the top level and in subqueries, each column from the branches' shared type.
 - **A query fills a DTO:** `-- returns:` may name a hand-written `FromRow` type, so the query decodes into it and no row struct is copied field by field (ticket 56).
 
+From the notes on Karibu Pass's ticket 18 (its aggregates are typed in 0.9.0, and `min` over a `LEFT JOIN` stays `Option` because no rows means no minimum; its repeated upload query is `queries/shared/`):
+
+- **Guards that check the Partner's kind:** ticket 44's recipe shows `Allowed<PartnerAccess<Organizer>>`, one guard checking membership and kind together.
+- **`query add` reads its SQL from a file or stdin:** `@path` or `-`, as `-j` does, so scripted edits need no shell quoting.
+
 ## Out of Scope
 
 - **Karibu Pass's product work:** phone and SMS sign-in (its ADR-0006), its tickets, removing its sample data, its repo-wide reformat and its own visual-check scripts. A phone sign-in Module may come later.
