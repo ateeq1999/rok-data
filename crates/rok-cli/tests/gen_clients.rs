@@ -399,6 +399,25 @@ fn a_failing_export_stops_the_run_naming_the_command() -> Result<()> {
     Ok(())
 }
 
+/// The export builds the App, slow the first time: `rok gen` says so on
+/// stderr before it runs, so a long first build isn't silent, and the
+/// line stays out of `--json`'s stdout.
+#[test]
+fn gen_says_it_is_exporting_before_the_export_runs() -> Result<()> {
+    let project = monorepo(Some("[\"rok-no-such-exporter\"]"))?;
+    let line = "exporting the contract (building the App, slow the first time)\u{2026}";
+    let output = rok(project.path(), &["gen"])?;
+    let stderr = text(&output.stderr);
+    let said = stderr.find(line);
+    let failed = stderr.find("re-exporting the contract: `rok-no-such-exporter`");
+    assert!(said.is_some() && said < failed, "{stderr}");
+
+    let json = rok(project.path(), &["gen", "--json"])?;
+    assert!(text(&json.stderr).contains(line), "{}", text(&json.stderr));
+    assert!(!text(&json.stdout).contains(line), "{}", text(&json.stdout));
+    Ok(())
+}
+
 /// `rok init --template monorepo` emits `clients/ts` from the contract it
 /// scaffolds (that they match the template's checked-in files byte for byte
 /// is rok-templates' monorepo gate, workspace ADR 0032).

@@ -46,6 +46,17 @@ that it exists and won't ship a tag without it).
 
 **Changed**
 
+- `check-arch` rule 4's message adds where a helper goes: "…declare a
+  port in its service.rs instead; a pure helper with no feature state
+  belongs in shared/". The rule is unchanged.
+- `rok gen` prints `exporting the contract (building the App, slow the
+  first time)…` on stderr before the contract export, so a long first
+  build isn't silent (`--json`'s stdout is unchanged).
+- The Rust Client documents an operation whose sign-in is optional
+  (`security((), ("bearer_auth" = []))`, OpenAPI `[{}, {"bearer_auth":
+  []}]`) as "Sends the session's token when there is one."; a
+  required-auth operation keeps "Sends the session's token.". The TS
+  and Dart Clients make no such claim.
 - Query parameter names (rok-data-sqlc): a `BETWEEN` bound is
   `<column>_from` / `<column>_to` (was `<column>` / `<column>_2`);
   `-- param: $2 from` renames without restating the type, and

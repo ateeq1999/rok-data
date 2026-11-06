@@ -9,8 +9,8 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The rule-4 violation message mentions `shared/` (test)
-- [ ] The export line prints before the export (test)
-- [ ] The optional-auth doc comment (emission test)
+- [x] The rule-4 violation message mentions `shared/` (test)
+- [x] The export line prints before the export (test)
+- [x] The optional-auth doc comment (emission test)

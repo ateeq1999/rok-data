@@ -251,6 +251,53 @@ fn an_optional_header_is_an_option() {
     );
 }
 
+/// Optional sign-in (`security((), ("bearer_auth" = []))`, the empty
+/// requirement among them) sends the session's token when there is one;
+/// required sign-in keeps its wording.
+#[test]
+fn optional_sign_in_sends_the_token_when_there_is_one() {
+    let json = json!({
+        "openapi": "3.1.0", "info": {},
+        "paths": {"/things": {
+            "get": {
+                "operationId": "list", "tags": ["things"],
+                "security": [{}, {"bearer_auth": []}],
+                "responses": {"204": {"description": ""}},
+            },
+            "delete": {
+                "operationId": "clear", "tags": ["things"],
+                "security": [{"bearer_auth": []}],
+                "responses": {"204": {"description": ""}},
+            },
+        }},
+        "components": {"securitySchemes": {
+            "bearer_auth": {"type": "http", "scheme": "bearer"},
+        }},
+    })
+    .to_string();
+    let document = Document::parse(&json).unwrap_or_else(|err| panic!("{err}"));
+    let files = emitted(&document);
+    let calls = file(&files, "src/calls.rs");
+    assert!(
+        calls.contains(
+            "    /// `GET /things`.\n    ///\n    \
+             /// Sends the session's token when there is one.\n    \
+             pub async fn list(&self) -> Result<(), ApiError> {\n        \
+             let path = \"/things\";\n        \
+             let call = self.client.call(Method::GET, path, true)?;\n"
+        ),
+        "{calls}"
+    );
+    assert!(
+        calls.contains(
+            "    /// `DELETE /things`.\n    ///\n    \
+             /// Sends the session's token.\n    \
+             pub async fn clear(&self) -> Result<(), ApiError> {\n"
+        ),
+        "{calls}"
+    );
+}
+
 /// Karibu Pass's `NextPayout`, read: `status` a documented
 /// `Option<PayoutStatus>`, `kind` the same with a description of its own.
 fn next_payout() -> Document {
