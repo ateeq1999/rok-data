@@ -219,6 +219,12 @@ From the notes on Karibu Pass's ticket 15 (its untyped `$1` inside a subquery is
 - **Guards return a grant:** `Guard::check` returns `Option<Self::Grant>`, and `Allowed<G>` hands the grant to the handler, so one guard can say "member with this role" or "staff" (ticket 44).
 - **A transaction helper on a pool:** `rok_data::transaction(&pool, |tx| …)` beside `Db::transaction`, allowed by check-arch rule 2 (ticket 57).
 
+From the notes on Karibu Pass's ticket 16 (its one-statement writes come with tickets 54 and 69 in 0.9.0, then 55 and 49 next; its member check is ticket 44):
+
+- **`jsonb_to_recordset` is typed** from its column definition list (ticket 49).
+- **Integer widths in the Clients:** the reader keeps `format`, so `int32` is Rust `i32` (a `smallint` too, since utoipa has no `int16`).
+- **Live updates over Topics:** a template Capability. A feature calls `publish(tenant, topic, payload)` over `NOTIFY`, and clients subscribe to one server-sent-events route behind a Guard, so a live board refetches on news instead of polling.
+
 ## Out of Scope
 
 - **Karibu Pass's product work:** phone and SMS sign-in (its ADR-0006), its tickets, removing its sample data, its repo-wide reformat and its own visual-check scripts. A phone sign-in Module may come later.
