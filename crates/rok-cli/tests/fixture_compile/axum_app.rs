@@ -25,6 +25,9 @@ static AXUM_APP: Mutex<()> = Mutex::new(());
 fn generate_axum_app() -> Result<Vec<PathBuf>> {
     let mut config = rok_data_sqlc::Config::default();
     config.schema = vec![axum_app_dir().join("migrations")];
+    // `queries/shared/accounts.sql`: a read the notes and the labels
+    // services both call, which check-arch lets any feature call.
+    config.queries = vec![axum_app_dir().join("queries")];
     config.output = axum_app_dir().join("src/db");
     config.force = true;
     config.derive = vec![

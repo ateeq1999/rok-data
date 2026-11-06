@@ -7,7 +7,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, bail};
 
 use super::read_text;
-use crate::queries::AnalyzedQuery;
+use crate::generator::queries::SHARED;
+use crate::queries::{AnalyzedQuery, QueryDef, ReturnMode};
 use crate::report::{QueryFailure, SkippedQuery, display_path};
 use crate::schema::Table;
 use crate::{generator, parser, queries};
@@ -18,11 +19,16 @@ pub(super) struct QueryInput {
     /// The generated module under `queries/`, named after the file stem;
     /// `None` when a single query file becomes `queries.rs`.
     pub(super) module: Option<String>,
+    /// Whether the file is in a query directory's `shared/`: its module is
+    /// `queries::shared::<stem>`, and it may hold only reads.
+    pub(super) shared: bool,
 }
 
 /// Expands the query inputs. A lone file keeps the single-module layout
 /// (`queries.rs`); a directory (its `*.sql` files, sorted by name) or several
-/// inputs produce one module per file under `queries/`.
+/// inputs produce one module per file under `queries/`. A directory's
+/// `shared/` subdirectory produces one module per file under
+/// `queries/shared/`.
 pub(super) fn query_inputs(inputs: &[PathBuf]) -> anyhow::Result<Vec<QueryInput>> {
     if let [path] = inputs
         && !path.is_dir()
@@ -30,37 +36,57 @@ pub(super) fn query_inputs(inputs: &[PathBuf]) -> anyhow::Result<Vec<QueryInput>
         return Ok(vec![QueryInput {
             path: path.clone(),
             module: None,
+            shared: false,
         }]);
     }
 
     let mut files = Vec::new();
     for input in inputs {
         if !input.is_dir() {
-            files.push(input.clone());
+            files.push((input.clone(), false));
             continue;
         }
-        let read_error = || format!("failed to read query directory `{}`", display_path(input));
-        let mut found = std::fs::read_dir(input)
-            .with_context(read_error)?
-            .map(|entry| entry.map(|entry| entry.path()))
-            .collect::<std::io::Result<Vec<_>>>()
-            .with_context(read_error)?;
-        found.retain(|path| path.is_file() && path.extension().is_some_and(|ext| ext == "sql"));
-        if found.is_empty() {
+        let found = sql_files(input)?;
+        let shared_dir = input.join(SHARED);
+        let shared = if shared_dir.is_dir() {
+            let shared = sql_files(&shared_dir)?;
+            if shared.is_empty() {
+                bail!(
+                    "query directory `{}` contains no `.sql` files",
+                    display_path(&shared_dir)
+                );
+            }
+            shared
+        } else {
+            Vec::new()
+        };
+        if found.is_empty() && shared.is_empty() {
             bail!(
                 "query directory `{}` contains no `.sql` files",
                 display_path(input)
             );
         }
-        found.sort();
-        files.extend(found);
+        files.extend(found.into_iter().map(|path| (path, false)));
+        files.extend(shared.into_iter().map(|path| (path, true)));
     }
 
-    let mut seen: HashMap<String, PathBuf> = HashMap::new();
+    // Names are unique within `queries` and within `queries::shared`.
+    let mut seen: HashMap<(bool, String), PathBuf> = HashMap::new();
     let mut modules = Vec::with_capacity(files.len());
-    for path in files {
+    for (path, shared) in files {
         let module = query_module_name(&path)?;
-        if let Some(first) = seen.insert(module.clone(), path.clone()) {
+        if !shared && module == SHARED {
+            bail!(
+                "query file `{}`: module `{SHARED}` is reserved for the query directory's `{SHARED}/`, the reads any feature may call; rename the file, or move its reads to `{SHARED}/<name>.sql`",
+                display_path(&path)
+            );
+        }
+        if let Some(first) = seen.insert((shared, module.clone()), path.clone()) {
+            let module = if shared {
+                format!("{SHARED}::{module}")
+            } else {
+                module
+            };
             bail!(
                 "query files `{}` and `{}` would both generate module `{module}`; rename one of them",
                 display_path(&first),
@@ -70,9 +96,23 @@ pub(super) fn query_inputs(inputs: &[PathBuf]) -> anyhow::Result<Vec<QueryInput>
         modules.push(QueryInput {
             path,
             module: Some(module),
+            shared,
         });
     }
     Ok(modules)
+}
+
+/// The `*.sql` files directly in `dir`, sorted by name.
+fn sql_files(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
+    let read_error = || format!("failed to read query directory `{}`", display_path(dir));
+    let mut found = std::fs::read_dir(dir)
+        .with_context(read_error)?
+        .map(|entry| entry.map(|entry| entry.path()))
+        .collect::<std::io::Result<Vec<_>>>()
+        .with_context(read_error)?;
+    found.retain(|path| path.is_file() && path.extension().is_some_and(|ext| ext == "sql"));
+    found.sort();
+    Ok(found)
 }
 
 /// The module a query file generates under `queries/`: its stem, which must
@@ -111,6 +151,7 @@ pub(super) struct AnalyzedFile {
 /// report.
 pub(super) fn analyze_query_file(
     path: &Path,
+    shared: bool,
     parsed: &parser::ParsedSchema,
     selected: &[Table],
 ) -> anyhow::Result<AnalyzedFile> {
@@ -127,6 +168,9 @@ pub(super) fn analyze_query_file(
             "query file `{}` contains no `-- name:` annotated queries",
             display_path(path)
         );
+    }
+    if shared {
+        refuse_writes(path, &defs)?;
     }
     let generated_modules: HashSet<String> = selected
         .iter()
@@ -180,4 +224,59 @@ pub(super) fn analyze_query_file(
         skipped,
         lines,
     })
+}
+
+/// Fails when a query in `shared/` (the file at `path`) writes: a write kind
+/// (`:exec`, `:execrows`) or a statement that is not a read. Each is named
+/// with its file, line and query.
+fn refuse_writes(path: &Path, defs: &[QueryDef]) -> anyhow::Result<()> {
+    let writes: Vec<String> = defs
+        .iter()
+        .filter_map(|def| {
+            let what = match def.mode {
+                ReturnMode::Exec | ReturnMode::ExecRows => {
+                    format!("is `:{}`", def.mode.keyword())
+                }
+                ReturnMode::One | ReturnMode::MaybeOne | ReturnMode::Many => {
+                    format!("is {}", write_statement(&def.sql)?)
+                }
+            };
+            Some(format!(
+                "{}:{}: query `{}` {what}",
+                display_path(path),
+                def.line,
+                def.name
+            ))
+        })
+        .collect();
+    if writes.is_empty() {
+        return Ok(());
+    }
+    bail!(
+        "{}\nqueries in a query directory's `{SHARED}/` are reads any feature may call (`:one`, `:many`, `:maybe_one` over a SELECT); move a write to its feature's query file",
+        writes.join("\n")
+    )
+}
+
+/// The kind of statement ("an UPDATE"), when the SQL is an INSERT, UPDATE, DELETE or
+/// MERGE. (A data-modifying CTE fails the analysis anyway.)
+fn write_statement(sql: &str) -> Option<&'static str> {
+    use sqlparser::dialect::PostgreSqlDialect;
+    use sqlparser::keywords::Keyword;
+    use sqlparser::tokenizer::{Token, Tokenizer};
+
+    let tokens = Tokenizer::new(&PostgreSqlDialect {}, sql).tokenize().ok()?;
+    let first = tokens
+        .iter()
+        .find(|token| !matches!(token, Token::Whitespace(_)))?;
+    let Token::Word(word) = first else {
+        return None;
+    };
+    match word.keyword {
+        Keyword::INSERT => Some("an INSERT"),
+        Keyword::UPDATE => Some("an UPDATE"),
+        Keyword::DELETE => Some("a DELETE"),
+        Keyword::MERGE => Some("a MERGE"),
+        _ => None,
+    }
 }

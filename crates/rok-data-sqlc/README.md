@@ -730,6 +730,16 @@ pub async fn search_product_names<'e, E>(
 - One query file generates `db/queries.rs`. A directory (its `*.sql` files)
   or several `--queries` inputs generate `db/queries/<file stem>.rs`, one
   module per file. Stems must be snake_case Rust identifiers.
+- A directory's `shared/` holds the reads any feature may call:
+  `queries/shared/membership.sql` generates
+  `db::queries::shared::membership`, one module per file like the
+  directory's own, so query names are scoped by file as everywhere else.
+  `check-arch` lets every feature call `db::queries::shared`, and still
+  reports a call to another feature's module. Only `:one`, `:many` and
+  `:maybe_one` over a read are allowed there: a `:exec`, a `:execrows`, or
+  an INSERT, UPDATE, DELETE or MERGE fails the run, `--lenient` or not,
+  naming each, as in ``queries/shared/membership.sql:7: query `AddMember`
+  is `:exec` ``. `shared` is reserved, so a `queries/shared.sql` fails too.
 - Conventions never rewrite query files: your SQL runs exactly as written.
 
 ### Adding a query: `rok sqlc query add`
@@ -1547,6 +1557,7 @@ test code, `#[cfg(test)]` or `#[test]`, never count):
 | `rule-5` | `shared/` never refers to the features module |
 | `rule-6` | no `unwrap()`, `expect()` (as methods or called through a path, `Option::unwrap(x)`), `panic!`, `todo!`, `println!` or `dbg!` |
 | `cross-feature-write` | a feature never refers to another table's `<db_path>::<table>::write`; reads are fine |
+| `cross-feature-query` | a feature never calls another feature's query module, `<db_path>::queries::<feature>`; any feature calls the shared reads, `<db_path>::queries::shared` |
 
 `-l`/`--lenient` prints layout violations as warnings on stderr instead of
 failing; rule violations still fail. Generated code passes every check.

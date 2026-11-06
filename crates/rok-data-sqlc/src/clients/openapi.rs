@@ -46,13 +46,21 @@ pub enum Error {
         /// The construct, such as "a parameter in `header`".
         construct: String,
     },
-    /// A document the subset covers, but broken: a dangling `$ref`, an
+    /// A document the subset covers, but broken: an
     /// operation without a success response.
     Invalid {
         /// The JSON pointer of the problem.
         at: String,
         /// What is wrong.
         message: String,
+    },
+    /// A `$ref` to a schema `#/components/schemas` does not define: most
+    /// often a type only a parameter names, which utoipa doesn't collect.
+    UndefinedSchema {
+        /// The JSON pointer of the `$ref`'s holder.
+        at: String,
+        /// The schema's name, such as `RefundStatus`.
+        name: String,
     },
 }
 
@@ -66,6 +74,10 @@ impl fmt::Display for Error {
                  subset utoipa emits)"
             ),
             Error::Invalid { at, message } => write!(f, "{at}: {message}"),
+            Error::UndefinedSchema { at, name } => write!(
+                f,
+                "{at}: `$ref` to `{name}`, which `#/components/schemas` does not define"
+            ),
         }
     }
 }
@@ -207,11 +219,9 @@ impl Document {
                 .into_iter()
                 .find(|name| !self.schemas.contains_key(*name))
             {
-                Some(name) => Err(Error::Invalid {
+                Some(name) => Err(Error::UndefinedSchema {
                     at: at.to_owned(),
-                    message: format!(
-                        "`$ref` to `{name}`, which `#/components/schemas` does not define"
-                    ),
+                    name: name.to_owned(),
                 }),
                 None => Ok(()),
             }

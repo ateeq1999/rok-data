@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A generated feature with an enum query filter produces a valid contract
-- [ ] A hand-written unregistered enum fails naming the line to add
+- [x] A generated feature with an enum query filter produces a valid contract
+- [x] A hand-written unregistered enum fails naming the line to add

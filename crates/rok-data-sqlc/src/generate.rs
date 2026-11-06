@@ -206,7 +206,7 @@ fn run(config: &Config, report: &mut Report, analysis: &mut Analysis) -> anyhow:
             failures,
             skipped,
             lines,
-        } = analyze_query_file(&input.path, &parsed, &selected)?;
+        } = analyze_query_file(&input.path, input.shared, &parsed, &selected)?;
         report.skipped_queries.extend(skipped);
         analysis
             .queries
@@ -221,6 +221,7 @@ fn run(config: &Config, report: &mut Report, analysis: &mut Analysis) -> anyhow:
         report.query_failures.extend(failures);
         analyzed.push(generator::QueryModule {
             name: input.module.clone().unwrap_or_default(),
+            shared: input.shared,
             queries,
         });
     }

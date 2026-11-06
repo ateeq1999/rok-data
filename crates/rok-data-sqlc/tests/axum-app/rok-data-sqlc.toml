@@ -5,6 +5,7 @@ schema = "migrations"
 output = "src/db"
 derive = ["serde", "validate"]
 extractors = ["axum"]
+queries = "queries"
 
 [api]
 output = "src/features"

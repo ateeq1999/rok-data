@@ -162,6 +162,15 @@ template's `queries/session.sql` holds the check `AuthUser` makes on every
 request, and `queries/queue.sql` the job queue's. Two features that need the
 same SQL each keep a copy, or one calls the other through a port.
 
+**Shared reads, every feature's.** A read two features need (a member's
+role at an organisation, say) goes in `queries/shared/<name>.sql`, which
+generates `<db_path>::queries::shared::<name>`. Any feature may call it:
+`check-arch` never reports a call to `queries::shared`. It holds reads only:
+a `:exec` or `:execrows` query, or an INSERT, UPDATE, DELETE or MERGE, fails
+the generation run, naming the file, the line and the query. A write stays
+in its feature's query module, behind a port for the others. `shared` is
+reserved: a `queries/shared.sql` fails too.
+
 `check-arch` reads `src/` with a Rust parser, so comments and strings
 never count. A path counts wherever it appears: a
 `use`, an expression, a type, a pattern, a `#[derive(...)]` list or an

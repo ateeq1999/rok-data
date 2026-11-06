@@ -6,11 +6,12 @@
 //! them.
 
 use super::feature::{Endpoint, Feature, Lookup};
+use super::handlers::key_columns;
 use super::layout::Uses;
 use super::operation::{Header, Operation, Security, access_errors, column_description};
 use super::relations::{Action, Relation};
 use crate::ApiAccess;
-use crate::schema::RelationshipKind;
+use crate::schema::{BaseType, RelationshipKind};
 
 /// The `Location` header of a created row.
 const LOCATION: Header = ("Location", "The created row's URL.");
@@ -251,4 +252,43 @@ pub fn handler_names(feature: &Feature<'_>) -> Vec<String> {
         );
     }
     names
+}
+
+/// The enums `feature`'s path parameters take (a key, a `by-` lookup's
+/// value, a relation's `{other}`), as paths from the crate root. utoipa
+/// writes such a parameter as a `$ref` but doesn't collect its schema, so
+/// `GeneratedApiDoc` registers it.
+pub fn param_enums(feature: &Feature<'_>) -> Vec<String> {
+    let keyed = feature.endpoints.iter().any(|endpoint| {
+        matches!(
+            endpoint,
+            Endpoint::GetOne | Endpoint::Update | Endpoint::Remove | Endpoint::Restore
+        )
+    }) || feature
+        .relations
+        .iter()
+        .any(|relation| !relation.actions().is_empty());
+    let mut columns = if keyed {
+        key_columns(feature)
+    } else {
+        Vec::new()
+    };
+    columns.extend(feature.lookups.iter().map(|lookup| lookup.column));
+    for relation in &feature.relations {
+        let names_other = relation.actions().into_iter().any(Action::names_other);
+        if let Some(writes) = relation.writes().filter(|_| names_other) {
+            columns.push(writes.other);
+        }
+    }
+    let mut enums: Vec<String> = Vec::new();
+    for column in columns {
+        if column.base_type() != BaseType::Enum {
+            continue;
+        }
+        let path = format!("{}::{}", feature.db_path, column.sqlx_type);
+        if !enums.contains(&path) {
+            enums.push(path);
+        }
+    }
+    enums
 }

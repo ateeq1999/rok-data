@@ -250,6 +250,44 @@ fn generated_rs_holds_the_api_doc() -> Result<()> {
     Ok(())
 }
 
+/// An enum a path parameter takes (a key, a `by-` lookup, a relation's
+/// `{other}`) is registered in `GeneratedApiDoc`: utoipa writes the
+/// parameter as a `$ref` and doesn't collect the schema from the params, so
+/// without it the document is invalid and `rok gen` refuses to emit Clients.
+#[test]
+fn enums_in_path_params_are_registered() -> Result<()> {
+    let project = Project::with_schema(&format!(
+        "{SCHEMA}CREATE TYPE plan_tier AS ENUM ('free', 'pro');
+CREATE TYPE region AS ENUM ('eu', 'us');
+CREATE TABLE plans (
+    tier plan_tier PRIMARY KEY,
+    price INTEGER NOT NULL
+);
+CREATE TABLE offices (
+    id UUID PRIMARY KEY,
+    region region NOT NULL UNIQUE
+);
+",
+    ))?;
+    let plans = project.read("src/features/plans/handlers.rs")?;
+    let get = annotation(&plans, "get_one");
+    assert!(get.contains("(\"id\" = types::PlanTier, Path"), "{get}");
+    let offices = project.read("src/features/offices/handlers.rs")?;
+    let lookup = annotation(&offices, "get_by_region");
+    assert!(
+        lookup.contains("(\"value\" = types::Region, Path"),
+        "{lookup}"
+    );
+    let generated = project.read("src/features/generated.rs")?;
+    for expected in [
+        "        crate::db::types::PlanTier,\n",
+        "        crate::db::types::Region,\n",
+    ] {
+        assert!(generated.contains(expected), "{expected}\n{generated}");
+    }
+    Ok(())
+}
+
 /// The shared health routes are documented under `health`, outside the
 /// prefix, as api-starter-axum's OpenAPI document has them: `liveness`
 /// and `readiness`, the handlers' names.

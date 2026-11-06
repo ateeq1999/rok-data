@@ -8,6 +8,9 @@
 use sqlx::PgPool;
 
 use super::service_api::LabelsServiceApi;
+use crate::db::accounts::models::AccountId;
+use crate::db::queries::shared::accounts;
+use crate::error::AppError;
 
 /// The `labels` service, registered as app data by `register_services`.
 pub struct LabelsService {
@@ -21,6 +24,16 @@ impl LabelsService {
     #[must_use]
     pub fn new(pool: PgPool) -> Self {
         LabelsService { pool }
+    }
+
+    /// The email of the account `id`, through the shared reads every feature
+    /// may call (`queries/shared/accounts.sql`).
+    ///
+    /// # Errors
+    ///
+    /// The database's error.
+    pub async fn account_email(&self, id: AccountId) -> Result<Option<String>, AppError> {
+        Ok(accounts::account_email(&self.pool, id).await?)
     }
 }
 

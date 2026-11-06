@@ -505,12 +505,15 @@ impl Layout {
                     rules.push(Rule::CrossFeatureWrite);
                 }
                 // A feature's own query module is `<db>::queries::<its
-                // name>`; another feature's is reported.
+                // name>`; another feature's is reported. `queries::shared`
+                // (from `queries/shared/*.sql`, reads only) is every
+                // feature's.
                 if let Some(own) = feature
                     && let Some(rest) = path.strip_prefix(self.db.as_slice())
                     && let [queries, module, ..] = rest
                     && queries == "queries"
                     && module != own
+                    && module != crate::generator::queries::SHARED
                     && self.feature_names.contains(module)
                 {
                     rules.push(Rule::CrossFeatureQuery);

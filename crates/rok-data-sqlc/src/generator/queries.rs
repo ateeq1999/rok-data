@@ -1,5 +1,6 @@
 //! `db/queries.rs` (one query file) or `db/queries/<stem>.rs` (one module per
-//! query file): one typed function per annotated query.
+//! query file, and `db/queries/shared/<stem>.rs` per file in the query
+//! directory's `shared/`): one typed function per annotated query.
 //!
 //! The SQL is embedded exactly as written in the query file and run through
 //! `rok_data::raw`; every placeholder is bound positionally, so `$n` always
@@ -29,9 +30,21 @@ pub fn render(queries: &[AnalyzedQuery], tables: &[Table], serde: bool) -> Strin
     render_at(queries, &TypedIds::of(tables), "super", serde)
 }
 
-/// Renders `db/queries/<stem>.rs`, one level below `db/queries.rs`.
-pub fn render_nested(queries: &[AnalyzedQuery], tables: &[Table], serde: bool) -> String {
-    render_at(queries, &TypedIds::of(tables), "super::super", serde)
+/// The query directory's subdirectory, and the module under `queries`, of
+/// the reads any feature may call.
+pub const SHARED: &str = "shared";
+
+/// Renders `db/queries/<stem>.rs` (`depth` 1) or
+/// `db/queries/shared/<stem>.rs` (`depth` 2): `depth` levels below
+/// `db/queries.rs`.
+pub fn render_nested(
+    queries: &[AnalyzedQuery],
+    tables: &[Table],
+    depth: usize,
+    serde: bool,
+) -> String {
+    let db_path = vec!["super"; depth + 1].join("::");
+    render_at(queries, &TypedIds::of(tables), &db_path, serde)
 }
 
 /// The typed ids the generated tables define, which query parameters and
@@ -80,12 +93,38 @@ impl<'a> TypedIds<'a> {
     }
 }
 
-/// Renders `db/queries/mod.rs`, declaring one module per query file.
+/// Renders `db/queries/mod.rs`, declaring one module per query file, and
+/// `shared` when there are shared query files.
 pub fn render_mod(modules: &[QueryModule]) -> String {
+    let mut names: Vec<&str> = modules
+        .iter()
+        .filter(|module| !module.shared)
+        .map(|module| module.name.as_str())
+        .collect();
+    if modules.iter().any(|module| module.shared) {
+        names.push(SHARED);
+    }
+    declare_modules(names, "One module per query file.")
+}
+
+/// Renders `db/queries/shared/mod.rs`, declaring one module per query file in
+/// the query directory's `shared/`.
+pub fn render_shared_mod(modules: &[QueryModule]) -> String {
+    let names = modules
+        .iter()
+        .filter(|module| module.shared)
+        .map(|module| module.name.as_str())
+        .collect();
+    declare_modules(
+        names,
+        "Reads any feature may call: one module per query file in `queries/shared/`.",
+    )
+}
+
+fn declare_modules(mut names: Vec<&str>, doc: &str) -> String {
     // Sorted the way rustfmt sorts `mod` declarations.
-    let mut names: Vec<&str> = modules.iter().map(|module| module.name.as_str()).collect();
     names.sort_unstable();
-    let mut output = format!("{HEADER}\n//! One module per query file.\n\n");
+    let mut output = format!("{HEADER}\n//! {doc}\n\n");
     for name in names {
         output.push_str(&format!("pub mod {name};\n"));
     }
