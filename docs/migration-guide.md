@@ -1,7 +1,7 @@
 ---
 title: Migrating to `rok-data`
-description: Per-repository migration notes (rok-db, rok-sqlc, rok-fluent, rok-orm) and the 0.8.0 / 0.7.0 / 0.6.0 / 0.5.0 / 0.4.0 / 0.3.0 release upgrades.
-updated: 2026-11-03
+description: Per-repository migration notes (rok-db, rok-sqlc, rok-fluent, rok-orm) and the 0.9.0 / 0.8.0 / 0.7.0 / 0.6.0 / 0.5.0 / 0.4.0 / 0.3.0 release upgrades.
+updated: 2026-11-06
 kind: guide
 source: crates/rok-data/tests/docs/migration_guide.rs (compiled samples), CHANGELOG.md
 ---
@@ -12,9 +12,8 @@ source: crates/rok-data/tests/docs/migration_guide.rs (compiled samples), CHANGE
 
 - **What this page does:** per-repository notes — what changes when a
   project moves from rok-db, rok-sqlc, rok-fluent or rok-orm into this
-  workspace — plus the release upgrades **To the next version**,
-  **To 0.8.0**, **To 0.7.0**, **To 0.6.0**, **To 0.5.0**, **To 0.4.0** and
-  **To 0.3.0**.
+  workspace — plus the release upgrades **To 0.9.0**, **To 0.8.0**,
+  **To 0.7.0**, **To 0.6.0**, **To 0.5.0**, **To 0.4.0** and **To 0.3.0**.
 - **Upgrade recipe (any release):** regenerate once (`rok gen`, or
   `rok sqlc generate` for engine projects), then fix what the compiler
   reports. The compiler finds the breakages; this page explains each.
@@ -30,41 +29,153 @@ what was actually renamed, removed, or unified. Everything not listed is
 unchanged — same APIs, same test suites, same behavior (verified by
 porting the original tests).
 
-Seven sections are not about a repository lineage: **To the next version**
-(the unreleased changes), **To 0.8.0**, **To 0.7.0**, **To 0.6.0**,
-**To 0.5.0**, **To 0.4.0** and **To 0.3.0**, the upgrades between
-workspace releases. The runtime's public surface and the generated output
-change in 0.4.0 and 0.3.0; 0.5.0 changes the templates only.
+Seven sections are not about a repository lineage: **To 0.9.0**,
+**To 0.8.0**, **To 0.7.0**, **To 0.6.0**, **To 0.5.0**, **To 0.4.0** and
+**To 0.3.0**, the upgrades between workspace releases. The generated
+output changes in 0.9.0, 0.4.0 and 0.3.0, and the runtime's public
+surface in the last two; 0.5.0 changes the templates only.
 
-## To the next version
+## To 0.9.0
 
-**`rok gen` fails on what it can't generate.** A table or query the
-engine can't generate fails `rok gen` and `rok gen check`, where it
-was skipped with a warning. Type the query's column with the override
-the error names:
+Move the `rok-data` pin to `"0.9"` and regenerate. The runtime's API is
+as in 0.8.1 (it gains `Raw::fetch_page`, and `&Db` and `&mut Tx`
+implement `sqlx::Acquire`); what changes is what `rok gen` accepts and
+generates, how the commands find the project, and what they print. Most
+projects meet the first three subsections; the last two touch code that
+drives the engine as a library or reads the commands' output.
+
+### `rok gen` fails on what it can't generate
+
+A table or query the engine can't generate fails `rok gen` and
+`rok gen check`, where it was skipped with a warning. The error names the
+query's file and line, the expression and the override that types it:
 
 ```sql
--- name: SessionExpiry :one
--- column: expired bool
-SELECT id, expires_at <= now() AS expired FROM sessions WHERE id = $1;
+-- name: NameMatches :many
+-- column: score f32
+SELECT id, similarity(name, $1) AS score FROM products;
 ```
 
-or pass `--lenient` to skip it as before. `--strict` is now the default
-and can stay in a script.
+Then:
 
-Two fixes touch the migrations:
+- **Type it** with the `-- column:` override the error names, as above;
+- **leave it out on purpose** with `-- rok:skip [note]` after its
+  `-- name:` line: the run prints a `note:` and `--json` lists it under
+  `skipped_on_purpose`;
+- **or pass `--lenient`** to skip every such query as before.
+
+`--strict` is now the default and is still accepted, so it can stay in a
+script. It no longer fails on the other warnings (a scaffolded file using
+what the settings stopped generating). Fewer queries reach the error than
+before: comparisons, arithmetic, `CASE`, `||`, `EXISTS`, subqueries,
+`UPDATE … FROM`, `DELETE … USING`, `INSERT … SELECT` and calls to the
+schema dir's own `CREATE FUNCTION`s are typed now (the engine's README,
+"Writing query files", has the table).
+
+### Generated query types change
+
+Queries that were typed before can get a closer type, so a field or a
+return value changes and the compiler points at each caller:
+
+- **Casts keep nullability.** A cast was always `Option`; it now has the
+  nullability of what it wraps. `count(*)::bigint AS owners` is `i64`, a
+  cast of a `NOT NULL` column is its target type (still `Option` on the
+  outer side of a join), and any other cast stays `Option`.
+- **Literals are never NULL**: `0::int AS depth` is `i32` and
+  `'active'::product_status` is `types::ProductStatus`.
+- **`coalesce` is typed from all its arguments**: it takes the type they
+  share (a literal takes the others') and is not `Option` when one
+  argument never is. `coalesce(x, 0)` is `i64` for a `bigint` `x`, and
+  `coalesce(note, sku)` is `String`, where it failed to infer.
+- **A cast to a typed id's plain type keeps the typed id**:
+  `media_id::uuid` over a key column is `MediaId`, not `uuid::Uuid`.
+
+A caller drops what it did to get the old type: the `unwrap_or(0)` (or
+`unwrap_or_default()`) on a field that is no longer `Option`, and the
+`MediaId::from(…)` around a `Uuid` that is now a `MediaId` (a caller that
+wants the `Uuid` takes `.0`).
+
+<!-- not compiled: before and after of a caller of a generated query -->
+```rust,ignore
+// 0.8: `owners` was `Option<i64>`, `cover` was `Option<uuid::Uuid>`
+let owners = row.owners.unwrap_or(0);
+let cover = row.cover.map(MediaId::from);
+// 0.9: `owners` is `i64`, `cover` is `Option<MediaId>`
+let owners = row.owners;
+let cover = row.cover;
+```
+
+Two parameter changes:
+
+- **`BETWEEN` bounds** named by their column are `<column>_from` and
+  `<column>_to` (`starts_on BETWEEN $2 AND $3` takes `starts_on_from`,
+  `starts_on_to`), where they were `<column>` and `<column>_2`.
+- **`-- param:` without a type** renames and keeps the inferred type
+  (`-- param: $2 from`); `-- param: $2 reviewer!` also drops the `Option`
+  a nullable column gives it. A `!` beside a type is refused: write the
+  type itself.
+
+`SCHEMA_SQL` (`db/schema.rs`) now lists the schema's statements in an
+order that loads into an empty database; a schema already in such an
+order keeps its text.
+
+### Relationships of a foreign key without `_id`
+
+A foreign key column with neither an `_id` nor an `_<referenced column>`
+suffix names its relationship after the column and the referenced row:
+`offers.reviewed_by` referencing `users` gives `reviewed_by_user`
+(`load_reviewed_by_user`, the filter's `reviewed_by_user` field, and
+`offers_by_reviewed_by_user` on `users`), where it was `reviewed_by` and
+failed generation. Columns ending in `_id` keep their names. Code that
+called the old names takes the new ones.
+
+A `[relationships]` entry written for the old name
+(`reviewed_by = "reviewer"`) now names no relationship and fails the run;
+the error lists the new name. Rename the key:
+
+```toml
+[relationships.offers]
+reviewed_by_user = "reviewer"
+```
+
+### `rok migrate` and `rok schema diff` find the project
+
+`rok gen`, `rok gen check`, `rok migrate *`, `rok schema diff` and
+`rok sqlc check-arch` walk up to the nearest `rok.toml` and act on the
+App started inside, or on the root's App(s). `--dir` has no default any
+more: without it, `rok migrate *` and `rok schema diff` read the
+settings' `migrations` directory (`migrations` beside the settings file
+when unset), not `./migrations` of the current directory. So:
+
+- a script that ran `rok migrate up` in a directory whose `migrations/`
+  differs from the project's passes `--dir` (an explicit `--dir` still
+  wins);
+- at a Monorepo root naming several Apps, the command asks for
+  `--app <name>`;
+- `check-arch` finds a `rok.toml` project, where it read only
+  `rok-data-sqlc.toml`, and `--config` takes a `rok.toml`.
+
+Each command prints the settings file and directories it read on stderr
+(`using App api: apps/api/rok-data-sqlc.toml (migrations
+apps/api/migrations)`). The database commands (`rok migrate
+status|up|down`, `rok schema *`, `rok db *`) also load the App's `.env`;
+a variable already in the environment wins, and `--no-env-file` reads
+nothing. `rok db drop` guards the database the `.env` names too.
+
+### Migrations and line endings
 
 - **Line endings don't change a staged migration.** `rok gen --migration`
   reads the truth files and the `.rok-schema.json` snapshot with CRLF
   turned into LF, so a CRLF checkout of an unchanged schema stages
   nothing. A snapshot recorded from a CRLF file needs no rewrite.
-- **The checksum ignores line endings.** A migration's checksum (the
-  journal's `checksum` column) is computed over its `up` SQL with CRLF
-  turned into LF: an LF file keeps the checksum it had, and its CRLF copy
-  now has the same one. A journal row recorded from a CRLF file before
-  this version holds the old checksum, of the CRLF bytes. It still
-  matches, whether the file is checked out with CRLF or LF now, and the
-  next `rok migrate up` records the new checksum in its place, once.
+- **The checksum ignores line endings.** A migration's checksum
+  (`Migration::checksum`, the journal's `checksum` column) is computed
+  over its `up` SQL with CRLF turned into LF: an LF file keeps the
+  checksum it had, and its CRLF copy now has the same one. A journal row
+  recorded from a CRLF file before 0.9.0 holds the old checksum, of the
+  CRLF bytes. It still matches, whether the file is checked out with CRLF
+  or LF now, and the next `rok migrate up` records the new checksum in
+  its place, once.
 
   The one row that does not match is a file recorded with *mixed* line
   endings and checked out differently since: `rok migrate status` calls
@@ -72,6 +183,85 @@ Two fixes touch the migrations:
   whose file has the bytes that were applied (the commit it was applied
   from); the row then holds the new checksum, which every checkout
   matches.
+
+### What the commands print
+
+A script or test that matches the commands' output takes the new text:
+
+- **Errors show their whole chain**: `error: failed to parse SQL schema:
+  schema/0001_init.sql:2: invalid PostgreSQL SQL syntax: <the parser's
+  message>`, where it stopped at `failed to parse SQL schema`; the same in
+  `--json` and in the database errors of `rok migrate *`, `rok db *` and
+  `rok schema *`.
+- **`rok sqlc check-arch` prints a pass line on stdout**: `checked 3
+  features: no violations` (`, 2 warnings` when `--lenient` let layout
+  violations through), where a clean run printed nothing. Exit codes are
+  unchanged.
+- **`rok gen` announces newly served tables** on stderr, once:
+  ``warning: now serving `/api/v1/posts` (list, create, get_one, update,
+  remove); add `posts` to `[api] exclude` to keep it private``; `--json`
+  carries them in `newly_served`. It also prints `exporting the contract
+  …` before the contract export, and a failed run of several steps ends
+  with the steps done, the one that failed, the ones skipped and the
+  command that finishes the rest (`--json`: `{"steps": [...], "finish":
+  ...}`). A Monorepo's `rok gen --json` no longer prints the `api:`
+  heading on stdout.
+- **Feature folders no longer generated** (the table excluded or
+  dropped) lose their scaffolded `service.rs` while it is unedited; an
+  edited one stays and is listed (`--json`: `unwired`).
+- **`check-arch` rule 4's message** ends "; a pure helper with no feature
+  state belongs in shared/".
+
+To serve only some tables, `[api] include` is the allowlist alternative
+to `exclude` (setting both fails the run, naming both); without either,
+every table is served, as before.
+
+### Clients: `If-Match` on a versioned `PATCH`
+
+The Clients are now emitted for an App with a versioned table, and the
+`PATCH` of such a table takes the `If-Match` header as a required
+argument: `api.documents.update(id, body, { ifMatch: version })` in
+TypeScript, `update(id, body, ifMatch: version)` in Dart,
+`client.documents().update(&id, &body, &version)` in Rust. A bare version
+is quoted as an entity tag. Code that called a hand-written or older
+Client's `update` passes the row's version.
+
+### Driving the engine as a library
+
+Code that calls `rok_data_sqlc` directly, rather than through `rok`:
+
+- **`queries::analyze_queries`** takes the schema's functions after the
+  enums: `analyze_queries(&defs, &tables, &enums, &schema.functions,
+  &generated, &unsupported)`.
+- **`Schema::functions`** (`Vec<SqlFunction>`) is a new field: a
+  `Schema { tables, enums }` literal adds `functions: Vec::new()`.
+- **`ParamOverride::rust_type` is an `Option<String>`** (`None` keeps the
+  inferred type), and `ParamOverride::not_null` is new; **`QueryDef::skip`**
+  (`Option<String>`) is new. Literals of either add the field.
+- **The Clients' `openapi::Operation`** gains `header_params` and
+  `optional_sign_in`, and `openapi::Error` gains `UndefinedSchema { at,
+  name }`, which a `match` on it handles.
+- **`Report`** gains `skipped_queries` (`SkippedQuery`), `newly_served`
+  (`ServedFeature`) and `unwired`; `report::QueryFailure` gains `path`;
+  `ApiConfig` gains `include`. These types are `#[non_exhaustive]`, so
+  only code that reads the new fields changes.
+- **`Project`, `Target`, `App` and `using_line`** are the rule the
+  commands use to find the project; `ApiFramework` is as in 0.8.0.
+
+### New, and opt-in
+
+Nothing to change for these:
+
+- **`:page` queries**: `-- name: PartnerBookings :page` over a `SELECT`
+  with its `WHERE` and `ORDER BY` generates `partner_bookings(&pool,
+  params, page, per_page)` returning `rok_data::Page<PartnerBookingsRow>`.
+  `Raw::fetch_page(conn, page, per_page)` pages a raw statement.
+- **Shared reads**: `queries/shared/<name>.sql` generates
+  `db::queries::shared::<name>`, which any feature may call; it holds
+  reads only.
+- **`-- rok:skip [note]`** leaves a query ungenerated on purpose (above).
+- **`rok init my-api --template grpc`** writes the `grpc-api` project
+  from rok-templates 0.7.0.
 
 ## To 0.8.0
 

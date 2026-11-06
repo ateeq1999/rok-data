@@ -9,6 +9,18 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+## [0.9.0] — strict, better-typed `rok gen`; one rule for finding the project; `:page` and shared queries
+
+Breaking for some projects. `rok gen` fails on a table or query it can't
+generate (`--lenient` skips as before); casts, literals and `coalesce`
+are typed more closely, so some generated fields lose their `Option`; a
+foreign key without `_id` names its relationship after the referenced row
+(`reviewed_by_user`); `rok migrate` and `rok schema diff` find the
+project from `rok.toml`; a versioned table's `PATCH` takes `If-Match` in
+every Client; and the engine's library API grows fields and arguments.
+Follow `docs/migration-guide.md` §To 0.9.0: regenerate, then fix what
+the compiler reports.
+
 **Added**
 
 - `rok init my-api --template grpc` (and `rok sqlc init --template
@@ -55,6 +67,10 @@ that it exists and won't ship a tag without it).
   column it fills, as with `VALUES`, with `ON CONFLICT` and `RETURNING`.
   A `SELECT` returning the wrong number of values fails naming both
   counts.
+- `-- rok:skip [note]` after a query's `-- name:` leaves it ungenerated
+  on purpose: `rok gen` prints a `note:` instead of failing without
+  `--lenient`, and `--json` lists it under `skipped_on_purpose`, apart
+  from `failures` and `skipped`.
 
 **Changed**
 
@@ -82,11 +98,13 @@ that it exists and won't ship a tag without it).
   `Option<uuid::Uuid>`), `coalesce` takes the type its arguments share,
   a scalar subquery its column's, `EXISTS (…)` / `NOT EXISTS (…)` are a
   never-null `bool`, and placeholders inside subqueries are typed.
-  `-- rok:skip [note]`
-  leaves one query ungenerated on purpose: `rok gen` prints a `note:`
-  instead of failing without `--lenient`, and `--json` lists it under
-  `skipped_on_purpose`, apart from `failures` and `skipped`.
-
+- Casts keep nullability in generated queries (rok-data-sqlc, a change
+  to the generated API). `count(*)::bigint AS owners` in a `:one` query
+  is `i64`, where every cast was `Option`; a cast of a `NOT NULL` column
+  is not `Option` unless the column is on the outer side of a join; and
+  `coalesce(x, <literal>)` is never NULL. Any other cast stays `Option`,
+  and a `-- column:` override settles what inference can't (the engine's
+  README, "Writing query files").
 - `rok gen` and `rok gen check` fail on a table or query they can't
   generate, where they skipped it with a warning that scrolled past. A
   query whose result column can't be typed (`expires_at <= now() AS
@@ -161,13 +179,6 @@ that it exists and won't ship a tag without it).
   features: no violations` on stdout (`, 2 warnings` added when
   `--lenient` let layout violations through), where it printed nothing.
   Its failures and exit codes are unchanged.
-- Casts keep nullability in generated queries (rok-data-sqlc, a change
-  to the generated API). `count(*)::bigint AS owners` in a `:one` query
-  is `i64`, where every cast was `Option`; a cast of a `NOT NULL` column
-  is not `Option` unless the column is on the outer side of a join; and
-  `coalesce(x, <literal>)` is never NULL. Any other cast stays `Option`,
-  and a `-- column:` override settles what inference can't (the engine's
-  README, "Writing query files").
 - Everyday expressions in generated queries are typed (rok-data-sqlc),
   where `rok gen` failed with the `-- column:` hint: `expires_at <= now()
   AS expired` is `bool` on a `NOT NULL` column and `Option<bool>` on a
@@ -183,7 +194,6 @@ that it exists and won't ship a tag without it).
   `Option<NaiveDate>`, and `-- column: today chrono::NaiveDate` makes it
   not-null. A function the schema doesn't define still fails with the
   `-- column:` hint.
-
 - `SCHEMA_SQL` (the generated `db/schema.rs`) is in an order that loads
   into an empty database. It listed the schema files' statements in
   file-name order, so a table referencing one a later file creates
@@ -207,7 +217,7 @@ that it exists and won't ship a tag without it).
   from a CRLF file by an earlier version still matches (whether the file
   is checked out with CRLF or LF now), and the next `rok migrate up`
   (`migration::apply`) records the new checksum in its place.
-  `docs/migration-guide.md` §To the next version says what to do for a
+  `docs/migration-guide.md` §To 0.9.0 says what to do for a
   file with mixed line endings.
 - A foreign key without `_id` names its relationship after the column
   and the referenced row (rok-data-sqlc): `offers.reviewed_by` referencing

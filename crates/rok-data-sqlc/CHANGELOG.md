@@ -7,6 +7,19 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+## Workspace 0.9.0 - 2026-11-06
+
+Published as `rok-data-sqlc` 0.9.0 with the workspace (root `CHANGELOG.md`).
+The release types more of a query (everyday expressions, casts that keep
+nullability, `coalesce`, subqueries, the schema's own functions, `UPDATE …
+FROM`, `DELETE … USING`, `INSERT … SELECT`), adds `:page` queries, shared
+reads, `[api] include` and the `Project` rule, and changes the generated
+API where a type gets closer (a cast or literal that loses its `Option`, a
+typed id kept through a cast, `BETWEEN` bounds, relationships of a foreign
+key without `_id`). The library's `analyze_queries`, `Schema`,
+`ParamOverride`, `Report` and the Clients' `Operation` change too;
+`docs/migration-guide.md` §To 0.9.0 says what to change.
+
 ### Added
 
 - `:page` queries: one `SELECT` written with its `WHERE` and `ORDER BY`
