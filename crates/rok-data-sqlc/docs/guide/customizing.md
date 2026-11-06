@@ -273,7 +273,11 @@ pub struct ApiDoc;
 
 The response, `StatsResponse`, derives `ToSchema` and is reached from the
 path, so it needs no entry in `components(schemas(...))`. A schema no path
-refers to goes there.
+refers to goes there, and so does a type only a parameter names: an enum
+in an `IntoParams` query struct (`status: Option<RefundStatus>`) is
+written as a `$ref` that utoipa doesn't register, and `rok gen` refuses
+the contract until `components(schemas(crate::features::refunds::dto::RefundStatus))`
+lists it (its error names that line).
 
 ## What you can't customize in place
 

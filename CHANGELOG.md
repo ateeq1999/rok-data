@@ -72,6 +72,11 @@ that it exists and won't ship a tag without it).
 
 **Fixed**
 
+- Query-parameter enums reach the contract: generated features register
+  every enum their path parameters take, and when `rok gen` finds a `$ref`
+  the contract doesn't define (a hand-written `IntoParams` struct's
+  `status: Option<RefundStatus>`), the error names the line to add:
+  ``register it in `openapi.rs`: `components(schemas(crate::features::refunds::dto::RefundStatus))` ``.
 - "Next steps" run as printed: `rok gen` prints `rok migrate up` bare
   when the project rule finds the staged pair's history dir from where it
   ran (a Monorepo root printed `--dir apps/api/migrations`), `--app

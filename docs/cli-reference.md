@@ -325,7 +325,17 @@ the construct and its JSON pointer; what a client cannot type (the Dart
 client: an object with both properties and `additionalProperties`, a
 `oneOf` of non-objects, a query parameter that is not a scalar; the Rust
 client: a query parameter that is an array or an object) fails the run the
-same way. The clients are `ts` (TypeScript), `dart` (a pub package for a
+same way. A `$ref` to a schema `#/components/schemas` does not define
+(utoipa writes a parameter's enum as a `$ref` but doesn't register it)
+fails naming the line to add, with the type's path when the API App's
+`src/` declares it:
+
+```text
+error: reading the contract apps/api/openapi.json: #/paths/~1api~1v1~1refunds/get: `$ref` to `RefundStatus`, which `#/components/schemas` does not define; register it in `openapi.rs`: `components(schemas(crate::features::refunds::dto::RefundStatus))`
+```
+
+Generated features register the enums their own parameters take. The
+clients are `ts` (TypeScript), `dart` (a pub package for a
 Flutter App, its YAML files marked in a `# @generated` line) and `rust` (a
 crate's `README.md` and `src/`; its `Cargo.toml` is the project's, never
 written, and must give the generated code `reqwest` with `json`, `serde`

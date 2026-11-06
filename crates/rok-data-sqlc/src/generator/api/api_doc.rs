@@ -5,7 +5,7 @@
 //! `ApiDoc`.
 
 use super::feature::{Endpoint, Feature};
-use super::paths::handler_names;
+use super::paths::{handler_names, param_enums};
 use super::schemas::{HEALTH_ROUTES, HEALTH_TAG};
 
 /// The imports `generated.rs` needs for the addon.
@@ -19,9 +19,9 @@ pub fn render(features: &[Feature<'_>]) -> String {
         .iter()
         .map(|route| format!("crate::shared::health::{}", route.handler))
         .collect();
-    // The sort keys and `?include=` names are `$ref`s from the params,
-    // which utoipa doesn't follow, and an embedding's response is only
-    // described in prose.
+    // The sort keys, `?include=` names and enum path parameters are `$ref`s
+    // from the params, which utoipa doesn't follow, and an embedding's
+    // response is only described in prose.
     let mut schemas = vec!["crate::shared::pagination::SortOrder".to_owned()];
     let mut tags = vec![HEALTH_TAG.to_owned()];
     for feature in features {
@@ -37,6 +37,11 @@ pub fn render(features: &[Feature<'_>]) -> String {
         );
         if feature.serves(Endpoint::List) || feature.serves(Endpoint::Search) {
             schemas.push(format!("{module}::dto::{}", feature.sort_enum()));
+        }
+        for path in param_enums(feature) {
+            if !schemas.contains(&path) {
+                schemas.push(path);
+            }
         }
         let includes = feature.includes();
         if !includes.is_empty() {

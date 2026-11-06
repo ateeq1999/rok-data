@@ -332,6 +332,53 @@ fn a_contract_outside_the_subset_fails_naming_the_construct() -> Result<()> {
     Ok(())
 }
 
+/// A query parameter whose enum no `components(schemas(...))` registers is
+/// a `$ref` to nothing: the error names the line that registers it, with
+/// the enum's path when the App's `src/` defines it.
+#[test]
+fn an_unregistered_enum_fails_naming_the_line_to_add() -> Result<()> {
+    let project = monorepo(None)?;
+    let dir = project.path();
+    fs::write(
+        dir.join("rok.toml"),
+        "[apps]\n\n[contract]\ndocument = \"apps/api/openapi.json\"\n\n[clients]\nts = \"clients/ts\"\n",
+    )?;
+    let mut document: Value = serde_json::from_str(&contract(json!({})))?;
+    document["paths"]["/things"]["get"]["parameters"] = json!([{
+        "name": "status", "in": "query", "required": false,
+        "schema": {"$ref": "#/components/schemas/RefundStatus"},
+    }]);
+    fs::create_dir_all(dir.join("apps/api/src/features/refunds"))?;
+    fs::write(dir.join("apps/api/openapi.json"), document.to_string())?;
+
+    let output = rok(dir, &["gen"])?;
+    assert!(!output.status.success());
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains("`$ref` to `RefundStatus`, which `#/components/schemas` does not define"),
+        "{stderr}"
+    );
+    assert!(
+        stderr
+            .contains("register it in `openapi.rs`: `components(schemas(<path to RefundStatus>))`"),
+        "{stderr}"
+    );
+
+    fs::write(
+        dir.join("apps/api/src/features/refunds/dto.rs"),
+        "#[derive(serde::Deserialize, utoipa::ToSchema)]\npub enum RefundStatus {\n    Pending,\n}\n",
+    )?;
+    let stderr = text(&rok(dir, &["gen"])?.stderr);
+    assert!(
+        stderr.contains(
+            "register it in `openapi.rs`: `components(schemas(crate::features::refunds::dto::RefundStatus))`"
+        ),
+        "{stderr}"
+    );
+    assert!(!dir.join("clients/ts").exists());
+    Ok(())
+}
+
 /// The export command runs before the clients are emitted; one that fails
 /// stops the run and says which command it was.
 #[test]
