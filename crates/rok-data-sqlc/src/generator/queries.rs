@@ -7,12 +7,12 @@
 //! receives the n-th parameter, and every function fails with
 //! `rok_data::Error`.
 
-use crate::queries::{AnalyzedQuery, Param, ResultShape, ReturnMode};
+use crate::queries::{AnalyzedQuery, Param, ResultShape, ReturnMode, page};
 use crate::schema::{BaseType, Shape, Table, mentions_generated_type};
 
 use super::{
     HEADER, QueryModule, StaticQuery, doc_name, push_derives, push_doc, push_fn_head,
-    serde_derives, sql, use_paths,
+    push_fn_head_bound, serde_derives, sql, use_paths,
 };
 
 /// Queries with more parameters than this take a `{Name}Params` struct
@@ -237,6 +237,10 @@ fn render_query(output: &mut String, query: &AnalyzedQuery, ids: &TypedIds<'_>, 
     };
 
     let row_type = row_type(query);
+    if query.mode == ReturnMode::Page {
+        render_page(output, query, fn_params, &binds, &row_type);
+        return;
+    }
     let scalar = matches!(query.result, ResultShape::Scalar(_));
     let (returns, execute) = match query.mode {
         ReturnMode::One if scalar => (row_type.clone(), "scalar(executor)"),
@@ -249,6 +253,7 @@ fn render_query(output: &mut String, query: &AnalyzedQuery, ids: &TypedIds<'_>, 
         ReturnMode::Many => (format!("Vec<{row_type}>"), "fetch_all(executor)"),
         ReturnMode::Exec => ("()".to_owned(), "execute(executor)"),
         ReturnMode::ExecRows => ("u64".to_owned(), "execute(executor)"),
+        ReturnMode::Page => unreachable!("rendered by `render_page`"),
     };
 
     output.push('\n');
@@ -288,6 +293,50 @@ fn render_query(output: &mut String, query: &AnalyzedQuery, ids: &TypedIds<'_>, 
         _ => statement.push(output, 4, "", ""),
     }
     output.push_str("}\n");
+}
+
+/// A `:page` query's function: its parameters then `page` and `per_page`,
+/// returning `rok_data::Page`. The rows and the total are two statements
+/// on one connection, so `executor` is anything that hands one out (`&pool`,
+/// `&mut *tx`, `&mut *conn`).
+fn render_page(
+    output: &mut String,
+    query: &AnalyzedQuery,
+    mut fn_params: Vec<String>,
+    binds: &[String],
+    row_type: &str,
+) {
+    fn_params.extend(["page: u64".to_owned(), "per_page: u64".to_owned()]);
+    output.push('\n');
+    push_doc(
+        output,
+        0,
+        &[
+            &format!(
+                "Runs the `{}` query (`:page`): page `page` (from 1, 0 is 1) of `per_page` rows,",
+                query.name
+            ),
+            "with the total across every page.",
+            "Fails with `rok_data::Error::InvalidQuery` when `per_page` is 0.",
+        ],
+    );
+    push_fn_head_bound(
+        output,
+        &query.fn_name,
+        &fn_params,
+        &format!("Result<rok_data::Page<{row_type}>, rok_data::Error>"),
+        "sqlx::Acquire<'e, Database = sqlx::Postgres>",
+    );
+    let lines = |sql: &str| sql.lines().map(str::to_owned).collect::<Vec<_>>();
+    output.push_str("    rok_data::raw(\n");
+    output.push_str(&sql::raw_block(&lines(&query.sql), 8));
+    output.push_str(",\n    )\n    .total_from(\n");
+    output.push_str(&sql::raw_block(&lines(&page::count_sql(&query.sql)), 8));
+    output.push_str(",\n    )\n");
+    for bind in binds {
+        output.push_str(&format!("    .bind({bind})\n"));
+    }
+    output.push_str("    .fetch_page(executor, page, per_page)\n    .await\n}\n");
 }
 
 /// What `.bind(..)` takes for a positional parameter: the parameter itself,
@@ -487,6 +536,43 @@ mod tests {
             "{rendered}"
         );
         assert!(rendered.contains("    .bind(ids.map(<[_]>::to_vec))\n    .bind(note)\n"));
+    }
+
+    /// A `:page` query takes the page after its own parameters and returns
+    /// the runtime's `Page`: the rows a page at a time, and the total
+    /// counted over the query without its `ORDER BY`. Its two statements
+    /// share a connection, so it takes anything that hands one out.
+    #[test]
+    fn a_page_query_returns_a_page_with_its_total() {
+        let mut page = query(
+            ReturnMode::Page,
+            vec![param(1, "search", "String")],
+            ResultShape::Row(vec![OutputColumn {
+                sql_name: "id".to_owned(),
+                rust_name: "id".to_owned(),
+                rust_type: "i64".to_owned(),
+            }]),
+        );
+        page.sql = "SELECT id\nFROM things\nWHERE label ILIKE $1\nORDER BY id".to_owned();
+        let rendered = render(&[page]);
+        assert!(
+            rendered.contains(
+                "/// Runs the `ListThings` query (`:page`): page `page` (from 1, 0 is 1) of `per_page` rows,\n/// with the total across every page.\n/// Fails with `rok_data::Error::InvalidQuery` when `per_page` is 0.\n"
+            ),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains(
+                "pub async fn list_things<'e, E>(\n    executor: E,\n    search: &str,\n    page: u64,\n    per_page: u64,\n) -> Result<rok_data::Page<ListThingsRow>, rok_data::Error>\nwhere\n    E: sqlx::Acquire<'e, Database = sqlx::Postgres>,\n{\n"
+            ),
+            "{rendered}"
+        );
+        assert!(
+            rendered.contains(
+                "    rok_data::raw(\n        r#\"\n        SELECT id\n        FROM things\n        WHERE label ILIKE $1\n        ORDER BY id\n        \"#,\n    )\n    .total_from(\n        r#\"\n        SELECT count(*) FROM (\n            SELECT id\n            FROM things\n            WHERE label ILIKE $1\n        ) q\n        \"#,\n    )\n    .bind(search)\n    .fetch_page(executor, page, per_page)\n    .await\n}\n"
+            ),
+            "{rendered}"
+        );
     }
 
     #[test]

@@ -237,7 +237,7 @@ fn refuse_writes(path: &Path, defs: &[QueryDef]) -> anyhow::Result<()> {
                 ReturnMode::Exec | ReturnMode::ExecRows => {
                     format!("is `:{}`", def.mode.keyword())
                 }
-                ReturnMode::One | ReturnMode::MaybeOne | ReturnMode::Many => {
+                ReturnMode::One | ReturnMode::MaybeOne | ReturnMode::Many | ReturnMode::Page => {
                     format!("is {}", write_statement(&def.sql)?)
                 }
             };
@@ -253,7 +253,7 @@ fn refuse_writes(path: &Path, defs: &[QueryDef]) -> anyhow::Result<()> {
         return Ok(());
     }
     bail!(
-        "{}\nqueries in a query directory's `{SHARED}/` are reads any feature may call (`:one`, `:many`, `:maybe_one` over a SELECT); move a write to its feature's query file",
+        "{}\nqueries in a query directory's `{SHARED}/` are reads any feature may call (`:one`, `:many`, `:maybe_one`, `:page` over a SELECT); move a write to its feature's query file",
         writes.join("\n")
     )
 }

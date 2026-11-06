@@ -193,3 +193,38 @@ macro_rules! delegate_executor {
 
 delegate_executor!(&'c Db, |this| &this.pool);
 delegate_executor!(&'c mut Tx, |this| &mut *this.inner);
+
+/// `&db` hands out one pooled connection, for statements that must run on
+/// the same connection, such as [`Raw::fetch_page`](crate::Raw::fetch_page)'s
+/// rows and total.
+impl<'c> sqlx::Acquire<'c> for &'c Db {
+    type Database = Postgres;
+    type Connection = sqlx::pool::PoolConnection<Postgres>;
+
+    fn acquire(self) -> BoxFuture<'c, std::result::Result<Self::Connection, sqlx::Error>> {
+        sqlx::Acquire::acquire(&self.pool)
+    }
+
+    fn begin(
+        self,
+    ) -> BoxFuture<'c, std::result::Result<sqlx::Transaction<'c, Postgres>, sqlx::Error>> {
+        sqlx::Acquire::begin(&self.pool)
+    }
+}
+
+/// `&mut tx` is its own connection: statements that must run on the same
+/// connection run inside the transaction.
+impl<'c> sqlx::Acquire<'c> for &'c mut Tx {
+    type Database = Postgres;
+    type Connection = &'c mut PgConnection;
+
+    fn acquire(self) -> BoxFuture<'c, std::result::Result<Self::Connection, sqlx::Error>> {
+        sqlx::Acquire::acquire(&mut *self.inner)
+    }
+
+    fn begin(
+        self,
+    ) -> BoxFuture<'c, std::result::Result<sqlx::Transaction<'c, Postgres>, sqlx::Error>> {
+        sqlx::Acquire::begin(&mut *self.inner)
+    }
+}

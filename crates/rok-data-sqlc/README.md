@@ -568,6 +568,52 @@ ungenerated (`-- rok:skip`: <note>)``. `rok gen --json` lists it under
 | `:many` | `fetch_all` | `Vec<row>` |
 | `:exec` | `execute` | `()` |
 | `:execrows` | `execute` | `u64`, the number of affected rows |
+| `:page` | `fetch_page` | `rok_data::Page<row>`: one page of rows and the total |
+
+**A `:page` query is written once**, with its `WHERE` and `ORDER BY` and
+without `LIMIT`/`OFFSET`. The function takes the query's parameters, then
+`page` (from 1; 0 is 1) and `per_page`, and returns the runtime's
+`rok_data::Page` (`items`, `total`, `page`, `per_page`), the page the
+generated API serves: a handler answers `PaginatedResponse::from(page)`.
+
+<!-- source: docs/examples/quickstart/queries.sql -->
+```sql
+-- name: ProductsInCategoryPage :page
+-- param: $2 search
+SELECT id, sku, name, price
+FROM products
+WHERE category_id = $1
+  AND (sku ILIKE $2 OR name ILIKE $2)
+ORDER BY name, id;
+```
+
+<!-- source: docs/examples/quickstart/src/db/queries.rs -->
+```rust
+pub async fn products_in_category_page<'e, E>(
+    executor: E,
+    category_id: CategoryId,
+    search: &str,
+    page: u64,
+    per_page: u64,
+) -> Result<rok_data::Page<ProductsInCategoryPageRow>, rok_data::Error>
+where
+    E: sqlx::Acquire<'e, Database = sqlx::Postgres>,
+```
+
+It runs two statements on one connection: the rows, the query with
+`LIMIT`/`OFFSET` appended, and the total, `SELECT count(*) FROM (<the query
+without its ORDER BY>) q` with the same parameters. A page past the last is
+empty and still reports the total. `executor` is anything that hands out a
+connection: `&pool`, `&db`, `&mut *tx`, or a `&mut PgConnection`. A
+`per_page` of 0 fails with `rok_data::Error::InvalidQuery`; the API's
+`Pagination` already keeps it from 1 to 100.
+
+A `:page` query must be a `SELECT` with an `ORDER BY` (without one, rows
+could show on two pages or none). A `LIMIT`, `OFFSET` or `FETCH` of its own
+fails generation naming the clause. Its rows are a `{Name}Row` struct even
+for one column. The runtime does the same for hand-written SQL:
+`rok_data::raw(sql).bind(..).fetch_page(&db, page, per_page)`, with
+`.total_from(count_sql)` to count with a statement of your own.
 
 **Parameter types are inferred only from positions that settle them.** These
 are:

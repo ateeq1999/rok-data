@@ -201,6 +201,18 @@ From the notes on Karibu Pass's ticket 11 (its query-string enum is ticket 61, n
 - **Guards:** two authorization rules copied five times is the second ask, so ticket 44 becomes a `Guard` trait and an `Allowed<G: Guard>` extractor in the templates' security Capability. A project writes each rule once (one `impl Guard`, backed by a shared query), and handlers take `Allowed<Finance>`.
 - **A pinned toolchain:** every template ships `rust-toolchain.toml` pinning the stable channel the gates test, so new lints arrive with a rok-templates release, not with a developer's newer toolchain.
 
+From the notes on Karibu Pass's ticket 13 (its nullable aggregates are fixed on main by ticket 31 and reach it with rok-data 0.9.0; its member check is tickets 42 and 44), and from building ticket 61:
+
+- **Clients send `If-Match`:** the contract reader accepts header parameters, and the generated calls take the version, so `rok gen` emits Clients for an App with a versioned table.
+- **Descriptions on nullable enum fields:** a property with no description of its own, a `oneOf`/`anyOf` of `null` and one branch, takes that branch's description in every Client.
+- **`:page` queries:** one query with its `WHERE` and `ORDER BY` generates a function returning `Page<Row>` (`items`, `total`, `page`, `per_page`): the rows with `LIMIT`/`OFFSET`, and the total from `SELECT count(*)` over the same query.
+
+From the notes on Karibu Pass's ticket 14 (its skipped `INSERT … SELECT` failing loudly is ticket 20, its nullable `count` ticket 31, both on main and in 0.9.0; its member check is ticket 44, unblocked by finishing the gRPC chain: a rok-templates release carrying `grpc`, and `rok init --template grpc` in 0.9.0):
+
+- **`INSERT … SELECT`:** typed like `VALUES`, its column types from the target table, with `ON CONFLICT` and `RETURNING`.
+- **Casts keep a typed id, and `EXISTS`:** a cast to a column's own base type keeps its typed id, `EXISTS (…)` is a never-null `bool`, and `-- column:` accepts generated typed ids and enums.
+- **Small follow-ups:** check-arch rule 4's message points a pure helper at `shared/`; `rok gen` says the contract export is building the App; the Rust Client's doc for optional sign-in says "when there is one".
+
 ## Out of Scope
 
 - **Karibu Pass's product work:** phone and SMS sign-in (its ADR-0006), its tickets, removing its sample data, its repo-wide reformat and its own visual-check scripts. A phone sign-in Module may come later.

@@ -11,6 +11,18 @@ that it exists and won't ship a tag without it).
 
 **Added**
 
+- `:page` queries: `-- name: PartnerBookings :page` over a `SELECT`
+  with its `WHERE` and `ORDER BY` generates
+  `partner_bookings(&pool, params, page, per_page)`, returning
+  `rok_data::Page<PartnerBookingsRow>` with the page's rows and the
+  total across every page (an empty page past the end keeps it), the
+  same `Page` the generated API serves. Its own `LIMIT`/`OFFSET` is an
+  error naming it.
+- `Raw::fetch_page(conn, page, per_page)` in the runtime: a raw
+  statement a page at a time, with the total counted over the same
+  statement and parameters (`.total_from(sql)` counts with your own).
+  It runs both on one connection of `&db`, `&pool` or `&mut tx`: `&Db`
+  and `&mut Tx` now implement `sqlx::Acquire`.
 - Shared reads: `queries/shared/<name>.sql` generates
   `db::queries::shared::<name>`, which any feature may call
   (`check-arch` allows it, and still refuses another feature's query
@@ -78,6 +90,16 @@ that it exists and won't ship a tag without it).
 
 **Fixed**
 
+- `rok gen` emits the Clients for an App with a versioned table, whose
+  `PATCH` takes `If-Match`: the contract reader refused header
+  parameters. A Client takes the header in the call's options:
+  `api.documents.update(id, body, { ifMatch: version })` in TypeScript,
+  `update(id, body, ifMatch: version)` in Dart,
+  `update(&id, &body, &version)` in Rust (a bare version is quoted as an
+  entity tag).
+- A documented `Option<SomeEnum>` field keeps its comment in the
+  TypeScript, Dart and Rust Clients (utoipa puts the description inside
+  the `$ref` branch of its `oneOf` with `null`).
 - Query-parameter enums reach the contract: generated features register
   every enum their path parameters take, and when `rok gen` finds a `$ref`
   the contract doesn't define (a hand-written `IntoParams` struct's

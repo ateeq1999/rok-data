@@ -317,9 +317,14 @@ rust = "clients/rust"
   scaffolded contract.
 
 The contract is read as the OpenAPI 3.1 subset utoipa emits: paths, the
-`get`/`post`/`put`/`patch`/`delete` operations, path and query parameters,
-JSON or `application/octet-stream` bodies, component schemas, statuses and
-an HTTP bearer security scheme. Anything else (a header parameter, a
+`get`/`post`/`put`/`patch`/`delete` operations, path, query and header
+parameters, JSON or `application/octet-stream` bodies, component schemas,
+statuses and an HTTP bearer security scheme. A header parameter (a
+versioned row's `If-Match`) is part of a call's options: TypeScript
+`api.documents.update(id, body, { ifMatch: version })`, Dart
+`update(id, body, ifMatch: version)`, Rust `update(&id, &body, &version)`,
+required when the header is; a bare version is quoted as an entity tag.
+Anything else (a cookie parameter, a
 multipart body, `anyOf`, another security scheme...) fails the run, naming
 the construct and its JSON pointer; what a client cannot type (the Dart
 client: an object with both properties and `additionalProperties`, a
@@ -990,7 +995,7 @@ removed), and the error names the query's failure and its line.
 | `NAME`                | the query's name, PascalCase: `OwnedMedia` generates `owned_media`; must be new in the file |
 | `SQL`                 | the statement, with `$1`, `$2`, … placeholders                       |
 | `-f, --file FILE`     | a stem (`media`) under the one configured `queries` directory, or a path ending in `.sql` |
-| `-o, --one`, `-m, --maybe-one`, `-M, --many`, `-x, --exec`, `-r, --execrows` | the return mode, at most one; omitted, it is inferred |
+| `-o, --one`, `-m, --maybe-one`, `-M, --many`, `-x, --exec`, `-r, --execrows`, `-p, --page` | the return mode, at most one; omitted, it is inferred |
 | `-c, --config FILE`   | config file instead of discovered `rok-data-sqlc.toml`                |
 
 The inferred mode:

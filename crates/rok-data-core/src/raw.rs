@@ -5,7 +5,7 @@ use futures_core::stream::BoxStream;
 
 use crate::exec;
 use crate::sql::Sql;
-use crate::{Executor, Result, Value};
+use crate::{Error, Executor, Page, Result, Value};
 
 /// Start a raw SQL query — the escape hatch for anything the query builder
 /// doesn't express.
@@ -27,6 +27,7 @@ pub fn raw(sql: impl Into<String>) -> Raw {
         params: Vec::new(),
         writes: Vec::new(),
         replica: false,
+        total: None,
     }
 }
 
@@ -37,6 +38,9 @@ pub struct Raw {
     params: Vec<Value>,
     writes: Vec<&'static str>,
     replica: bool,
+    /// What [`fetch_page`](Raw::fetch_page) counts its total with, when
+    /// not the statement itself.
+    total: Option<String>,
 }
 
 impl Raw {
@@ -135,6 +139,85 @@ impl Raw {
         E: Executor<'e> + 'e,
     {
         exec::stream(executor, self.to_sql(), self.replica)
+    }
+
+    /// Count [`fetch_page`](Self::fetch_page)'s total with `sql`, a
+    /// `SELECT count(*)` taking the same parameters, instead of counting
+    /// the whole statement: typically the statement without its `ORDER BY`,
+    /// which doesn't change a count.
+    pub fn total_from(mut self, sql: impl Into<String>) -> Self {
+        self.total = Some(sql.into());
+        self
+    }
+
+    /// One page of the rows, with the total across every page: the
+    /// statement with `LIMIT`/`OFFSET` appended, and
+    /// `SELECT count(*) FROM (<statement>) q` (or [`total_from`](Self::total_from)'s
+    /// count) bound with the same parameters. The two run one after the
+    /// other on one connection of `conn`: `&db`, `&pool`, `&mut *tx` or
+    /// `&mut conn`.
+    ///
+    /// `page` is 1-based (0 is 1). Past the last page, the page is empty
+    /// and still reports the total. Write the statement with its
+    /// `ORDER BY` and without `LIMIT`/`OFFSET`.
+    ///
+    /// ```ignore
+    /// let page: Page<Booking> = rok_data::raw("SELECT * FROM bookings WHERE partner_id = $1 ORDER BY starts_on DESC")
+    ///     .bind(partner)
+    ///     .fetch_page(&db, 2, 20)
+    ///     .await?;
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// [`Error::InvalidQuery`](crate::Error::InvalidQuery) when `per_page`
+    /// is 0, or the database's error.
+    pub async fn fetch_page<'c, T, A>(self, conn: A, page: u64, per_page: u64) -> Result<Page<T>>
+    where
+        T: for<'r> FromRow<'r, PgRow> + Send + Unpin,
+        A: sqlx::Acquire<'c, Database = Postgres>,
+    {
+        if per_page == 0 {
+            return Err(Error::InvalidQuery(
+                "`per_page` must be greater than 0".into(),
+            ));
+        }
+        let page = page.max(1);
+        let limit = i64::try_from(per_page).unwrap_or(i64::MAX);
+        let offset = i64::try_from((page - 1).saturating_mul(per_page)).unwrap_or(i64::MAX);
+
+        // On their own lines, so a trailing `--` comment ends before them.
+        let count = Raw {
+            sql: self
+                .total
+                .clone()
+                .unwrap_or_else(|| format!("SELECT count(*) FROM (\n{}\n) q", self.sql)),
+            params: self.params.clone(),
+            ..raw("")
+        };
+        let next = self.params.len() + 1;
+        let paging = if self.sql.contains('?') {
+            "\nLIMIT ? OFFSET ?".to_owned()
+        } else {
+            format!("\nLIMIT ${next} OFFSET ${}", next + 1)
+        };
+        let rows = Raw {
+            sql: format!("{}{paging}", self.sql),
+            total: None,
+            ..self
+        }
+        .bind(limit)
+        .bind(offset);
+
+        let mut conn = conn.acquire().await?;
+        let total: i64 = count.scalar(&mut *conn).await?;
+        let items = rows.fetch_all(&mut *conn).await?;
+        Ok(Page::new(
+            items,
+            u64::try_from(total).unwrap_or(0),
+            page,
+            per_page,
+        ))
     }
 
     /// Execute the statement and return the number of affected rows.

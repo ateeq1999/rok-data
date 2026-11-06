@@ -24,7 +24,7 @@ use std::path::PathBuf;
 
 pub use super::emit::Error;
 use super::emit::{HEADER, MARKDOWN_HEADER};
-pub(crate) use super::emit::{Named, identifier, name_operations};
+pub(crate) use super::emit::{Named, header_field, identifier, name_operations};
 use super::openapi::Document;
 
 mod calls;
@@ -156,16 +156,32 @@ impl TypeNames {
             schemas.insert(name.clone(), ident);
         }
         for named in name_operations(&document.operations) {
-            if named.op.query_params.is_empty() {
+            let at = format!("`{} {}`", named.op.method.upper(), named.op.path);
+            if !named.op.query_params.is_empty() {
+                let query = named.query_type();
+                if !taken.insert(query.clone()) {
+                    return Err(Error(format!(
+                        "the query type of {at} is `{query}`, which a schema is named already"
+                    )));
+                }
+            }
+            if named.op.header_params.is_empty() {
                 continue;
             }
-            let query = named.query_type();
-            if !taken.insert(query.clone()) {
+            let headers = named.headers_type();
+            if !taken.insert(headers.clone()) {
                 return Err(Error(format!(
-                    "the query type of `{} {}` is `{query}`, which a schema is named already",
-                    named.op.method.upper(),
-                    named.op.path
+                    "the headers type of {at} is `{headers}`, which a type is named already"
                 )));
+            }
+            for parameter in &named.op.header_params {
+                let field = header_field(&parameter.name);
+                if calls::taken_by_options(&named, &field) {
+                    return Err(Error(format!(
+                        "{at}: the header `{}` would be the option `{field}`, which the call takes already",
+                        parameter.name
+                    )));
+                }
             }
         }
         Ok(TypeNames { schemas })
@@ -200,7 +216,8 @@ fn readme(operations: &[Named<'_>]) -> String {
          never edit these files by hand — change the API, then `rok gen` re-exports \
          the document and regenerates them.\n\n\
          - `api.<tag>.<operation>(...)`: one typed call per operation, path \
-         parameters first, then the body, then the query, then `RequestOptions`.\n\
+         parameters first, then the body, then the query, then `RequestOptions` \
+         with the operation's headers (`{{ ifMatch }}`).\n\
          - `queries.<tag>.<operation>(...)`: `queryOptions` for every `GET`; \
          `mutations.<tag>.<operation>()`: `mutationOptions` for the others; \
          `keys.<tag>`: the prefix of a tag's query keys, to invalidate them.\n\
