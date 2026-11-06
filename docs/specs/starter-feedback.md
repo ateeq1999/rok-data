@@ -225,6 +225,11 @@ From the notes on Karibu Pass's ticket 16 (its one-statement writes come with ti
 - **Integer widths in the Clients:** the reader keeps `format`, so `int32` is Rust `i32` (a `smallint` too, since utoipa has no `int16`).
 - **Live updates over Topics:** a template Capability. A feature calls `publish(tenant, topic, payload)` over `NOTIFY`, and clients subscribe to one server-sent-events route behind a Guard, so a live board refetches on news instead of polling.
 
+From the notes on Karibu Pass's ticket 17 (its schema-file order is ticket 30 and its duplicated "pending payment" read ticket 42, both in 0.9.0):
+
+- **Set operations:** `UNION`, `UNION ALL`, `INTERSECT` and `EXCEPT` type at the top level and in subqueries, each column from the branches' shared type.
+- **A query fills a DTO:** `-- returns:` may name a hand-written `FromRow` type, so the query decodes into it and no row struct is copied field by field (ticket 56).
+
 ## Out of Scope
 
 - **Karibu Pass's product work:** phone and SMS sign-in (its ADR-0006), its tickets, removing its sample data, its repo-wide reformat and its own visual-check scripts. A phone sign-in Module may come later.
