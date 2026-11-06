@@ -83,6 +83,14 @@ the *generated* API count as breaking (see ADR 0012).
   purpose: not a failure in a strict run, and reported as a note
   (``path:line: query `Name` left ungenerated (`-- rok:skip`: note)``).
   `QueryDef::skip`, `Report::skipped_queries` and `SkippedQuery` are new.
+- `INSERT INTO t (cols) SELECT …` is typed, where it failed "INSERT …
+  SELECT is not supported yet; use VALUES": each value the `SELECT`
+  returns is typed from the column it fills, as a `VALUES` row's is, and
+  the `SELECT`'s `FROM`, `WHERE` and `HAVING` resolve against its own
+  tables (the target only when the `FROM` names it). `ON CONFLICT` and
+  `RETURNING` work as with `VALUES`. A `SELECT` returning another number
+  of values than there are columns fails "the SELECT returns 2 values for
+  3 columns"; `SELECT *` fails asking for each value.
 
 ### Changed
 
@@ -114,6 +122,25 @@ the *generated* API count as breaking (see ADR 0012).
   `T`; drop the `unwrap_or` (the API example's `stats` feature did). The
   README's "Writing query files" says when to reach for a `-- column:`
   override.
+- **Breaking (generated API):** a cast to the plain type a typed id wraps
+  keeps the typed id: `media_id::uuid` for a key column is `MediaId`,
+  where it was `uuid::Uuid`. `coalesce(…)` takes the type its arguments
+  share (a literal takes the others'; one plain type under different
+  typed ids takes the plain type) and is never NULL when one argument
+  never is, where only `coalesce(x, <literal>)` was typed; so
+  `coalesce(note, sku)` is `String`, where it failed to infer. A scalar
+  subquery takes the type of its one column (nullable), so
+  `coalesce(p.cover_media_id, (SELECT ph.media_id …))::uuid` over two
+  `media.id` columns is `Option<MediaId>`. `EXISTS (…)` and
+  `NOT EXISTS (…)` are a never-null `bool`, where they failed to infer,
+  and `x IN (SELECT …)` is `bool`.
+- Subqueries (scalar, `EXISTS`, `IN`) are analyzed: their placeholders
+  are typed from their own tables, which resolve first and may reuse an
+  outer table's name, with the outer query's tables visible for
+  correlation. A subquery the engine can't analyze stays untyped instead
+  of failing the query, as before. `-- column:` naming a generated typed
+  id or enum (`Option<MediaId>`, `types::PartnerKind`) imports it, as
+  `-- param:` does (now tested).
 - `check-arch` finds its project by that rule: a `rok.toml` project (plain,
   or a Monorepo's App or Apps), not only `rok-data-sqlc.toml`, and
   `--config` accepts a `rok.toml`. It prints the `using …` line on stderr.

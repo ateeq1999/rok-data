@@ -97,6 +97,21 @@ impl<'a, 'c> Analysis<'a, 'c> {
                 self.column_reference(expr)?;
                 Ok(())
             }
+            Expr::Subquery(query)
+            | Expr::Exists {
+                subquery: query, ..
+            } => {
+                self.subquery(query);
+                Ok(())
+            }
+            Expr::InSubquery {
+                expr: inner,
+                subquery,
+                ..
+            } => {
+                self.subquery(subquery);
+                self.expr(inner)
+            }
             _ => Ok(()),
         }
     }

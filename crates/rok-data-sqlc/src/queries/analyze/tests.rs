@@ -48,26 +48,62 @@ const SCHEMA: &str = "
             rooms_total INTEGER NOT NULL,
             held_at TIMESTAMPTZ
         );
+        CREATE TABLE media (id UUID PRIMARY KEY, url TEXT NOT NULL);
+        CREATE TABLE partner_photos (
+            id UUID PRIMARY KEY,
+            partner_id BIGINT NOT NULL REFERENCES partners (id),
+            media_id UUID NOT NULL REFERENCES media (id),
+            caption TEXT,
+            sort INTEGER NOT NULL
+        );
+        CREATE TABLE listings (
+            id BIGSERIAL PRIMARY KEY,
+            partner_id BIGINT NOT NULL REFERENCES partners (id),
+            cover_media_id UUID REFERENCES media (id),
+            status product_status NOT NULL
+        );
     ";
 
 fn analyze(queries: &str) -> (Vec<AnalyzedQuery>, Vec<QueryFailure>) {
     let parsed = crate::parser::parse_schema(SCHEMA).unwrap();
+    analyze_against(queries, &parsed, &parsed.schema.tables)
+}
+
+fn analyze_against(
+    queries: &str,
+    parsed: &crate::parser::ParsedSchema,
+    tables: &[Table],
+) -> (Vec<AnalyzedQuery>, Vec<QueryFailure>) {
     let (defs, failures) = parse_query_file(queries);
     assert!(failures.is_empty(), "{failures:?}");
-    let modules = parsed
-        .schema
-        .tables
+    let modules = tables
         .iter()
         .map(|table| table.module_name.clone())
         .collect();
     analyze_queries(
         &defs,
-        &parsed.schema.tables,
+        tables,
         &parsed.schema.enums,
         &parsed.schema.functions,
         &modules,
         &parsed.failures,
     )
+}
+
+/// The schema's tables with their typed ids, as `rok gen` analyzes queries
+/// against them.
+fn typed_tables() -> (crate::parser::ParsedSchema, Vec<Table>) {
+    let parsed = crate::parser::parse_schema(SCHEMA).unwrap();
+    let tables = crate::generator::keys::resolve(&parsed.schema.tables);
+    (parsed, tables)
+}
+
+/// [`one`], with typed ids.
+fn typed_one(queries: &str) -> AnalyzedQuery {
+    let (parsed, tables) = typed_tables();
+    let (mut analyzed, failures) = analyze_against(queries, &parsed, &tables);
+    assert!(failures.is_empty(), "{failures:?}");
+    analyzed.remove(0)
 }
 
 fn one(queries: &str) -> AnalyzedQuery {
@@ -360,6 +396,64 @@ fn update_from_resolves_columns_across_the_target_and_its_from_tables() {
             ("status", "String"),
             ("partner", "String"),
         ]
+    );
+}
+
+/// Karibu Pass's `AddPhoto`: an `INSERT … SELECT` whose values fill the
+/// target's columns, typed from them as `VALUES` is, while its `FROM` and
+/// `WHERE` see only the `SELECT`'s own tables.
+const ADD_PHOTO: &str = "INSERT INTO partner_photos (id, partner_id, media_id, caption, sort)
+SELECT $1, $2, $3, $4, coalesce(max(sort) + 1, 0)
+FROM partner_photos WHERE partner_id = $2
+ON CONFLICT DO NOTHING";
+
+#[test]
+fn insert_select_types_its_values_from_the_target_columns() {
+    let exec = one(&format!("-- name: AddPhoto :exec\n{ADD_PHOTO};"));
+    assert_eq!(
+        exec.params,
+        [
+            param(1, "id", "uuid::Uuid"),
+            param(2, "partner_id", "i64"),
+            param(3, "media_id", "uuid::Uuid"),
+            param(4, "caption", "Option<String>"),
+        ]
+    );
+    assert_eq!(exec.result, ResultShape::None);
+
+    let returning = one(&format!(
+        "-- name: AddPhoto :maybe_one\n{ADD_PHOTO}\nRETURNING id, sort;"
+    ));
+    assert_eq!(returning.params, exec.params);
+    assert_eq!(
+        row_columns(&returning),
+        [("id", "uuid::Uuid"), ("sort", "i32")]
+    );
+}
+
+#[test]
+fn insert_select_upserts_like_values() {
+    let query = one(
+        "-- name: CopyStock :exec\nINSERT INTO products (id, sku, name, category_id, stock)\nSELECT $1, sku, name, category_id, stock FROM products WHERE id = $2\nON CONFLICT (id) DO UPDATE SET stock = EXCLUDED.stock + $3;",
+    );
+    assert_eq!(
+        query.params,
+        [
+            param(1, "id", "uuid::Uuid"),
+            param(2, "id_2", "uuid::Uuid"),
+            param(3, "stock", "i32"),
+        ]
+    );
+}
+
+#[test]
+fn insert_select_with_the_wrong_number_of_values_fails_naming_them() {
+    let reason = failure(
+        "-- name: Q :exec\nINSERT INTO partner_photos (id, partner_id, media_id) SELECT $1, $2 FROM partners WHERE id = $2;",
+    );
+    assert!(
+        reason.contains("the SELECT returns 2 values for 3 columns"),
+        "{reason}"
     );
 }
 
@@ -829,17 +923,18 @@ fn coalesce_with_a_literal_fallback_is_not_null() {
     );
 }
 
+/// A `NULL` fallback leaves `coalesce` nullable, and an argument the engine
+/// can't type (a placeholder) leaves it untyped.
 #[test]
-fn coalesce_without_a_literal_fallback_is_not_inferred() {
-    for fallback in ["NULL", "sku", "$1"] {
-        let reason = failure(&format!(
-            "-- name: Note :one\nSELECT coalesce(note, {fallback}) AS note FROM products;"
-        ));
-        assert!(
-            reason.contains("cannot infer the type"),
-            "{fallback}: {reason}"
-        );
-    }
+fn coalesce_with_a_null_or_untyped_argument() {
+    assert_eq!(
+        scalar(
+            "-- name: Note :one\nSELECT coalesce(note, NULL) AS note FROM products WHERE id = $1;"
+        ),
+        "Option<String>"
+    );
+    let reason = failure("-- name: Note :one\nSELECT coalesce(note, $1) AS note FROM products;");
+    assert!(reason.contains("cannot infer the type"), "{reason}");
 }
 
 /// A comparison is `bool`, NULL only when an operand can be.
@@ -1007,4 +1102,119 @@ fn unknown_functions_and_unsupported_return_types_still_fail() {
             "{call}: {reason}"
         );
     }
+}
+
+/// Karibu Pass's partner cover: a cast to a column's own base type keeps
+/// the column's typed id, here over a `coalesce` of two `media.id` columns,
+/// one from a scalar subquery.
+#[test]
+fn a_cast_to_a_typed_ids_own_type_keeps_the_typed_id() {
+    assert_eq!(
+        typed_one(
+            "-- name: Cover :one\nSELECT coalesce(l.cover_media_id, (SELECT ph.media_id FROM partner_photos ph WHERE ph.partner_id = l.partner_id ORDER BY ph.sort LIMIT 1))::uuid AS cover FROM listings l WHERE l.id = $1;"
+        )
+        .result,
+        ResultShape::Scalar("Option<MediaId>".to_owned())
+    );
+    let row = typed_one(
+        "-- name: Ids :one\nSELECT media_id::uuid AS media, media_id::text AS label, partner_id::bigint AS partner FROM partner_photos WHERE id = $1;",
+    );
+    assert_eq!(
+        row_columns(&row),
+        [
+            ("media", "MediaId"),
+            ("label", "String"),
+            ("partner", "PartnerId"),
+        ]
+    );
+}
+
+/// `coalesce` takes the type its arguments share, and is never NULL when
+/// one of them never is.
+#[test]
+fn coalesce_takes_the_type_its_arguments_share() {
+    assert_eq!(
+        scalar(
+            "-- name: Note :one\nSELECT coalesce(note, sku) AS note FROM products WHERE id = $1;"
+        ),
+        "String"
+    );
+    assert_eq!(
+        typed_one(
+            "-- name: Cover :one\nSELECT coalesce(l.cover_media_id, (SELECT ph.media_id FROM partner_photos ph WHERE ph.partner_id = l.partner_id LIMIT 1)) AS cover FROM listings l WHERE l.id = $1;"
+        )
+        .result,
+        ResultShape::Scalar("Option<MediaId>".to_owned())
+    );
+}
+
+/// `EXISTS (…)` and `NOT EXISTS (…)` are a `bool` that is never NULL, and
+/// the subquery's placeholders are typed from its own tables.
+#[test]
+fn exists_is_a_bool_that_is_never_null() {
+    let row = one(
+        "-- name: Photos :one\nSELECT (EXISTS (SELECT 1 FROM partner_photos ph WHERE ph.partner_id = p.id))::boolean AS has_photos, NOT EXISTS (SELECT 1 FROM partner_photos WHERE partner_id = p.id AND caption = $2) AS bare FROM partners p WHERE p.id = $1;",
+    );
+    assert_eq!(
+        row_columns(&row),
+        [("has_photos", "bool"), ("bare", "bool")]
+    );
+    assert_eq!(
+        row.params,
+        [param(1, "id", "i64"), param(2, "caption", "String")]
+    );
+}
+
+/// `-- column:` names the generated typed ids and enums as `-- param:`
+/// does: the query file imports them.
+#[test]
+fn a_column_override_names_generated_typed_ids_and_enums() {
+    let (parsed, tables) = typed_tables();
+    let (analyzed, failures) = analyze_against(
+        "-- name: Card :one\n-- column: cover Option<MediaId>\n-- column: status types::ProductStatus\nSELECT coalesce(cover_media_id, NULL) AS cover, status::text AS status FROM listings WHERE id = $1;",
+        &parsed,
+        &tables,
+    );
+    assert!(failures.is_empty(), "{failures:?}");
+    assert_eq!(
+        row_columns(&analyzed[0]),
+        [
+            ("cover", "Option<MediaId>"),
+            ("status", "types::ProductStatus")
+        ]
+    );
+    let rendered = crate::generator::queries::render(&analyzed, &tables, false);
+    assert!(rendered.contains("::media::models::MediaId"), "{rendered}");
+    assert!(rendered.contains("::types"), "{rendered}");
+    assert!(
+        rendered.contains("pub cover: Option<MediaId>,"),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains("pub status: types::ProductStatus,"),
+        "{rendered}"
+    );
+}
+
+/// A subquery's own tables come first: its unqualified columns and a name
+/// it reuses resolve to them, and an outer table's column is still visible.
+/// One the engine can't analyze stays untyped, as before, instead of
+/// failing the query.
+#[test]
+fn subqueries_resolve_their_own_tables_first() {
+    let query = one(
+        "-- name: Latest :one\nSELECT (SELECT max(sort) FROM partner_photos WHERE partner_id = p.id AND caption = $2)::int AS last_sort FROM partner_photos p WHERE p.id = $1;",
+    );
+    assert_eq!(
+        query.params,
+        [param(1, "id", "uuid::Uuid"), param(2, "caption", "String")]
+    );
+    let shadowed = one(
+        "-- name: Shadowed :many\nSELECT id FROM partners WHERE EXISTS (SELECT 1 FROM partners WHERE id = $1);",
+    );
+    assert_eq!(shadowed.params, [param(1, "id", "i64")]);
+    let opaque = one(
+        "-- name: Opaque :many\n-- param: $1 cutoff i64\nSELECT id FROM partners WHERE id IN (SELECT n FROM (SELECT $1 AS n) s);",
+    );
+    assert_eq!(opaque.params, [param(1, "cutoff", "i64")]);
 }

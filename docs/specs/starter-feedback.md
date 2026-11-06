@@ -213,6 +213,12 @@ From the notes on Karibu Pass's ticket 14 (its skipped `INSERT … SELECT` faili
 - **Casts keep a typed id, and `EXISTS`:** a cast to a column's own base type keeps its typed id, `EXISTS (…)` is a never-null `bool`, and `-- column:` accepts generated typed ids and enums.
 - **Small follow-ups:** check-arch rule 4's message points a pure helper at `shared/`; `rok gen` says the contract export is building the App; the Rust Client's doc for optional sign-in says "when there is one".
 
+From the notes on Karibu Pass's ticket 15 (its untyped `$1` inside a subquery is fixed by ticket 70, and the skip failing the run by ticket 20, both in 0.9.0):
+
+- **`-- rok:down` says where it goes:** the message names the statement and says "immediately after this statement"; the rule stays one block per statement.
+- **Guards return a grant:** `Guard::check` returns `Option<Self::Grant>`, and `Allowed<G>` hands the grant to the handler, so one guard can say "member with this role" or "staff" (ticket 44).
+- **A transaction helper on a pool:** `rok_data::transaction(&pool, |tx| …)` beside `Db::transaction`, allowed by check-arch rule 2 (ticket 57).
+
 ## Out of Scope
 
 - **Karibu Pass's product work:** phone and SMS sign-in (its ADR-0006), its tickets, removing its sample data, its repo-wide reformat and its own visual-check scripts. A phone sign-in Module may come later.
