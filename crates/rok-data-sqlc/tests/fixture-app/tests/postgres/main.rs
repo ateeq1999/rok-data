@@ -87,6 +87,7 @@ async fn generated_crud_against_postgres() {
     queries::annotated_queries(&pool).await;
     queries::query_modules_per_file(&pool).await;
     queries::partial_index_upserts_and_recursive_ctes(&pool).await;
+    queries::page_queries_return_rows_and_the_total(&pool).await;
     search::search_filters_and_pages(&pool).await;
     migrations::altered_table_has_its_final_columns(&pool).await;
     migrations::altered_columns_round_trip_in_their_final_shape(&pool).await;

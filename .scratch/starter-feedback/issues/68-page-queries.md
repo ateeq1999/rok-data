@@ -14,9 +14,9 @@ Also, before the 0.9.0 release: a regression test that `count(*) FILTER (WHERE â
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Karibu's `PartnerBookings` shape (a range plus a four-way search) as one `:page` query returns the right items and total (DB-backed test)
-- [ ] An empty page past the end still reports the total
-- [ ] `LIMIT` in a `:page` query fails naming it
-- [ ] The `FILTER` regression test passes
+- [x] Karibu's `PartnerBookings` shape (a range plus a four-way search) as one `:page` query returns the right items and total (DB-backed test)
+- [x] An empty page past the end still reports the total
+- [x] `LIMIT` in a `:page` query fails naming it
+- [x] The `FILTER` regression test passes

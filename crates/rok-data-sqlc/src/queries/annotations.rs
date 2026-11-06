@@ -28,15 +28,18 @@ pub enum ReturnMode {
     Exec,
     /// No result besides the number of affected rows.
     ExecRows,
+    /// One page of a `SELECT`'s rows, with the total across every page.
+    Page,
 }
 
 impl ReturnMode {
-    const ALL: [ReturnMode; 5] = [
+    const ALL: [ReturnMode; 6] = [
         ReturnMode::One,
         ReturnMode::MaybeOne,
         ReturnMode::Many,
         ReturnMode::Exec,
         ReturnMode::ExecRows,
+        ReturnMode::Page,
     ];
 
     /// The annotation keyword, without the leading `:`.
@@ -47,6 +50,7 @@ impl ReturnMode {
             ReturnMode::Many => "many",
             ReturnMode::Exec => "exec",
             ReturnMode::ExecRows => "execrows",
+            ReturnMode::Page => "page",
         }
     }
 
@@ -54,7 +58,7 @@ impl ReturnMode {
     pub fn returns_rows(self) -> bool {
         matches!(
             self,
-            ReturnMode::One | ReturnMode::MaybeOne | ReturnMode::Many
+            ReturnMode::One | ReturnMode::MaybeOne | ReturnMode::Many | ReturnMode::Page
         )
     }
 
@@ -418,6 +422,7 @@ mod tests {
             ("many", ReturnMode::Many),
             ("exec", ReturnMode::Exec),
             ("execrows", ReturnMode::ExecRows),
+            ("page", ReturnMode::Page),
         ] {
             let (queries, _) = parse(&format!("-- name: Q :{keyword}\nSELECT 1;"));
             assert_eq!(queries[0].mode, mode);

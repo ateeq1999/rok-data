@@ -385,3 +385,15 @@ CREATE TABLE calibration_readings (
     reading_taken_by_the_long_running_calibration_station_number_a TEXT NOT NULL,
     reading_taken_by_the_long_running_calibration_station_number_b TEXT NOT NULL
 );
+
+-- A `:page` query's table (queries/bookings.sql): Karibu Pass's partner
+-- bookings, a date range plus a search across four columns.
+CREATE TABLE bookings (
+    id BIGSERIAL PRIMARY KEY,
+    partner_id BIGINT NOT NULL,
+    reference TEXT NOT NULL,
+    guest_name TEXT NOT NULL,
+    guest_email TEXT NOT NULL,
+    offer_title TEXT NOT NULL,
+    starts_on DATE NOT NULL
+);

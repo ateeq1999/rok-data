@@ -27,3 +27,11 @@ ORDER BY sku;
 
 -- name: ArchiveCategory :execrows
 UPDATE products SET status = 'archived' WHERE category_id = $1;
+
+-- name: ProductsInCategoryPage :page
+-- param: $2 search
+SELECT id, sku, name, price
+FROM products
+WHERE category_id = $1
+  AND (sku ILIKE $2 OR name ILIKE $2)
+ORDER BY name, id;

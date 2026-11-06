@@ -155,3 +155,54 @@ where
     .execute(executor)
     .await
 }
+
+/// A row returned by `products_in_category_page`.
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct ProductsInCategoryPageRow {
+    /// The `id` column.
+    pub id: ProductId,
+    /// The `sku` column.
+    pub sku: String,
+    /// The `name` column.
+    pub name: String,
+    /// The `price` column.
+    pub price: rust_decimal::Decimal,
+}
+
+/// Runs the `ProductsInCategoryPage` query (`:page`): page `page` (from 1, 0 is 1) of `per_page` rows,
+/// with the total across every page.
+/// Fails with `rok_data::Error::InvalidQuery` when `per_page` is 0.
+pub async fn products_in_category_page<'e, E>(
+    executor: E,
+    category_id: CategoryId,
+    search: &str,
+    page: u64,
+    per_page: u64,
+) -> Result<rok_data::Page<ProductsInCategoryPageRow>, rok_data::Error>
+where
+    E: sqlx::Acquire<'e, Database = sqlx::Postgres>,
+{
+    rok_data::raw(
+        r#"
+        SELECT id, sku, name, price
+        FROM products
+        WHERE category_id = $1
+          AND (sku ILIKE $2 OR name ILIKE $2)
+        ORDER BY name, id
+        "#,
+    )
+    .total_from(
+        r#"
+        SELECT count(*) FROM (
+            SELECT id, sku, name, price
+            FROM products
+            WHERE category_id = $1
+              AND (sku ILIKE $2 OR name ILIKE $2)
+        ) q
+        "#,
+    )
+    .bind(category_id)
+    .bind(search)
+    .fetch_page(executor, page, per_page)
+    .await
+}

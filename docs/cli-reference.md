@@ -990,7 +990,7 @@ removed), and the error names the query's failure and its line.
 | `NAME`                | the query's name, PascalCase: `OwnedMedia` generates `owned_media`; must be new in the file |
 | `SQL`                 | the statement, with `$1`, `$2`, … placeholders                       |
 | `-f, --file FILE`     | a stem (`media`) under the one configured `queries` directory, or a path ending in `.sql` |
-| `-o, --one`, `-m, --maybe-one`, `-M, --many`, `-x, --exec`, `-r, --execrows` | the return mode, at most one; omitted, it is inferred |
+| `-o, --one`, `-m, --maybe-one`, `-M, --many`, `-x, --exec`, `-r, --execrows`, `-p, --page` | the return mode, at most one; omitted, it is inferred |
 | `-c, --config FILE`   | config file instead of discovered `rok-data-sqlc.toml`                |
 
 The inferred mode:

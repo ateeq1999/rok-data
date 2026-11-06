@@ -11,6 +11,18 @@ that it exists and won't ship a tag without it).
 
 **Added**
 
+- `:page` queries: `-- name: PartnerBookings :page` over a `SELECT`
+  with its `WHERE` and `ORDER BY` generates
+  `partner_bookings(&pool, params, page, per_page)`, returning
+  `rok_data::Page<PartnerBookingsRow>` with the page's rows and the
+  total across every page (an empty page past the end keeps it), the
+  same `Page` the generated API serves. Its own `LIMIT`/`OFFSET` is an
+  error naming it.
+- `Raw::fetch_page(conn, page, per_page)` in the runtime: a raw
+  statement a page at a time, with the total counted over the same
+  statement and parameters (`.total_from(sql)` counts with your own).
+  It runs both on one connection of `&db`, `&pool` or `&mut tx`: `&Db`
+  and `&mut Tx` now implement `sqlx::Acquire`.
 - Shared reads: `queries/shared/<name>.sql` generates
   `db::queries::shared::<name>`, which any feature may call
   (`check-arch` allows it, and still refuses another feature's query

@@ -9,6 +9,18 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Added
 
+- `:page` queries: one `SELECT` written with its `WHERE` and `ORDER BY`
+  generates a function taking the query's parameters, then `page` (from
+  1) and `per_page`, and returning `rok_data::Page<Row>` (`items`,
+  `total`, `page`, `per_page`). It runs the rows (the query with
+  `LIMIT`/`OFFSET`) and the total (`SELECT count(*) FROM (<the query
+  without its ORDER BY>) q`) on one connection, so it takes
+  `E: sqlx::Acquire<'e, Database = sqlx::Postgres>` (`&pool`, `&db`,
+  `&mut *tx`). A page past the end is empty and keeps the total. A
+  `:page` query with its own `LIMIT`, `OFFSET` or `FETCH` fails naming
+  it, as does one without an `ORDER BY` or that isn't a `SELECT`; its
+  rows are a `{Name}Row` even for one column. Allowed in `shared/`.
+  `query add -p, --page`.
 - Shared reads: a query directory's `shared/` (`queries/shared/*.sql`)
   generates `db::queries::shared::<file stem>`, one module per file, which
   any feature may call: `check-arch`'s `cross-feature-query` rule never

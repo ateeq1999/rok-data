@@ -115,3 +115,49 @@ async fn a_with_query_paginates_and_loads_its_includes_for_that_page() {
     }
     assert_eq!(page.into_page().last_item(), Some(6));
 }
+
+/// Raw SQL pages too: the statement as written (with its `ORDER BY`), a
+/// page at a time, with the total counted over the same statement and
+/// parameters. Past the last page the page is empty and keeps the total.
+#[tokio::test]
+async fn raw_sql_fetches_a_page_with_its_total() {
+    let Some(db) = setup().await else { return };
+    seed(&db).await; // views 10, 20, 30, 5, 15, 100
+
+    let over = |min: i32| {
+        raw("SELECT title FROM posts WHERE views > ? -- the busy ones\nORDER BY views DESC")
+            .bind(min)
+    };
+    let titles = |page: &Page<(String,)>| -> Vec<String> {
+        page.iter().map(|(title,)| title.clone()).collect()
+    };
+
+    let first: Page<(String,)> = over(10).fetch_page(&db, 1, 2).await.unwrap();
+    assert_eq!(titles(&first), ["c1", "a3"]);
+    assert_eq!((first.total, first.page, first.per_page), (4, 1, 2));
+
+    let second: Page<(String,)> = over(10).fetch_page(&db, 2, 2).await.unwrap();
+    assert_eq!(titles(&second), ["a2", "b2"]);
+
+    let past: Page<(String,)> = over(10).fetch_page(&db, 7, 2).await.unwrap();
+    assert!(past.is_empty());
+    assert_eq!((past.total, past.page), (4, 7));
+
+    // `$n` placeholders, a count of the caller's own, inside a transaction.
+    let mut tx = db.begin().await.unwrap();
+    let in_tx: Page<(String,)> = raw("SELECT title FROM posts WHERE views >= $1 ORDER BY title")
+        .bind(20)
+        .total_from("SELECT count(*) FROM posts WHERE views >= $1")
+        .fetch_page(&mut tx, 0, 10)
+        .await
+        .unwrap();
+    assert_eq!(titles(&in_tx), ["a2", "a3", "c1"]);
+    assert_eq!((in_tx.total, in_tx.page), (3, 1));
+    tx.rollback().await.unwrap();
+
+    let error = over(10)
+        .fetch_page::<(String,), _>(&db, 1, 0)
+        .await
+        .unwrap_err();
+    assert!(error.to_string().contains("per_page"), "{error}");
+}

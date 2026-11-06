@@ -4,6 +4,7 @@
 
 pub mod analyze;
 pub mod annotations;
+pub mod page;
 
 pub use analyze::{AnalyzedQuery, OutputColumn, Param, ResultShape, analyze_queries};
 pub use annotations::{QueryDef, QueryFailure, ReturnMode, parse_query_file};
