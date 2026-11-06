@@ -1,6 +1,8 @@
 //! `src/calls.rs`: one typed `async fn` per operation, grouped by tag —
 //! `client.users().update(id, &body)`. A call takes its path parameters
-//! first, in the path's order, then its body, then its query.
+//! first, in the path's order, then its body, then its query, then its
+//! header parameters (`if_match`, an `Option` when the header may be left
+//! out).
 
 use super::super::openapi::{Body, Parameter, Property, Response, Schema};
 use super::types::Types;
@@ -11,6 +13,9 @@ const TAKEN: &[&str] = &["ApiError", "Client", "Method"];
 
 /// rustfmt's widest line.
 const MAX_WIDTH: usize = 100;
+
+/// rustfmt's widest chain kept on one line.
+const CHAIN_WIDTH: usize = 60;
 
 /// The text of `src/calls.rs` (after the header); the types the calls
 /// need are defined in `types`.
@@ -114,16 +119,16 @@ fn call(named: &Named<'_>, types: &mut Types<'_>) -> Result<(String, bool), Erro
             lines.push(format!("let {name} = crate::segment(&{name}.to_string());"));
         }
     }
-    let mut chain = String::from("call");
+    let mut chain = vec!["call".to_owned()];
     match &op.body {
         Some(Body::Json(schema)) => {
             let ty = types.input_ty(schema, &format!("{hint}Body"), "types::");
             arguments.push(format!("body: &{ty}"));
-            chain.push_str(".json(body)");
+            chain.push(".json(body)".to_owned());
         }
         Some(Body::Binary) => {
             arguments.push("body: impl Into<reqwest::Body>".to_owned());
-            chain.push_str(".bytes(body)");
+            chain.push(".bytes(body)".to_owned());
         }
         None => {}
     }
@@ -141,7 +146,59 @@ fn call(named: &Named<'_>, types: &mut Types<'_>) -> Result<(String, bool), Erro
         let fallback = format!("The query of `{} {}`.", op.method.upper(), op.path);
         let name = types.define_query(&named.query_type(), &fallback, &properties);
         arguments.push(format!("query: &types::{name}"));
-        chain.push_str(".query(query)");
+        chain.push(".query(query)".to_owned());
+    }
+    let mut header_docs = Vec::new();
+    for parameter in &op.header_params {
+        if !scalar(&parameter.schema) {
+            return Err(Error(format!(
+                "`{} {}`: the header parameter `{}` is an array or an object, which the \
+                 Rust client does not send",
+                op.method.upper(),
+                op.path,
+                parameter.name
+            )));
+        }
+        let name = argument(&parameter.name);
+        let header = format!("{:?}", parameter.name);
+        let (ty, value) = if parameter.schema == Schema::String {
+            ("&str".to_owned(), name.clone())
+        } else {
+            let ty = types.ty(
+                &parameter.schema,
+                &format!("{hint}{}", super::type_ident(&parameter.name)),
+                "types::",
+            );
+            if parameter.required {
+                (ty, format!("&{name}.to_string()"))
+            } else {
+                (
+                    ty,
+                    format!("{name}.map(|value| value.to_string()).as_deref()"),
+                )
+            }
+        };
+        if parameter.required {
+            arguments.push(format!("{name}: {ty}"));
+            chain.push(format!(".header({header}, {value})"));
+        } else {
+            arguments.push(format!("{name}: Option<{ty}>"));
+            chain.push(format!(".optional_header({header}, {value})"));
+        }
+        let description = parameter
+            .description
+            .as_deref()
+            .map(str::trim)
+            .filter(|text| !text.is_empty())
+            .map_or_else(String::new, |text| {
+                let mut chars = text.chars();
+                let first = chars.next().map(|c| c.to_lowercase().collect::<String>());
+                format!(": {}{}", first.unwrap_or_default(), chars.as_str())
+            });
+        header_docs.push(format!(
+            "    /// `{name}` is sent as `{}`{description}\n",
+            parameter.name
+        ));
     }
     let (answer, finish) = match &op.response {
         Response::Empty => ("()".to_owned(), ".empty_answer()"),
@@ -151,7 +208,19 @@ fn call(named: &Named<'_>, types: &mut Types<'_>) -> Result<(String, bool), Erro
             ".json_answer()",
         ),
     };
-    chain.push_str(finish);
+    chain.push(finish.to_owned());
+    chain.push(".await".to_owned());
+    let chain = if chain.concat().len() <= CHAIN_WIDTH {
+        chain.concat()
+    } else {
+        // rustfmt's shape: the root and the first link, then a link a line.
+        let mut links = chain.into_iter();
+        let mut text: String = links.by_ref().take(2).collect();
+        for link in links {
+            text.push_str(&format!("\n            {link}"));
+        }
+        text
+    };
     lines.push(path_line(&op.path, &op.path_params));
     lines.push(format!(
         "let call = self.client.call(Method::{}, {}path, {})?;",
@@ -159,13 +228,17 @@ fn call(named: &Named<'_>, types: &mut Types<'_>) -> Result<(String, bool), Erro
         if op.path_params.is_empty() { "" } else { "&" },
         op.secured
     ));
-    lines.push(format!("{chain}.await"));
+    lines.push(chain);
 
     let summary = op.summary.as_deref();
     let fallback = format!("`{} {}`.", op.method.upper(), op.path);
     let mut text = doc(summary, &fallback, "    ");
     if op.secured {
         text.push_str("    ///\n    /// Sends the session's token.\n");
+    }
+    for line in header_docs {
+        text.push_str("    ///\n");
+        text.push_str(&line);
     }
     let name = call_name(named);
     let answer = format!("Result<{answer}, ApiError>");

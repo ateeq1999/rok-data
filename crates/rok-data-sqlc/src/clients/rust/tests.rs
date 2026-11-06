@@ -188,3 +188,65 @@ fn names_the_crate_has_are_refused() {
         Some("the tag `token` takes the name of the client's `token`; rename the tag")
     );
 }
+
+/// The document generated features serve (`tests/api-app`), read: its
+/// versioned `documents` take `If-Match` on `PATCH`.
+fn api_app() -> Document {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/api-app/tests/expected/openapi.json"
+    );
+    let text = std::fs::read_to_string(path).unwrap_or_else(|err| panic!("{path}: {err}"));
+    Document::parse(&text).unwrap_or_else(|err| panic!("{err}"))
+}
+
+/// A header parameter is an argument after the query, named after the
+/// header in `snake_case` and documented: a versioned row's update takes
+/// the version for `If-Match`.
+#[test]
+fn header_parameters_are_arguments_after_the_query() {
+    let files = emitted(&api_app());
+    let calls = file(&files, "src/calls.rs");
+    assert!(
+        calls.contains(
+            "    /// Sends the session's token.\n    ///\n    \
+             /// `if_match` is sent as `If-Match`: the row's `ETag`.\n    \
+             pub async fn update(\n        &self,\n        id: &str,\n        \
+             body: &types::UpdateDocumentDto,\n        if_match: &str,\n    \
+             ) -> Result<types::DocumentResponse, ApiError> {\n        \
+             let id = crate::segment(id);\n        \
+             let path = format!(\"/api/v1/documents/{id}\");\n        \
+             let call = self.client.call(Method::PATCH, &path, true)?;\n        \
+             call.json(body)\n            .header(\"If-Match\", if_match)\n            \
+             .json_answer()\n            .await\n    }\n"
+        ),
+        "{calls}"
+    );
+    let runtime = file(&files, "src/runtime.rs");
+    assert!(runtime.contains("    pub fn header(mut self, name: &str, value: &str) -> Call {"));
+}
+
+/// An optional header is an `Option`, sent only when it is `Some`.
+#[test]
+fn an_optional_header_is_an_option() {
+    let document = parsed(
+        json!({"/things": {"get": {
+            "operationId": "list", "tags": ["things"],
+            "parameters": [{"name": "X-Trace-Id", "in": "header", "schema": {"type": "string"}}],
+            "responses": {"204": {"description": ""}},
+        }}}),
+        json!({}),
+    );
+    let files = emitted(&document);
+    let calls = file(&files, "src/calls.rs");
+    assert!(
+        calls.contains(
+            "    pub async fn list(&self, x_trace_id: Option<&str>) -> Result<(), ApiError> {\n        \
+             let path = \"/things\";\n        \
+             let call = self.client.call(Method::GET, path, false)?;\n        \
+             call.optional_header(\"X-Trace-Id\", x_trace_id)\n            \
+             .empty_answer()\n            .await\n    }\n"
+        ),
+        "{calls}"
+    );
+}

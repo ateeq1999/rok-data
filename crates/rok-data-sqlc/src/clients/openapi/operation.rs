@@ -1,5 +1,5 @@
-//! The operations of the subset: a path's methods, each with its path and
-//! query parameters, its request body, its success response and its auth
+//! The operations of the subset: a path's methods, each with its path,
+//! query and header parameters, its request body, its success response and its auth
 //! marker.
 
 use serde_json::{Map, Value};
@@ -74,6 +74,9 @@ pub struct Operation {
     pub path_params: Vec<Parameter>,
     /// The query parameters, in the document's order.
     pub query_params: Vec<Parameter>,
+    /// The header parameters, in the document's order: a versioned row's
+    /// `If-Match`, which a Client takes in the call's options.
+    pub header_params: Vec<Parameter>,
     /// The request body, if it takes one.
     pub body: Option<Body>,
     /// What its success (its lowest `2xx`) answers.
@@ -83,7 +86,7 @@ pub struct Operation {
     pub secured: bool,
 }
 
-/// A path or query parameter.
+/// A path, query or header parameter.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Parameter {
     /// Its name.
@@ -183,7 +186,11 @@ fn parse_operation(
         .and_then(|tags| tags.first())
         .and_then(Value::as_str)
         .map(str::to_owned);
-    let (path_params, query_params) = parameters(map, path, at)?;
+    let Parameters {
+        path: path_params,
+        query: query_params,
+        header: header_params,
+    } = parameters(map, path, at)?;
     let body = match map.get("requestBody") {
         Some(body) => Some(request_body(body, &pointer(at, "requestBody"))?),
         None => None,
@@ -204,20 +211,25 @@ fn parse_operation(
             .map(str::to_owned),
         path_params,
         query_params,
+        header_params,
         body,
         response,
         secured,
     })
 }
 
+/// An operation's parameters, by where they go.
+struct Parameters {
+    /// In the order the path names them.
+    path: Vec<Parameter>,
+    query: Vec<Parameter>,
+    header: Vec<Parameter>,
+}
+
 /// The operation's path parameters, in the order its path names them, and
-/// its query parameters.
-fn parameters(
-    map: &Map<String, Value>,
-    path: &str,
-    at: &str,
-) -> Result<(Vec<Parameter>, Vec<Parameter>)> {
-    let (mut in_path, mut in_query) = (Vec::new(), Vec::new());
+/// its query and header parameters. A cookie parameter is refused.
+fn parameters(map: &Map<String, Value>, path: &str, at: &str) -> Result<Parameters> {
+    let (mut in_path, mut in_query, mut in_header) = (Vec::new(), Vec::new(), Vec::new());
     if let Some(list) = map.get("parameters") {
         let at = pointer(at, "parameters");
         let list = list.as_array().ok_or_else(|| Error::Invalid {
@@ -261,10 +273,13 @@ fn parameters(
             {
                 "path" => in_path.push(parsed),
                 "query" => in_query.push(parsed),
+                "header" => in_header.push(parsed),
                 place => {
                     return Err(Error::Unsupported {
                         at: here,
-                        construct: format!("a parameter in `{place}` (path and query are read)"),
+                        construct: format!(
+                            "a parameter in `{place}` (path, query and header are read)"
+                        ),
                     });
                 }
             }
@@ -291,7 +306,11 @@ fn parameters(
             message: format!("path parameter `{}` is not in the path", extra.name),
         });
     }
-    Ok((ordered, in_query))
+    Ok(Parameters {
+        path: ordered,
+        query: in_query,
+        header: in_header,
+    })
 }
 
 /// The `{name}`s of a path, in order.

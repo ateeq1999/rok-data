@@ -180,3 +180,77 @@ fn a_shared_name_on_one_path_takes_the_method() {
         .collect();
     assert_eq!(names, ["thingsGet", "thingsPost"]);
 }
+
+/// The document generated features serve (`tests/api-app`), read: its
+/// versioned `documents` take `If-Match` on `PATCH`.
+fn api_app() -> Document {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/api-app/tests/expected/openapi.json"
+    );
+    let text = std::fs::read_to_string(path).unwrap_or_else(|err| panic!("{path}: {err}"));
+    Document::parse(&text).unwrap_or_else(|err| panic!("{err}"))
+}
+
+/// A header parameter is a field of the call's options, named after the
+/// header in camelCase, documented, and required when the header is: a
+/// versioned row's update takes `{ ifMatch: version }`.
+#[test]
+fn header_parameters_are_options_of_the_call() {
+    let files = emitted(&api_app());
+    let types = file(&files, "src/types.ts");
+    assert!(types.contains(
+        "/** The headers of `PATCH /api/v1/documents/{id}`. */\n\
+         export type DocumentsUpdateHeaders = {\n  \
+         /** The row's `ETag`. */\n  \
+         ifMatch: string\n}\n"
+    ));
+    let calls = file(&files, "src/calls.ts");
+    assert!(calls.contains(
+        "    update: (\n      id: string,\n      body: UpdateDocumentDto,\n      \
+         options: RequestOptions & DocumentsUpdateHeaders\n    ) =>\n      \
+         request<DocumentResponse>(\n        {\n          method: \"PATCH\",\n          \
+         path: `/api/v1/documents/${encodeURIComponent(String(id))}`,\n          \
+         json: body,\n          headers: { \"If-Match\": options.ifMatch },\n          \
+         secured: true,\n          response: \"json\",\n        },\n        options\n      ),\n"
+    ));
+    let queries = file(&files, "src/queries.ts");
+    assert!(queries.contains(
+        "        mutationFn: (\n          variables: { id: string; body: UpdateDocumentDto } & \
+         DocumentsUpdateHeaders\n        ) =>\n          \
+         api.documents.update(variables.id, variables.body, {\n            ...options,\n            \
+         ifMatch: variables.ifMatch,\n          }),\n"
+    ), "{queries}");
+    let runtime = file(&files, "src/runtime.ts");
+    assert!(runtime.contains("  headers?: { [name: string]: HeaderValue }\n"));
+}
+
+/// An optional header is an optional field, and leaves the options
+/// optional; a `GET`'s factory takes its headers after its arguments.
+#[test]
+fn an_optional_header_leaves_the_options_optional() {
+    let json = json!({
+        "openapi": "3.1.0", "info": {},
+        "paths": {"/things/{id}": {"get": {
+            "operationId": "get_one", "tags": ["things"],
+            "parameters": [
+                {"name": "id", "in": "path", "required": true, "schema": {"type": "string"}},
+                {"name": "X-Trace-Id", "in": "header", "schema": {"type": "string"}},
+            ],
+            "responses": {"204": {"description": ""}},
+        }}},
+    })
+    .to_string();
+    let document = Document::parse(&json).unwrap_or_else(|err| panic!("{err}"));
+    let files = emitted(&document);
+    assert!(file(&files, "src/types.ts").contains("  xTraceId?: string\n"));
+    let calls = file(&files, "src/calls.ts");
+    assert!(calls.contains("      options?: RequestOptions & ThingsGetOneHeaders\n"));
+    assert!(calls.contains("          headers: { \"X-Trace-Id\": options?.xTraceId },\n"));
+    let queries = file(&files, "src/queries.ts");
+    assert!(queries.contains(
+        "    getOne: (id: string, headers?: ThingsGetOneHeaders) =>\n      queryOptions({\n        \
+         queryKey: [\"things\", \"getOne\", id, headers ?? {}] as const,\n        \
+         queryFn: ({ signal }) => api.things.getOne(id, { ...headers, signal }),\n      }),\n"
+    ));
+}

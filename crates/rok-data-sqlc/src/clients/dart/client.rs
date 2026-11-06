@@ -2,7 +2,8 @@
 //! holds one typed method per operation: `api.users.update(id, body)`.
 //! A method takes its path parameters first, in the path's order, then
 //! its body, positionally; then its query parameters by name (required
-//! when the document says so), then `options`.
+//! when the document says so), then its header parameters by name
+//! (`ifMatch:`, required when the header is), then `options`.
 
 use heck::ToUpperCamelCase;
 
@@ -175,9 +176,41 @@ fn method(named: &Named<'_>, models: &mut Models<'_>) -> Result<(String, bool), 
             ty.encode(&name, 0)
         ));
     }
+    let mut headers = Vec::new();
+    for parameter in &op.header_params {
+        let here = format!("{at}, header parameter `{}`", parameter.name);
+        let context = format!("{context}{}", parameter.name.to_upper_camel_case());
+        let ty = models.ty(&parameter.schema, &context, false, &here)?;
+        if !ty.is_scalar() {
+            return Err(unsupported(
+                &here,
+                "a header parameter that is not a scalar",
+            ));
+        }
+        let ty = if parameter.required {
+            ty
+        } else {
+            ty.nullable()
+        };
+        let name = unique(&parameter.name, &mut taken);
+        uses_models |= ty.names_a_model();
+        named_params.push(format!(
+            "{}{} {name}",
+            if parameter.required { "required " } else { "" },
+            ty.dart()
+        ));
+        headers.push(format!(
+            "{}: {}",
+            string(&parameter.name),
+            ty.encode(&name, 0)
+        ));
+    }
     named_params.push("RequestOptions? options".to_owned());
     if !query.is_empty() {
         call_fields.insert(0, format!("query: {{{}}}", query.join(", ")));
+    }
+    if !headers.is_empty() {
+        call_fields.push(format!("headers: {{{}}}", headers.join(", ")));
     }
     if op.secured {
         call_fields.push("secured: true".to_owned());

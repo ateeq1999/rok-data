@@ -1,13 +1,14 @@
 //! `src/calls.ts`: `api`, one typed call per operation, grouped by tag.
 //! A call takes its path parameters first, in the path's order, then its
 //! body, then its query (optional when no parameter of it is required),
-//! then `RequestOptions`.
+//! then `RequestOptions`, with a field for each header parameter
+//! (`{ ifMatch: version }`), required when a header is.
 
 use std::collections::BTreeSet;
 
 use super::super::openapi::{Body, Response};
 use super::types::render;
-use super::{Named, TypeNames, doc, identifier};
+use super::{Named, TypeNames, doc, header_field, identifier};
 
 /// One argument of a call: its name and its TypeScript parameter text.
 pub(super) struct Argument {
@@ -64,6 +65,35 @@ pub(super) fn arguments(named: &Named<'_>, names: &TypeNames) -> Vec<Argument> {
     out
 }
 
+/// Whether `field`, a header's option, is a name `RequestOptions` or
+/// the call's arguments (its factory's variables) take already.
+pub(super) fn taken_by_options(named: &Named<'_>, field: &str) -> bool {
+    matches!(
+        field,
+        "signal" | "headers" | "keepSession" | "body" | "query"
+    ) || named
+        .op
+        .path_params
+        .iter()
+        .any(|parameter| path_argument(&parameter.name) == field)
+}
+
+/// Whether the call's options must be given: a header it takes is
+/// required.
+pub(super) fn options_required(named: &Named<'_>) -> bool {
+    named.op.header_params.iter().any(|p| p.required)
+}
+
+/// The type of the call's options: `RequestOptions`, with its headers
+/// type when it takes header parameters.
+fn options_type(named: &Named<'_>) -> String {
+    if named.op.header_params.is_empty() {
+        "RequestOptions".to_owned()
+    } else {
+        format!("RequestOptions & {}", named.headers_type())
+    }
+}
+
 /// The name a path parameter takes as an argument: an identifier that is
 /// not one of the call's other arguments.
 fn path_argument(name: &str) -> String {
@@ -108,6 +138,9 @@ pub(super) fn used_types(
         }
         if !named.op.query_params.is_empty() {
             used.insert(named.query_type());
+        }
+        if !named.op.header_params.is_empty() {
+            used.insert(named.headers_type());
         }
     }
     used
@@ -165,7 +198,11 @@ fn call(named: &Named<'_>, names: &TypeNames) -> String {
         .iter()
         .map(Argument::declaration)
         .collect();
-    declarations.push("options?: RequestOptions".to_owned());
+    declarations.push(format!(
+        "options{}: {}",
+        if options_required(named) { "" } else { "?" },
+        options_type(named)
+    ));
     let mut fields = vec![
         format!("method: {:?}", op.method.upper()),
         format!("path: {}", path_expression(&op.path, &op.path_params)),
@@ -177,6 +214,19 @@ fn call(named: &Named<'_>, names: &TypeNames) -> String {
         Some(Body::Json(_)) => fields.push("json: body".to_owned()),
         Some(Body::Binary) => fields.push("blob: body".to_owned()),
         None => {}
+    }
+    if !op.header_params.is_empty() {
+        let options = if options_required(named) {
+            "options."
+        } else {
+            "options?."
+        };
+        let headers: Vec<String> = op
+            .header_params
+            .iter()
+            .map(|p| format!("{:?}: {options}{}", p.name, header_field(&p.name)))
+            .collect();
+        fields.push(format!("headers: {{ {} }}", headers.join(", ")));
     }
     fields.push(format!("secured: {}", op.secured));
     fields.push(format!(

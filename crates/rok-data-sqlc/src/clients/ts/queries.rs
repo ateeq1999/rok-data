@@ -3,10 +3,12 @@
 //! `[group, name, ...arguments]`, so `keys.<group>` prefixes every key of
 //! a group — and every other operation a `mutationOptions` factory taking
 //! `RequestOptions`, whose variables are its call's one argument, or an
-//! object of them by name when it takes several.
+//! object of them by name when it takes several. An operation's header
+//! parameters are a `GET` factory's last argument (`headers`), and the
+//! fields of a mutation's variables.
 
-use super::calls::{Argument, arguments, groups, import_types, used_types};
-use super::{Named, TypeNames};
+use super::calls::{Argument, arguments, groups, import_types, options_required, used_types};
+use super::{Named, TypeNames, header_field};
 
 /// The text of `src/queries.ts` (after the header).
 pub(super) fn file(operations: &[Named<'_>], names: &TypeNames) -> String {
@@ -78,11 +80,27 @@ pub(super) fn file(operations: &[Named<'_>], names: &TypeNames) -> String {
 
 /// One `queryOptions` factory.
 fn query(named: &Named<'_>, names: &TypeNames) -> String {
-    let arguments = arguments(named, names);
+    let mut arguments = arguments(named, names);
+    let headers = !named.op.header_params.is_empty();
+    if headers {
+        arguments.push(Argument {
+            name: "headers".to_owned(),
+            ty: named.headers_type(),
+            optional: !options_required(named),
+        });
+    }
     let declarations: Vec<String> = arguments.iter().map(Argument::declaration).collect();
     let mut key = vec![format!("{:?}", named.group), format!("{:?}", named.name)];
     let mut call = Vec::new();
     for argument in &arguments {
+        if headers && argument.name == "headers" {
+            key.push(if argument.optional {
+                "headers ?? {}".to_owned()
+            } else {
+                "headers".to_owned()
+            });
+            continue;
+        }
         key.push(if argument.optional {
             format!("{} ?? {{}}", argument.name)
         } else {
@@ -90,7 +108,11 @@ fn query(named: &Named<'_>, names: &TypeNames) -> String {
         });
         call.push(argument.name.clone());
     }
-    call.push("{ signal }".to_owned());
+    call.push(if headers {
+        "{ ...headers, signal }".to_owned()
+    } else {
+        "{ signal }".to_owned()
+    });
     format!(
         "    {name}: ({declarations}) =>\n      queryOptions({{\n        queryKey: [{key}] as const,\n        queryFn: ({{ signal }}) => api.{group}.{name}({call}),\n      }}),\n",
         name = named.name,
@@ -104,6 +126,9 @@ fn query(named: &Named<'_>, names: &TypeNames) -> String {
 /// One `mutationOptions` factory.
 fn mutation(named: &Named<'_>, names: &TypeNames) -> String {
     let arguments = arguments(named, names);
+    if !named.op.header_params.is_empty() {
+        return mutation_with_headers(named, &arguments);
+    }
     let (variables, call): (String, Vec<String>) = match arguments.as_slice() {
         [] => (String::new(), Vec::new()),
         [only] => (only.declaration(), vec![only.name.clone()]),
@@ -129,6 +154,48 @@ fn mutation(named: &Named<'_>, names: &TypeNames) -> String {
         name = named.name,
         group = named.group,
         variables = variables,
+        call = call.join(", "),
+    )
+}
+
+/// One `mutationOptions` factory of an operation taking header
+/// parameters: its variables are its arguments by name and its headers'
+/// fields, which go to the call's options.
+fn mutation_with_headers(named: &Named<'_>, arguments: &[Argument]) -> String {
+    let headers = named.headers_type();
+    let variables = if arguments.is_empty() {
+        headers
+    } else {
+        format!(
+            "{{ {} }} & {headers}",
+            arguments
+                .iter()
+                .map(Argument::declaration)
+                .collect::<Vec<_>>()
+                .join("; ")
+        )
+    };
+    let mut call: Vec<String> = arguments
+        .iter()
+        .map(|argument| format!("variables.{}", argument.name))
+        .collect();
+    call.push("{".to_owned());
+    let fields: String = named
+        .op
+        .header_params
+        .iter()
+        .map(|parameter| {
+            let field = header_field(&parameter.name);
+            format!("            {field}: variables.{field},\n")
+        })
+        .collect();
+    format!(
+        "    {name}: (options?: RequestOptions) =>\n      mutationOptions({{\n        \
+         mutationKey: [{group:?}, {name:?}] as const,\n        mutationFn: (\n          \
+         variables: {variables}\n        ) =>\n          api.{group}.{name}({call}\n            \
+         ...options,\n{fields}          }}),\n      }}),\n",
+        name = named.name,
+        group = named.group,
         call = call.join(", "),
     )
 }

@@ -44,6 +44,15 @@ fn one_operation(extra: Value) -> String {
     document(json!({"/things": {"get": operation}}), json!({}))
 }
 
+/// The document generated features serve (`tests/api-app`).
+fn api_app_document() -> String {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/api-app/tests/expected/openapi.json"
+    );
+    std::fs::read_to_string(path).unwrap_or_else(|err| panic!("{path}: {err}"))
+}
+
 fn parse_err(json: &str) -> String {
     match Document::parse(json) {
         Ok(document) => panic!("parsed, but should not have: {document:?}"),
@@ -62,28 +71,11 @@ fn operation<'a>(document: &'a Document, method: Method, path: &str) -> &'a Oper
 /// The document generated features serve (`tests/api-app`, whose own test
 /// keeps this snapshot equal to the served one) reads whole: its enums,
 /// `gadget_mood` in a body and a search filter, the sort keys and
-/// `?include=` names in the query, are all defined. The versioned rows'
-/// `If-Match` header parameters, which the subset doesn't read yet, are
-/// left out first.
+/// `?include=` names in the query, are all defined, and a versioned row's
+/// `PATCH` takes its `If-Match` header.
 #[test]
 fn the_generated_features_document_defines_every_ref() {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/api-app/tests/expected/openapi.json"
-    );
-    let text = std::fs::read_to_string(path).unwrap_or_else(|err| panic!("{path}: {err}"));
-    let mut json: Value = serde_json::from_str(&text).expect("a JSON document");
-    for item in json["paths"].as_object_mut().expect("paths").values_mut() {
-        for operation in item.as_object_mut().expect("a path item").values_mut() {
-            if let Some(params) = operation
-                .get_mut("parameters")
-                .and_then(Value::as_array_mut)
-            {
-                params.retain(|param| param["in"] != "header");
-            }
-        }
-    }
-    let document = Document::parse(&json.to_string()).unwrap_or_else(|err| panic!("{err}"));
+    let document = Document::parse(&api_app_document()).unwrap_or_else(|err| panic!("{err}"));
     for schema in [
         "GadgetMood",
         "Equality_GadgetMood",
@@ -92,6 +84,17 @@ fn the_generated_features_document_defines_every_ref() {
     ] {
         assert!(document.schemas.contains_key(schema), "{schema}");
     }
+    let update = operation(&document, Method::Patch, "/api/v1/documents/{id}");
+    assert_eq!(
+        update.header_params,
+        [Parameter {
+            name: "If-Match".to_owned(),
+            schema: Schema::String,
+            required: true,
+            description: Some("The row's `ETag`.".to_owned()),
+        }]
+    );
+    assert!(update.query_params.is_empty());
 }
 
 #[test]
@@ -210,9 +213,9 @@ fn unsupported_constructs_are_named_with_their_place() {
     let cases = [
         (
             one_operation(json!({"parameters": [
-                {"name": "X-Trace", "in": "header", "schema": {"type": "string"}}
+                {"name": "session", "in": "cookie", "schema": {"type": "string"}}
             ]})),
-            "#/paths/~1things/get/parameters/0: a parameter in `header` (path and query are read)",
+            "#/paths/~1things/get/parameters/0: a parameter in `cookie` (path, query and header are read)",
         ),
         (
             one_operation(json!({"requestBody": {"content": {

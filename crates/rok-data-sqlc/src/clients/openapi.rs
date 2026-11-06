@@ -1,11 +1,11 @@
 //! The `OpenAPI` reader the Clients are emitted from (workspace ADR 0027):
 //! the OpenAPI 3.1 subset utoipa emits, and no more. [`Document::parse`]
 //! turns an `openapi.json` into the model every client emitter reads —
-//! the component schemas and the operations, each with its path and query
-//! parameters, its request body, its success response and whether it
+//! the component schemas and the operations, each with its path, query
+//! and header parameters, its request body, its success response and whether it
 //! carries the bearer auth marker.
 //!
-//! What utoipa does not emit is refused, not guessed at: a header
+//! What utoipa does not emit is refused, not guessed at: a cookie
 //! parameter, a `multipart/form-data` body, `anyOf`, a non-bearer security
 //! scheme, a `$ref` outside `#/components/schemas`... each fails the parse
 //! with an [`Error::Unsupported`] naming the construct and where it is
@@ -43,7 +43,7 @@ pub enum Error {
         /// The JSON pointer of the construct, such as
         /// `#/paths/~1users/get/parameters/0`.
         at: String,
-        /// The construct, such as "a parameter in `header`".
+        /// The construct, such as "a parameter in `cookie`".
         construct: String,
     },
     /// A document the subset covers, but broken: an
@@ -232,7 +232,12 @@ impl Document {
         for operation in &self.operations {
             let at = pointer("#/paths", &operation.path);
             let at = pointer(&at, operation.method.as_str());
-            for parameter in operation.path_params.iter().chain(&operation.query_params) {
+            for parameter in operation
+                .path_params
+                .iter()
+                .chain(&operation.query_params)
+                .chain(&operation.header_params)
+            {
                 check(&parameter.schema, &at)?;
             }
             if let Some(Body::Json(schema)) = &operation.body {
