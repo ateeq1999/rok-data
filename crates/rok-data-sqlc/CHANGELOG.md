@@ -139,6 +139,22 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Fixed
 
+- The Clients are emitted for an App with a versioned table: the
+  contract reader reads header parameters (`Operation::header_params`),
+  which it refused, and every generated `PATCH` on a versioned table
+  takes `If-Match`. Each Client takes a header in the call's options,
+  named in its case and required when the header is: TypeScript
+  `api.documents.update(id, body, { ifMatch: version })` (a
+  `<Tag><Operation>Headers` type per operation), Dart
+  `update(id, body, ifMatch: version)`, Rust
+  `client.documents().update(&id, &body, &version)`. The runtimes quote a
+  bare `If-Match`/`If-None-Match` value as an entity tag. A cookie
+  parameter is still refused (engine ADR 0027, amended).
+- A documented `Option<SomeEnum>` field keeps its comment in every
+  Client: utoipa writes it as `oneOf: [null, {$ref, description}]`, and
+  the contract reader now gives a property with no description of its
+  own, a `oneOf` or `anyOf` of one branch besides `null`, that branch's
+  description. A property's own description still wins.
 - `GeneratedApiDoc` registers the enum a path parameter takes (an enum
   key, a `by-` lookup over an enum column, a relation's `{other}`):
   utoipa writes the parameter as a `$ref` and doesn't collect it, so the

@@ -160,7 +160,7 @@ fn readme(operations: &[super::emit::Named<'_>]) -> String {
          ```yaml\ndependencies:\n  {PACKAGE}:\n    path: ../../clients/dart\n```\n\n\
          - `ApiClient(baseUrl: ..., session: ...)`: one per App. `api.<tag>.<operation>(...)` \
          is one typed method per operation: path parameters first, then the body, then the \
-         query by name, then `options` (`RequestOptions`).\n\
+         query and the headers (`ifMatch:`) by name, then `options` (`RequestOptions`).\n\
          - Every model has `fromJson` and `toJson`; a `oneOf` is a sealed class to `switch` \
          over. A request's optional, nullable field takes `Nullable(value)`: \
          `Nullable(null)` clears it, leaving it out keeps it.\n\

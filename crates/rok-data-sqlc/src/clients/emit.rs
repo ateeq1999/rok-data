@@ -51,6 +51,15 @@ impl Named<'_> {
         )
     }
 
+    /// The name of the operation's header type: `DocumentsUpdateHeaders`.
+    pub fn headers_type(&self) -> String {
+        format!(
+            "{}{}Headers",
+            self.group.to_upper_camel_case(),
+            self.name.to_upper_camel_case()
+        )
+    }
+
     /// Whether the operation is cached as a query: a `GET`.
     pub fn is_query(&self) -> bool {
         self.op.method == Method::Get
@@ -100,6 +109,12 @@ pub(crate) fn name_operations(operations: &[Operation]) -> Vec<Named<'_>> {
         }
     }
     named
+}
+
+/// The field a header parameter is in a call's options: `If-Match` is
+/// `ifMatch`.
+pub(crate) fn header_field(name: &str) -> String {
+    identifier(&name.to_lower_camel_case())
 }
 
 /// The path's segments that are not parameters.

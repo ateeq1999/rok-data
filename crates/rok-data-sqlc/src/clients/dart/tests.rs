@@ -272,3 +272,80 @@ fn a_contract_change_changes_only_what_it_touches() {
          Object?>)).toList(),"
     ));
 }
+
+/// The document generated features serve (`tests/api-app`), read: its
+/// versioned `documents` take `If-Match` on `PATCH`.
+fn api_app() -> Document {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/api-app/tests/expected/openapi.json"
+    );
+    let text = std::fs::read_to_string(path).unwrap_or_else(|err| panic!("{path}: {err}"));
+    Document::parse(&text).unwrap_or_else(|err| panic!("{err}"))
+}
+
+/// A header parameter is a named parameter, after the query's and before
+/// the options, named after the header in camelCase and `required` when
+/// the header is: a versioned row's update takes `ifMatch: version`.
+#[test]
+fn header_parameters_are_named_parameters() {
+    let files = emitted(&api_app());
+    let client = file(&files, "lib/src/client.dart");
+    assert!(client.contains(
+        "  Future<DocumentResponse> update(\n    String id,\n    UpdateDocumentDto body, {\n    \
+         required String ifMatch,\n    RequestOptions? options,\n  }) => \
+         _transport.json<DocumentResponse>(\n    Call(\n      'PATCH',\n      \
+         '/api/v1/documents/${Uri.encodeComponent(id)}',\n      json: body.toJson(),\n      \
+         headers: {'If-Match': ifMatch},\n      secured: true,\n    ),\n"
+    ), "{client}");
+    let runtime = file(&files, "lib/src/runtime.dart");
+    assert!(runtime.contains("    this.headers = const {},\n    this.json,"));
+    assert!(runtime.contains("  final Map<String, Object?> headers;\n"));
+}
+
+/// An optional header is a nullable named parameter, left out when null.
+#[test]
+fn an_optional_header_is_nullable() {
+    let document = document(
+        json!({"/things": {"get": {
+            "operationId": "list", "tags": ["things"],
+            "parameters": [{"name": "X-Trace-Id", "in": "header", "schema": {"type": "string"}}],
+            "responses": {"204": {"description": ""}},
+        }}}),
+        json!({}),
+    );
+    let files = emitted(&document);
+    let client = file(&files, "lib/src/client.dart");
+    assert!(
+        client.contains(
+            "  Future<void> list({\n    String? xTraceId,\n    RequestOptions? options,\n"
+        )
+    );
+    assert!(client.contains("      headers: {'X-Trace-Id': xTraceId},\n"));
+}
+
+/// Karibu Pass's `NextPayout`, read: `status` a documented
+/// `Option<PayoutStatus>`, `kind` the same with a description of its own.
+fn next_payout() -> Document {
+    let json = json!({
+        "openapi": "3.1.0", "info": {}, "paths": {},
+        "components": crate::clients::openapi::tests::next_payout(),
+    });
+    Document::parse(&json.to_string()).unwrap_or_else(|err| panic!("{err}"))
+}
+
+/// A nullable enum field keeps the comment utoipa writes in its `$ref`
+/// branch; a description of its own wins.
+#[test]
+fn a_nullable_enum_field_keeps_its_comment() {
+    let files = emitted(&next_payout());
+    let models = file(&files, "lib/src/models.dart");
+    assert!(
+        models.contains("  /// Where the payout is.\n  final PayoutStatus? status;\n"),
+        "{models}"
+    );
+    assert!(
+        models.contains("  /// The payout's own kind.\n  final PayoutStatus? kind;\n"),
+        "{models}"
+    );
+}

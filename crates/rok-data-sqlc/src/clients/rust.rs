@@ -249,7 +249,8 @@ fn readme(operations: &[Named<'_>]) -> String {
          the document and regenerates them. `Cargo.toml` is yours: the generated \
          code needs `reqwest` (with `json`), `serde` (with `derive`) and `serde_json`.\n\n\
          - `client.<tag>().<operation>(...)`: one typed `async` call per operation, \
-         path parameters first, then the body, then the query.\n\
+         path parameters first, then the body, then the query, then the headers \
+         (`if_match`).\n\
          - The API's types (serde) sit beside `Client`; a property that may be left \
          out is an `Option`, one that may also be `null` an `Option<Option<_>>`.\n\
          - `ApiError` (`status`, `code`, `message`, `details` of `FieldIssue`s on a \

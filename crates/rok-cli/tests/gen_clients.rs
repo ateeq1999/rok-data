@@ -319,13 +319,13 @@ fn a_contract_outside_the_subset_fails_naming_the_construct() -> Result<()> {
     let dir = project.path();
     let mut document: Value = serde_json::from_str(&contract(json!({})))?;
     document["paths"]["/things"]["get"]["parameters"] =
-        json!([{"name": "X-Trace", "in": "header", "schema": {"type": "string"}}]);
+        json!([{"name": "session", "in": "cookie", "schema": {"type": "string"}}]);
     fs::write(dir.join("openapi.json"), document.to_string())?;
     let output = rok(dir, &["gen"])?;
     assert!(!output.status.success());
     let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("#/paths/~1things/get/parameters/0: a parameter in `header`"),
+        stderr.contains("#/paths/~1things/get/parameters/0: a parameter in `cookie`"),
         "{stderr}"
     );
     assert!(!dir.join("clients/ts").exists());

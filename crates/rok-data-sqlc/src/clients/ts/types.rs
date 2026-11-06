@@ -1,8 +1,9 @@
 //! `src/types.ts`: a TypeScript type per component schema, and per
-//! operation with query parameters, its query type.
+//! operation with query parameters, its query type; with header
+//! parameters, its headers type (the fields its options add).
 
 use super::super::openapi::{Document, Parameter, Schema};
-use super::{Named, TypeNames, doc, property_key};
+use super::{Named, TypeNames, doc, header_field, property_key};
 
 /// The text of `src/types.ts` (after the header).
 pub(super) fn file(document: &Document, operations: &[Named<'_>], names: &TypeNames) -> String {
@@ -25,26 +26,40 @@ pub(super) fn file(document: &Document, operations: &[Named<'_>], names: &TypeNa
             named.op.method.upper(),
             named.op.path,
             named.query_type(),
-            parameters(&named.op.query_params, names, "")
+            parameters(&named.op.query_params, names, property_key)
+        ));
+    }
+    for named in operations {
+        if named.op.header_params.is_empty() {
+            continue;
+        }
+        out.push('\n');
+        out.push_str(&format!(
+            "/** The headers of `{} {}`. */\nexport type {} = {}\n",
+            named.op.method.upper(),
+            named.op.path,
+            named.headers_type(),
+            parameters(&named.op.header_params, names, header_field)
         ));
     }
     out
 }
 
-/// An object type of `parameters`, each optional unless required.
-fn parameters(parameters: &[Parameter], names: &TypeNames, indent: &str) -> String {
-    let inner = format!("{indent}  ");
+/// An object type of `parameters`, each its `key`, optional unless
+/// required.
+fn parameters(parameters: &[Parameter], names: &TypeNames, key: fn(&str) -> String) -> String {
+    let inner = "  ";
     let mut out = String::from("{\n");
     for parameter in parameters {
-        out.push_str(&doc(parameter.description.as_deref(), &inner));
+        out.push_str(&doc(parameter.description.as_deref(), inner));
         out.push_str(&format!(
             "{inner}{}{}: {}\n",
-            property_key(&parameter.name),
+            key(&parameter.name),
             if parameter.required { "" } else { "?" },
-            render(&parameter.schema, names, &inner)
+            render(&parameter.schema, names, inner)
         ));
     }
-    out.push_str(&format!("{indent}}}"));
+    out.push('}');
     out
 }
 

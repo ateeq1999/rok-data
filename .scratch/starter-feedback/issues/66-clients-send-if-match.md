@@ -6,8 +6,16 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] api-app's served document (with its versioned `documents`) reads, and its Clients emit (test; remove ticket 61's header-stripping workaround in its guard test)
-- [ ] Each Client sends `If-Match` when given (emission tests, and the API's Rust-client round trip on a versioned update)
-- [ ] A cookie parameter is still refused
+- [x] api-app's served document (with its versioned `documents`) reads, and its Clients emit (test; remove ticket 61's header-stripping workaround in its guard test)
+- [x] Each Client sends `If-Match` when given (emission tests, and the API's Rust-client round trip on a versioned update)
+- [x] A cookie parameter is still refused
+
+**Notes:** the API's Rust-client round trip on a versioned update is not
+in rok-data: its API fixtures (`tests/api-app`, `tests/axum-app`) test
+over HTTP without a generated Client, and the Rust-client round trips live
+in rok-templates' monorepo. The emission tests cover each Client, and the
+api-app document's Rust Client builds and passes rustfmt and clippy, its
+Dart Client `dart analyze --fatal-infos`, its TypeScript Client `tsc
+--strict` (checked by hand).

@@ -165,3 +165,30 @@ or without them, and the server checks them.
   `minimum`/`maximum`, `pattern` and `format` (`email`, `uuid`,
   `date-time`) become zod rules, so the schemas carry the server's rules.
   The Dart and Rust Clients still read past them.
+
+## Amended 2026-11-06
+
+- **Header parameters are read.** Every generated `PATCH` on a versioned
+  table takes `If-Match`, so refusing header parameters left such an
+  App without Clients. The reader keeps them as an operation's
+  `header_params`, and a cookie parameter stands where "The subset is
+  closed" above lists a header parameter: it is still refused.
+- **A header is part of the call's options**, named after the header in
+  each language's case and required when the document says so:
+  - TypeScript: `api.documents.update(id, body, { ifMatch: version })`.
+    The options are `RequestOptions & DocumentsUpdateHeaders` (a type
+    per operation, its fields documented), not optional when a header is
+    required. A `GET` factory takes the headers after its arguments
+    (`queries.things.get(id, headers)`, in its key); a mutation's
+    variables carry them by name (`mutate({ id, body, ifMatch })`).
+  - Dart: a named parameter after the query's,
+    `update(id, body, ifMatch: version)`, `required` when the header is.
+  - Rust: an argument after the query,
+    `client.documents().update(&id, &body, &version)` (`&str`; an
+    `Option` when the header may be left out), documented with the
+    header's description.
+- **Entity tags are quoted for the caller.** The Clients don't surface
+  response headers, so the version a caller has is the row's column
+  (`revision`), not its `ETag`. The runtimes send a bare value of
+  `If-Match` or `If-None-Match` quoted (`3` as `"3"`); an entity tag
+  (`"3"`, `W/"3"`) or `*` goes as it is. Other headers go as given.
