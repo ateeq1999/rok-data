@@ -60,7 +60,7 @@ equivalent without a ported implementation.
 | API feature layer (actix, extractors)          | —                   | ✔                 | ✔ (engine feature)                    |
 | API feature layer for axum (`[api] framework`)   | —                   | —                 | ✔ (engine feature)                    |
 | OpenAPI schemas (`utoipa`)                     | —                   | ✔                 | ✔ (engine feature)                    |
-| Init scaffold (dir + templates)                | —                   | ✔                 | ✔ `rok init` (`--template actix`/`axum`) / legacy `rok sqlc init` |
+| Init scaffold (dir + templates)                | —                   | ✔                 | ✔ `rok init` (`--template actix`/`axum`/`grpc`) / legacy `rok sqlc init` |
 | check-arch (engine ADR 0016 layout rules)             | —                   | ✔                 | ✔ `rok sqlc check-arch`               |
 | `@generated` markers, stale detection          | ✔ (`// generated…`) | ✔                 | ✔ both marker generations recognized  |
 | Vertical slice: schema → models, features, migrations | —             | —                 | ✔ `examples/api`                      |

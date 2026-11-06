@@ -214,7 +214,7 @@ fn an_unknown_template_lists_the_valid_ones() {
     let err = files("rocket").err().map(|err| err.to_string());
     assert_eq!(
         err.as_deref(),
-        Some("unknown template `rocket`; the templates are: actix, axum, monorepo")
+        Some("unknown template `rocket`; the templates are: actix, axum, grpc, monorepo")
     );
 }
 

@@ -17,7 +17,8 @@ You need:
 There are two ways to start. `rok sqlc init` scaffolds an empty skeleton
 that you fill with your own tables, which is what this page does.
 `rok sqlc init --template actix` (or `--template axum`) copies a complete
-project instead (see [Starting from the template](#starting-from-the-template)).
+project instead (see [Starting from the template](#starting-from-the-template));
+`--template grpc` copies the same API served over gRPC (tonic).
 The page uses actix-web, the default; [With axum](#with-axum) says what
 changes when you pick axum.
 
@@ -307,6 +308,12 @@ files, its tests and its README. `--template axum` copies its twin,
 written for axum (`[api] framework = "axum"`). rok-data-sqlc's generated
 files are not copied; `rok sqlc generate` generates them, as the printed
 next steps say.
+
+`--template grpc` copies [`templates/grpc-api/`](https://github.com/ateeq1999/rok-templates/blob/main/templates/grpc-api),
+the axum application's data served over gRPC (`[api] framework = "grpc"`):
+`rok sqlc generate` writes each Resource's `.proto` under `proto/` and its
+tonic service over the same service trait, and the template's `build.rs`
+compiles the protos with protox, so no `protoc` is needed.
 
 Each file is written only where none exists, so the directory can be a new
 one or an existing cargo project (after `cargo new myapi`, say). In an

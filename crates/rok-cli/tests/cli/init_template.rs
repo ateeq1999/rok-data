@@ -83,6 +83,33 @@ fn init_template_copies_the_axum_templates_files_but_the_generated_ones() -> Res
     Ok(())
 }
 
+/// The grpc template is copied the same way: its files but the generated
+/// ones (the `.proto` files and the tonic services, which `rok sqlc
+/// generate` writes), its `build.rs` and its pinned `Cargo.lock`.
+#[test]
+fn init_template_copies_the_grpc_templates_files_but_the_generated_ones() -> Result<()> {
+    let dir = TempDir::new()?;
+    let project = dir.path().join("app");
+    let output = run_binary(&["init", "-t", "grpc", project.to_str().unwrap_or_default()]);
+    assert_success(&output);
+
+    let expected = copied_files("grpc-api")?;
+    for file in ["rok-data-sqlc.toml", "Cargo.lock", "build.rs"] {
+        assert!(
+            expected.contains_key(Path::new(file)),
+            "{file}: {expected:?}"
+        );
+    }
+    for generated in ["proto/users.proto", "src/features/users/grpc.rs"] {
+        assert!(
+            !expected.contains_key(Path::new(generated)),
+            "{generated} is copied"
+        );
+    }
+    assert_eq!(read_tree(&project)?, expected);
+    Ok(())
+}
+
 #[test]
 fn init_template_keeps_existing_files() -> Result<()> {
     let dir = TempDir::new()?;
@@ -112,7 +139,9 @@ fn init_template_rejects_an_unknown_name_listing_the_valid_ones() -> Result<()> 
     assert!(!output.status.success(), "an unknown template must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("rocket") && stderr.contains("actix") && stderr.contains("axum"),
+        ["rocket", "actix", "axum", "grpc", "monorepo"]
+            .iter()
+            .all(|name| stderr.contains(name)),
         "{stderr}"
     );
     assert!(read_tree(dir.path())?.is_empty(), "nothing written");

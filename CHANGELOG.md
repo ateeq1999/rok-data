@@ -11,6 +11,13 @@ that it exists and won't ship a tag without it).
 
 **Added**
 
+- `rok init my-api --template grpc` (and `rok sqlc init --template
+  grpc`) writes the `grpc-api` project from rok-templates 0.7.0: a tonic
+  server over the axum template's schema and data layer, with a caller
+  check, health, reflection and a streaming RPC. `rok gen` writes each
+  Resource's `.proto` and tonic service; its `build.rs` compiles the
+  protos with protox, so no `protoc` is needed. An unknown template's
+  error now lists `grpc`.
 - `:page` queries: `-- name: PartnerBookings :page` over a `SELECT`
   with its `WHERE` and `ORDER BY` generates
   `partner_bookings(&pool, params, page, per_page)`, returning
