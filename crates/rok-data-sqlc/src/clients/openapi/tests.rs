@@ -59,6 +59,41 @@ fn operation<'a>(document: &'a Document, method: Method, path: &str) -> &'a Oper
         .unwrap_or_else(|| panic!("no {method:?} {path}"))
 }
 
+/// The document generated features serve (`tests/api-app`, whose own test
+/// keeps this snapshot equal to the served one) reads whole: its enums,
+/// `gadget_mood` in a body and a search filter, the sort keys and
+/// `?include=` names in the query, are all defined. The versioned rows'
+/// `If-Match` header parameters, which the subset doesn't read yet, are
+/// left out first.
+#[test]
+fn the_generated_features_document_defines_every_ref() {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/api-app/tests/expected/openapi.json"
+    );
+    let text = std::fs::read_to_string(path).unwrap_or_else(|err| panic!("{path}: {err}"));
+    let mut json: Value = serde_json::from_str(&text).expect("a JSON document");
+    for item in json["paths"].as_object_mut().expect("paths").values_mut() {
+        for operation in item.as_object_mut().expect("a path item").values_mut() {
+            if let Some(params) = operation
+                .get_mut("parameters")
+                .and_then(Value::as_array_mut)
+            {
+                params.retain(|param| param["in"] != "header");
+            }
+        }
+    }
+    let document = Document::parse(&json.to_string()).unwrap_or_else(|err| panic!("{err}"));
+    for schema in [
+        "GadgetMood",
+        "Equality_GadgetMood",
+        "SortOrder",
+        "TaskInclude",
+    ] {
+        assert!(document.schemas.contains_key(schema), "{schema}");
+    }
+}
+
 #[test]
 fn the_monorepo_api_document_reads_whole() {
     let document = Document::parse(&monorepo_document()).unwrap_or_else(|err| panic!("{err}"));

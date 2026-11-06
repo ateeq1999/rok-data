@@ -100,6 +100,17 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Fixed
 
+- `GeneratedApiDoc` registers the enum a path parameter takes (an enum
+  key, a `by-` lookup over an enum column, a relation's `{other}`):
+  utoipa writes the parameter as a `$ref` and doesn't collect it, so the
+  document could hold a `$ref` to nothing.
+- The contract reader's `$ref` to an undefined schema is its own error,
+  `openapi::Error::UndefinedSchema { at, name }` (same message), and
+  `Project::read_document` adds the line that registers it:
+  ``register it in `openapi.rs`: `components(schemas(<path>::RefundStatus))` ``,
+  the path found by searching the API App's `src/` for the type
+  (`<path to RefundStatus>` when not found).
+
 - A `RIGHT` or `FULL` join makes nullable only the tables joined before it
   in the same `FROM` item, not those of another comma-separated item (or
   an `UPDATE … FROM`'s target).

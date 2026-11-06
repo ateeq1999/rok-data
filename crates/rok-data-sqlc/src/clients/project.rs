@@ -20,9 +20,9 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 
-use super::openapi::Document;
+use super::openapi::{self, Document};
 use crate::report::display_path;
 
 /// A client rok emits. Adding one is a variant here: its `[clients]` key
@@ -221,13 +221,95 @@ impl Project {
     /// # Errors
     ///
     /// When the document cannot be read, or is outside the subset the
-    /// clients read (the error names the construct and where).
+    /// clients read (the error names the construct and where). A `$ref` to
+    /// an undefined schema also names the line that registers it.
     pub fn read_document(&self) -> Result<Document> {
         let shown = display_path(&self.document);
         let text = std::fs::read_to_string(&self.document)
             .with_context(|| format!("reading the contract {shown}"))?;
-        Document::parse(&text).with_context(|| format!("reading the contract {shown}"))
+        Document::parse(&text)
+            .map_err(|err| match &err {
+                openapi::Error::UndefinedSchema { name, .. } => {
+                    let path = self
+                        .schema_path(name)
+                        .unwrap_or_else(|| format!("<path to {name}>"));
+                    anyhow!("{err}; register it in `openapi.rs`: `components(schemas({path}))`")
+                }
+                _ => anyhow::Error::new(err),
+            })
+            .with_context(|| format!("reading the contract {shown}"))
     }
+
+    /// The path from the crate root of the type `name`, best-effort: the
+    /// first `enum` or `struct` of that name in the API App's `src/` (the
+    /// nearest `src/` from the document's directory up to the root).
+    fn schema_path(&self, name: &str) -> Option<String> {
+        let dir = self.document.parent()?;
+        let src = dir
+            .ancestors()
+            .take_while(|dir| dir.starts_with(&self.root))
+            .map(|dir| dir.join("src"))
+            .find(|src| src.is_dir())?;
+        let mut files = Vec::new();
+        rust_files(&src, &mut files);
+        files.sort();
+        files
+            .iter()
+            .find(|file| defines(file, name))
+            .and_then(|file| module_path(&src, file))
+            .map(|module| format!("{module}::{name}"))
+    }
+}
+
+/// Every `.rs` file under `dir`.
+fn rust_files(dir: &Path, files: &mut Vec<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            rust_files(&path, files);
+        } else if path.extension().is_some_and(|ext| ext == "rs") {
+            files.push(path);
+        }
+    }
+}
+
+/// Whether `file` declares `enum name` or `struct name`.
+fn defines(file: &Path, name: &str) -> bool {
+    let Ok(text) = std::fs::read_to_string(file) else {
+        return false;
+    };
+    text.lines().any(|line| {
+        let line = line.trim_start();
+        let line = line
+            .strip_prefix("pub(crate) ")
+            .or_else(|| line.strip_prefix("pub "))
+            .unwrap_or(line);
+        ["enum ", "struct "].iter().any(|item| {
+            line.strip_prefix(item)
+                .and_then(|rest| rest.strip_prefix(name))
+                .is_some_and(|rest| !rest.starts_with(|c: char| c.is_alphanumeric() || c == '_'))
+        })
+    })
+}
+
+/// The module of `file` under `src`, from the crate root: `src/lib.rs` is
+/// `crate`, `src/features/refunds/dto.rs` is `crate::features::refunds::dto`.
+fn module_path(src: &Path, file: &Path) -> Option<String> {
+    let relative = file.strip_prefix(src).ok()?.with_extension("");
+    let mut parts: Vec<String> = relative
+        .components()
+        .map(|part| part.as_os_str().to_string_lossy().into_owned())
+        .collect();
+    if parts.last().is_some_and(|last| last == "mod")
+        || (parts.len() == 1 && (parts[0] == "lib" || parts[0] == "main"))
+    {
+        parts.pop();
+    }
+    parts.insert(0, "crate".to_owned());
+    Some(parts.join("::"))
 }
 
 #[cfg(test)]
