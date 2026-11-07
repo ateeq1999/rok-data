@@ -296,3 +296,92 @@ pub(super) async fn page_queries_return_rows_and_the_total(pool: &PgPool) {
         Err(rok_data::Error::InvalidQuery(_))
     ));
 }
+
+/// `shelving.sql`: data-modifying CTEs. One statement zeroes a category's
+/// stock and records it in `stock_levels`; when the insert fails (an
+/// unknown warehouse), the update is undone with it.
+pub(super) async fn data_modifying_ctes_run_as_one_statement(pool: &PgPool) {
+    use db::queries::shelving::{shelve_category, shelve_category_returning};
+    use db::warehouses::models::WarehouseId;
+
+    let category = db::queries::inventory::create_category(pool, "shelving", None)
+        .await
+        .unwrap();
+    let warehouse = WarehouseId::from(uuid::Uuid::from_u128(8_001));
+    sqlx::query("INSERT INTO warehouses (id, code) VALUES ($1, 'SHELF')")
+        .bind(warehouse)
+        .execute(pool)
+        .await
+        .unwrap();
+    let products = sqlx::query(
+        "INSERT INTO products (id, sku, name, category_id, stock_on_hand) VALUES
+            ($1, 'SH-1', 'Shelved one', $3, 4), ($2, 'SH-2', 'Shelved two', $3, 9)",
+    )
+    .bind(uuid::Uuid::from_u128(8_101))
+    .bind(uuid::Uuid::from_u128(8_102))
+    .bind(category.id);
+    products.execute(pool).await.unwrap();
+    let live_stock = async || -> Vec<(bool, i32)> {
+        sqlx::query_as(
+            "SELECT discontinued, stock_on_hand FROM products WHERE category_id = $1 ORDER BY sku",
+        )
+        .bind(category.id)
+        .fetch_all(pool)
+        .await
+        .unwrap()
+    };
+
+    // An unknown warehouse fails the insert, and the update with it.
+    let missing = WarehouseId::from(uuid::Uuid::from_u128(8_999));
+    assert!(shelve_category(pool, category.id, missing).await.is_err());
+    assert_eq!(live_stock().await, [(false, 4), (false, 9)]);
+
+    assert_eq!(
+        shelve_category(pool, category.id, warehouse).await.unwrap(),
+        2
+    );
+    assert_eq!(live_stock().await, [(true, 0), (true, 0)]);
+    let recorded: Vec<(uuid::Uuid, i32)> = sqlx::query_as(
+        "SELECT product_id, quantity FROM stock_levels WHERE warehouse_id = $1 ORDER BY quantity",
+    )
+    .bind(warehouse)
+    .fetch_all(pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        recorded,
+        [
+            (uuid::Uuid::from_u128(8_101), 4),
+            (uuid::Uuid::from_u128(8_102), 9)
+        ],
+        "each row records the stock it had before the update"
+    );
+
+    // Shelved products are no longer live: nothing more to record.
+    let again = shelve_category_returning(pool, category.id, warehouse)
+        .await
+        .unwrap();
+    assert!(again.is_empty());
+    sqlx::query("UPDATE products SET discontinued = false, stock_on_hand = 3 WHERE sku = 'SH-1'")
+        .execute(pool)
+        .await
+        .unwrap();
+    let rows = shelve_category_returning(pool, category.id, warehouse)
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(
+        (rows[0].product_id, rows[0].quantity),
+        (uuid::Uuid::from_u128(8_101).into(), 3)
+    );
+
+    // Later scenarios count these tables' rows.
+    sqlx::raw_sql(
+        "DELETE FROM stock_levels WHERE product_id IN (SELECT id FROM products WHERE sku LIKE 'SH-%');
+         DELETE FROM products WHERE sku LIKE 'SH-%';
+         DELETE FROM warehouses WHERE code = 'SHELF';",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+}

@@ -9,6 +9,13 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+**Added**
+
+- Typed queries support data-modifying CTEs (`WITH x AS (UPDATE …
+  RETURNING …) INSERT … SELECT … FROM x`): each CTE's `RETURNING` columns
+  are known to the statements after it, and the final statement types the
+  result (`:execrows`, or its `RETURNING`).
+
 ## [0.9.0] — strict, better-typed `rok gen`; one rule for finding the project; `:page` and shared queries
 
 Breaking for some projects. `rok gen` fails on a table or query it can't

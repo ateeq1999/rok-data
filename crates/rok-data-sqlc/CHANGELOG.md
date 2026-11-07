@@ -7,6 +7,18 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+### Added
+
+- Data-modifying CTEs: `WITH x AS (UPDATE … RETURNING …)` (or `INSERT`,
+  `DELETE`) makes its `RETURNING` columns a table for the CTEs after it
+  and the final statement, which may be a `SELECT`, `INSERT` (`VALUES` or
+  `SELECT`), `UPDATE` or `DELETE`. The final statement types the result,
+  so `:execrows` and `RETURNING` both work, and one statement can cancel
+  an event and its bookings and record the refunds at once. A
+  data-modifying CTE nested in another CTE or a subquery fails
+  (PostgreSQL's rule), as does one in a `:page` query, whose rows and
+  total are two statements.
+
 ## Workspace 0.9.0 - 2026-11-06
 
 Published as `rok-data-sqlc` 0.9.0 with the workspace (root `CHANGELOG.md`).

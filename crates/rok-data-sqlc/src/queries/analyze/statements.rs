@@ -102,8 +102,9 @@ impl<'a, 'c> Analysis<'a, 'c> {
                 if !table.joins.is_empty() {
                     return Err("UPDATE with joins is not supported; join in `FROM`".to_owned());
                 }
+                let first = self.scope.len();
                 self.scope_table(table)?;
-                let TableRef::Schema(target) = self.scope[0].table else {
+                let TableRef::Schema(target) = self.scope[first].table else {
                     return Err("UPDATE must target a schema table, not a CTE".to_owned());
                 };
                 // `FROM` tables join the target: their columns resolve
@@ -187,7 +188,9 @@ impl<'a, 'c> Analysis<'a, 'c> {
 
     fn query(&mut self, query: &Query) -> Result<Vec<Output>, String> {
         let visible = self.ctes.len();
+        self.query_depth += 1;
         let outputs = self.query_body(query);
+        self.query_depth -= 1;
         self.ctes.truncate(visible);
         outputs
     }
@@ -290,27 +293,45 @@ impl<'a, 'c> Analysis<'a, 'c> {
 
     fn query_body(&mut self, query: &Query) -> Result<Vec<Output>, String> {
         self.with_clause(query)?;
-        let SetExpr::Select(select) = query.body.as_ref() else {
-            return Err(
-                "only a plain SELECT is supported (no UNION, VALUES, or nesting)".to_owned(),
-            );
+        let outputs = match query.body.as_ref() {
+            SetExpr::Select(select) => self.select(select)?,
+            // The statement after a `WITH`, or a data-modifying CTE's own:
+            // its `RETURNING` gives the result.
+            SetExpr::Insert(statement)
+            | SetExpr::Update(statement)
+            | SetExpr::Delete(statement) => {
+                return self.statement(statement);
+            }
+            _ => {
+                return Err(
+                    "only a plain SELECT is supported (no UNION, VALUES, or nesting)".to_owned(),
+                );
+            }
         };
-        let outputs = self.select(select)?;
         self.limit_clause(query)?;
         Ok(outputs)
     }
 
     /// Analyzes a CTE's query in its own scope and makes its result columns
     /// visible, under the CTE's name, to later CTEs and the main statement.
+    ///
+    /// A data-modifying CTE (`INSERT`, `UPDATE` or `DELETE`) makes its
+    /// `RETURNING` columns visible the same way. PostgreSQL allows one only
+    /// in the statement's own `WITH`.
     fn cte(&mut self, cte: &Cte) -> Result<(), String> {
         let name = ident_name(&cte.alias.name);
-        if matches!(
-            cte.query.body.as_ref(),
-            SetExpr::Insert(_) | SetExpr::Update(_) | SetExpr::Delete(_) | SetExpr::Merge(_)
-        ) {
-            return Err(format!(
-                "data-modifying CTE `{name}` (INSERT, UPDATE, or DELETE inside WITH) is not supported yet"
-            ));
+        match cte.query.body.as_ref() {
+            SetExpr::Merge(_) => {
+                return Err(format!("MERGE in CTE `{name}` is not supported"));
+            }
+            SetExpr::Insert(_) | SetExpr::Update(_) | SetExpr::Delete(_)
+                if self.query_depth != 1 =>
+            {
+                return Err(format!(
+                    "data-modifying CTE `{name}` must be in the statement's own WITH, not nested in a CTE or subquery"
+                ));
+            }
+            _ => {}
         }
         let outputs = self.in_own_scope(|analysis| analysis.query(&cte.query));
         let table = self.cte_table(cte, outputs?)?;

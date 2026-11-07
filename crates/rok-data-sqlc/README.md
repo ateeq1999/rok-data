@@ -777,6 +777,28 @@ pub async fn search_product_names<'e, E>(
 **More rules:**
 
 - `WITH` queries work: each CTE is treated as a table.
+- A CTE may modify data: `WITH x AS (UPDATE … RETURNING …)`, or an
+  `INSERT` or `DELETE`, makes its `RETURNING` columns a table for the CTEs
+  after it and the final statement, which may itself be a `SELECT`,
+  `INSERT`, `UPDATE` or `DELETE`. The final statement types the result:
+  `:exec`/`:execrows` reads none, a `:one`/`:many` reads its columns (its
+  `RETURNING`, for a write). PostgreSQL runs the whole statement at once,
+  so a failure anywhere undoes every change. A data-modifying CTE must be
+  in the statement's own `WITH` (PostgreSQL's rule), and a `:page` query
+  can't have one: its rows and its total are two statements.
+
+  ```sql
+  -- name: CancelEvent :execrows
+  WITH e AS (
+      UPDATE events SET status = 'cancelled'
+      WHERE id = $1 AND status <> 'cancelled' RETURNING id
+  ),
+  b AS (
+      UPDATE bookings SET status = 'cancelled' FROM e
+      WHERE bookings.event_id = e.id RETURNING bookings.id, bookings.amount
+  )
+  INSERT INTO refunds (booking_id, amount) SELECT id, amount FROM b;
+  ```
 - `UPDATE t SET … FROM a JOIN b …` and `DELETE FROM t USING a, b …` are
   typed like the join of `t` with the other tables: a column resolves
   across all of them, in the `SET` values, `WHERE` and `RETURNING`. An
@@ -1865,7 +1887,8 @@ fails. With `--resource`, only that table's problems count.
 | Two relationships of one table with the same name, or a relationship named like a filter field | Rename one in `[relationships]`. |
 | A soft-delete column that is not a nullable timestamp | `delete` couldn't record the time. |
 | A query placeholder or result expression rok-data-sqlc can't type | Add a `-- param:` or `-- column:` override. |
-| Unknown tables or columns in a query, more than one statement, `UNION` outside a recursive CTE, data-modifying CTEs | They can't be analyzed (yet). |
+| Unknown tables or columns in a query, more than one statement, `UNION` outside a recursive CTE | They can't be analyzed (yet). |
+| A data-modifying CTE nested in another CTE or a subquery, or in a `:page` query | PostgreSQL allows one only in the statement's own `WITH`; a page runs its query twice. |
 | A recursive CTE whose recursive term returns other columns than its anchor | The CTE's columns come from the anchor. |
 | An `ON CONFLICT (cols)` target that is not a unique key | It would fail at runtime. The error lists the table's unique keys. A partial unique index counts when the target repeats its condition: `ON CONFLICT (email) WHERE deleted_at IS NULL`. |
 | An `ON CONFLICT ON CONSTRAINT name` that names no primary key or unique constraint | It would fail at runtime. The error lists the table's constraint names. |
@@ -1885,8 +1908,7 @@ fails. With `--resource`, only that table's problems count.
   filters make `search` fail with `sqlx::Error::InvalidArgument`.
 - Keyset pagination (`search_after`) follows primary-key order only. Array
   and JSON columns get only null checks in filters.
-- `UNION` is read only as the body of a recursive CTE, and data-modifying
-  CTEs are rejected in query files.
+- `UNION` is read only as the body of a recursive CTE.
 - `ALTER TABLE … RENAME TO`, `SET SCHEMA`, partitioning (`ATTACH`/`DETACH
   PARTITION`), and other `ALTER TABLE` forms that change
   the model in ways rok-data-sqlc doesn't follow fail the table they alter, at

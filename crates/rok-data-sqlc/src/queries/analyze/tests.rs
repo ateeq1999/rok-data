@@ -784,14 +784,77 @@ fn recursive_terms_must_match_the_anchor() {
     );
 }
 
+/// Karibu Pass's `CancelEvent` shape: two chained `UPDATE … RETURNING`
+/// CTEs, the second reading the first, feeding an `INSERT … SELECT`. The
+/// final statement decides the result.
+const CANCEL_OFFER: &str = "WITH o AS (\n    UPDATE offers SET status = 'cancelled' WHERE id = $1 AND status <> 'cancelled' RETURNING id, partner_id\n),\na AS (\n    UPDATE allocations SET rooms_held = 0 FROM o\n    WHERE allocations.offer_id = o.id AND allocations.rooms_total > $2\n    RETURNING allocations.id, allocations.rooms_held\n)\nINSERT INTO allocations (offer_id, rooms_held, rooms_total)\nSELECT o.id, $3, a.rooms_held FROM o JOIN a ON true";
+
 #[test]
-fn data_modifying_ctes_are_rejected() {
+fn data_modifying_ctes_feed_the_final_statement() {
+    let rows = one(&format!("-- name: CancelOffer :execrows\n{CANCEL_OFFER};"));
+    assert_eq!(rows.result, ResultShape::None);
+    assert_eq!(
+        rows.params,
+        [
+            param(1, "id", "i64"),
+            param(2, "rooms_total", "i32"),
+            param(3, "rooms_held", "i32"),
+        ]
+    );
+
+    let returning = one(&format!(
+        "-- name: CancelOffer :many\n{CANCEL_OFFER}\nRETURNING id, held_at;"
+    ));
+    assert_eq!(returning.params, rows.params);
+    assert_eq!(
+        row_columns(&returning),
+        [
+            ("id", "i64"),
+            ("held_at", "Option<chrono::DateTime<chrono::Utc>>")
+        ]
+    );
+}
+
+/// Karibu Pass's `PlaceOrder` shape: an `INSERT … RETURNING` CTE feeding an
+/// `UPDATE … FROM`; a `DELETE … RETURNING` CTE read by a `SELECT`.
+#[test]
+fn any_final_statement_reads_a_data_modifying_cte() {
+    let update = one(
+        "-- name: PlaceOffer :one\nWITH o AS (INSERT INTO offers (partner_id, status) VALUES ($1, 'new') RETURNING id)\nUPDATE allocations SET offer_id = o.id FROM o WHERE allocations.id = $2 RETURNING allocations.id;",
+    );
+    assert_eq!(
+        update.params,
+        [param(1, "partner_id", "i64"), param(2, "id", "i64")]
+    );
+    assert_eq!(update.result, ResultShape::Scalar("i64".to_owned()));
+
+    let select = one(
+        "-- name: Purge :many\nWITH gone AS (DELETE FROM products WHERE stock = $1 RETURNING id, note) SELECT id, note FROM gone;",
+    );
+    assert_eq!(select.params, [param(1, "stock", "i32")]);
+    assert_eq!(
+        row_columns(&select),
+        [("id", "uuid::Uuid"), ("note", "Option<String>")]
+    );
+}
+
+/// PostgreSQL runs a data-modifying CTE only in the statement's own `WITH`;
+/// a `:page` query would run it twice, once for its rows and once for its
+/// total.
+#[test]
+fn data_modifying_ctes_belong_to_the_top_level_with() {
+    assert_eq!(
+        failure(
+            "-- name: Q :many\nWITH a AS (WITH g AS (DELETE FROM products RETURNING id) SELECT id FROM g) SELECT id FROM a;"
+        ),
+        "data-modifying CTE `g` must be in the statement's own WITH, not nested in a CTE or subquery"
+    );
     assert!(
-            failure(
-                "-- name: Q :many\nWITH gone AS (DELETE FROM products WHERE stock = $1 RETURNING id) SELECT id FROM gone;"
-            )
-            .contains("data-modifying CTE `gone`")
-        );
+        failure(
+            "-- name: Q :page\nWITH g AS (DELETE FROM products RETURNING id) SELECT id FROM g ORDER BY id;"
+        )
+        .contains("a `:page` query can't have a data-modifying CTE")
+    );
 }
 
 /// A partial unique index is a target when the target repeats its
