@@ -235,6 +235,11 @@ From the notes on Karibu Pass's ticket 18 (its aggregates are typed in 0.9.0, an
 - **Guards that check the Partner's kind:** ticket 44's recipe shows `Allowed<PartnerAccess<Organizer>>`, one guard checking membership and kind together.
 - **`query add` reads its SQL from a file or stdin:** `@path` or `-`, as `-j` does, so scripted edits need no shell quoting.
 
+From the notes on Karibu Pass's ticket 22 (its organizers' notes, tickets 20 and 21, need data-modifying CTEs, ticket 55, now in progress):
+
+- **Three-state fields only in `PATCH` bodies, in every Client:** Dart `Nullable<T>?`, Rust `Option<Option<T>>` and TypeScript `T | null` only where the API tells "left out" from "null"; plain optional elsewhere (ticket 43).
+- **Idempotency keys:** a route declaring an `Idempotency-Key` header stores its first answer per caller, key and route; the Clients fill a fresh key and reuse it on retry, so a dropped connection after `pay` can be retried safely.
+
 ## Out of Scope
 
 - **Karibu Pass's product work:** phone and SMS sign-in (its ADR-0006), its tickets, removing its sample data, its repo-wide reformat and its own visual-check scripts. A phone sign-in Module may come later.
