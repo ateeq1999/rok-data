@@ -9,6 +9,16 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+**Added**
+
+- Queries type `generate_series`, `unnest` and `jsonb_to_recordset` in
+  `FROM`, so one statement writes many rows: a copy-forward `INSERT …
+  SELECT … FROM generate_series($1::date, $2::date, '7 days') AS week`,
+  or a batch from slices (`unnest($2::uuid[], $3::int[]) AS l(item_id,
+  quantity)`) or from one JSON parameter (`jsonb_to_recordset($2) AS
+  l(item_id uuid, quantity int)`, a `serde_json::Value`). The engine
+  README's "Writing query files" documents the patterns.
+
 ## [0.9.0] — strict, better-typed `rok gen`; one rule for finding the project; `:page` and shared queries
 
 Breaking for some projects. `rok gen` fails on a table or query it can't

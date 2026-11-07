@@ -296,3 +296,69 @@ pub(super) async fn page_queries_return_rows_and_the_total(pool: &PgPool) {
         Err(rok_data::Error::InvalidQuery(_))
     ));
 }
+
+/// Set-returning functions in `FROM` (`queries/batches.sql`): a
+/// copy-forward over `generate_series` writes one row per week, and batch
+/// inserts through `unnest` and `jsonb_to_recordset` write one row per
+/// element.
+pub(super) async fn set_returning_functions_write_batches(pool: &PgPool) {
+    use chrono::NaiveDate;
+    use db::queries::batches::{self as queries, CopyHoldsForwardParams};
+
+    let day = |d: u32| NaiveDate::from_ymd_opt(2026, 3, d).unwrap();
+    let copied = queries::copy_holds_forward(
+        pool,
+        CopyHoldsForwardParams {
+            offer_id: 7,
+            rooms: 4,
+            start: day(2),
+            stop: day(30),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(copied, 5, "one row per week from the 2nd to the 30th");
+    let weeks = queries::hold_weeks(pool, 7).await.unwrap();
+    assert_eq!(
+        weeks
+            .iter()
+            .map(|week| (week.week_of, week.rooms))
+            .collect::<Vec<_>>(),
+        [(day(2), 4), (day(9), 4), (day(16), 4), (day(23), 4), (day(30), 4)]
+    );
+
+    let order = uuid::Uuid::from_u128(4900);
+    let (apple, pear) = (uuid::Uuid::from_u128(4901), uuid::Uuid::from_u128(4902));
+    let from_arrays = queries::add_lines_from_arrays(pool, order, &[apple, pear], &[3, 1])
+        .await
+        .unwrap();
+    assert_eq!(from_arrays, 2);
+    let from_json = queries::add_lines_from_json(
+        pool,
+        order,
+        serde_json::json!([
+            {"item_id": apple, "quantity": 2},
+            {"item_id": pear, "quantity": 5},
+            {"item_id": pear, "quantity": 1, "ignored": true},
+        ]),
+    )
+    .await
+    .unwrap();
+    assert_eq!(from_json, 3, "one row per JSON object, extra keys ignored");
+    let (total,): (i64,) =
+        sqlx::query_as("SELECT sum(quantity)::bigint FROM order_lines WHERE order_id = $1")
+            .bind(order)
+            .fetch_one(pool)
+            .await
+            .unwrap();
+    assert_eq!(total, 12);
+
+    let numbered = queries::order_quantities(pool, &[10, 20]).await.unwrap();
+    assert_eq!(
+        numbered
+            .iter()
+            .map(|row| (row.n, row.idx))
+            .collect::<Vec<_>>(),
+        [(10, 1), (20, 2)]
+    );
+}

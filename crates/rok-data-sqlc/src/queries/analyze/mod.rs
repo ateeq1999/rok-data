@@ -10,11 +10,14 @@
 //! a table for the statement that follows. `UPDATE … FROM` and
 //! `DELETE … USING` see their target and the other tables together, like a
 //! join. A subquery sees its own tables first, then the enclosing query's.
+//! `generate_series`, `unnest` and `jsonb_to_recordset` in `FROM` act as
+//! tables typed from their signatures (`set_returning.rs`).
 
 mod conflict;
 mod params;
 mod resolve;
 mod results;
+mod set_returning;
 mod statements;
 #[cfg(test)]
 mod tests;
@@ -198,8 +201,8 @@ struct Output {
     name_error: Option<String>,
 }
 
-/// What a `FROM` item names: a schema table, or a CTE's result columns
-/// shaped as a table.
+/// What a `FROM` item names: a schema table, or a CTE's or set-returning
+/// function's result columns shaped as a table.
 #[derive(Clone)]
 enum TableRef<'a> {
     Schema(&'a Table),

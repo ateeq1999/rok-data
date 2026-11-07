@@ -397,3 +397,20 @@ CREATE TABLE bookings (
     offer_title TEXT NOT NULL,
     starts_on DATE NOT NULL
 );
+
+-- Set-returning functions in queries (`queries/batches.sql`): a copy-forward
+-- over `generate_series`, and batch inserts through `unnest` and
+-- `jsonb_to_recordset`.
+CREATE TABLE weekly_holds (
+    id BIGSERIAL PRIMARY KEY,
+    offer_id BIGINT NOT NULL,
+    week_of DATE NOT NULL,
+    rooms INTEGER NOT NULL
+);
+
+CREATE TABLE order_lines (
+    id BIGSERIAL PRIMARY KEY,
+    order_id UUID NOT NULL,
+    item_id UUID NOT NULL,
+    quantity INTEGER NOT NULL
+);

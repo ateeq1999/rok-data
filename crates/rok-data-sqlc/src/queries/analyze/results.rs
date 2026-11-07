@@ -191,7 +191,7 @@ impl<'a, 'c> Analysis<'a, 'c> {
 
     /// The plain type under `value_type`: the column type a typed id wraps
     /// (`uuid::Uuid` for `MediaId`), or `value_type` itself.
-    fn plain_type<'t>(&'t self, value_type: &'t str) -> &'t str {
+    pub(super) fn plain_type<'t>(&'t self, value_type: &'t str) -> &'t str {
         self.context
             .tables
             .iter()
@@ -295,7 +295,7 @@ impl<'a, 'c> Analysis<'a, 'c> {
     /// a clock function, a comparison or boolean operator (`bool`),
     /// arithmetic (its operands' shared numeric type), `||` (text) or a `CASE`
     /// (the type its non-NULL branches share).
-    fn value_type(&self, expr: &Expr) -> Result<Option<String>, String> {
+    pub(super) fn value_type(&self, expr: &Expr) -> Result<Option<String>, String> {
         if let Some(reference) = self.column_reference(expr)? {
             let column = &self.scope[reference.entry].table.columns[reference.column];
             return Ok(Some(column.value_type().to_owned()));
