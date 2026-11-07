@@ -625,6 +625,8 @@ are:
 - an `INSERT … VALUES` position or a value of an `INSERT … SELECT`, an
   `UPDATE … SET` target, or `ON CONFLICT … DO UPDATE SET`;
 - `LIMIT`/`OFFSET` (`i64`);
+- an argument of `generate_series` or `jsonb_to_recordset` in `FROM`
+  (see "More rules" below);
 - an explicit cast to a supported type, including an enum type
   (`$1::product_status` takes `types::ProductStatus`, and
   `$1::product_status[]` a slice of them).
@@ -838,6 +840,56 @@ pub async fn search_product_names<'e, E>(
   FROM partner_photos WHERE partner_id = $2
   ON CONFLICT DO NOTHING;
   ```
+- Set-returning functions in `FROM` are typed from their signatures and
+  read like a table under their alias. A one-column function's column takes
+  the alias's name (`AS week`), a column list renames it (`AS t(day)`),
+  and `WITH ORDINALITY` adds a never-NULL `i64` column (`ordinality`
+  unless the list names it):
+  - `generate_series(start, stop[, step])`: integer bounds give `i32` or
+    `i64`, `numeric` stays `Decimal`, timestamps stay `NaiveDateTime` or
+    `DateTime<Utc>`. `date` bounds give `DateTime<Utc>`, as PostgreSQL
+    picks `timestamp with time zone`, so cast the column (`week::date`)
+    for a `NaiveDate`. The column is never NULL; an untyped placeholder
+    bound takes the series' type (`start`, `stop`), and the step is an
+    interval for timestamps (`step`).
+  - `unnest($1::uuid[])`: the parameter is a `Vec<Uuid>` (taken as
+    `&[Uuid]`) named after its column (`id_list`), and the column is
+    `Uuid`, never NULL. Several arrays (`unnest($2::uuid[], $3::int[]) AS
+    l(item_id, quantity)`) need their columns named and are `Option`,
+    since PostgreSQL pads the shorter arrays with NULL.
+  - `jsonb_to_recordset($1) AS l(item_id uuid, quantity int)` (and
+    `json_to_recordset`, `jsonb_to_record`, `json_to_record`): the columns
+    come from the definition list, as `Option` since a missing key is
+    NULL (a `-- column:` override says otherwise), and `$1` is a
+    `serde_json::Value` named after the alias.
+
+  Any other function in `FROM` fails, naming the ones the engine types.
+  They let one statement write many rows, from a range or from one
+  parameter (`tests/fixture-app/queries/batches.sql` runs each against
+  PostgreSQL):
+
+  ```sql
+  -- name: CopyHoldsForward :execrows
+  INSERT INTO weekly_holds (offer_id, week_of, rooms)
+  SELECT $1, week::date, $2
+  FROM generate_series($3::date, $4::date, '7 days') AS week;
+
+  -- name: AddLinesFromArrays :execrows
+  INSERT INTO order_lines (order_id, item_id, quantity)
+  SELECT $1, l.item_id, l.quantity
+  FROM unnest($2::uuid[], $3::int[]) AS l(item_id, quantity);
+
+  -- name: AddLinesFromJson :execrows
+  -- param: $2 lines
+  INSERT INTO order_lines (order_id, item_id, quantity)
+  SELECT $1, l.item_id, l.quantity
+  FROM jsonb_to_recordset($2) AS l(item_id uuid, quantity int);
+  ```
+
+  `add_lines_from_arrays(&pool, order, &items, &quantities)` takes the
+  slices, and `add_lines_from_json(&pool, order, json!([{"item_id": …,
+  "quantity": 2}]))` one JSON array. One date per row is
+  `unnest($1::date[]) AS d(day)`, its parameter `day_list: &[NaiveDate]`.
 - An `ON CONFLICT (cols)` target must be one of the table's unique keys, and
   `ON CONFLICT ON CONSTRAINT name` must name its primary key or a unique
   constraint: the declared name, or PostgreSQL's default for an unnamed one

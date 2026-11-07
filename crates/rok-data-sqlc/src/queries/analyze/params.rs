@@ -197,7 +197,7 @@ impl<'a, 'c> Analysis<'a, 'c> {
     /// same type, or the typed id when the other use has its plain type. Two
     /// different typed ids over one plain type fall back to the plain type,
     /// and different plain types fail.
-    fn assign(
+    pub(super) fn assign(
         &mut self,
         index: usize,
         name: &str,
@@ -312,7 +312,7 @@ fn slot_type(slot: &Slot, nullable: bool) -> String {
     }
 }
 
-fn placeholder(expr: &Expr) -> Option<usize> {
+pub(super) fn placeholder(expr: &Expr) -> Option<usize> {
     match expr {
         Expr::Value(value) => match &value.value {
             Value::Placeholder(text) => text.strip_prefix('$')?.parse().ok(),

@@ -27,6 +27,22 @@ the *generated* API count as breaking (see ADR 0012).
   `INTERSECT`'s are, or when an `EXCEPT`'s left one is. A column count or
   type mismatch fails, naming the column. `ORDER BY` and `LIMIT` apply to
   the whole result.
+- Set-returning functions in `FROM` are typed, each read like a table
+  under its alias (a one-column function's column takes the alias's name,
+  a column list renames, `WITH ORDINALITY` adds an `i64`).
+  `generate_series(start, stop[, step])` is `i32`/`i64`/`Decimal` over
+  numbers and the timestamp PostgreSQL returns otherwise (`date` bounds
+  give `DateTime<Utc>`; `week::date` is a `NaiveDate`), never NULL, and
+  types an untyped bound or step (`start`, `stop`, `step`). `unnest(
+  $1::uuid[])` names its slice parameter after the column (`id_list`)
+  and yields `Uuid`, never NULL (several arrays are `Option`, as
+  PostgreSQL pads them). `jsonb_to_recordset($1) AS l(item_id uuid,
+  quantity int)` (and `json_to_recordset`, `jsonb_to_record`,
+  `json_to_record`) takes its columns from the definition list, as
+  `Option`, and `$1` as a `serde_json::Value`. Batch inserts and a
+  copy-forward run in the fixture's PostgreSQL suite. Before, any
+  function in `FROM` failed the query; other functions still do, naming
+  the ones the engine types.
 
 ## Workspace 0.9.0 - 2026-11-06
 

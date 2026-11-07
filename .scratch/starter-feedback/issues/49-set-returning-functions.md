@@ -6,9 +6,9 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `generate_series` over dates and integers types its column
-- [ ] `unnest($1::uuid[])` types its parameter as `Vec<Uuid>` / `&[Uuid]`
-- [ ] `INSERT INTO order_items (…) SELECT … FROM jsonb_to_recordset($2) AS l(item_id uuid, quantity int)` types its columns and `$2`
-- [ ] Guide example compiles (doc test or fixture)
+- [x] `generate_series` over dates and integers types its column
+- [x] `unnest($1::uuid[])` types its parameter as `Vec<Uuid>` / `&[Uuid]`
+- [x] `INSERT INTO order_items (…) SELECT … FROM jsonb_to_recordset($2) AS l(item_id uuid, quantity int)` types its columns and `$2`
+- [x] Guide example compiles (doc test or fixture)

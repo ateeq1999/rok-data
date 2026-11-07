@@ -587,22 +587,33 @@ impl<'a, 'c> Analysis<'a, 'c> {
     }
 
     fn table_factor(&mut self, factor: &TableFactor, outer_nullable: bool) -> Result<(), String> {
-        let TableFactor::Table {
-            name,
-            alias,
-            args: None,
-            ..
-        } = factor
-        else {
-            return Err(
-                "only plain tables are supported in FROM (no subqueries or functions)".to_owned(),
-            );
+        let (qualifier, table) = match factor {
+            TableFactor::Table {
+                name,
+                alias,
+                args: None,
+                ..
+            } => {
+                let table = self.resolve_from(name)?;
+                let qualifier = alias
+                    .as_ref()
+                    .map(|alias| ident_name(&alias.name))
+                    .unwrap_or_else(|| table.sql_name.clone());
+                (qualifier, table)
+            }
+            _ => match self.set_returning_table(factor) {
+                Some(table) => {
+                    let table = table?;
+                    (table.sql_name.clone(), TableRef::Cte(Rc::new(table)))
+                }
+                None => {
+                    return Err(
+                        "only tables and set-returning functions are supported in FROM (no subqueries)"
+                            .to_owned(),
+                    );
+                }
+            },
         };
-        let table = self.resolve_from(name)?;
-        let qualifier = alias
-            .as_ref()
-            .map(|alias| ident_name(&alias.name))
-            .unwrap_or_else(|| table.sql_name.clone());
         // A subquery's table may take a name an outer query's has: it
         // shadows that one.
         if self.scope[self.floor()..]
