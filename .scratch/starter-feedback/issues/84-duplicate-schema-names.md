@@ -8,7 +8,7 @@ Karibu Pass's hand-written `OfferDropResponse` replaced the generated one, and t
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A hand-written DTO named like a generated response fails `rok gen`, naming both files (test)
-- [ ] `#[schema(as = …)]` resolves the clash
+- [x] A hand-written DTO named like a generated response fails `rok gen`, naming both files (test)
+- [x] `#[schema(as = …)]` resolves the clash

@@ -62,6 +62,9 @@ pub mod init;
 pub mod parser;
 #[doc(hidden)]
 pub mod queries;
+// The `ToSchema` names two types share, which `rok gen` refuses.
+#[doc(hidden)]
+pub mod schema_names;
 
 pub use api_config::{ApiAccess, ApiConfig, ApiEndpoint, ApiFramework, ApiPagination};
 pub use api_rules::ApiRule;

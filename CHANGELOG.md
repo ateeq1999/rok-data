@@ -27,6 +27,15 @@ that it exists and won't ship a tag without it).
   l(item_id uuid, quantity int)`, a `serde_json::Value`). The engine
   README's "Writing query files" documents the patterns.
 
+**Fixed**
+
+- Two `ToSchema` types with one component name fail `rok gen` and `rok
+  gen check`, naming both files and lines, instead of utoipa keeping one
+  of them: a hand-written DTO named like a generated response no longer
+  replaces it in the contract and the Clients. Rename one, or give it
+  `#[schema(as = some_module::Name)]`. The check is the run's `the schema
+  names` step (`schema_names` in `--json`), after the data layer.
+
 ## [0.9.0] — strict, better-typed `rok gen`; one rule for finding the project; `:page` and shared queries
 
 Breaking for some projects. `rok gen` fails on a table or query it can't

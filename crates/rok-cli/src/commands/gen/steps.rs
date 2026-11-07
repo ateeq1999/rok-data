@@ -20,6 +20,9 @@ enum Step {
     /// A run's data layer (and API features): `app` names the App, `None`
     /// a plain project's run.
     DataLayer { app: Option<String> },
+    /// A run's OpenAPI schema names, checked for two `ToSchema` types
+    /// sharing one (a run that generates API features).
+    SchemaNames { app: Option<String> },
     /// A run's migration, staged as `name`; `dir` is where the run's App
     /// is, for the command that stages it alone.
     Migration {
@@ -39,6 +42,8 @@ impl Step {
         match self {
             Step::DataLayer { app: Some(app) } => format!("`{app}`'s data layer"),
             Step::DataLayer { app: None } => "the data layer".to_owned(),
+            Step::SchemaNames { app: Some(app) } => format!("`{app}`'s schema names"),
+            Step::SchemaNames { app: None } => "the schema names".to_owned(),
             Step::Migration {
                 app: Some(app),
                 name,
@@ -56,6 +61,7 @@ impl Step {
     fn body(&self) -> Value {
         let mut body = match self {
             Step::DataLayer { app } => json!({ "kind": "data_layer", "app": app }),
+            Step::SchemaNames { app } => json!({ "kind": "schema_names", "app": app }),
             Step::Migration { app, name, .. } => {
                 json!({ "kind": "migration", "app": app, "migration": name })
             }
@@ -90,6 +96,11 @@ impl<'a> Steps<'a> {
             steps.push(Step::DataLayer {
                 app: run.app.clone(),
             });
+            if run.settings.engine.api.is_some() {
+                steps.push(Step::SchemaNames {
+                    app: run.app.clone(),
+                });
+            }
             if let Some(name) = &run.settings.migration {
                 steps.push(Step::Migration {
                     app: run.app.clone(),
