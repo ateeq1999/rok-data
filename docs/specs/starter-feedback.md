@@ -240,6 +240,12 @@ From the notes on Karibu Pass's ticket 22 (its organizers' notes, tickets 20 and
 - **Three-state fields only in `PATCH` bodies, in every Client:** Dart `Nullable<T>?`, Rust `Option<Option<T>>` and TypeScript `T | null` only where the API tells "left out" from "null"; plain optional elsewhere (ticket 43).
 - **Idempotency keys:** a route declaring an `Idempotency-Key` header stores its first answer per caller, key and route; the Clients fill a fresh key and reuse it on retry, so a dropped connection after `pay` can be retried safely.
 
+From the notes on Karibu Pass's ticket 23 (its `scripts/dev.sh` list is the rok-dev spec, workspace ADR 0034):
+
+- **"None yet" is an answer:** an absent current value is 200 with `null`, declared `Option<T>`, and each Client returns a nullable type; a missing resource stays 404.
+- **Topics replace polling:** `publish` runs on the feature's transaction (`NOTIFY` is delivered on commit), with a Dart `Stream<Notice>` and a web `subscribe` helper, and the template Apps switch from timers (ticket 74).
+- **A polling helper meanwhile:** the Dart Client runtime's `poll(call, every:, until:)` stream, lifecycle-aware; TanStack Query's `refetchInterval` on the web.
+
 ## Out of Scope
 
 - **Karibu Pass's product work:** phone and SMS sign-in (its ADR-0006), its tickets, removing its sample data, its repo-wide reformat and its own visual-check scripts. A phone sign-in Module may come later.
