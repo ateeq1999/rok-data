@@ -55,7 +55,7 @@ page; edit the source file and re-mark.
 
 | Path | What it is |
 | ---- | ---------- |
-| [`decisions/`](decisions/) (0001–0033) | workspace ADRs — every deliberate cross-crate choice; the single source for "why". The latest, [0033](decisions/0033-template-modules-left-out-at-init.md), lets `rok init --without` leave a Template's Modules out |
+| [`decisions/`](decisions/) (0001–0034) | workspace ADRs — every deliberate cross-crate choice; the single source for "why". The latest, [0034](decisions/0034-rok-dev-runs-the-stack.md), adds rok-dev, which runs a project's stack |
 | [`migration-audit.md`](migration-audit.md) | what was audited out of the four source repositories before consolidation |
 | [`migration-plan.md`](migration-plan.md) | the original consolidation plan |
 | [`unified-pipeline-plan.md`](unified-pipeline-plan.md) | the 0.2.0 pipeline plan (schema-dir truth, front door, templates) |
