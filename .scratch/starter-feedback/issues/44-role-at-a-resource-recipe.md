@@ -11,8 +11,8 @@ The glossary's **Guard** names it.
 
 **Blocked by:** 42, grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** blocked
+**Status:** done
 
-- [ ] `Allowed<G>` refuses with 403 before the body is read, and hands the grant through when the guard allows (tests)
-- [ ] The recipe's three guards compile in a gate or a doc test
-- [ ] The Shared files stay identical across templates
+- [x] `Allowed<G>` refuses with 403 before the body is read, and hands the grant through when the guard allows (tests)
+- [x] The recipe's three guards compile in a gate or a doc test
+- [x] The Shared files stay identical across templates

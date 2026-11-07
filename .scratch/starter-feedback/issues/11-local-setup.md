@@ -10,9 +10,9 @@ Spec: `docs/specs/starter-feedback.md`
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** blocked
+**Status:** done
 
-- [ ] Debug `cargo run` reads `.env`; release does not
-- [ ] The seeded accounts sign in (test against the gates' database)
-- [ ] `seed --promote <email>` makes that account an admin
-- [ ] A non-default `POSTGRES_PORT` works end to end
+- [x] Debug `cargo run` reads `.env`; release does not
+- [x] The seeded accounts sign in (test against the gates' database)
+- [x] `seed --promote <email>` makes that account an admin
+- [x] A non-default `POSTGRES_PORT` works end to end
