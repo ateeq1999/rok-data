@@ -4,14 +4,22 @@ use std::collections::HashSet;
 
 use sqlparser::ast::{
     BinaryOperator, Expr, Function, FunctionArg, FunctionArgExpr, FunctionArguments, Ident,
-    ObjectNamePart, SelectItem, UnaryOperator, Value,
+    ObjectNamePart, SelectItem, SetOperator, UnaryOperator, Value,
 };
 
 use super::{Analysis, Context, Output, OutputColumn, ResultShape};
 use crate::parser::naming;
 use crate::parser::postgres::{ident_name, map_type, object_leaf_name};
 use crate::queries::annotations::{QueryDef, ReturnMode};
-use crate::schema::Column;
+use crate::schema::{Column, Shape};
+
+/// A result type without its `Option`, and whether it had one.
+fn split_optional(rust_type: &str) -> (&str, bool) {
+    match Shape::of(rust_type) {
+        Shape::Optional(inner) => (inner, true),
+        Shape::List(_) | Shape::Value(_) => (rust_type, false),
+    }
+}
 
 impl<'a, 'c> Analysis<'a, 'c> {
     pub(super) fn projection(&mut self, items: &[SelectItem]) -> Result<Vec<Output>, String> {
@@ -187,6 +195,69 @@ impl<'a, 'c> Analysis<'a, 'c> {
             }
         }
         Ok(false)
+    }
+
+    /// One column of a set operation, from its `left` and `right` branches:
+    /// named by the left one, of the type both share. `UNION` makes it
+    /// nullable when either branch is, `INTERSECT` only when both are, and
+    /// `EXCEPT` keeps the left branch's rows, so its nullability.
+    pub(super) fn set_output(
+        &self,
+        op: SetOperator,
+        left: Output,
+        right: Output,
+    ) -> Result<Output, String> {
+        let name = left.sql_name;
+        let (Some(left_type), Some(right_type)) = (&left.rust_type, &right.rust_type) else {
+            let unknown_reason = left.unknown_reason.or(right.unknown_reason).or_else(|| {
+                Some(format!(
+                    "cannot infer the type of result column `{name}`; add `-- column: {name} <RustType>`"
+                ))
+            });
+            return Ok(Output {
+                sql_name: name,
+                rust_type: None,
+                origin: None,
+                nullable_origin: false,
+                unknown_reason,
+                name_error: left.name_error,
+            });
+        };
+        let (left_base, left_nullable) = split_optional(left_type);
+        let (right_base, right_nullable) = split_optional(right_type);
+        let value_type = if left_base == right_base {
+            left_base.to_owned()
+        } else {
+            let (left_plain, right_plain) =
+                (self.plain_type(left_base), self.plain_type(right_base));
+            if left_plain == right_plain {
+                left_plain.to_owned()
+            } else {
+                shared_type(vec![left_plain.to_owned(), right_plain.to_owned()]).ok_or_else(|| {
+                    format!(
+                        "column `{name}` is `{left_base}` on the left of {op} and `{right_base}` on its right; cast one of them"
+                    )
+                })?
+            }
+        };
+        let nullable = match op {
+            SetOperator::Intersect => left_nullable && right_nullable,
+            SetOperator::Except | SetOperator::Minus => left_nullable,
+            SetOperator::Union => left_nullable || right_nullable,
+        };
+        let same_origin = left.origin.is_some() && left.origin == right.origin;
+        Ok(Output {
+            rust_type: Some(if nullable {
+                format!("Option<{value_type}>")
+            } else {
+                value_type
+            }),
+            origin: left.origin.filter(|_| same_origin),
+            nullable_origin: left.nullable_origin || right.nullable_origin,
+            unknown_reason: None,
+            name_error: left.name_error,
+            sql_name: name,
+        })
     }
 
     /// The plain type under `value_type`: the column type a typed id wraps

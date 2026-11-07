@@ -1281,3 +1281,124 @@ fn subqueries_resolve_their_own_tables_first() {
     );
     assert_eq!(opaque.params, [param(1, "cutoff", "i64")]);
 }
+
+/// Karibu Pass's "due Partners": one column from two tables, deduplicated,
+/// with `ORDER BY` and `LIMIT` over the whole result.
+#[test]
+fn a_union_types_its_columns_from_every_branch() {
+    let due = one(
+        "-- name: DuePartners :many\nSELECT partner_id FROM offers WHERE status = $1\nUNION\nSELECT partner_id FROM partner_photos WHERE caption = $2\nORDER BY partner_id LIMIT $3;",
+    );
+    assert_eq!(due.result, ResultShape::Scalar("i64".to_owned()));
+    assert_eq!(
+        due.params,
+        [
+            param(1, "status", "String"),
+            param(2, "caption", "String"),
+            param(3, "limit", "i64"),
+        ]
+    );
+
+    // Names come from the first branch; types are shared as `CASE`'s are
+    // (`smallint` widens to `integer`), nullable when any branch is.
+    let widened = one(
+        "-- name: Holds :many\nSELECT id, rooms_held AS n, held_at FROM allocations\nUNION ALL\nSELECT id, seats, NULL::timestamptz FROM passes\nUNION ALL\nSELECT id, 0, now() FROM partners;",
+    );
+    assert_eq!(
+        row_columns(&widened),
+        [
+            ("id", "i64"),
+            ("n", "i32"),
+            ("held_at", "Option<chrono::DateTime<chrono::Utc>>")
+        ]
+    );
+    assert_eq!(
+        scalar(
+            "-- name: Q :many\nSELECT price FROM passes UNION SELECT rooms_held FROM allocations;"
+        ),
+        "rust_decimal::Decimal"
+    );
+
+    // Typed ids: one typed id stays, a typed id beside its plain type is
+    // the plain type.
+    assert_eq!(
+        typed_one("-- name: Q :many\nSELECT id FROM partners UNION SELECT partner_id FROM offers;")
+            .result,
+        ResultShape::Scalar("PartnerId".to_owned())
+    );
+    assert_eq!(
+        typed_one("-- name: Q :many\nSELECT id FROM partners UNION SELECT 0::bigint;").result,
+        ResultShape::Scalar("i64".to_owned())
+    );
+}
+
+/// `INTERSECT` keeps rows found in both branches, so a column is nullable
+/// only when both are; `EXCEPT` keeps the left branch's rows.
+#[test]
+fn intersect_and_except_take_their_rows_nullability() {
+    assert_eq!(
+        scalar("-- name: Q :many\nSELECT note FROM products INTERSECT SELECT name FROM products;"),
+        "String"
+    );
+    assert_eq!(
+        scalar("-- name: Q :many\nSELECT note FROM products EXCEPT SELECT name FROM products;"),
+        "Option<String>"
+    );
+    let except = one(
+        "-- name: Idle :many\nSELECT id FROM partners EXCEPT SELECT partner_id FROM offers WHERE status = $1;",
+    );
+    assert_eq!(except.result, ResultShape::Scalar("i64".to_owned()));
+    assert_eq!(except.params, [param(1, "status", "String")]);
+}
+
+#[test]
+fn union_branches_must_match_column_by_column() {
+    assert_eq!(
+        failure("-- name: Q :many\nSELECT id, name FROM partners UNION SELECT id FROM categories;"),
+        "the branches of UNION return 2 and 1 columns: column `name` has no match"
+    );
+    assert_eq!(
+        failure(
+            "-- name: Q :many\nSELECT id, name FROM partners UNION SELECT id, rooms_held FROM allocations;"
+        ),
+        "column `name` is `String` on the left of UNION and `i32` on its right; cast one of them"
+    );
+}
+
+/// A set operation in a subquery sees the enclosing query's tables, and
+/// one in a CTE or as an `INSERT … SELECT` source types like any other.
+#[test]
+fn set_operations_nest() {
+    let correlated = one(
+        "-- name: Pictured :many\nSELECT p.id FROM partners p WHERE EXISTS (\n    SELECT 1 FROM offers WHERE partner_id = p.id\n    UNION\n    SELECT 1 FROM partner_photos WHERE partner_id = p.id AND caption = $1\n);",
+    );
+    assert_eq!(correlated.params, [param(1, "caption", "String")]);
+
+    let within = one(
+        "-- name: Busy :many\nSELECT id, name FROM partners WHERE id IN (SELECT partner_id FROM offers WHERE status = $1 UNION SELECT partner_id FROM listings);",
+    );
+    assert_eq!(within.params, [param(1, "status", "String")]);
+
+    let cte = one(
+        "-- name: Ids :many\nWITH ids AS (SELECT partner_id AS id FROM offers UNION SELECT partner_id FROM listings)\nSELECT id FROM ids WHERE id > $1;",
+    );
+    assert_eq!(cte.params, [param(1, "id", "i64")]);
+
+    let copy = one(
+        "-- name: Copy :execrows\nINSERT INTO offers (partner_id, status)\nSELECT $1, 'copied'\nUNION\nSELECT partner_id, $2 FROM offers WHERE id = $3;",
+    );
+    assert_eq!(
+        copy.params,
+        [
+            param(1, "partner_id", "i64"),
+            param(2, "status", "String"),
+            param(3, "id", "i64"),
+        ]
+    );
+    assert!(
+        failure(
+            "-- name: Q :exec\nINSERT INTO offers (partner_id, status) SELECT $1, 'a' UNION SELECT partner_id FROM offers;"
+        )
+        .contains("the SELECT returns 1 values for 2 columns")
+    );
+}

@@ -18,6 +18,15 @@ the *generated* API count as breaking (see ADR 0012).
   data-modifying CTE nested in another CTE or a subquery fails
   (PostgreSQL's rule), as does one in a `:page` query, whose rows and
   total are two statements.
+- `UNION [ALL]`, `INTERSECT` and `EXCEPT` type at the top level, in CTEs,
+  in subqueries and as an `INSERT … SELECT` source; before, only a
+  recursive CTE's `UNION` was read. The first branch names the columns,
+  and each column takes the type its branches share, as `CASE` does
+  (numbers widen, a typed id beside its plain type is the plain type). A
+  column is nullable when any `UNION` branch's is, when both of an
+  `INTERSECT`'s are, or when an `EXCEPT`'s left one is. A column count or
+  type mismatch fails, naming the column. `ORDER BY` and `LIMIT` apply to
+  the whole result.
 
 ## Workspace 0.9.0 - 2026-11-06
 

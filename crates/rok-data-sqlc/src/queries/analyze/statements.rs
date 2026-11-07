@@ -57,13 +57,7 @@ impl<'a, 'c> Analysis<'a, 'c> {
                             }
                         }
                     }
-                    SetExpr::Select(select) => self.insert_select(source, select, &columns)?,
-                    _ => {
-                        return Err(
-                            "INSERT takes VALUES or a plain SELECT (no UNION or nesting)"
-                                .to_owned(),
-                        );
-                    }
+                    _ => self.insert_select(source, &columns)?,
                 }
 
                 if let Some(OnInsert::OnConflict(on_conflict)) = &insert.on {
@@ -198,13 +192,40 @@ impl<'a, 'c> Analysis<'a, 'c> {
     /// `INSERT … SELECT`: each value the `SELECT` returns is typed from the
     /// column it fills, as a `VALUES` row's is. The `SELECT` runs in its own
     /// scope, without the target: its `FROM` names the tables it reads,
-    /// the target included.
-    fn insert_select(
-        &mut self,
-        source: &Query,
-        select: &Select,
-        columns: &[&Column],
-    ) -> Result<(), String> {
+    /// the target included. Each branch of a set operation fills the
+    /// columns the same way.
+    fn insert_select(&mut self, source: &Query, columns: &[&Column]) -> Result<(), String> {
+        self.in_own_scope(|analysis| analysis.insert_query(source, columns))
+    }
+
+    fn insert_query(&mut self, query: &Query, columns: &[&Column]) -> Result<(), String> {
+        let visible = self.ctes.len();
+        let typed = self
+            .with_clause(query)
+            .and_then(|()| self.insert_body(&query.body, columns))
+            .and_then(|()| self.limit_clause(query));
+        self.ctes.truncate(visible);
+        typed
+    }
+
+    fn insert_body(&mut self, body: &SetExpr, columns: &[&Column]) -> Result<(), String> {
+        match body {
+            SetExpr::Select(select) => self.insert_select_values(select, columns),
+            SetExpr::SetOperation { left, right, .. } => {
+                self.in_level(|analysis| analysis.insert_body(left, columns))?;
+                self.in_level(|analysis| analysis.insert_body(right, columns))
+            }
+            SetExpr::Query(query) => {
+                self.in_level(|analysis| analysis.insert_query(query, columns))
+            }
+            _ => Err(
+                "INSERT takes VALUES, a SELECT, or SELECTs joined by UNION, INTERSECT or EXCEPT"
+                    .to_owned(),
+            ),
+        }
+    }
+
+    fn insert_select_values(&mut self, select: &Select, columns: &[&Column]) -> Result<(), String> {
         let values = select
             .projection
             .iter()
@@ -223,22 +244,6 @@ impl<'a, 'c> Analysis<'a, 'c> {
                 columns.len()
             ));
         }
-        let visible = self.ctes.len();
-        let typed = self.in_own_scope(|analysis| {
-            analysis.insert_select_values(source, select, columns, &values)
-        });
-        self.ctes.truncate(visible);
-        typed
-    }
-
-    fn insert_select_values(
-        &mut self,
-        source: &Query,
-        select: &Select,
-        columns: &[&Column],
-        values: &[&Expr],
-    ) -> Result<(), String> {
-        self.with_clause(source)?;
         for table in &select.from {
             self.scope_table(table)?;
         }
@@ -251,7 +256,61 @@ impl<'a, 'c> Analysis<'a, 'c> {
         if let Some(having) = &select.having {
             self.expr(having)?;
         }
-        self.limit_clause(source)
+        Ok(())
+    }
+
+    /// Runs `analyze` on a query beside the current one (a set operation's
+    /// branch): it sees the queries around it, and its own tables are
+    /// gone after.
+    fn in_level<T>(&mut self, analyze: impl FnOnce(&mut Self) -> T) -> T {
+        let depth = self.scope.len();
+        self.levels.push(depth);
+        let result = analyze(self);
+        self.levels.pop();
+        self.scope.truncate(depth);
+        result
+    }
+
+    /// A set operation's result columns: named by its left branch, each of
+    /// the type its branches share (one type, a typed id's plain type, or
+    /// the widest number, as `CASE`'s branches share theirs).
+    fn set_operation(
+        &mut self,
+        op: SetOperator,
+        left: &SetExpr,
+        right: &SetExpr,
+    ) -> Result<Vec<Output>, String> {
+        let left = self.in_level(|analysis| analysis.branch(left))?;
+        let right = self.in_level(|analysis| analysis.branch(right))?;
+        if left.len() != right.len() {
+            let unmatched = left
+                .get(right.len())
+                .or_else(|| right.get(left.len()))
+                .map_or("", |output| output.sql_name.as_str());
+            return Err(format!(
+                "the branches of {op} return {} and {} columns: column `{unmatched}` has no match",
+                left.len(),
+                right.len()
+            ));
+        }
+        left.into_iter()
+            .zip(right)
+            .map(|(left, right)| self.set_output(op, left, right))
+            .collect()
+    }
+
+    fn branch(&mut self, body: &SetExpr) -> Result<Vec<Output>, String> {
+        match body {
+            SetExpr::Select(select) => self.select(select),
+            SetExpr::Query(query) => self.query(query),
+            SetExpr::SetOperation {
+                op, left, right, ..
+            } => self.set_operation(*op, left, right),
+            _ => Err(
+                "each branch of UNION, INTERSECT or EXCEPT must be a SELECT (not VALUES)"
+                    .to_owned(),
+            ),
+        }
     }
 
     /// Analyzes the query's CTEs, making each visible to those after it and
@@ -295,6 +354,10 @@ impl<'a, 'c> Analysis<'a, 'c> {
         self.with_clause(query)?;
         let outputs = match query.body.as_ref() {
             SetExpr::Select(select) => self.select(select)?,
+            // `ORDER BY` and `LIMIT` apply to the whole result.
+            SetExpr::SetOperation {
+                op, left, right, ..
+            } => self.set_operation(*op, left, right)?,
             // The statement after a `WITH`, or a data-modifying CTE's own:
             // its `RETURNING` gives the result.
             SetExpr::Insert(statement)
@@ -304,7 +367,7 @@ impl<'a, 'c> Analysis<'a, 'c> {
             }
             _ => {
                 return Err(
-                    "only a plain SELECT is supported (no UNION, VALUES, or nesting)".to_owned(),
+                    "a query must be a SELECT, a set operation of SELECTs, or (after WITH) an INSERT, UPDATE or DELETE".to_owned(),
                 );
             }
         };

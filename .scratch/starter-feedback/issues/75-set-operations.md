@@ -10,8 +10,8 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Karibu's "due Partners" shape (`SELECT partner_id FROM … UNION SELECT partner_id FROM …`) generates one function
-- [ ] Branch mismatches fail naming the column
-- [ ] A `UNION` inside a subquery and an `EXCEPT` both type
+- [x] Karibu's "due Partners" shape (`SELECT partner_id FROM … UNION SELECT partner_id FROM …`) generates one function
+- [x] Branch mismatches fail naming the column
+- [x] A `UNION` inside a subquery and an `EXCEPT` both type

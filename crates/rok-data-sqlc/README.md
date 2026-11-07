@@ -777,6 +777,25 @@ pub async fn search_product_names<'e, E>(
 **More rules:**
 
 - `WITH` queries work: each CTE is treated as a table.
+- `UNION [ALL]`, `INTERSECT` and `EXCEPT` work at the top level, in a CTE,
+  in a subquery and as an `INSERT … SELECT` source. The first branch names
+  the columns; each column takes the type its branches share, as `CASE`'s
+  branches do (one type, or the widest number: `smallint` with `integer`
+  is `integer`, an integer with `numeric` is `numeric`; a typed id beside
+  its plain type is the plain type). A column is nullable when a `UNION`
+  branch's is, when both of an `INTERSECT`'s are, or when an `EXCEPT`'s
+  left one is. Branches with different column counts or unshared types
+  fail, naming the column (``column `name` is `String` on the left of
+  UNION and `i32` on its right; cast one of them``). `ORDER BY` and
+  `LIMIT` apply to the whole result, as in PostgreSQL.
+
+  ```sql
+  -- name: DuePartners :many
+  SELECT partner_id FROM invoices WHERE status = 'due'
+  UNION
+  SELECT partner_id FROM payouts WHERE paid_at IS NULL
+  ORDER BY partner_id;
+  ```
 - A CTE may modify data: `WITH x AS (UPDATE … RETURNING …)`, or an
   `INSERT` or `DELETE`, makes its `RETURNING` columns a table for the CTEs
   after it and the final statement, which may itself be a `SELECT`,
@@ -1887,7 +1906,8 @@ fails. With `--resource`, only that table's problems count.
 | Two relationships of one table with the same name, or a relationship named like a filter field | Rename one in `[relationships]`. |
 | A soft-delete column that is not a nullable timestamp | `delete` couldn't record the time. |
 | A query placeholder or result expression rok-data-sqlc can't type | Add a `-- param:` or `-- column:` override. |
-| Unknown tables or columns in a query, more than one statement, `UNION` outside a recursive CTE | They can't be analyzed (yet). |
+| Unknown tables or columns in a query, more than one statement | They can't be analyzed. |
+| Set-operation branches with different column counts or types they don't share | PostgreSQL would reject them; the error names the column. |
 | A data-modifying CTE nested in another CTE or a subquery, or in a `:page` query | PostgreSQL allows one only in the statement's own `WITH`; a page runs its query twice. |
 | A recursive CTE whose recursive term returns other columns than its anchor | The CTE's columns come from the anchor. |
 | An `ON CONFLICT (cols)` target that is not a unique key | It would fail at runtime. The error lists the table's unique keys. A partial unique index counts when the target repeats its condition: `ON CONFLICT (email) WHERE deleted_at IS NULL`. |
@@ -1908,7 +1928,6 @@ fails. With `--resource`, only that table's problems count.
   filters make `search` fail with `sqlx::Error::InvalidArgument`.
 - Keyset pagination (`search_after`) follows primary-key order only. Array
   and JSON columns get only null checks in filters.
-- `UNION` is read only as the body of a recursive CTE.
 - `ALTER TABLE … RENAME TO`, `SET SCHEMA`, partitioning (`ATTACH`/`DETACH
   PARTITION`), and other `ALTER TABLE` forms that change
   the model in ways rok-data-sqlc doesn't follow fail the table they alter, at

@@ -8,9 +8,11 @@
 //! declared with `-- param:` or `-- column:`; the generator never guesses. A
 //! non-recursive CTE is analyzed like a `SELECT` (one that modifies data like
 //! its `INSERT`, `UPDATE` or `DELETE`, by its `RETURNING`) and then acts as a
-//! table for the statements after it; the final statement gives the result. `UPDATE … FROM` and
-//! `DELETE … USING` see their target and the other tables together, like a
-//! join. A subquery sees its own tables first, then the enclosing query's.
+//! table for the statements after it; the final statement gives the result.
+//! `UPDATE … FROM` and `DELETE … USING` see their target and the other
+//! tables together, like a join. A subquery sees its own tables first, then
+//! the enclosing query's. `UNION`, `INTERSECT` and `EXCEPT` type each column
+//! from the type their branches share, as `CASE` does.
 
 mod conflict;
 mod params;

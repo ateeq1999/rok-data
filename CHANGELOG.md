@@ -15,6 +15,10 @@ that it exists and won't ship a tag without it).
   RETURNING …) INSERT … SELECT … FROM x`): each CTE's `RETURNING` columns
   are known to the statements after it, and the final statement types the
   result (`:execrows`, or its `RETURNING`).
+- Typed queries support `UNION`, `UNION ALL`, `INTERSECT` and `EXCEPT` at
+  the top level, in subqueries and as an `INSERT … SELECT` source, each
+  column of the type its branches share; mismatched branches fail naming
+  the column.
 
 ## [0.9.0] — strict, better-typed `rok gen`; one rule for finding the project; `:page` and shared queries
 
