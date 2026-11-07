@@ -9,6 +9,24 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+**Added**
+
+- Typed queries support data-modifying CTEs (`WITH x AS (UPDATE …
+  RETURNING …) INSERT … SELECT … FROM x`): each CTE's `RETURNING` columns
+  are known to the statements after it, and the final statement types the
+  result (`:execrows`, or its `RETURNING`).
+- Typed queries support `UNION`, `UNION ALL`, `INTERSECT` and `EXCEPT` at
+  the top level, in subqueries and as an `INSERT … SELECT` source, each
+  column of the type its branches share; mismatched branches fail naming
+  the column.
+- Queries type `generate_series`, `unnest` and `jsonb_to_recordset` in
+  `FROM`, so one statement writes many rows: a copy-forward `INSERT …
+  SELECT … FROM generate_series($1::date, $2::date, '7 days') AS week`,
+  or a batch from slices (`unnest($2::uuid[], $3::int[]) AS l(item_id,
+  quantity)`) or from one JSON parameter (`jsonb_to_recordset($2) AS
+  l(item_id uuid, quantity int)`, a `serde_json::Value`). The engine
+  README's "Writing query files" documents the patterns.
+
 ## [0.9.0] — strict, better-typed `rok gen`; one rule for finding the project; `:page` and shared queries
 
 Breaking for some projects. `rok gen` fails on a table or query it can't

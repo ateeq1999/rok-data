@@ -62,6 +62,19 @@ const SCHEMA: &str = "
             cover_media_id UUID REFERENCES media (id),
             status product_status NOT NULL
         );
+        CREATE TABLE weekly_holds (
+            id BIGSERIAL PRIMARY KEY,
+            offer_id BIGINT NOT NULL REFERENCES offers (id),
+            week_of DATE NOT NULL,
+            rooms INTEGER NOT NULL
+        );
+        CREATE TABLE order_items (
+            id BIGSERIAL PRIMARY KEY,
+            order_id UUID NOT NULL,
+            item_id UUID NOT NULL,
+            quantity INTEGER NOT NULL,
+            note TEXT
+        );
     ";
 
 fn analyze(queries: &str) -> (Vec<AnalyzedQuery>, Vec<QueryFailure>) {
@@ -784,14 +797,77 @@ fn recursive_terms_must_match_the_anchor() {
     );
 }
 
+/// Karibu Pass's `CancelEvent` shape: two chained `UPDATE … RETURNING`
+/// CTEs, the second reading the first, feeding an `INSERT … SELECT`. The
+/// final statement decides the result.
+const CANCEL_OFFER: &str = "WITH o AS (\n    UPDATE offers SET status = 'cancelled' WHERE id = $1 AND status <> 'cancelled' RETURNING id, partner_id\n),\na AS (\n    UPDATE allocations SET rooms_held = 0 FROM o\n    WHERE allocations.offer_id = o.id AND allocations.rooms_total > $2\n    RETURNING allocations.id, allocations.rooms_held\n)\nINSERT INTO allocations (offer_id, rooms_held, rooms_total)\nSELECT o.id, $3, a.rooms_held FROM o JOIN a ON true";
+
 #[test]
-fn data_modifying_ctes_are_rejected() {
+fn data_modifying_ctes_feed_the_final_statement() {
+    let rows = one(&format!("-- name: CancelOffer :execrows\n{CANCEL_OFFER};"));
+    assert_eq!(rows.result, ResultShape::None);
+    assert_eq!(
+        rows.params,
+        [
+            param(1, "id", "i64"),
+            param(2, "rooms_total", "i32"),
+            param(3, "rooms_held", "i32"),
+        ]
+    );
+
+    let returning = one(&format!(
+        "-- name: CancelOffer :many\n{CANCEL_OFFER}\nRETURNING id, held_at;"
+    ));
+    assert_eq!(returning.params, rows.params);
+    assert_eq!(
+        row_columns(&returning),
+        [
+            ("id", "i64"),
+            ("held_at", "Option<chrono::DateTime<chrono::Utc>>")
+        ]
+    );
+}
+
+/// Karibu Pass's `PlaceOrder` shape: an `INSERT … RETURNING` CTE feeding an
+/// `UPDATE … FROM`; a `DELETE … RETURNING` CTE read by a `SELECT`.
+#[test]
+fn any_final_statement_reads_a_data_modifying_cte() {
+    let update = one(
+        "-- name: PlaceOffer :one\nWITH o AS (INSERT INTO offers (partner_id, status) VALUES ($1, 'new') RETURNING id)\nUPDATE allocations SET offer_id = o.id FROM o WHERE allocations.id = $2 RETURNING allocations.id;",
+    );
+    assert_eq!(
+        update.params,
+        [param(1, "partner_id", "i64"), param(2, "id", "i64")]
+    );
+    assert_eq!(update.result, ResultShape::Scalar("i64".to_owned()));
+
+    let select = one(
+        "-- name: Purge :many\nWITH gone AS (DELETE FROM products WHERE stock = $1 RETURNING id, note) SELECT id, note FROM gone;",
+    );
+    assert_eq!(select.params, [param(1, "stock", "i32")]);
+    assert_eq!(
+        row_columns(&select),
+        [("id", "uuid::Uuid"), ("note", "Option<String>")]
+    );
+}
+
+/// PostgreSQL runs a data-modifying CTE only in the statement's own `WITH`;
+/// a `:page` query would run it twice, once for its rows and once for its
+/// total.
+#[test]
+fn data_modifying_ctes_belong_to_the_top_level_with() {
+    assert_eq!(
+        failure(
+            "-- name: Q :many\nWITH a AS (WITH g AS (DELETE FROM products RETURNING id) SELECT id FROM g) SELECT id FROM a;"
+        ),
+        "data-modifying CTE `g` must be in the statement's own WITH, not nested in a CTE or subquery"
+    );
     assert!(
-            failure(
-                "-- name: Q :many\nWITH gone AS (DELETE FROM products WHERE stock = $1 RETURNING id) SELECT id FROM gone;"
-            )
-            .contains("data-modifying CTE `gone`")
-        );
+        failure(
+            "-- name: Q :page\nWITH g AS (DELETE FROM products RETURNING id) SELECT id FROM g ORDER BY id;"
+        )
+        .contains("a `:page` query can't have a data-modifying CTE")
+    );
 }
 
 /// A partial unique index is a target when the target repeats its
@@ -1217,4 +1293,297 @@ fn subqueries_resolve_their_own_tables_first() {
         "-- name: Opaque :many\n-- param: $1 cutoff i64\nSELECT id FROM partners WHERE id IN (SELECT n FROM (SELECT $1 AS n) s);",
     );
     assert_eq!(opaque.params, [param(1, "cutoff", "i64")]);
+}
+
+/// Karibu Pass's "due Partners": one column from two tables, deduplicated,
+/// with `ORDER BY` and `LIMIT` over the whole result.
+#[test]
+fn a_union_types_its_columns_from_every_branch() {
+    let due = one(
+        "-- name: DuePartners :many\nSELECT partner_id FROM offers WHERE status = $1\nUNION\nSELECT partner_id FROM partner_photos WHERE caption = $2\nORDER BY partner_id LIMIT $3;",
+    );
+    assert_eq!(due.result, ResultShape::Scalar("i64".to_owned()));
+    assert_eq!(
+        due.params,
+        [
+            param(1, "status", "String"),
+            param(2, "caption", "String"),
+            param(3, "limit", "i64"),
+        ]
+    );
+
+    // Names come from the first branch; types are shared as `CASE`'s are
+    // (`smallint` widens to `integer`), nullable when any branch is.
+    let widened = one(
+        "-- name: Holds :many\nSELECT id, rooms_held AS n, held_at FROM allocations\nUNION ALL\nSELECT id, seats, NULL::timestamptz FROM passes\nUNION ALL\nSELECT id, 0, now() FROM partners;",
+    );
+    assert_eq!(
+        row_columns(&widened),
+        [
+            ("id", "i64"),
+            ("n", "i32"),
+            ("held_at", "Option<chrono::DateTime<chrono::Utc>>")
+        ]
+    );
+    assert_eq!(
+        scalar(
+            "-- name: Q :many\nSELECT price FROM passes UNION SELECT rooms_held FROM allocations;"
+        ),
+        "rust_decimal::Decimal"
+    );
+
+    // Typed ids: one typed id stays, a typed id beside its plain type is
+    // the plain type.
+    assert_eq!(
+        typed_one("-- name: Q :many\nSELECT id FROM partners UNION SELECT partner_id FROM offers;")
+            .result,
+        ResultShape::Scalar("PartnerId".to_owned())
+    );
+    assert_eq!(
+        typed_one("-- name: Q :many\nSELECT id FROM partners UNION SELECT 0::bigint;").result,
+        ResultShape::Scalar("i64".to_owned())
+    );
+}
+
+/// `INTERSECT` keeps rows found in both branches, so a column is nullable
+/// only when both are; `EXCEPT` keeps the left branch's rows.
+#[test]
+fn intersect_and_except_take_their_rows_nullability() {
+    assert_eq!(
+        scalar("-- name: Q :many\nSELECT note FROM products INTERSECT SELECT name FROM products;"),
+        "String"
+    );
+    assert_eq!(
+        scalar("-- name: Q :many\nSELECT note FROM products EXCEPT SELECT name FROM products;"),
+        "Option<String>"
+    );
+    let except = one(
+        "-- name: Idle :many\nSELECT id FROM partners EXCEPT SELECT partner_id FROM offers WHERE status = $1;",
+    );
+    assert_eq!(except.result, ResultShape::Scalar("i64".to_owned()));
+    assert_eq!(except.params, [param(1, "status", "String")]);
+}
+
+#[test]
+fn union_branches_must_match_column_by_column() {
+    assert_eq!(
+        failure("-- name: Q :many\nSELECT id, name FROM partners UNION SELECT id FROM categories;"),
+        "the branches of UNION return 2 and 1 columns: column `name` has no match"
+    );
+    assert_eq!(
+        failure(
+            "-- name: Q :many\nSELECT id, name FROM partners UNION SELECT id, rooms_held FROM allocations;"
+        ),
+        "column `name` is `String` on the left of UNION and `i32` on its right; cast one of them"
+    );
+}
+
+/// A set operation in a subquery sees the enclosing query's tables, and
+/// one in a CTE or as an `INSERT … SELECT` source types like any other.
+#[test]
+fn set_operations_nest() {
+    let correlated = one(
+        "-- name: Pictured :many\nSELECT p.id FROM partners p WHERE EXISTS (\n    SELECT 1 FROM offers WHERE partner_id = p.id\n    UNION\n    SELECT 1 FROM partner_photos WHERE partner_id = p.id AND caption = $1\n);",
+    );
+    assert_eq!(correlated.params, [param(1, "caption", "String")]);
+
+    let within = one(
+        "-- name: Busy :many\nSELECT id, name FROM partners WHERE id IN (SELECT partner_id FROM offers WHERE status = $1 UNION SELECT partner_id FROM listings);",
+    );
+    assert_eq!(within.params, [param(1, "status", "String")]);
+
+    let cte = one(
+        "-- name: Ids :many\nWITH ids AS (SELECT partner_id AS id FROM offers UNION SELECT partner_id FROM listings)\nSELECT id FROM ids WHERE id > $1;",
+    );
+    assert_eq!(cte.params, [param(1, "id", "i64")]);
+
+    let copy = one(
+        "-- name: Copy :execrows\nINSERT INTO offers (partner_id, status)\nSELECT $1, 'copied'\nUNION\nSELECT partner_id, $2 FROM offers WHERE id = $3;",
+    );
+    assert_eq!(
+        copy.params,
+        [
+            param(1, "partner_id", "i64"),
+            param(2, "status", "String"),
+            param(3, "id", "i64"),
+        ]
+    );
+    assert!(
+        failure(
+            "-- name: Q :exec\nINSERT INTO offers (partner_id, status) SELECT $1, 'a' UNION SELECT partner_id FROM offers;"
+        )
+        .contains("the SELECT returns 1 values for 2 columns")
+    );
+}
+
+/// `generate_series` in `FROM` yields one column, named by the alias (or
+/// its column list), never NULL: integers give their widest type, a date or
+/// timestamp series gives the timestamp PostgreSQL returns (`date` bounds
+/// resolve to `timestamp with time zone`), and its step is an interval.
+#[test]
+fn generate_series_types_its_column() {
+    let numbers = one("-- name: Numbers :many\nSELECT n FROM generate_series(1, $1) AS n;");
+    assert_eq!(numbers.result, ResultShape::Scalar("i32".to_owned()));
+    assert_eq!(numbers.params, [param(1, "stop", "i32")]);
+
+    let weeks = one(
+        "-- name: Weeks :many\nSELECT week, week::date AS day FROM generate_series($1::date, $2::date, $3) AS week;",
+    );
+    assert_eq!(
+        row_columns(&weeks),
+        [
+            ("week", "chrono::DateTime<chrono::Utc>"),
+            ("day", "chrono::NaiveDate")
+        ]
+    );
+    assert_eq!(
+        weeks.params,
+        [
+            param(1, "start", "chrono::NaiveDate"),
+            param(2, "stop", "chrono::NaiveDate"),
+            param(3, "step", "sqlx::postgres::types::PgInterval"),
+        ]
+    );
+
+    let local = one(
+        "-- name: Local :many\nSELECT g.at FROM generate_series($1::timestamp, $2::timestamp, '1 day') AS g(at);",
+    );
+    assert_eq!(
+        local.result,
+        ResultShape::Scalar("chrono::NaiveDateTime".to_owned())
+    );
+
+    let unaliased = one(
+        "-- name: Unaliased :many\nSELECT generate_series FROM generate_series(1::bigint, 10);",
+    );
+    assert_eq!(unaliased.result, ResultShape::Scalar("i64".to_owned()));
+
+    let numbered = one(
+        "-- name: Numbered :many\nSELECT d, i FROM generate_series(1, 3) WITH ORDINALITY AS t(d, i);",
+    );
+    assert_eq!(row_columns(&numbered), [("d", "i32"), ("i", "i64")]);
+}
+
+/// Karibu's copy-forward: one row per week between two dates, cast back to
+/// a date for the target column.
+#[test]
+fn generate_series_copies_forward_into_an_insert() {
+    let query = one(
+        "-- name: CopyForward :exec\nINSERT INTO weekly_holds (offer_id, week_of, rooms) SELECT $1, week::date, $3 FROM generate_series($2::date, $4::date, '7 days') AS week;",
+    );
+    assert_eq!(
+        query.params,
+        [
+            param(1, "offer_id", "i64"),
+            param(2, "start", "chrono::NaiveDate"),
+            param(3, "rooms", "i32"),
+            param(4, "stop", "chrono::NaiveDate"),
+        ]
+    );
+}
+
+/// `unnest` of a cast placeholder takes a `Vec<T>` named after its column,
+/// and its column is `T`, never NULL; several arrays name their columns and
+/// are nullable, since PostgreSQL pads the shorter ones with NULL.
+#[test]
+fn unnest_types_its_array_parameter_and_column() {
+    let one_array = one(
+        "-- name: Known :many\nSELECT id FROM products WHERE id IN (SELECT pid FROM unnest($1::uuid[]) AS pid);",
+    );
+    assert_eq!(one_array.params, [param(1, "pid_list", "Vec<uuid::Uuid>")]);
+
+    let days = one("-- name: Days :many\nSELECT d.day FROM unnest($1::date[]) AS d(day);");
+    assert_eq!(
+        days.result,
+        ResultShape::Scalar("chrono::NaiveDate".to_owned())
+    );
+    assert_eq!(
+        days.params,
+        [param(1, "day_list", "Vec<chrono::NaiveDate>")]
+    );
+
+    let batch = one(
+        "-- name: AddItems :exec\nINSERT INTO order_items (order_id, item_id, quantity) SELECT $1, i.item_id, i.quantity FROM unnest($2::uuid[], $3::int[]) AS i(item_id, quantity);",
+    );
+    assert_eq!(
+        batch.params,
+        [
+            param(1, "order_id", "uuid::Uuid"),
+            param(2, "item_id_list", "Vec<uuid::Uuid>"),
+            param(3, "quantity_list", "Vec<i32>"),
+        ]
+    );
+    let padded = one(
+        "-- name: Pairs :many\nSELECT a, b, n FROM unnest($1::int[], $2::text[]) WITH ORDINALITY AS t(a, b, n);",
+    );
+    assert_eq!(
+        row_columns(&padded),
+        [("a", "Option<i32>"), ("b", "Option<String>"), ("n", "i64")]
+    );
+}
+
+/// `jsonb_to_recordset($n) AS x(col type, …)` types its columns from the
+/// definition list, nullable (a missing key is NULL), and `$n` as a
+/// `serde_json::Value` named after the alias; `json_to_recordset` too.
+#[test]
+fn jsonb_to_recordset_types_its_columns_and_json_parameter() {
+    let insert = one(
+        "-- name: AddLines :exec\nINSERT INTO order_items (order_id, item_id, quantity) SELECT $1, l.item_id, l.quantity FROM jsonb_to_recordset($2) AS l(item_id uuid, quantity int);",
+    );
+    assert_eq!(
+        insert.params,
+        [
+            param(1, "order_id", "uuid::Uuid"),
+            param(2, "l", "serde_json::Value"),
+        ]
+    );
+
+    let read = one(
+        "-- name: Lines :many\n-- param: $1 lines\nSELECT item_id, quantity FROM json_to_recordset($1::json) AS x(item_id uuid, quantity int);",
+    );
+    assert_eq!(
+        row_columns(&read),
+        [
+            ("item_id", "Option<uuid::Uuid>"),
+            ("quantity", "Option<i32>")
+        ]
+    );
+    assert_eq!(read.params, [param(1, "lines", "serde_json::Value")]);
+}
+
+/// What the engine can't type in `FROM` says what to write instead.
+#[test]
+fn set_returning_functions_explain_what_they_need() {
+    assert!(
+        failure("-- name: Bare :many\nSELECT * FROM jsonb_to_recordset($1) AS l;")
+            .contains("needs a column definition list"),
+    );
+    assert!(
+        failure("-- name: Untyped :many\nSELECT * FROM unnest($1) AS u;")
+            .contains("cast it to an array"),
+    );
+    assert!(
+        failure("-- name: Unknown :many\nSELECT * FROM generate_series($1, $2) AS g;")
+            .contains("cast a bound"),
+    );
+    assert!(
+        failure("-- name: NoStep :many\nSELECT * FROM generate_series($1::date, $2::date) AS g;")
+            .contains("needs a step"),
+    );
+    assert!(
+        failure("-- name: Other :many\nSELECT * FROM json_each($1) AS j;")
+            .contains("function `json_each` in FROM is not supported"),
+    );
+    assert!(
+        failure("-- name: Unnamed :many\nSELECT * FROM unnest($1::int[], $2::int[]) AS t;")
+            .contains("needs its columns named"),
+    );
+    assert!(
+        failure("-- name: Small :many\nSELECT * FROM generate_series(1::smallint, $1) AS g;")
+            .contains("ambiguous"),
+    );
+    assert_eq!(
+        one("-- name: Widened :many\nSELECT g FROM generate_series(1::smallint, 3) AS g;").result,
+        ResultShape::Scalar("i32".to_owned())
+    );
 }

@@ -7,6 +7,43 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+### Added
+
+- Data-modifying CTEs: `WITH x AS (UPDATE … RETURNING …)` (or `INSERT`,
+  `DELETE`) makes its `RETURNING` columns a table for the CTEs after it
+  and the final statement, which may be a `SELECT`, `INSERT` (`VALUES` or
+  `SELECT`), `UPDATE` or `DELETE`. The final statement types the result,
+  so `:execrows` and `RETURNING` both work, and one statement can cancel
+  an event and its bookings and record the refunds at once. A
+  data-modifying CTE nested in another CTE or a subquery fails
+  (PostgreSQL's rule), as does one in a `:page` query, whose rows and
+  total are two statements.
+- `UNION [ALL]`, `INTERSECT` and `EXCEPT` type at the top level, in CTEs,
+  in subqueries and as an `INSERT … SELECT` source; before, only a
+  recursive CTE's `UNION` was read. The first branch names the columns,
+  and each column takes the type its branches share, as `CASE` does
+  (numbers widen, a typed id beside its plain type is the plain type). A
+  column is nullable when any `UNION` branch's is, when both of an
+  `INTERSECT`'s are, or when an `EXCEPT`'s left one is. A column count or
+  type mismatch fails, naming the column. `ORDER BY` and `LIMIT` apply to
+  the whole result.
+- Set-returning functions in `FROM` are typed, each read like a table
+  under its alias (a one-column function's column takes the alias's name,
+  a column list renames, `WITH ORDINALITY` adds an `i64`).
+  `generate_series(start, stop[, step])` is `i32`/`i64`/`Decimal` over
+  numbers and the timestamp PostgreSQL returns otherwise (`date` bounds
+  give `DateTime<Utc>`; `week::date` is a `NaiveDate`), never NULL, and
+  types an untyped bound or step (`start`, `stop`, `step`). `unnest(
+  $1::uuid[])` names its slice parameter after the column (`id_list`)
+  and yields `Uuid`, never NULL (several arrays are `Option`, as
+  PostgreSQL pads them). `jsonb_to_recordset($1) AS l(item_id uuid,
+  quantity int)` (and `json_to_recordset`, `jsonb_to_record`,
+  `json_to_record`) takes its columns from the definition list, as
+  `Option`, and `$1` as a `serde_json::Value`. Batch inserts and a
+  copy-forward run in the fixture's PostgreSQL suite. Before, any
+  function in `FROM` failed the query; other functions still do, naming
+  the ones the engine types.
+
 ## Workspace 0.9.0 - 2026-11-06
 
 Published as `rok-data-sqlc` 0.9.0 with the workspace (root `CHANGELOG.md`).

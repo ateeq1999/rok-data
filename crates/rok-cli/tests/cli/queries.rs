@@ -401,7 +401,7 @@ fn unsupported_ctes_fail_with_path_and_line_diagnostics() -> Result<()> {
          WITH RECURSIVE t (n) AS (SELECT length('a') UNION ALL SELECT n + 1 FROM t) SELECT n FROM t;\n\
          \n\
          -- name: Purge :many\n\
-         WITH gone AS (DELETE FROM users RETURNING id) SELECT id FROM gone;\n",
+         WITH a AS (WITH gone AS (DELETE FROM users RETURNING id) SELECT id FROM gone) SELECT id FROM a;\n",
     )?;
     let out = output_dir(&dir);
 
@@ -425,7 +425,7 @@ fn unsupported_ctes_fail_with_path_and_line_diagnostics() -> Result<()> {
     );
     assert!(
         stderr.contains(&format!(
-            "{path}:7: query `Purge`: data-modifying CTE `gone`"
+            "{path}:7: query `Purge`: data-modifying CTE `gone` must be in the statement's own WITH"
         )),
         "{stderr}"
     );

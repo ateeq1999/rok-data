@@ -6,8 +6,8 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] An `UPDATE … RETURNING` CTE feeding an `INSERT … SELECT` generates with `:execrows` and with `RETURNING`
-- [ ] Two chained data-modifying CTEs generate
-- [ ] DB-backed test runs the statement atomically
+- [x] An `UPDATE … RETURNING` CTE feeding an `INSERT … SELECT` generates with `:execrows` and with `RETURNING`
+- [x] Two chained data-modifying CTEs generate
+- [x] DB-backed test runs the statement atomically

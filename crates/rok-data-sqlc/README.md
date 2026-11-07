@@ -625,6 +625,8 @@ are:
 - an `INSERT … VALUES` position or a value of an `INSERT … SELECT`, an
   `UPDATE … SET` target, or `ON CONFLICT … DO UPDATE SET`;
 - `LIMIT`/`OFFSET` (`i64`);
+- an argument of `generate_series` or `jsonb_to_recordset` in `FROM`
+  (see "More rules" below);
 - an explicit cast to a supported type, including an enum type
   (`$1::product_status` takes `types::ProductStatus`, and
   `$1::product_status[]` a slice of them).
@@ -777,6 +779,47 @@ pub async fn search_product_names<'e, E>(
 **More rules:**
 
 - `WITH` queries work: each CTE is treated as a table.
+- `UNION [ALL]`, `INTERSECT` and `EXCEPT` work at the top level, in a CTE,
+  in a subquery and as an `INSERT … SELECT` source. The first branch names
+  the columns; each column takes the type its branches share, as `CASE`'s
+  branches do (one type, or the widest number: `smallint` with `integer`
+  is `integer`, an integer with `numeric` is `numeric`; a typed id beside
+  its plain type is the plain type). A column is nullable when a `UNION`
+  branch's is, when both of an `INTERSECT`'s are, or when an `EXCEPT`'s
+  left one is. Branches with different column counts or unshared types
+  fail, naming the column (``column `name` is `String` on the left of
+  UNION and `i32` on its right; cast one of them``). `ORDER BY` and
+  `LIMIT` apply to the whole result, as in PostgreSQL.
+
+  ```sql
+  -- name: DuePartners :many
+  SELECT partner_id FROM invoices WHERE status = 'due'
+  UNION
+  SELECT partner_id FROM payouts WHERE paid_at IS NULL
+  ORDER BY partner_id;
+  ```
+- A CTE may modify data: `WITH x AS (UPDATE … RETURNING …)`, or an
+  `INSERT` or `DELETE`, makes its `RETURNING` columns a table for the CTEs
+  after it and the final statement, which may itself be a `SELECT`,
+  `INSERT`, `UPDATE` or `DELETE`. The final statement types the result:
+  `:exec`/`:execrows` reads none, a `:one`/`:many` reads its columns (its
+  `RETURNING`, for a write). PostgreSQL runs the whole statement at once,
+  so a failure anywhere undoes every change. A data-modifying CTE must be
+  in the statement's own `WITH` (PostgreSQL's rule), and a `:page` query
+  can't have one: its rows and its total are two statements.
+
+  ```sql
+  -- name: CancelEvent :execrows
+  WITH e AS (
+      UPDATE events SET status = 'cancelled'
+      WHERE id = $1 AND status <> 'cancelled' RETURNING id
+  ),
+  b AS (
+      UPDATE bookings SET status = 'cancelled' FROM e
+      WHERE bookings.event_id = e.id RETURNING bookings.id, bookings.amount
+  )
+  INSERT INTO refunds (booking_id, amount) SELECT id, amount FROM b;
+  ```
 - `UPDATE t SET … FROM a JOIN b …` and `DELETE FROM t USING a, b …` are
   typed like the join of `t` with the other tables: a column resolves
   across all of them, in the `SET` values, `WHERE` and `RETURNING`. An
@@ -797,6 +840,56 @@ pub async fn search_product_names<'e, E>(
   FROM partner_photos WHERE partner_id = $2
   ON CONFLICT DO NOTHING;
   ```
+- Set-returning functions in `FROM` are typed from their signatures and
+  read like a table under their alias. A one-column function's column takes
+  the alias's name (`AS week`), a column list renames it (`AS t(day)`),
+  and `WITH ORDINALITY` adds a never-NULL `i64` column (`ordinality`
+  unless the list names it):
+  - `generate_series(start, stop[, step])`: integer bounds give `i32` or
+    `i64`, `numeric` stays `Decimal`, timestamps stay `NaiveDateTime` or
+    `DateTime<Utc>`. `date` bounds give `DateTime<Utc>`, as PostgreSQL
+    picks `timestamp with time zone`, so cast the column (`week::date`)
+    for a `NaiveDate`. The column is never NULL; an untyped placeholder
+    bound takes the series' type (`start`, `stop`), and the step is an
+    interval for timestamps (`step`).
+  - `unnest($1::uuid[])`: the parameter is a `Vec<Uuid>` (taken as
+    `&[Uuid]`) named after its column (`id_list`), and the column is
+    `Uuid`, never NULL. Several arrays (`unnest($2::uuid[], $3::int[]) AS
+    l(item_id, quantity)`) need their columns named and are `Option`,
+    since PostgreSQL pads the shorter arrays with NULL.
+  - `jsonb_to_recordset($1) AS l(item_id uuid, quantity int)` (and
+    `json_to_recordset`, `jsonb_to_record`, `json_to_record`): the columns
+    come from the definition list, as `Option` since a missing key is
+    NULL (a `-- column:` override says otherwise), and `$1` is a
+    `serde_json::Value` named after the alias.
+
+  Any other function in `FROM` fails, naming the ones the engine types.
+  They let one statement write many rows, from a range or from one
+  parameter (`tests/fixture-app/queries/batches.sql` runs each against
+  PostgreSQL):
+
+  ```sql
+  -- name: CopyHoldsForward :execrows
+  INSERT INTO weekly_holds (offer_id, week_of, rooms)
+  SELECT $1, week::date, $2
+  FROM generate_series($3::date, $4::date, '7 days') AS week;
+
+  -- name: AddLinesFromArrays :execrows
+  INSERT INTO order_lines (order_id, item_id, quantity)
+  SELECT $1, l.item_id, l.quantity
+  FROM unnest($2::uuid[], $3::int[]) AS l(item_id, quantity);
+
+  -- name: AddLinesFromJson :execrows
+  -- param: $2 lines
+  INSERT INTO order_lines (order_id, item_id, quantity)
+  SELECT $1, l.item_id, l.quantity
+  FROM jsonb_to_recordset($2) AS l(item_id uuid, quantity int);
+  ```
+
+  `add_lines_from_arrays(&pool, order, &items, &quantities)` takes the
+  slices, and `add_lines_from_json(&pool, order, json!([{"item_id": …,
+  "quantity": 2}]))` one JSON array. One date per row is
+  `unnest($1::date[]) AS d(day)`, its parameter `day_list: &[NaiveDate]`.
 - An `ON CONFLICT (cols)` target must be one of the table's unique keys, and
   `ON CONFLICT ON CONSTRAINT name` must name its primary key or a unique
   constraint: the declared name, or PostgreSQL's default for an unnamed one
@@ -1865,7 +1958,9 @@ fails. With `--resource`, only that table's problems count.
 | Two relationships of one table with the same name, or a relationship named like a filter field | Rename one in `[relationships]`. |
 | A soft-delete column that is not a nullable timestamp | `delete` couldn't record the time. |
 | A query placeholder or result expression rok-data-sqlc can't type | Add a `-- param:` or `-- column:` override. |
-| Unknown tables or columns in a query, more than one statement, `UNION` outside a recursive CTE, data-modifying CTEs | They can't be analyzed (yet). |
+| Unknown tables or columns in a query, more than one statement | They can't be analyzed. |
+| Set-operation branches with different column counts or types they don't share | PostgreSQL would reject them; the error names the column. |
+| A data-modifying CTE nested in another CTE or a subquery, or in a `:page` query | PostgreSQL allows one only in the statement's own `WITH`; a page runs its query twice. |
 | A recursive CTE whose recursive term returns other columns than its anchor | The CTE's columns come from the anchor. |
 | An `ON CONFLICT (cols)` target that is not a unique key | It would fail at runtime. The error lists the table's unique keys. A partial unique index counts when the target repeats its condition: `ON CONFLICT (email) WHERE deleted_at IS NULL`. |
 | An `ON CONFLICT ON CONSTRAINT name` that names no primary key or unique constraint | It would fail at runtime. The error lists the table's constraint names. |
@@ -1885,8 +1980,6 @@ fails. With `--resource`, only that table's problems count.
   filters make `search` fail with `sqlx::Error::InvalidArgument`.
 - Keyset pagination (`search_after`) follows primary-key order only. Array
   and JSON columns get only null checks in filters.
-- `UNION` is read only as the body of a recursive CTE, and data-modifying
-  CTEs are rejected in query files.
 - `ALTER TABLE … RENAME TO`, `SET SCHEMA`, partitioning (`ATTACH`/`DETACH
   PARTITION`), and other `ALTER TABLE` forms that change
   the model in ways rok-data-sqlc doesn't follow fail the table they alter, at

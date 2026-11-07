@@ -29,6 +29,20 @@ pub(crate) fn check(statement: &Statement) -> Result<(), String> {
         SetExpr::Delete(_) => return Err(not_a_select("DELETE")),
         _ => {}
     }
+    // The rows and the total are two statements: the CTE would run twice.
+    if let Some(with) = &query.with
+        && let Some(cte) = with.cte_tables.iter().find(|cte| {
+            matches!(
+                cte.query.body.as_ref(),
+                SetExpr::Insert(_) | SetExpr::Update(_) | SetExpr::Delete(_)
+            )
+        })
+    {
+        return Err(format!(
+            "a `:page` query can't have a data-modifying CTE (`{}`): its rows and its total are two statements, so the change would run twice",
+            cte.alias.name
+        ));
+    }
     let own = match &query.limit_clause {
         Some(LimitClause::LimitOffset { limit: Some(_), .. })
         | Some(LimitClause::OffsetCommaLimit { .. }) => Some("LIMIT"),

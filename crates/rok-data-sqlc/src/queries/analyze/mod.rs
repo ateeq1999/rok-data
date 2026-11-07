@@ -6,15 +6,21 @@
 //! arithmetic with a numeric column; an `INSERT` value (of `VALUES` or a
 //! `SELECT`) or `UPDATE … SET` target; `LIMIT`/`OFFSET`; and explicit casts. Anything else must be
 //! declared with `-- param:` or `-- column:`; the generator never guesses. A
-//! non-recursive, read-only CTE is analyzed like a `SELECT` and then acts as
-//! a table for the statement that follows. `UPDATE … FROM` and
-//! `DELETE … USING` see their target and the other tables together, like a
-//! join. A subquery sees its own tables first, then the enclosing query's.
+//! non-recursive CTE is analyzed like a `SELECT` (one that modifies data like
+//! its `INSERT`, `UPDATE` or `DELETE`, by its `RETURNING`) and then acts as a
+//! table for the statements after it; the final statement gives the result.
+//! `UPDATE … FROM` and `DELETE … USING` see their target and the other
+//! tables together, like a join. A subquery sees its own tables first, then
+//! the enclosing query's. `UNION`, `INTERSECT` and `EXCEPT` type each column
+//! from the type their branches share, as `CASE` does.
+//! `generate_series`, `unnest` and `jsonb_to_recordset` in `FROM` act as
+//! tables typed from their signatures (`set_returning.rs`).
 
 mod conflict;
 mod params;
 mod resolve;
 mod results;
+mod set_returning;
 mod statements;
 #[cfg(test)]
 mod tests;
@@ -198,8 +204,8 @@ struct Output {
     name_error: Option<String>,
 }
 
-/// What a `FROM` item names: a schema table, or a CTE's result columns
-/// shaped as a table.
+/// What a `FROM` item names: a schema table, or a CTE's or set-returning
+/// function's result columns shaped as a table.
 #[derive(Clone)]
 enum TableRef<'a> {
     Schema(&'a Table),
@@ -248,6 +254,9 @@ struct Analysis<'a, 'c> {
     levels: Vec<usize>,
     /// CTEs visible by name, in definition order.
     ctes: Vec<Rc<Table>>,
+    /// How many queries enclose the one being analyzed: 1 for the
+    /// statement's own, more inside a CTE or subquery.
+    query_depth: usize,
     slots: BTreeMap<usize, Slot>,
     /// The type of each analyzed subquery's one column, by its address in
     /// the statement (which outlives the analysis); `None` when it returns
@@ -265,6 +274,7 @@ impl<'a, 'c> Analysis<'a, 'c> {
             scope: Vec::new(),
             levels: Vec::new(),
             ctes: Vec::new(),
+            query_depth: 0,
             slots: BTreeMap::new(),
             subquery_types: HashMap::new(),
             conflict_predicate: None,
