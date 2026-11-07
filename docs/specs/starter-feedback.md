@@ -246,6 +246,11 @@ From the notes on Karibu Pass's ticket 23 (its `scripts/dev.sh` list is the rok-
 - **Topics replace polling:** `publish` runs on the feature's transaction (`NOTIFY` is delivered on commit), with a Dart `Stream<Notice>` and a web `subscribe` helper, and the template Apps switch from timers (ticket 74).
 - **A polling helper meanwhile:** the Dart Client runtime's `poll(call, every:, until:)` stream, lifecycle-aware; TanStack Query's `refetchInterval` on the web.
 
+From the notes on Karibu Pass's ticket 24:
+
+- **One paging shape, with a pager in every Client:** lists answer page-number paging or, for `[api] cursor` tables, cursor paging; hand-written lists return `PaginatedResponse::from` a `:page` query; each Client gets a pager per list operation (Dart `Pager<T>`, a TS `infiniteQueryOptions` factory, a Rust `pages()` iterator).
+- **A feature's queries may read any table:** rule 4 already allows it; its message and the architecture guide say so plainly, with a Pass query joining the event's `cancel_reason`.
+
 ## Out of Scope
 
 - **Karibu Pass's product work:** phone and SMS sign-in (its ADR-0006), its tickets, removing its sample data, its repo-wide reformat and its own visual-check scripts. A phone sign-in Module may come later.
