@@ -251,6 +251,12 @@ From the notes on Karibu Pass's ticket 24:
 - **One paging shape, with a pager in every Client:** lists answer page-number paging or, for `[api] cursor` tables, cursor paging; hand-written lists return `PaginatedResponse::from` a `:page` query; each Client gets a pager per list operation (Dart `Pager<T>`, a TS `infiniteQueryOptions` factory, a Rust `pages()` iterator).
 - **A feature's queries may read any table:** rule 4 already allows it; its message and the architecture guide say so plainly, with a Pass query joining the event's `cancel_reason`.
 
+From the notes on Karibu Pass's ticket 25 (its 422-before-403 is actix's extractor race, ticket 79; its side table is unnecessary from 0.9.0, ticket 30):
+
+- **Two schemas with one name fail `rok gen`:** a hand-written `ToSchema` type named like another, generated or not, fails naming both files, instead of utoipa keeping one.
+- **Every constraint can carry a message:** ticket 39's annotation covers unique and foreign-key constraints too, so a 409 says what happened.
+- **A project-wide parameter shape:** `[queries] params = "auto" | "struct" | "positional"` beside ticket 59's per-query annotation.
+
 ## Out of Scope
 
 - **Karibu Pass's product work:** phone and SMS sign-in (its ADR-0006), its tickets, removing its sample data, its repo-wide reformat and its own visual-check scripts. A phone sign-in Module may come later.
