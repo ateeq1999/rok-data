@@ -372,7 +372,7 @@ pub(super) async fn data_modifying_ctes_run_as_one_statement(pool: &PgPool) {
     assert_eq!(rows.len(), 1);
     assert_eq!(
         (rows[0].product_id, rows[0].quantity),
-        (uuid::Uuid::from_u128(8_101).into(), 3)
+        (uuid::Uuid::from_u128(8_101), 3)
     );
 
     // Later scenarios count these tables' rows.
