@@ -133,3 +133,47 @@ mod tests {
         assert!(!partial("deleted_at IS NULL AND sku <> ''").counts(soft_delete));
     }
 }
+
+/// What a constraint a `-- rok:constraint` annotation names is: what a
+/// violation of it means to a caller.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ConstraintKind {
+    /// A `CHECK`: the value is wrong (422).
+    Check,
+    /// A primary key, unique constraint or unique index: the value is taken
+    /// (409).
+    Unique,
+    /// A foreign key: the change breaks a reference (409).
+    ForeignKey,
+    /// A name a trigger function raises (`RAISE … USING CONSTRAINT =
+    /// '<name>'`): the value is wrong (422).
+    Raised,
+}
+
+impl ConstraintKind {
+    /// The variant's name in the generated `ConstraintKind`.
+    pub fn variant(self) -> &'static str {
+        match self {
+            ConstraintKind::Check => "Check",
+            ConstraintKind::Unique => "Unique",
+            ConstraintKind::ForeignKey => "ForeignKey",
+            ConstraintKind::Raised => "Raised",
+        }
+    }
+}
+
+/// A `-- rok:constraint <name> [<field>] "<message>"` annotation, checked
+/// against the schema.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConstraintMessage {
+    /// The constraint's name, as PostgreSQL reports a violation of it.
+    pub name: String,
+    /// The constrained table's SQL name; `None` for a raised name.
+    pub table: Option<String>,
+    /// The column (SQL name) a violation is about, when the annotation
+    /// names one.
+    pub field: Option<String>,
+    /// What to tell the caller.
+    pub message: String,
+    pub kind: ConstraintKind,
+}

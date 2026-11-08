@@ -28,3 +28,7 @@ CREATE TABLE tags (
 );
 
 CREATE UNIQUE INDEX tags_name_key ON tags (tenant_id, lower(name));
+
+-- What a violation of these constraints answers (`db::constraints`).
+-- rok:constraint folders_owner_id_name_key name "You already have a folder by that name."
+-- rok:constraint bookmarks_document_id_fkey "The document no longer exists."

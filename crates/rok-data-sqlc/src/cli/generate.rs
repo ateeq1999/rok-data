@@ -140,6 +140,7 @@ impl GenerateArgs {
             relationships: Default::default(),
             scopes: Default::default(),
             modules: Default::default(),
+            query_params: None,
             api: config_file::ApiKeys::flags(
                 self.api_output.clone(),
                 self.api_framework.map(ApiFramework::from),
@@ -170,6 +171,7 @@ impl GenerateArgs {
             scopes: merged.scopes,
             modules: merged.modules,
             api: merged.api.resolve(),
+            query_params: merged.query_params.unwrap_or_default(),
         })
     }
 }

@@ -26,6 +26,25 @@ that it exists and won't ship a tag without it).
   quantity)`) or from one JSON parameter (`jsonb_to_recordset($2) AS
   l(item_id uuid, quantity int)`, a `serde_json::Value`). The engine
   README's "Writing query files" documents the patterns.
+- `-- rok:params struct|positional` and `[queries] params = "auto" |
+  "struct" | "positional"` fix a query function's parameter shape, so a
+  query growing a fourth parameter no longer breaks its callers; the
+  annotation wins, and the doc comment names the rule that applied.
+  Generated code is unchanged under `"auto"`, the default.
+- `-- rok:constraint <name> [<field>] "<message>"` in the schema dir
+  gives a constraint (check, unique, foreign key, unique index, or a
+  name a trigger raises) a field and a message, checked against the
+  schema, and generates `db::constraints` (`lookup`, `of_error`) for an
+  API's error mapping. The templates' use of it comes with rok-templates.
+
+**Fixed**
+
+- Two `ToSchema` types with one component name fail `rok gen` and `rok
+  gen check`, naming both files and lines, instead of utoipa keeping one
+  of them: a hand-written DTO named like a generated response no longer
+  replaces it in the contract and the Clients. Rename one, or give it
+  `#[schema(as = some_module::Name)]`. The check is the run's `the schema
+  names` step (`schema_names` in `--json`), after the data layer.
 
 ## [0.9.0] — strict, better-typed `rok gen`; one rule for finding the project; `:page` and shared queries
 

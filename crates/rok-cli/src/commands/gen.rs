@@ -102,7 +102,14 @@ fn generate(options: GenOptions) -> Result<ExitCode, String> {
         match rok_data_sqlc::generate(&run.settings.engine) {
             Ok(report) => {
                 steps.done();
-                let staged = stage(&run.settings);
+                // The OpenAPI schema names are read once the features are
+                // written: a hand-written type may clash with a generated one.
+                let staged = schema_names(&run.settings).and_then(|checked| {
+                    if checked {
+                        steps.done();
+                    }
+                    stage(&run.settings)
+                });
                 let shown = staged.as_ref().ok().and_then(Option::as_ref);
                 if run.settings.json {
                     bodies.push(print_json_body(
@@ -192,6 +199,9 @@ fn check(options: GenOptions) -> Result<ExitCode, String> {
                 continue;
             }
         };
+        if let Err(clash) = schema_names(&run.settings) {
+            findings.push(clash);
+        }
         let pending = staged_drift(&run.settings)?;
         if run.settings.json {
             bodies.push(print_json_body(
@@ -307,6 +317,41 @@ fn heading(run: &Run, multi: bool) {
     {
         println!("{app}:");
     }
+}
+
+/// Fails when two `ToSchema` types of the run's App share a component
+/// name in the OpenAPI document (utoipa would keep one of them silently).
+/// `Ok(false)` when the run generates no API, so there is nothing to read.
+fn schema_names(settings: &Settings) -> Result<bool, String> {
+    if settings.engine.api.is_none() {
+        return Ok(false);
+    }
+    let Some(src) = api_source(&settings.engine) else {
+        // A dry run of a new App: nothing written to read yet.
+        return Ok(true);
+    };
+    let clashes =
+        rok_data_sqlc::schema_names::clashes(&src).map_err(|error| format!("{error:#}"))?;
+    if clashes.is_empty() {
+        return Ok(true);
+    }
+    Err(clashes
+        .iter()
+        .map(|clash| clash.message(display_path))
+        .collect::<Vec<_>>()
+        .join("\n"))
+}
+
+/// The App's source: the `src/` of the crate its API features are
+/// generated into, the nearest directory named `src` holding `api.output`,
+/// when there is one.
+fn api_source(engine: &Config) -> Option<PathBuf> {
+    let output = &engine.api.as_ref()?.output;
+    output
+        .ancestors()
+        .find(|dir| dir.file_name().is_some_and(|name| name == "src"))
+        .filter(|src| src.is_dir())
+        .map(Path::to_path_buf)
 }
 
 /// The migration pair the run stages, if any.

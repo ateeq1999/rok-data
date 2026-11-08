@@ -91,6 +91,30 @@ fn run(config: &Config, report: &mut Report, analysis: &mut Analysis) -> anyhow:
             module_location(key)
         );
     }
+    // The `-- rok:constraint` annotations, checked against the whole
+    // schema before any table is set aside.
+    let constraints = parser::constraint_messages(
+        &sources
+            .iter()
+            .map(|(path, sql)| parser::SchemaSource { path, sql })
+            .collect::<Vec<_>>(),
+        &parsed.schema,
+    )
+    .map_err(anyhow::Error::msg)?;
+    if !constraints.is_empty()
+        && let Some(table) = parsed
+            .schema
+            .tables
+            .iter()
+            .find(|table| table.module_name == generator::constraints::MODULE)
+    {
+        bail!(
+            "table `{}` would generate the module `{}`, which the schema's `-- rok:constraint` \
+             annotations generate; rename the table's module in `[modules]`",
+            table.display_name(),
+            generator::constraints::MODULE
+        );
+    }
     parsed.fail_tables(|table| generator::table_failures(table, config));
     let sql = snapshot_sql(&sources);
 
@@ -202,11 +226,18 @@ fn run(config: &Config, report: &mut Report, analysis: &mut Analysis) -> anyhow:
     let mut failed_files = Vec::new();
     for input in &query_inputs {
         let AnalyzedFile {
-            queries,
+            mut queries,
             failures,
             skipped,
             lines,
         } = analyze_query_file(&input.path, input.shared, &parsed, &selected)?;
+        // `[queries] params` applies to every query without its own
+        // `-- rok:params`.
+        for query in &mut queries {
+            if query.params_rule == crate::queries::ParamsRule::Count {
+                query.params_rule = crate::queries::ParamsRule::of(None, config.query_params);
+            }
+        }
         report.skipped_queries.extend(skipped);
         analysis
             .queries
@@ -252,6 +283,7 @@ fn run(config: &Config, report: &mut Report, analysis: &mut Analysis) -> anyhow:
         &selected,
         &parsed.schema.enums,
         queries_module,
+        &constraints,
         &kept,
     )
     .map_err(anyhow::Error::msg)?;

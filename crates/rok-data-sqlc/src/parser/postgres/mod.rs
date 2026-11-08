@@ -7,6 +7,7 @@ mod checks;
 mod constraints;
 mod enums;
 mod functions;
+mod messages;
 mod named;
 mod names;
 mod recover;
@@ -27,6 +28,7 @@ use self::table::table_failure;
 use super::diagnostics::{LastGood, TableFailure};
 use crate::schema::{Schema, Table};
 
+pub use self::messages::constraint_messages;
 pub(crate) use self::names::{ident_name, object_leaf_name};
 pub(crate) use self::recover::split_statements;
 pub use self::statements::parse_sources_with_modules;

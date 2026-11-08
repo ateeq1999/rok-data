@@ -64,6 +64,7 @@ mod check;
 mod generate;
 mod json;
 mod next_steps;
+mod schema_names;
 mod settings;
 mod staging;
 mod steps;

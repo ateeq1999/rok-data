@@ -7,7 +7,8 @@
 //! receives the n-th parameter, and every function fails with
 //! `rok_data::Error`.
 
-use crate::queries::{AnalyzedQuery, Param, ResultShape, ReturnMode, page};
+use crate::QueryParams;
+use crate::queries::{AnalyzedQuery, Param, ParamsRule, ResultShape, ReturnMode, page};
 use crate::schema::{BaseType, Shape, Table, mentions_generated_type};
 
 use super::{
@@ -15,13 +16,40 @@ use super::{
     push_fn_head_bound, serde_derives, sql, use_paths,
 };
 
-/// Queries with more parameters than this take a `{Name}Params` struct
-/// instead of positional arguments.
+/// Under the count rule, queries with more parameters than this take a
+/// `{Name}Params` struct instead of positional arguments.
 const MAX_POSITIONAL_PARAMS: usize = 3;
 
-/// Whether the query's function takes a `{Name}Params` struct.
+/// Whether the query's function takes a `{Name}Params` struct: its
+/// [`ParamsRule`] says, and a query without parameters takes none.
 pub fn uses_params_struct(query: &AnalyzedQuery) -> bool {
-    query.params.len() > MAX_POSITIONAL_PARAMS
+    match query.params_rule {
+        ParamsRule::Count => query.params.len() > MAX_POSITIONAL_PARAMS,
+        ParamsRule::Annotation(shape) | ParamsRule::Project(shape) => match shape {
+            QueryParams::Struct => !query.params.is_empty(),
+            QueryParams::Positional => false,
+            _ => query.params.len() > MAX_POSITIONAL_PARAMS,
+        },
+    }
+}
+
+/// The doc line naming the rule that fixed the query's parameter shape,
+/// when one did: the count rule (no annotation, `[queries] params =
+/// "auto"`) adds none, so its functions read as they always have.
+fn params_rule_doc(query: &AnalyzedQuery) -> Option<String> {
+    let source = match query.params_rule {
+        ParamsRule::Count => return None,
+        ParamsRule::Annotation(shape) => format!("`-- rok:params {}`", shape.name()),
+        ParamsRule::Project(shape) => format!("`[queries] params = \"{}\"`", shape.name()),
+    };
+    if query.params.is_empty() {
+        return None;
+    }
+    Some(if uses_params_struct(query) {
+        format!("Takes its parameters as `{}Params`: {source}.", query.name)
+    } else {
+        format!("Takes its parameters positionally: {source}.")
+    })
 }
 
 /// Renders `db/queries.rs`, a direct child of `db`. `tables` are the
@@ -270,6 +298,7 @@ fn render_query(output: &mut String, query: &AnalyzedQuery, ids: &TypedIds<'_>, 
         ReturnMode::ExecRows => doc.push("Returns the number of affected rows.".to_owned()),
         _ => {}
     }
+    doc.extend(params_rule_doc(query));
     let doc: Vec<&str> = doc.iter().map(String::as_str).collect();
     push_doc(output, 0, &doc);
     push_fn_head(
@@ -308,18 +337,17 @@ fn render_page(
 ) {
     fn_params.extend(["page: u64".to_owned(), "per_page: u64".to_owned()]);
     output.push('\n');
-    push_doc(
-        output,
-        0,
-        &[
-            &format!(
-                "Runs the `{}` query (`:page`): page `page` (from 1, 0 is 1) of `per_page` rows,",
-                query.name
-            ),
-            "with the total across every page.",
-            "Fails with `rok_data::Error::InvalidQuery` when `per_page` is 0.",
-        ],
-    );
+    let mut doc = vec![
+        format!(
+            "Runs the `{}` query (`:page`): page `page` (from 1, 0 is 1) of `per_page` rows,",
+            query.name
+        ),
+        "with the total across every page.".to_owned(),
+        "Fails with `rok_data::Error::InvalidQuery` when `per_page` is 0.".to_owned(),
+    ];
+    doc.extend(params_rule_doc(query));
+    let doc: Vec<&str> = doc.iter().map(String::as_str).collect();
+    push_doc(output, 0, &doc);
     push_fn_head_bound(
         output,
         &query.fn_name,
@@ -414,6 +442,7 @@ mod tests {
             sql: "SELECT id, label\nFROM things\nWHERE id = $1".to_owned(),
             params,
             result,
+            params_rule: Default::default(),
         }
     }
 

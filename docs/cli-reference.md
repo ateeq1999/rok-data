@@ -467,7 +467,25 @@ error: queries/sessions.sql:1: query `SessionExpiry`: cannot infer the type of r
 failures are in `failures` (`skipped` in a `--lenient` run), each with
 its `path` and `line`.
 
-A step that fails (an App's data layer or migration, the contract export,
+An App serving API features also has its OpenAPI schema names read, as
+the step after its data layer (`the schema names`): utoipa keeps one
+schema per component name, so a hand-written `ToSchema` type named like
+another (generated or not) would silently replace it in the contract and
+the Clients. `rok gen` and `rok gen check` read the `src/` holding
+`api.output` and fail naming both types:
+
+```text
+error: the schema names failed: two `ToSchema` types are named `UserResponse` in the OpenAPI document, and utoipa keeps only one of them:
+  src/dto.rs:3
+  src/features/users/dto.rs:54
+rename one of them, or give it a name of its own with `#[schema(as = some_module::UserResponse)]`
+```
+
+`#[schema(as = admin::UserResponse)]` names the component
+`admin.UserResponse`, as utoipa does; test code (`#[cfg(test)]`) is not
+read.
+
+A step that fails (an App's data layer, schema names or migration, the contract export,
 a Client) ends a run of several steps with the list of them and the command
 that finishes the rest; nothing done is rolled back:
 
@@ -484,7 +502,7 @@ nothing was rolled back; once the cause is fixed, `rok gen` finishes the rest
 
 The command keeps the run's flags, without `--migration` once a migration
 is staged. With `--json`, the steps are an object `{"steps": [{"kind":
-"data_layer"|"migration"|"export"|"client", "app"|"migration"|"client": ...,
+"data_layer"|"schema_names"|"migration"|"export"|"client", "app"|"migration"|"client": ...,
 "step": ..., "status": "done"|"failed"|"skipped", "error": ...}],
 "finish": "rok gen"}`: the last element of a Monorepo's array, or keys of a
 plain project's object.

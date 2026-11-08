@@ -7,8 +7,9 @@
 //! ```
 //!
 //! `-- name:` starts a query; `-- param:` and `-- column:` lines that follow
-//! it override inferred parameter and result-column types, and
-//! `-- rok:skip [note]` leaves the query ungenerated on purpose. Other
+//! it override inferred parameter and result-column types,
+//! `-- rok:skip [note]` leaves the query ungenerated on purpose, and
+//! `-- rok:params struct|positional` fixes the shape of its parameters. Other
 //! full-line comments are dropped; everything else up to the next
 //! `-- name:` is the query's SQL.
 
@@ -101,6 +102,9 @@ pub struct QueryDef {
     /// `-- rok:skip [note]`: the query is left ungenerated on purpose, with
     /// the note as written (empty when there is none).
     pub skip: Option<String>,
+    /// `-- rok:params struct` or `-- rok:params positional`: the shape of
+    /// the function's parameters, over the project's `[queries] params`.
+    pub params_shape: Option<crate::QueryParams>,
 }
 
 /// A query that cannot be generated, with the reason.
@@ -169,8 +173,10 @@ pub fn parse_query_file(text: &str) -> (Vec<QueryDef>, Vec<QueryFailure>) {
                 ),
                 ("column:", parse_column),
                 ("rok:skip", parse_skip),
+                ("rok:params", parse_params_shape),
             ] {
-                // `rok:skip` is a whole word, its note after a space.
+                // `rok:skip` and `rok:params` are whole words, their values
+                // after a space.
                 let directive = comment.strip_prefix(prefix).filter(|rest| {
                     prefix.ends_with(':')
                         || rest.is_empty()
@@ -286,6 +292,7 @@ fn start(header: &str, line: usize) -> Pending {
             params: Vec::new(),
             columns: Vec::new(),
             skip: None,
+            params_shape: None,
         }),
         errors: Vec::new(),
         label,
@@ -360,6 +367,23 @@ fn parse_param(directive: &str, def: &mut QueryDef) -> Result<(), String> {
 
 fn parse_skip(note: &str, def: &mut QueryDef) -> Result<(), String> {
     def.skip = Some(note.to_owned());
+    Ok(())
+}
+
+fn parse_params_shape(shape: &str, def: &mut QueryDef) -> Result<(), String> {
+    use crate::QueryParams;
+    let parsed = match shape {
+        "struct" => QueryParams::Struct,
+        "positional" => QueryParams::Positional,
+        _ => {
+            return Err(format!(
+                "unknown parameter shape `{shape}` in `-- rok:params`: expected `struct` or `positional`"
+            ));
+        }
+    };
+    if def.params_shape.replace(parsed).is_some() {
+        return Err("`-- rok:params` is given more than once".to_owned());
+    }
     Ok(())
 }
 

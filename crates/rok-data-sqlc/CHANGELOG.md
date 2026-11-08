@@ -43,6 +43,26 @@ the *generated* API count as breaking (see ADR 0012).
   copy-forward run in the fixture's PostgreSQL suite. Before, any
   function in `FROM` failed the query; other functions still do, naming
   the ones the engine types.
+- A query's parameter shape can be fixed, so adding a parameter never
+  turns positional arguments into a `…Params` struct: `-- rok:params
+  struct` or `-- rok:params positional` per query, and `[queries] params =
+  "auto" | "struct" | "positional"` per project (the annotation wins;
+  `"auto"`, the default, is the old rule: positional up to three, the
+  struct from four). A fixed function's doc comment names the annotation
+  or setting. In `rok-data-sqlc.toml`, `queries` may be a `[queries]`
+  section holding `paths` beside `params`; `rok.toml` keeps the paths in
+  `[generate] queries`. The library's `Config::query_params` and
+  `QueryParams` carry the setting.
+- `-- rok:constraint <name> [<field>] "<message>"`, anywhere in the
+  schema dir, gives a `CHECK`, primary key, unique or foreign key
+  constraint, a named unique index, or a name a trigger raises (`RAISE …
+  USING CONSTRAINT = '<name>'`) the field and message a violation maps
+  to. An unknown name or field fails the run at the annotation's
+  `path:line`. The annotations generate `db/constraints.rs`: a
+  `CONSTRAINTS` table of `Constraint { name, table, field, message, kind
+  }` sorted by name, with `lookup(name)` and `of_error(&rok_data::Error)`;
+  a schema without annotations generates no file, so existing output is
+  unchanged.
 
 ## Workspace 0.9.0 - 2026-11-06
 
