@@ -202,11 +202,18 @@ fn run(config: &Config, report: &mut Report, analysis: &mut Analysis) -> anyhow:
     let mut failed_files = Vec::new();
     for input in &query_inputs {
         let AnalyzedFile {
-            queries,
+            mut queries,
             failures,
             skipped,
             lines,
         } = analyze_query_file(&input.path, input.shared, &parsed, &selected)?;
+        // `[queries] params` applies to every query without its own
+        // `-- rok:params`.
+        for query in &mut queries {
+            if query.params_rule == crate::queries::ParamsRule::Count {
+                query.params_rule = crate::queries::ParamsRule::of(None, config.query_params);
+            }
+        }
         report.skipped_queries.extend(skipped);
         analysis
             .queries

@@ -12,6 +12,7 @@ use tempfile::TempDir;
 mod api;
 mod extractors;
 mod generation;
+mod params;
 
 const SCHEMA: &str = "CREATE TABLE users (id UUID PRIMARY KEY, email TEXT NOT NULL);\n\
      CREATE TABLE spans (id BIGSERIAL PRIMARY KEY, duration POINT NOT NULL);";

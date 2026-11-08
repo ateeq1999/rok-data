@@ -13,6 +13,7 @@ use serde::Deserialize;
 
 use super::{
     ApiKeys, ChangeValue, ConventionKeys, DeriveName, ExtractorName, FileConfig, OneOrMany,
+    QueryKeys,
 };
 
 /// The unified project file.
@@ -46,6 +47,10 @@ pub(super) struct RawProject {
     /// The API settings.
     #[serde(default)]
     api: ApiKeys,
+    /// The query settings: `params`, the shape of every query function's
+    /// parameters (the query paths sit in `[generate] queries`).
+    #[serde(default)]
+    queries: QueryKeys,
     /// The scaffold settings, owned by the scaffolders.
     #[serde(default)]
     #[allow(dead_code)]
@@ -92,6 +97,7 @@ impl RawProject {
         let mut file = self.generate.unwrap_or_default().resolve(base);
         file.conventions = self.conventions;
         file.api = self.api.relative_to(base);
+        file.query_params = self.queries.params.map(super::ParamsName::shape);
         file
     }
 }
@@ -134,6 +140,7 @@ impl GenerationKeys {
             scopes: self.scopes,
             modules: self.modules,
             api: ApiKeys::default(),
+            query_params: None,
         }
     }
 }
@@ -149,6 +156,25 @@ mod tests {
     fn settings(toml: &str) -> FileConfig {
         let raw: RawProject = toml::from_str(toml).expect("valid project file");
         raw.resolve(Path::new("/project"))
+    }
+
+    /// `[queries] params` sets every query's parameter shape; a shape the
+    /// engine doesn't know fails, naming the ones it does.
+    #[test]
+    fn the_queries_section_sets_the_parameter_shape() {
+        let file =
+            settings("[generate]\nqueries = \"queries/\"\n\n[queries]\nparams = \"struct\"\n");
+        assert_eq!(file.query_params, Some(crate::QueryParams::Struct));
+        assert_eq!(file.queries, [Path::new("/project").join("queries/")]);
+        let error = toml::from_str::<RawProject>("[queries]\nparams = \"structs\"\n")
+            .expect_err("an unknown shape fails")
+            .to_string();
+        assert!(
+            error.contains(
+                "unknown variant `structs`, expected one of `auto`, `struct`, `positional`"
+            ),
+            "{error}"
+        );
     }
 
     #[test]

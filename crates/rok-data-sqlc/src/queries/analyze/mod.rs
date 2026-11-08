@@ -82,6 +82,34 @@ pub struct AnalyzedQuery {
     pub sql: String,
     pub params: Vec<Param>,
     pub result: ResultShape,
+    /// What decided the shape of its parameters: its `-- rok:params`, or
+    /// the count rule until the run applies the project's `[queries] params`.
+    pub params_rule: ParamsRule,
+}
+
+/// What decided the shape of a query function's parameters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ParamsRule {
+    /// The count rule ([`QueryParams::Auto`](crate::QueryParams::Auto)):
+    /// positional up to three parameters, the struct from four.
+    #[default]
+    Count,
+    /// The query's own `-- rok:params`.
+    Annotation(crate::QueryParams),
+    /// The project's `[queries] params`.
+    Project(crate::QueryParams),
+}
+
+impl ParamsRule {
+    /// The rule a query annotated with `annotation` follows in a project
+    /// whose `[queries] params` is `project`: the annotation wins.
+    pub fn of(annotation: Option<crate::QueryParams>, project: crate::QueryParams) -> Self {
+        match (annotation, project) {
+            (Some(shape), _) => ParamsRule::Annotation(shape),
+            (None, crate::QueryParams::Auto) => ParamsRule::Count,
+            (None, shape) => ParamsRule::Project(shape),
+        }
+    }
 }
 
 /// Analyzes each query against the schema.
@@ -179,6 +207,7 @@ fn analyze_one(def: &QueryDef, context: &Context<'_>) -> Result<AnalyzedQuery, S
             .to_owned(),
         params,
         result,
+        params_rule: ParamsRule::of(def.params_shape, crate::QueryParams::Auto),
     })
 }
 

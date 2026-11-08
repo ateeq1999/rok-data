@@ -26,6 +26,11 @@ that it exists and won't ship a tag without it).
   quantity)`) or from one JSON parameter (`jsonb_to_recordset($2) AS
   l(item_id uuid, quantity int)`, a `serde_json::Value`). The engine
   README's "Writing query files" documents the patterns.
+- `-- rok:params struct|positional` and `[queries] params = "auto" |
+  "struct" | "positional"` fix a query function's parameter shape, so a
+  query growing a fourth parameter no longer breaks its callers; the
+  annotation wins, and the doc comment names the rule that applied.
+  Generated code is unchanged under `"auto"`, the default.
 
 **Fixed**
 

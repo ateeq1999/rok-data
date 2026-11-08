@@ -18,7 +18,7 @@ use serde::Deserialize;
 use serde::de::{self, Deserializer, Visitor};
 
 use crate::report::display_path;
-use crate::{Conventions, Derive, Extractor, IdGeneration, RelationshipChange};
+use crate::{Conventions, Derive, Extractor, IdGeneration, QueryParams, RelationshipChange};
 
 mod api_keys;
 mod project;
@@ -59,6 +59,8 @@ pub(crate) struct FileConfig {
     pub(crate) modules: BTreeMap<String, String>,
     /// The `[api]` keys, with `output` resolved.
     pub(crate) api: ApiKeys,
+    /// `[queries] params`: the parameter shape of every query function.
+    pub(crate) query_params: Option<QueryParams>,
 }
 
 /// The `[relationships]` entries one source sets, by table and then by
@@ -89,6 +91,7 @@ impl FileConfig {
             scopes: scopes_over(self.scopes, lower.scopes),
             modules: modules_over(self.modules, lower.modules),
             api: self.api.over(lower.api),
+            query_params: self.query_params.or(lower.query_params),
         }
     }
 
@@ -113,6 +116,7 @@ impl FileConfig {
             scopes: self.scopes,
             modules: self.modules,
             api: self.api.resolve(),
+            query_params: self.query_params.unwrap_or_default(),
         }
     }
 }
@@ -153,8 +157,9 @@ struct RawFile {
     /// The migration history directory the staging writes its pairs into.
     #[serde(default)]
     migrations: Option<PathBuf>,
+    /// The query paths, or a `[queries]` section with `paths` and `params`.
     #[serde(default)]
-    queries: Option<OneOrMany>,
+    queries: Option<QueriesValue>,
     output: Option<PathBuf>,
     resource: Option<String>,
     #[serde(default)]
@@ -218,10 +223,14 @@ impl RawFile {
                 .map(|p| base.join(p))
                 .collect()
         };
+        let (queries, query_params) = match self.queries {
+            Some(QueriesValue { paths, params }) => (paths, params.map(ParamsName::shape)),
+            None => (None, None),
+        };
         FileConfig {
             schema: resolve(self.schema),
             migrations: self.migrations.map(|p| base.join(p)),
-            queries: resolve(self.queries),
+            queries: resolve(queries),
             output: self.output.map(|p| base.join(p)),
             resource: self.resource,
             conventions: self.conventions,
@@ -245,6 +254,7 @@ impl RawFile {
             scopes: self.scopes,
             modules: self.modules,
             api: self.api.relative_to(base),
+            query_params,
         }
     }
 }
@@ -373,6 +383,95 @@ impl ConventionKeys {
             conventions.primary_key_ids = ids.id_generation();
         }
         conventions
+    }
+}
+
+/// A legacy file's `queries`: the query paths (`queries = "queries/"`), or
+/// a `[queries]` section holding them as `paths` beside `params`.
+#[derive(Debug)]
+struct QueriesValue {
+    paths: Option<OneOrMany>,
+    params: Option<ParamsName>,
+}
+
+impl<'de> Deserialize<'de> for QueriesValue {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct QueriesVisitor;
+
+        impl<'de> Visitor<'de> for QueriesVisitor {
+            type Value = QueriesValue;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str(
+                    "a path, a list of paths, or a `[queries]` section with `paths` and `params`",
+                )
+            }
+
+            fn visit_str<E: de::Error>(self, path: &str) -> Result<QueriesValue, E> {
+                Ok(QueriesValue {
+                    paths: Some(OneOrMany::One(path.into())),
+                    params: None,
+                })
+            }
+
+            fn visit_seq<A: de::SeqAccess<'de>>(self, seq: A) -> Result<QueriesValue, A::Error> {
+                let paths =
+                    Vec::<PathBuf>::deserialize(de::value::SeqAccessDeserializer::new(seq))?;
+                Ok(QueriesValue {
+                    paths: Some(OneOrMany::Many(paths)),
+                    params: None,
+                })
+            }
+
+            fn visit_map<A: de::MapAccess<'de>>(self, map: A) -> Result<QueriesValue, A::Error> {
+                let section =
+                    QueriesSection::deserialize(de::value::MapAccessDeserializer::new(map))?;
+                Ok(QueriesValue {
+                    paths: section.paths,
+                    params: section.params,
+                })
+            }
+        }
+
+        deserializer.deserialize_any(QueriesVisitor)
+    }
+}
+
+/// The `[queries]` section of a legacy file.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct QueriesSection {
+    /// The annotated query files or directories.
+    paths: Option<OneOrMany>,
+    /// The parameter shape of every query function.
+    params: Option<ParamsName>,
+}
+
+/// The `[queries]` section of `rok.toml`, whose query paths sit in
+/// `[generate] queries`.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct QueryKeys {
+    /// The parameter shape of every query function.
+    pub(super) params: Option<ParamsName>,
+}
+
+/// A `params` value: `"auto"`, `"struct"` or `"positional"`.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(super) enum ParamsName {
+    Auto,
+    Struct,
+    Positional,
+}
+
+impl ParamsName {
+    pub(super) fn shape(self) -> QueryParams {
+        match self {
+            ParamsName::Auto => QueryParams::Auto,
+            ParamsName::Struct => QueryParams::Struct,
+            ParamsName::Positional => QueryParams::Positional,
+        }
     }
 }
 

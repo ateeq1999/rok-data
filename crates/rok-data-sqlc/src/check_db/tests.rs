@@ -35,6 +35,7 @@ fn query(name: &str, sql: &str, params: &[(&str, &str)], result: ResultShape) ->
                 })
                 .collect(),
             result,
+            params_rule: Default::default(),
         },
     }
 }

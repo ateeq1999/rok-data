@@ -549,6 +549,7 @@ A query file holds SQL statements, each starting with a `-- name:` line:
 -- param: $<n> <name>[!] [<RustType>] (optional, repeatable)
 -- column: <name> <RustType>          (optional, repeatable)
 -- rok:skip [<note>]                  (optional)
+-- rok:params struct|positional       (optional)
 <one SQL statement>
 ```
 
@@ -560,6 +561,9 @@ through hand-written SQLx code. The run prints a note instead of failing,
 without `--lenient`: ``note: queries/holds.sql:12: query `HoldRooms` left
 ungenerated (`-- rok:skip`: <note>)``. `rok gen --json` lists it under
 `skipped_on_purpose`, apart from `failures` and `skipped`.
+
+`-- rok:params struct` or `-- rok:params positional` fixes the shape of the
+query's parameters; see "Parameters" below.
 
 | Return mode | Runs | Returns |
 |---|---|---|
@@ -677,6 +681,30 @@ pub async fn upsert_product_price<'e, E>(
     params: UpsertProductPriceParams,
 ) -> Result<Product, rok_data::Error>
 ```
+
+**Parameters: positional, or a struct.** Under the default rule
+(`[queries] params = "auto"`), a query takes up to three parameters
+positionally and a `{Name}Params` struct from four, so adding a fourth one
+changes every call site. To keep a query's call shape, fix it:
+
+```sql
+-- name: SetLocation :exec
+-- rok:params struct
+UPDATE venues SET city = $2, country = $3 WHERE id = $1;
+```
+
+```text
+/// Runs the `SetLocation` query (`:exec`).
+/// Takes its parameters as `SetLocationParams`: `-- rok:params struct`.
+pub async fn set_location<'e, E>(executor: E, params: SetLocationParams) -> Result<(), rok_data::Error>
+```
+
+`-- rok:params positional` keeps positional arguments however many there
+are. `[queries] params = "struct"` gives every query its struct (a query
+without parameters takes none), and `"positional"` keeps every query
+positional; a query's own `-- rok:params` wins over the project's setting.
+The function's doc comment names the annotation or setting that fixed its
+shape; under the default rule it says nothing new.
 
 **Result columns are resolved against the schema.** rok-data-sqlc infers `*`,
 `t.*`, plain and qualified columns, aliases, and `COUNT(…)` (`i64`). The
@@ -1249,7 +1277,7 @@ every key:
 <!-- config-reference -->
 ```toml
 schema   = ["migrations/"]   # a path or a list: SQL files or migration directories
-queries  = ["queries/"]      # a path or a list: query files or directories
+queries  = ["queries/"]      # a path or a list: query files or directories; or a [queries] section, below
 output   = "src/db"          # the default
 resource = "products"        # add this table to the generated ones; rarely useful in a file
 derive   = ["serde", "validate"]  # extra derives for generated types; "validate" needs "serde"
@@ -1319,6 +1347,19 @@ products = ["name", "price", "created_at"]
 email  = ["trim", "toLowerCase", "email"]
 handle = ["alphaNumeric(allowDashes)", "minLength(3)", { regex = "^[a-z0-9-]+$" }]
 ```
+
+`queries` may instead be a `[queries]` section, which holds the paths as
+`paths` beside `params`, every query function's parameter shape (see
+"Parameters" under "Writing query files"):
+
+```toml
+[queries]
+paths  = ["queries/"]
+params = "struct"            # "auto" (the default), "struct" or "positional"
+```
+
+In `rok.toml` the paths stay in `[generate] queries`, and `[queries]` holds
+`params` alone.
 
 `[api]` configures the generated API features (engine ADR 0016). Without `output`
 (or `-a`), every other `[api]` key is ignored. Its single keys and

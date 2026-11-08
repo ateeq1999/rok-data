@@ -43,6 +43,16 @@ the *generated* API count as breaking (see ADR 0012).
   copy-forward run in the fixture's PostgreSQL suite. Before, any
   function in `FROM` failed the query; other functions still do, naming
   the ones the engine types.
+- A query's parameter shape can be fixed, so adding a parameter never
+  turns positional arguments into a `…Params` struct: `-- rok:params
+  struct` or `-- rok:params positional` per query, and `[queries] params =
+  "auto" | "struct" | "positional"` per project (the annotation wins;
+  `"auto"`, the default, is the old rule: positional up to three, the
+  struct from four). A fixed function's doc comment names the annotation
+  or setting. In `rok-data-sqlc.toml`, `queries` may be a `[queries]`
+  section holding `paths` beside `params`; `rok.toml` keeps the paths in
+  `[generate] queries`. The library's `Config::query_params` and
+  `QueryParams` carry the setting.
 
 ## Workspace 0.9.0 - 2026-11-06
 

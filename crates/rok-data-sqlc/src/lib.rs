@@ -68,7 +68,9 @@ pub mod schema_names;
 
 pub use api_config::{ApiAccess, ApiConfig, ApiEndpoint, ApiFramework, ApiPagination};
 pub use api_rules::ApiRule;
-pub use config::{Config, Conventions, Derive, Extractor, IdGeneration, RelationshipChange};
+pub use config::{
+    Config, Conventions, Derive, Extractor, IdGeneration, QueryParams, RelationshipChange,
+};
 pub use project::{App, Project, Target, discover_config, load_config, using_line};
 pub use report::{
     Error, QueryFailure, RefusedFile, Report, Result, ServedFeature, SkippedQuery, TableFailure,

@@ -114,6 +114,49 @@ pub struct Config {
     /// `None` (the default) generates no API. Needs [`Derive::Serde`],
     /// [`Derive::Validate`] and [`Extractor::ActixWeb`].
     pub api: Option<ApiConfig>,
+    /// The shape of every query function's parameters (the config file's
+    /// `[queries] params`): [`QueryParams::Auto`] by default. A query's
+    /// `-- rok:params struct` or `-- rok:params positional` wins.
+    pub query_params: QueryParams,
+}
+
+/// The shape of a query function's parameters: positional arguments, or
+/// its `{Name}Params` struct ([`Config::query_params`], the config file's
+/// `[queries] params`, and a query's own `-- rok:params`, which wins).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum QueryParams {
+    /// Positional up to three parameters, the struct from four. The default.
+    #[default]
+    Auto,
+    /// The struct, whatever the count, so a query growing a parameter keeps
+    /// its call shape. A query without parameters takes none.
+    Struct,
+    /// Positional arguments, whatever the count.
+    Positional,
+}
+
+impl QueryParams {
+    /// Every shape, in the order the messages list them.
+    pub const ALL: [QueryParams; 3] = [
+        QueryParams::Auto,
+        QueryParams::Struct,
+        QueryParams::Positional,
+    ];
+
+    /// The name the config file and `-- rok:params` use.
+    pub fn name(self) -> &'static str {
+        match self {
+            QueryParams::Auto => "auto",
+            QueryParams::Struct => "struct",
+            QueryParams::Positional => "positional",
+        }
+    }
+
+    /// The shape named `name`.
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|shape| shape.name() == name)
+    }
 }
 
 /// What configuration does to one inferred relationship (the
@@ -198,6 +241,7 @@ impl Default for Config {
             scopes: BTreeMap::new(),
             modules: BTreeMap::new(),
             api: None,
+            query_params: QueryParams::Auto,
         }
     }
 }
