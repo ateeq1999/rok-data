@@ -10,6 +10,7 @@ use rok_data_sqlc::Config;
 use tempfile::TempDir;
 
 mod api;
+mod constraints;
 mod extractors;
 mod generation;
 mod params;

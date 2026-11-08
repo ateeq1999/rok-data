@@ -18,6 +18,24 @@ Karibu Pass's clients show `offer_drops_month_check` and `offer_drop_offers_offe
 
 **Status:** ready-for-agent
 
-- [ ] The annotation parses for check, unique and foreign-key constraints; an unknown field or constraint fails, naming it
-- [ ] The generated table lists every annotated constraint
+- [x] The annotation parses for check, unique and foreign-key constraints; an unknown field or constraint fails, naming it
+- [x] The generated table lists every annotated constraint
 - [ ] Template: a mapped CHECK is a 422 on its field with the message; a mapped foreign key is a 409 with its message; a trigger's RAISE text reaches the client
+
+**Engine half done** (rok-data, `starter/84-59-39-engine`): the annotation, its checks and the generated `db::constraints` table. The table's shape, for the templates' error mapping:
+
+```rust
+pub enum ConstraintKind { Check, Unique, ForeignKey, Raised }
+pub struct Constraint {
+    pub name: &'static str,
+    pub table: Option<&'static str>, // None for a raised name
+    pub field: Option<&'static str>,
+    pub message: &'static str,
+    pub kind: ConstraintKind,
+}
+pub const CONSTRAINTS: &[Constraint]; // sorted by name
+pub fn lookup(name: &str) -> Option<&'static Constraint>;
+pub fn of_error(error: &rok_data::Error) -> Option<&'static Constraint>;
+```
+
+`db/constraints.rs` is generated only when the schema annotates a constraint, so a template that calls it unconditionally needs an annotation in its schema (or the engine to always emit the module). Remaining: the template half (rok-templates): Check/Raised → 422 on `field` with `message`, Unique/ForeignKey → 409 with `message`, an unmapped one with PostgreSQL's own message.

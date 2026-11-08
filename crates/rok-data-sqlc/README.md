@@ -496,6 +496,7 @@ same name fail generation, and the error names both.
 | `search.rs` | `Page`, `Limit`, `Sort`, `Direction`, the condition types, and `MAX_RELATIONSHIP_DEPTH`. |
 | `types.rs` | A Rust enum for each enum type and each value-list column, keeping its exact database labels. |
 | `session.rs` | `set_tenant` and `set_user`, when the conventions name a setting. |
+| `constraints.rs` | The `-- rok:constraint` table: `lookup` and `of_error` give a constraint's field and message, when the schema annotates one. |
 | `queries.rs` or `queries/` | One function per annotated query. |
 | `http/` | With `extractors`: `BodyRejection`, the error body (`ErrorBody`), and a `ValidatedJson<T>` per framework (`axum.rs`, `actix_web.rs`). |
 
@@ -511,6 +512,52 @@ pub enum ProductStatus {
 names, as are `queries` when you pass query files and `http` when you set
 `extractors`. A table that would generate one of those modules fails with an
 error that says so.
+
+**Constraint messages: `db::constraints`.** A violation answers with
+PostgreSQL's constraint name (`offer_drops_month_check`) unless the schema
+says what it means. Anywhere in the schema dir, an annotation gives a
+constraint the field it is about (optional: a foreign key on delete has
+none) and the message to tell the caller:
+
+```sql
+-- rok:constraint offer_drops_month_check month "Pick a month from 1 to 12."
+-- rok:constraint offer_drops_code_key code "That code is taken."
+-- rok:constraint offers_offer_drop_id_fkey "The offer drop no longer exists."
+-- rok:constraint offer_drops_window_open "The drop's window is closed."
+```
+
+The name is a `CHECK`, primary key, unique or foreign key constraint
+(declared, or under the name PostgreSQL gives an unnamed one:
+`<table>_<column>_check`, `_key`, `_fkey`), a named unique index, or a
+name a trigger function raises (`RAISE … USING CONSTRAINT =
+'offer_drops_window_open'`). The field is a column of the constraint's
+table (of any table, for a raised name). An unknown name or field, a
+missing message, or a constraint annotated twice fails the run at the
+annotation's `path:line`.
+
+The annotations generate `db/constraints.rs` (and nothing when there are
+none), sorted by name:
+
+```text
+pub enum ConstraintKind { Check, Unique, ForeignKey, Raised }
+
+pub struct Constraint {
+    pub name: &'static str,             // "offer_drops_month_check"
+    pub table: Option<&'static str>,    // Some("offer_drops"); None for a raised name
+    pub field: Option<&'static str>,    // Some("month")
+    pub message: &'static str,          // "Pick a month from 1 to 12."
+    pub kind: ConstraintKind,           // Check
+}
+
+pub const CONSTRAINTS: &[Constraint];
+pub fn lookup(name: &str) -> Option<&'static Constraint>;
+pub fn of_error(error: &rok_data::Error) -> Option<&'static Constraint>;
+```
+
+An API's error mapping calls `db::constraints::of_error(&error)`: a
+`Check` or `Raised` constraint is a 422 on its field, a `Unique` or
+`ForeignKey` one a 409, each with the message. `constraints` is a reserved
+module name while the schema annotates a constraint.
 
 **Code quality.** Every public item is documented. Generated code passes
 `#![deny(missing_docs)]`, `cargo clippy -- -D warnings` and a fixed set of

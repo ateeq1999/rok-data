@@ -10,6 +10,9 @@ use crate::{Extractor, IdGeneration};
 pub struct DbMod<'a> {
     /// Whether `types.rs` is generated.
     pub has_types: bool,
+    /// Whether `constraints.rs` is generated (the schema annotates a
+    /// constraint).
+    pub has_constraints: bool,
     /// Whether `session.rs` is generated.
     pub has_session: bool,
     /// Whether `pool.rs` is generated (`api.output`), which logs with
@@ -35,6 +38,7 @@ pub struct DbMod<'a> {
 pub fn render_db_mod(tables: &[Table], db_mod: &DbMod<'_>) -> String {
     let DbMod {
         has_types,
+        has_constraints,
         has_session,
         has_pool,
         queries,
@@ -94,6 +98,9 @@ pub fn render_db_mod(tables: &[Table], db_mod: &DbMod<'_>) -> String {
     }
     if !extractors.is_empty() {
         modules.push("http");
+    }
+    if has_constraints {
+        modules.push("constraints");
     }
     if has_session {
         modules.push("session");
@@ -379,6 +386,7 @@ mod tests {
             tables,
             &DbMod {
                 has_types: false,
+                has_constraints: false,
                 has_session: false,
                 has_pool: false,
                 queries,
@@ -438,6 +446,7 @@ mod tests {
                 &tables,
                 &DbMod {
                     has_types: false,
+                    has_constraints: false,
                     has_session: false,
                     has_pool: false,
                     queries: QueriesModule::None,

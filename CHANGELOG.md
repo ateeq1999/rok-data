@@ -31,6 +31,11 @@ that it exists and won't ship a tag without it).
   query growing a fourth parameter no longer breaks its callers; the
   annotation wins, and the doc comment names the rule that applied.
   Generated code is unchanged under `"auto"`, the default.
+- `-- rok:constraint <name> [<field>] "<message>"` in the schema dir
+  gives a constraint (check, unique, foreign key, unique index, or a
+  name a trigger raises) a field and a message, checked against the
+  schema, and generates `db::constraints` (`lookup`, `of_error`) for an
+  API's error mapping. The templates' use of it comes with rok-templates.
 
 **Fixed**
 

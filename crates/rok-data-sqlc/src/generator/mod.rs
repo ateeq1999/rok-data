@@ -1,5 +1,6 @@
 mod api;
 mod checks;
+pub mod constraints;
 pub mod conventions;
 mod db_mod;
 mod emit;
@@ -120,6 +121,7 @@ fn plan_files(schema_sql: &str, tables: &[Table], output: &Path) -> Vec<(PathBuf
         tables,
         &[],
         QueriesModule::None,
+        &[],
         &KeptResources::default(),
     )
     .expect("the tables generate")
@@ -176,7 +178,8 @@ pub fn table_failures(table: &Table, config: &Config) -> Option<Rejection> {
 /// Plans every generated file under `config.output`: `tables` (the ones
 /// this run generates), the shared modules, `enums` in `types.rs`, and the
 /// queries module. The `kept` resources are planned with the rest but get no
-/// files of their own. `schema_sql` is the schema snapshot. Uses the
+/// files of their own. `schema_sql` is the schema snapshot. `constraints` are the
+/// schema's `-- rok:constraint` annotations, for `constraints.rs`. Uses the
 /// configuration's conventions, derives, and relationship changes.
 pub fn plan_files_with_queries(
     config: &Config,
@@ -184,6 +187,7 @@ pub fn plan_files_with_queries(
     tables: &[Table],
     enums: &[EnumType],
     queries: QueriesModule<'_>,
+    constraints: &[crate::schema::ConstraintMessage],
     kept: &KeptResources,
 ) -> Result<Vec<(PathBuf, String)>, String> {
     let (conventions, output) = (&config.conventions, config.output.as_path());
@@ -306,9 +310,11 @@ pub fn plan_files_with_queries(
     if !enums.is_empty() {
         files.push((output.join("types.rs"), types::render(&enums, derives)));
     }
+    let constraint_table = constraints::render(constraints);
     let session = session::render(conventions);
     let db_mod = DbMod {
         has_types: !enums.is_empty(),
+        has_constraints: constraint_table.is_some(),
         has_session: session.is_some(),
         has_pool: config.api.is_some(),
         queries,
@@ -325,6 +331,9 @@ pub fn plan_files_with_queries(
     };
     if let Some(session) = session {
         files.push((output.join("session.rs"), session));
+    }
+    if let Some(table) = constraint_table {
+        files.push((output.join(format!("{}.rs", constraints::MODULE)), table));
     }
     files.push((output.join("mod.rs"), render_db_mod(tables, &db_mod)));
     files.push((output.join("schema.rs"), render_schema_snapshot(schema_sql)));
