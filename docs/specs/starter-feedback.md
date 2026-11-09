@@ -271,6 +271,11 @@ From the notes on Karibu Pass's ticket 27 (its `Some(Some(…))` bodies are tick
 - **Web tests run on Node 25:** the web App's Vitest turns off Node's own web storage, and the Template's CI runs the current Node too (ticket 92).
 - **Database tests can't pass silently:** the API Templates' tests read the App's `.env`, and fail under `CI` without `DATABASE_URL` (ticket 93).
 
+From the notes on Karibu Pass's ticket 28 (its silent skip is fixed in 0.9.0, see Further Notes; its locked exe on Windows is rok-dev tickets 02 and 10):
+
+- **Aggregates are typed everywhere:** `sum`, `avg`, `min` and `max` follow PostgreSQL's result types in SELECTs, CTEs and subqueries alike, nullable unless `coalesce`d (ticket 94).
+- **A one-row scalar subquery keeps its column's nullability:** `(SELECT count(*) FROM passes)` is an `i64`, so a metrics row needs no unwraps (ticket 95).
+
 ## Out of Scope
 
 - **Karibu Pass's product work:** phone and SMS sign-in (its ADR-0006), its tickets, removing its sample data, its repo-wide reformat and its own visual-check scripts. A phone sign-in Module may come later.
@@ -282,5 +287,5 @@ From the notes on Karibu Pass's ticket 27 (its `Some(Some(…))` bodies are tick
 
 ## Further Notes
 
-- **Already fixed:** the `--org` error message the notes ask about already explains the format in current rok ("not a reverse-domain name like `com.example`: two or more dot-separated segments…"); it needs no change. A CHECK-list enum already implements `sqlx::Type`, `Encode` and `Decode` as text, and a placeholder compared with, assigned to or inserted into its column already infers it; ticket 26's `String` came from the `COALESCE` case, ticket 86.
+- **Already fixed:** the `--org` error message the notes ask about already explains the format in current rok ("not a reverse-domain name like `com.example`: two or more dot-separated segments…"); it needs no change. A CHECK-list enum already implements `sqlx::Type`, `Encode` and `Decode` as text, and a placeholder compared with, assigned to or inserted into its column already infers it; ticket 26's `String` came from the `COALESCE` case, ticket 86. From 0.9.0 (ticket 20), `rok gen` and `rok gen check` fail on a query they can't type instead of skipping it; ticket 28's silent skip was an earlier rok, and only `--lenient` skips now.
 - **Ordering:** the engine and CLI fixes (tickets 16, 18, 20–26) and rok-ui's (29) don't wait for anything; ticket 01 is done. The rest follows the shipping of the gRPC Template (rok-data 0.8.1, the rok-templates release and `rok init --template grpc`), and goes with the Monorepo `--apps`/`--clients` flags, which are the same kind of init-time choice.

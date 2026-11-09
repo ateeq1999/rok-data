@@ -52,7 +52,7 @@ Running a Monorepo project locally means starting the compose database, the API 
 - **Config:** `[dev.<name>]` tables in `rok.toml` (see ADR 0034).
   - `run` is an argv array (no shell); `compose` points at a compose file; `dir` is the working directory.
   - `ready` is `port:N`, `http:<path>` (polled with a generous per-request timeout, never aborting an in-flight render) or `log:<regex>`.
-  - `depends` lists other Runnables; `migrate` is `apply`, `warn` (the default) or `off`, for a Runnable that is a rok-data App; `device` is for a mobile App.
+  - `depends` lists other Runnables; `migrate` is `apply`, `warn` (the default) or `off`, for a Runnable that is a rok-data App; `device` is for a mobile App; `env` sets variables for the Runnable over its `.env` (the templates set the API's `CARGO_TARGET_DIR` to `target/dev`, so `cargo test` can build while it runs on Windows).
   - Each Runnable's `.env` comes from its `dir`, and the environment wins.
   - An unknown key, a cycle in `depends` or a missing `run`/`compose` is an error naming it.
 - **Supervision:**
