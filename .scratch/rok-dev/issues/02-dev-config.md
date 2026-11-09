@@ -6,7 +6,7 @@ Spec: `docs/specs/rok-dev.md` · workspace ADR 0034
 
 **Blocked by:** 01
 
-**Status:** blocked
+**Status:** ready-for-agent
 
 - [ ] Each `ready` form and every error case is unit-tested
 - [ ] rok-data reads a rok.toml with `[dev]` unchanged (test in rok-data)

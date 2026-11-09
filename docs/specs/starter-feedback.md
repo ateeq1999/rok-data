@@ -257,6 +257,20 @@ From the notes on Karibu Pass's ticket 25 (its 422-before-403 is actix's extract
 - **Every constraint can carry a message:** ticket 39's annotation covers unique and foreign-key constraints too, so a 409 says what happened.
 - **A project-wide parameter shape:** `[queries] params = "auto" | "struct" | "positional"` beside ticket 59's per-query annotation.
 
+From the notes on Karibu Pass's ticket 26 (its CHECK-list enums already bind, see Further Notes):
+
+- **Browser routes stay in the contract:** an operation whose every answer is a redirect is a Browser route; `rok gen` accepts it, and each Client builds its URL instead of calling it (ticket 85).
+- **`COALESCE($n, column)` takes the column's type:** a partial update's placeholder infers `Option<T>` for every column type, a CHECK-list enum included, with no `-- param:` (ticket 86).
+- **The contract test allows additive changes:** new optional request properties, new optional query parameters and new response properties pass in both API Templates, so an App grows the starter's routes instead of adding twins (ticket 87).
+- **Sign-in with an OpenID provider is a Module:** `oidc`, kept by default and inert until configured, generic over providers with Google documented; it links an identity by email only for a provider marked trusted (workspace ADR 0035; tickets 88 and 89).
+
+From the notes on Karibu Pass's ticket 27 (its `Some(Some(…))` bodies are ticket 43):
+
+- **Mail a feature words itself:** `Mail::reply_to` and `Templates::message(to, subject, paragraphs)` in every API Template's `shared/mail` (ticket 90).
+- **Room for prerendered pages:** the web App's Vite config lists the pages to prerender (none at first), masks the SPA shell away from them, and fails when a page would replace the shell (ticket 91).
+- **Web tests run on Node 25:** the web App's Vitest turns off Node's own web storage, and the Template's CI runs the current Node too (ticket 92).
+- **Database tests can't pass silently:** the API Templates' tests read the App's `.env`, and fail under `CI` without `DATABASE_URL` (ticket 93).
+
 ## Out of Scope
 
 - **Karibu Pass's product work:** phone and SMS sign-in (its ADR-0006), its tickets, removing its sample data, its repo-wide reformat and its own visual-check scripts. A phone sign-in Module may come later.
@@ -264,8 +278,9 @@ From the notes on Karibu Pass's ticket 25 (its 422-before-403 is actix's extract
 - **Command changes:** moving the single-app templates to `rok.toml` and the front-door commands.
 - **Presets:** presets for `--without` lists (ADR 0033 leaves them for later).
 - **Web screenshots:** a web screenshot script.
+- **Karibu Pass's twin routes:** merging its `PATCH /users/me/settings` back into `PATCH /users/me` once ticket 87 lands.
 
 ## Further Notes
 
-- **Already fixed:** the `--org` error message the notes ask about already explains the format in current rok ("not a reverse-domain name like `com.example`: two or more dot-separated segments…"); it needs no change.
+- **Already fixed:** the `--org` error message the notes ask about already explains the format in current rok ("not a reverse-domain name like `com.example`: two or more dot-separated segments…"); it needs no change. A CHECK-list enum already implements `sqlx::Type`, `Encode` and `Decode` as text, and a placeholder compared with, assigned to or inserted into its column already infers it; ticket 26's `String` came from the `COALESCE` case, ticket 86.
 - **Ordering:** the engine and CLI fixes (tickets 16, 18, 20–26) and rok-ui's (29) don't wait for anything; ticket 01 is done. The rest follows the shipping of the gRPC Template (rok-data 0.8.1, the rok-templates release and `rok init --template grpc`), and goes with the Monorepo `--apps`/`--clients` flags, which are the same kind of init-time choice.

@@ -6,7 +6,7 @@ Spec: `docs/specs/rok-dev.md` · workspace ADR 0034
 
 **Blocked by:** 01
 
-**Status:** blocked
+**Status:** ready-for-agent
 
 - [ ] list and free against a helper holding a port, on Windows and Unix (tests)
 - [ ] Asks before stopping; `--yes` skips the question

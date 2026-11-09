@@ -6,7 +6,7 @@ Spec: `docs/specs/rok-dev.md` · workspace ADR 0034
 
 **Blocked by:** None (the GitHub repo is the maintainer's to create)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `rok dev --help` lists the four words through rok-v2
-- [ ] CI runs fmt, clippy and tests on Linux, macOS and Windows
+- [x] `rok dev --help` lists the four words through rok-v2
+- [x] CI runs fmt, clippy and tests on Linux, macOS and Windows
