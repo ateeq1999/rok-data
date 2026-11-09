@@ -2,7 +2,7 @@
 
 Spec: `docs/specs/rok-dev.md` · workspace ADR 0034
 
-**What to build:** parsing and validation of `[dev.<name>]` tables: `run` (argv) or `compose`, `dir`, `ready` (`port:N`, `http:<path>`, `log:<regex>`), `depends`, `migrate` (`apply`/`warn`/`off`, default `warn`), `device`; each Runnable's `.env` from its `dir`. Unknown keys, `depends` cycles, a missing `run`/`compose` and an unknown Runnable in `depends` fail naming them. rok-data's project rule keeps ignoring `[dev]` (a test there).
+**What to build:** parsing and validation of `[dev.<name>]` tables: `run` (argv) or `compose`, `dir`, `ready` (`port:N`, `http:<path>`, `log:<regex>`), `depends`, `migrate` (`apply`/`warn`/`off`, default `warn`), `device`, `env` (a table of variables set for the Runnable, over its `.env`); each Runnable's `.env` from its `dir`. Unknown keys, `depends` cycles, a missing `run`/`compose` and an unknown Runnable in `depends` fail naming them. rok-data's project rule keeps ignoring `[dev]` (a test there).
 
 **Blocked by:** 01
 
