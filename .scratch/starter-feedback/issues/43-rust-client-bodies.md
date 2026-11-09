@@ -14,7 +14,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it) · engine ADR
 - **No compatibility switch:** the next release's migration guide shows the one-line call-site change.
 - **ADR:** engine ADR 0027's Client sections are amended.
 
-Karibu Pass met the Rust form in ticket 05 and the Dart form in ticket 22: callers wrote `guestName: name == null ? null : Nullable(name)` on a `POST`, and could send an explicit `null` by passing `Nullable(null)`.
+Karibu Pass met the Rust form in ticket 05 and the Dart form in ticket 22: callers wrote `guestName: name == null ? null : Nullable(name)` on a `POST`, and could send an explicit `null` by passing `Nullable(null)`. Its ticket 27 met the Rust form again: tests built the `POST` body `PartnerEnquiryDto` with `email: Some(Some("…".to_owned()))`.
 
 **Blocked by:** None (can start immediately)
 

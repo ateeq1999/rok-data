@@ -33,6 +33,10 @@ _Avoid_: resource path, prefix
 The OpenAPI description of a generated API, served at `/api-docs/openapi.json`: every route of every API feature, who may call it, what it takes, and every answer it can give.
 _Avoid_: spec, Swagger file, snapshot (that is the schema snapshot)
 
+**Browser route**:
+An operation of the API document whose every answer is a redirect, such as the start and callback of a sign-in at an OpenID provider; a browser follows it, so a Client builds its URL instead of calling it.
+_Avoid_: redirect endpoint, OAuth route, hidden operation
+
 **Service**:
 The layer of an API feature between its handlers and its resource, where business rules, authorization, and side effects live. Written once by rok-data-sqlc as a starting point and owned by the user from then on.
 _Avoid_: use case, manager, repository (the resource plays that role)
