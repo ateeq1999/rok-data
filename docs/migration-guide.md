@@ -37,6 +37,20 @@ surface in the last two; 0.5.0 changes the templates only.
 
 ## To the next release (unreleased)
 
+### Request bodies are plainer outside a `PATCH`
+
+A body field that may be left out and may be `null` keeps its three
+states only in a `PATCH` body; in a `POST` (or `PUT`) body it is plain
+optional. After `rok gen`, the compiler points at each call to change:
+
+```text
+Rust:  NewThing { note: Some(Some(text)), .. }   →  NewThing { note: Some(text), .. }
+Dart:  NewThing(note: Nullable(text))             →  NewThing(note: text)
+```
+
+A `PATCH` body is unchanged: `Some(None)` / `Nullable(null)` still
+clears a field.
+
 ### The TypeScript Client is built on zod 4
 
 `rok gen` now writes each type of the TypeScript Client as a zod schema

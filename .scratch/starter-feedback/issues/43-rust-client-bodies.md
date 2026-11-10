@@ -18,8 +18,8 @@ Karibu Pass met the Rust form in ticket 05 and the Dart form in ticket 22: calle
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done (the rok-templates Clients regenerate with the next rok release)
 
-- [ ] A `POST` body's optional nullable field is plain optional in each Client; a `PATCH` body's keeps three states (emission tests)
-- [ ] An all-optional Rust body derives `Default`
+- [x] A `POST` body's optional nullable field is plain optional in each Client; a `PATCH` body's keeps three states (emission tests)
+- [x] An all-optional Rust body derives `Default`
 - [ ] The API's client round-trip tests still pass; the monorepo Clients regenerate in rok-templates

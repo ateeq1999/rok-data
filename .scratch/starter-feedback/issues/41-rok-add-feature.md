@@ -9,9 +9,9 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it) · workspace 
 - **Errors:** a feature that already exists is an error.
 - **Payload:** `-j` input works as for every command.
 
-**Blocked by:** None for the command; the templates' Integration points and per-feature `ApiDoc` land with grpc-api-template/08
+**Blocked by:** ADR 0029's Integration points: no Template marks a `rok:point` yet, and `rok add` (the placing machinery) is not built; grpc-api-template/08 shipped without them. The command needs both, and a per-feature `ApiDoc` in the templates, before it can register a feature without edits
 
-**Status:** ready-for-agent
+**Status:** blocked
 
 - [ ] A scaffolded feature compiles and is served and documented with no further edits (gate on a template)
 - [ ] Running it twice fails, naming the feature

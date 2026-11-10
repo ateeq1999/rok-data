@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use heck::ToUpperCamelCase;
 
-use super::super::openapi::{Body, Document, Property, Response, Schema};
+use super::super::openapi::{Body, Document, Method, Property, Response, Schema};
 use super::Error;
 use super::names::{class_name, enum_value, field_name, is_reserved_type};
 use super::ty::Ty;
@@ -526,7 +526,11 @@ fn input_only(document: &Document) -> BTreeSet<String> {
     let mut inputs = Vec::new();
     let mut outputs = Vec::new();
     for operation in &document.operations {
-        if let Some(Body::Json(schema)) = &operation.body {
+        // Only a `PATCH` tells a field left out (kept) from `null`
+        // (cleared): the components only its bodies reach are three-state.
+        if operation.method == Method::Patch
+            && let Some(Body::Json(schema)) = &operation.body
+        {
             inputs.push(schema);
         }
         if let Response::Json(schema) = &operation.response {

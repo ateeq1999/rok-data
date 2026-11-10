@@ -9,6 +9,13 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Changed
 
+- **Breaking for Client callers:** a body field that may be left out and
+  may be `null` is three-state only in a `PATCH` body, where the API
+  tells "keep" from "clear". Elsewhere it is plain optional: Rust
+  `Option<T>` (was `Option<Option<T>>`), Dart `T?` (was `Nullable<T>?`),
+  TypeScript `field?: T` for a body no response or `PATCH` shares. A
+  `POST` caller writes `Some(value)` and `name` instead of
+  `Some(Some(value))` and `Nullable(name)` (engine ADR 0027, amended).
 - **Breaking for TypeScript Client users:** the TypeScript Client's types
   are zod 4 schemas. Each component schema is `export const
   <Type>Schema = z.object(...)` with `export type <Type> = z.infer<...>`

@@ -11,6 +11,10 @@ that it exists and won't ship a tag without it).
 
 **Changed**
 
+- A Client's body field that may be left out and may be `null` is
+  three-state only in a `PATCH` body; elsewhere it is plain optional, so
+  a `POST` reads `Some(value)` in Rust and `name` in Dart instead of
+  `Some(Some(value))` and `Nullable(name)`.
 - The TypeScript Client's types are zod 4 schemas (`ThingSchema`, with
   `type Thing` inferred from it, names unchanged), carrying the server's
   rules (lengths, bounds, patterns, formats) for forms to check input
