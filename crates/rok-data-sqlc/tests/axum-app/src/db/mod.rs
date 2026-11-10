@@ -17,6 +17,7 @@
 //   utoipa-swagger-ui = { version = "9", features = ["axum", "vendored"] }
 
 pub mod accounts;
+pub mod constraints;
 pub mod http;
 pub mod labels;
 pub mod note_labels;

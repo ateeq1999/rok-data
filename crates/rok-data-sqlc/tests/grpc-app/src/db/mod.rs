@@ -14,6 +14,7 @@
 //   tracing = "0.1"
 
 pub mod accounts;
+pub mod constraints;
 pub mod gadgets;
 pub mod labels;
 pub mod note_labels;
