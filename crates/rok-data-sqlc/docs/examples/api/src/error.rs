@@ -9,6 +9,7 @@ use actix_web::{HttpResponse, ResponseError};
 use rok_data::ValidationErrors;
 use sqlx::error::ErrorKind;
 
+use crate::db::constraints::{self, ConstraintKind};
 use crate::shared::response::{ErrorBody, ErrorPayload};
 
 /// The message of every `500`: the cause is logged, never sent.
@@ -122,30 +123,47 @@ impl From<ValidationErrors> for AppError {
     }
 }
 
-/// A unique or foreign-key violation is a `Conflict` naming the constraint,
-/// a check violation is a `Validation`, `RowNotFound` is a `NotFound`, and
-/// anything else is `Internal`.
+/// A violated constraint. One the schema annotates (`-- rok:constraint`)
+/// answers with its message: a check (or a name a trigger raises) is a
+/// `Validation` on its field, a unique key or foreign key a `Conflict`.
+/// Any other answers with the database's own message: a unique or foreign-key
+/// violation is a `Conflict`, a check or another named constraint a
+/// `Validation`. `RowNotFound` is a `NotFound`, and anything else is
+/// `Internal`.
 impl From<sqlx::Error> for AppError {
     fn from(error: sqlx::Error) -> Self {
         if let sqlx::Error::RowNotFound = error {
             return AppError::NotFound("no such row".to_owned());
         }
         if let sqlx::Error::Database(database) = &error {
-            let constraint = database.constraint().unwrap_or("unnamed");
+            if let Some(known) = database.constraint().and_then(constraints::constraint) {
+                return match known.kind {
+                    ConstraintKind::Check => AppError::Validation {
+                        message: known.message.to_owned(),
+                        details: known.field.map(|field| {
+                            let mut details = ValidationErrors::new();
+                            details.add(field, "check", known.message);
+                            details
+                        }),
+                    },
+                    ConstraintKind::Unique | ConstraintKind::ForeignKey => {
+                        AppError::Conflict(known.message.to_owned())
+                    }
+                };
+            }
             match database.kind() {
-                ErrorKind::UniqueViolation => {
-                    return AppError::Conflict(format!(
-                        "the value is already taken (constraint `{constraint}`)"
-                    ));
-                }
-                ErrorKind::ForeignKeyViolation => {
-                    return AppError::Conflict(format!(
-                        "the change breaks a reference (constraint `{constraint}`)"
-                    ));
+                ErrorKind::UniqueViolation | ErrorKind::ForeignKeyViolation => {
+                    return AppError::Conflict(database.message().to_owned());
                 }
                 ErrorKind::CheckViolation => {
                     return AppError::Validation {
-                        message: format!("the value breaks the check `{constraint}`"),
+                        message: database.message().to_owned(),
+                        details: None,
+                    };
+                }
+                _ if database.constraint().is_some() => {
+                    return AppError::Validation {
+                        message: database.message().to_owned(),
                         details: None,
                     };
                 }
@@ -155,6 +173,7 @@ impl From<sqlx::Error> for AppError {
         AppError::Internal(Box::new(error))
     }
 }
+
 
 /// The generated data layer's error: rows map into `NotFound`, concurrent
 /// writes into `VersionConflict`, and everything else reuses the

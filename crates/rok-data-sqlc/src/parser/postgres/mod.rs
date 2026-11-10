@@ -119,7 +119,14 @@ impl ParsedSchema {
 /// Root modules rok-data-sqlc always generates next to the resource modules.
 /// `http`, generated only with `extractors`, is reserved only then, by
 /// `generator::table_failures`.
-const GENERATED_MODULES: &[&str] = &["nullable", "schema", "search", "session", "types"];
+const GENERATED_MODULES: &[&str] = &[
+    "constraints",
+    "nullable",
+    "schema",
+    "search",
+    "session",
+    "types",
+];
 
 /// One schema input: a migration file's path and its SQL.
 #[derive(Debug)]

@@ -10,6 +10,7 @@
 //   chrono = "0.4"
 //   rust_decimal = "1"
 
+pub mod constraints;
 pub mod invoices;
 pub mod organizations;
 pub mod schema;

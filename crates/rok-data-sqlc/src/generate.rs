@@ -14,6 +14,7 @@ use crate::report::{Error, RefusedFile, Report, Result, TableFailure, display_pa
 use crate::schema::{self, BaseType, EnumType, Shape, Table};
 use crate::{api_config, generator, output, parser};
 
+mod constraint_messages;
 mod query_files;
 mod snapshot;
 
@@ -93,6 +94,7 @@ fn run(config: &Config, report: &mut Report, analysis: &mut Analysis) -> anyhow:
     }
     parsed.fail_tables(|table| generator::table_failures(table, config));
     let sql = snapshot_sql(&sources);
+    let constraint_messages = constraint_messages::read(&sources, &parsed.schema)?;
 
     let matches_resource =
         |table: &str| resource.is_none_or(|name| table == name || table.to_snake_case() == name);
@@ -260,6 +262,12 @@ fn run(config: &Config, report: &mut Report, analysis: &mut Analysis) -> anyhow:
     files.push((
         output_dir.join("schema.json"),
         schema::snapshot::json(&parsed.schema)?,
+    ));
+    // What each annotated constraint means (`-- rok:constraint`), for the
+    // App's error mapping.
+    files.push((
+        output_dir.join("constraints.rs"),
+        constraint_messages::render(&constraint_messages),
     ));
 
     // Any generated file under the output directory that this run does not

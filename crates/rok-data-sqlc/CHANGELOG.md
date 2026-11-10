@@ -28,6 +28,16 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Added
 
+- `-- rok:constraint <name> [<field>] "<message>"` anywhere in the schema
+  dir says what a broken constraint means: a check, unique or foreign-key
+  constraint, a unique index, or a name a trigger raises. The data layer
+  gets `constraints.rs` (`CONSTRAINTS`, `constraint(name)`), and the
+  scaffolded `error.rs` answers an annotated violation with its message (a
+  check as a `422` on its field, a unique or foreign key as a `409`) and
+  any other with PostgreSQL's own message instead of the constraint's
+  name. An unknown name or field fails the run at its line. `constraints`
+  joins the module names a table can't take without a `[modules]` rename.
+
 - A `[clients]` entry may be a table, `{ dir = "…", layout = "…" }`.
   `layout = "sources"` emits only a TypeScript or Dart Client's source
   files, flat in `dir` (TypeScript `index.ts`, `runtime.ts`, `types.ts`,

@@ -84,6 +84,7 @@ pub fn render_db_mod(tables: &[Table], db_mod: &DbMod<'_>) -> String {
         .iter()
         .map(|table| table.module_name.as_str())
         .collect();
+    modules.push("constraints");
     modules.push("schema");
     modules.push("search");
     if derives.serde {

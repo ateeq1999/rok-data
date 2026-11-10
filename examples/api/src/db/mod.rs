@@ -18,6 +18,7 @@
 
 pub mod authors;
 pub mod books;
+pub mod constraints;
 pub mod http;
 pub mod loans;
 pub mod nullable;
