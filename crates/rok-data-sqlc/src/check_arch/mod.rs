@@ -6,6 +6,7 @@
 //! project's `[api] framework` sets; the Rust source is read with `syn`, and
 //! test code is exempt from every rule.
 
+mod caller;
 mod rules;
 mod source;
 
@@ -80,6 +81,8 @@ pub(crate) enum Rule {
     Panics,
     CrossFeatureWrite,
     CrossFeatureQuery,
+    /// A handler takes its caller extractor before its body extractor.
+    CallerFirst,
 }
 
 impl Rule {
@@ -100,6 +103,7 @@ impl fmt::Display for Rule {
             Rule::Panics => "rule-6",
             Rule::CrossFeatureWrite => "cross-feature-write",
             Rule::CrossFeatureQuery => "cross-feature-query",
+            Rule::CallerFirst => "caller-first",
         })
     }
 }
@@ -142,6 +146,21 @@ pub(crate) fn check(project: &Project) -> Result<Checked> {
     let mut files = Vec::new();
     walk(&src, &mut files)?;
 
+    // The App's own caller extractors (`/// rok:caller`), from every file,
+    // before any handler is read.
+    let mut sources = Vec::new();
+    let mut callers = Vec::new();
+    for file in files
+        .iter()
+        .filter(|file| file.extension().is_some_and(|e| e == "rs"))
+    {
+        let shown = format!("src/{}", components(file.strip_prefix(&src)?).join("/"));
+        let text = fs::read_to_string(file).with_context(|| format!("failed to read {shown}"))?;
+        let parsed = syn::parse_file(&text).with_context(|| format!("failed to parse {shown}"))?;
+        callers.extend(caller::marked(&parsed));
+        sources.push((file.clone(), parsed));
+    }
+
     let mut violations = Vec::new();
     for file in &files {
         let rel = components(file.strip_prefix(&src)?);
@@ -155,12 +174,13 @@ pub(crate) fn check(project: &Project) -> Result<Checked> {
             });
         };
         layout.check_file(&rel, &mut report);
-        if file.extension().is_some_and(|ext| ext == "rs") {
-            let text =
-                fs::read_to_string(file).with_context(|| format!("failed to read {shown}"))?;
-            let parsed =
-                syn::parse_file(&text).with_context(|| format!("failed to parse {shown}"))?;
-            layout.check_source(&rel, &source::read(&parsed), &mut report);
+        if let Some((_, parsed)) = sources.iter().find(|(path, _)| path == file) {
+            layout.check_source(&rel, &source::read(parsed), &mut report);
+            if rel.starts_with(&layout.features) {
+                for (line, message) in caller::violations(parsed, &callers) {
+                    report(line, Rule::CallerFirst, message);
+                }
+            }
         }
     }
     violations.sort();
@@ -559,7 +579,7 @@ impl Layout {
                  in its service.rs and implement it in app.rs",
                 self.feature_of(rel).unwrap_or_default()
             ),
-            Rule::Layout | Rule::Panics => String::new(),
+            Rule::Layout | Rule::Panics | Rule::CallerFirst => String::new(),
         }
     }
 }

@@ -150,6 +150,15 @@ ones.
 The cross-feature write part of rule 4 is reported as `cross-feature-write`,
 its query part as `cross-feature-query`, and the layout as `layout`.
 
+`check-arch` also checks that a handler takes its caller before its body
+(`caller-first`): a caller extractor (`AuthUser`, `AdminUser`, or a struct
+your App marks with a `/// rok:caller` doc line) comes before the body
+extractor (`ValidatedJson`, `Json`, `Form`), so a caller without
+permission gets the 403 before the body's 422 tells them its rules. A
+role check belongs in an extractor, not in the service: a `Member`
+extractor marked `/// rok:caller` comes first in
+`join(member: Member, body: ValidatedJson<JoinDto>)`.
+
 **Query modules, one per feature.** A query module belongs to the feature
 it is named after: `queries/tasks.sql` generates
 `<db_path>::queries::tasks`, which the `tasks` feature calls and no other
