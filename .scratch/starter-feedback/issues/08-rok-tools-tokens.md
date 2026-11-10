@@ -6,8 +6,8 @@ Spec: `docs/specs/starter-feedback.md`
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done (rok-tools #4; the release tag is the maintainer's)
 
-- [ ] Unit tests over a sample `tokens.json` for each output
-- [ ] `--check` fails on a hand-edited output
+- [x] Unit tests over a sample `tokens.json` for each output
+- [x] `--check` fails on a hand-edited output
 - [ ] A rok-tools release carrying it (the tag is the maintainer's)

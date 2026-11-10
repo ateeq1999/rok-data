@@ -311,6 +311,26 @@ dart = "clients/dart"
 rust = "clients/rust"
 ```
 
+An entry is a directory (a package of the Client's language), or a table
+with `dir` and `layout`:
+
+```toml
+[clients]
+ts = { dir = "apps/web/src/lib/api", layout = "sources" }
+dart = { dir = "apps/mobile/lib/app/data/api", layout = "sources" }
+rust = "apps/api/client"
+```
+
+| `layout` | What `dir` gets |
+| -------- | --------------- |
+| `package` (a plain string) | the package: TypeScript `README.md` and `src/`; Dart `pubspec.yaml`, `analysis_options.yaml`, `.gitignore`, `README.md` and `lib/` |
+| `sources` | only the source files, flat, for an App that keeps the Client among its own sources: TypeScript `index.ts`, `runtime.ts`, `types.ts`, `calls.ts`, `queries.ts`; Dart `api.dart` (the export file), `runtime.dart`, `models.dart`, `client.dart` |
+
+The Rust Client is a crate, so `layout = "sources"` for `rust` is an
+error, as are an unknown `layout` and a key other than `dir` and
+`layout`; each names the entry. In a `sources` directory, `rok gen` owns
+only the files carrying its marker: the App's own files beside them stay.
+
 - `rok gen` re-exports the contract — it runs `export` from the project
   file's directory with `document`'s path appended, which builds the api
   App (it prints `exporting the contract (building the App, slow the first

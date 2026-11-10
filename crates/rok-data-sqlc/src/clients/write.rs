@@ -80,8 +80,7 @@ pub fn generate(project: &Project, mode: Mode) -> Result<Vec<Outcome>> {
 /// As [`generate`].
 pub fn emit_client(document: &Document, client: &Client, mode: Mode) -> Result<Outcome> {
     let files: Vec<(PathBuf, String)> = client
-        .kind
-        .emit(document)?
+        .files(document)?
         .into_iter()
         .map(|(path, text)| (client.dir.join(path), text))
         .collect();

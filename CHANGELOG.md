@@ -15,6 +15,11 @@ that it exists and won't ship a tag without it).
   `#[derive(Input)]`: field rules and transforms, database rules,
   context, conditional rules, nesting, messages, the 422 body, JSON
   Schema, and what generated APIs do with it. Its samples are compiled.
+- `[clients]` entries may be tables: `ts = { dir =
+  "apps/web/src/lib/api", layout = "sources" }` emits the TypeScript or
+  Dart Client's source files flat into an App's own directory, without
+  the package around them; `rok gen` owns only its marked files there
+  (`docs/cli-reference.md`).
 
 - Typed queries support data-modifying CTEs (`WITH x AS (UPDATE …
   RETURNING …) INSERT … SELECT … FROM x`): each CTE's `RETURNING` columns

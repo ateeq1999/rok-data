@@ -8,20 +8,23 @@
 //!
 //! [clients]
 //! ts = "clients/ts"
-//! dart = "clients/dart"
+//! dart = { dir = "apps/mobile/lib/app/data/api", layout = "sources" }
 //! rust = "clients/rust"
 //! ```
 //!
 //! `document` is the API's served document, written out; `export` is the
 //! command that rewrites it, run from the root with the document's path
-//! appended. Each `[clients]` entry names a client and its directory.
-//! Paths are relative to the file's directory.
+//! appended. Each `[clients]` entry names a client and its directory: a
+//! string is the directory of a package, a table gives the directory and
+//! the [`Layout`] (`package`, or `sources` for the TypeScript and Dart
+//! Clients). Paths are relative to the file's directory.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result, anyhow, bail};
 
+use super::layout::Layout;
 use super::openapi::{self, Document};
 use crate::report::display_path;
 
@@ -92,13 +95,74 @@ pub struct Project {
     pub clients: Vec<Client>,
 }
 
-/// One Client: its kind (named by its `[clients]` key) and its directory.
+/// One Client: its kind (named by its `[clients]` key), its directory and
+/// how its files sit there.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Client {
     /// Its kind.
     pub kind: ClientKind,
     /// Its directory.
     pub dir: PathBuf,
+    /// How its files sit in its directory.
+    pub layout: Layout,
+}
+
+impl Client {
+    /// Its files for `document`, laid out, each its path relative to its
+    /// directory.
+    ///
+    /// # Errors
+    ///
+    /// When its emitter refuses the document.
+    pub fn files(&self, document: &Document) -> Result<Vec<(PathBuf, String)>, super::emit::Error> {
+        Ok(self.layout.apply(self.kind, self.kind.emit(document)?))
+    }
+}
+
+/// The `[clients]` entry `name`'s directory and layout: a string is a
+/// package's directory; a table is `{ dir = "…", layout = "…" }`.
+fn entry(
+    shown: &str,
+    name: &str,
+    kind: ClientKind,
+    value: &toml::Value,
+) -> Result<(String, Layout)> {
+    if let Some(dir) = value.as_str() {
+        return Ok((dir.to_owned(), Layout::Package));
+    }
+    let Some(table) = value.as_table() else {
+        bail!("{shown}: `clients.{name}` names no directory");
+    };
+    if let Some(key) = table
+        .keys()
+        .find(|key| !["dir", "layout"].contains(&key.as_str()))
+    {
+        bail!("{shown}: `clients.{name}.{key}`: a client takes `dir` and `layout`");
+    }
+    let dir = table
+        .get("dir")
+        .and_then(toml::Value::as_str)
+        .with_context(|| format!("{shown}: `clients.{name}` names no `dir`"))?;
+    let layout = match table.get("layout") {
+        None => Layout::Package,
+        Some(value) => {
+            let key = value.as_str().unwrap_or_default();
+            Layout::from_key(key).with_context(|| {
+                let layouts: Vec<&str> = Layout::ALL.iter().map(|layout| layout.key()).collect();
+                format!(
+                    "{shown}: `clients.{name}.layout`: {value} is not a layout ({})",
+                    layouts.join(", ")
+                )
+            })?
+        }
+    };
+    if !layout.supports(kind) {
+        bail!(
+            "{shown}: `clients.{name}.layout`: the {kind} Client is a package only; \
+             `layout = \"{layout}\"` is for the ts and dart Clients"
+        );
+    }
+    Ok((dir.to_owned(), layout))
 }
 
 impl Project {
@@ -124,7 +188,7 @@ impl Project {
             .as_table()
             .with_context(|| format!("{shown}: `clients` is not a table"))?
             .iter()
-            .map(|(name, dir)| {
+            .map(|(name, value)| {
                 let Some(kind) = ClientKind::from_key(name) else {
                     let keys: Vec<&str> = ClientKind::ALL.iter().map(|kind| kind.key()).collect();
                     bail!(
@@ -132,12 +196,11 @@ impl Project {
                         keys.join(", ")
                     );
                 };
-                let dir = dir
-                    .as_str()
-                    .with_context(|| format!("{shown}: `clients.{name}` names no directory"))?;
+                let (dir, layout) = entry(&shown, name, kind, value)?;
                 Ok(Client {
                     kind,
                     dir: root.join(dir),
+                    layout,
                 })
             })
             .collect::<Result<Vec<_>>>()?;
