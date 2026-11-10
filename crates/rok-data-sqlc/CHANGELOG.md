@@ -9,6 +9,17 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Added
 
+- A `[clients]` entry may be a table, `{ dir = "…", layout = "…" }`.
+  `layout = "sources"` emits only a TypeScript or Dart Client's source
+  files, flat in `dir` (TypeScript `index.ts`, `runtime.ts`, `types.ts`,
+  `calls.ts`, `queries.ts`; Dart `api.dart`, `runtime.dart`,
+  `models.dart`, `client.dart`), so the Client can sit inside the App
+  that calls it; a plain string stays the package layout. `sources` for
+  the Rust Client, an unknown layout and an unknown key fail naming the
+  entry. `clients::Client` gains `layout` and `files`, and
+  `clients::Layout` is new (a struct literal of `Client` needs the
+  field).
+
 - Data-modifying CTEs: `WITH x AS (UPDATE … RETURNING …)` (or `INSERT`,
   `DELETE`) makes its `RETURNING` columns a table for the CTEs after it
   and the final statement, which may be a `SELECT`, `INSERT` (`VALUES` or

@@ -12,11 +12,13 @@
 
 pub mod dart;
 mod emit;
+mod layout;
 pub mod openapi;
 mod project;
 pub mod rust;
 pub mod ts;
 mod write;
 
+pub use layout::Layout;
 pub use project::{Client, ClientKind, Project};
 pub use write::{Mode, Outcome, emit_client, generate};

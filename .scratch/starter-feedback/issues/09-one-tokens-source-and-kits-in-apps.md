@@ -4,7 +4,7 @@ Spec: `docs/specs/starter-feedback.md`
 
 **What to build:** the Monorepo template ships one `tokens.json`; its web, mobile and desktop tokens are generated from it by `rok tools tokens`, its CI runs `rok tools tokens --check`, and each UI kit moves into its App's own source instead of shipping as a package.
 
-**Blocked by:** 08
+**Blocked by:** a rok release carrying `rok tools tokens` (08 is merged in rok-tools; the template CI runs the released `rok`)
 
 **Status:** blocked
 

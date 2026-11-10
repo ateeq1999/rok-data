@@ -22,9 +22,9 @@ rust = "apps/api/client"
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Both forms parse; an unknown `layout`, or `sources` for Rust, fails naming the entry
-- [ ] Emission tests for each layout of the TypeScript and Dart Clients
-- [ ] A hand-written file in a `sources` directory survives `rok gen`
-- [ ] Engine docs and CLI reference describe the table form
+- [x] Both forms parse; an unknown `layout`, or `sources` for Rust, fails naming the entry
+- [x] Emission tests for each layout of the TypeScript and Dart Clients
+- [x] A hand-written file in a `sources` directory survives `rok gen`
+- [x] Engine docs and CLI reference describe the table form
