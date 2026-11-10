@@ -105,6 +105,16 @@ the *generated* API count as breaking (see ADR 0012).
   function in `FROM` failed the query; other functions still do, naming
   the ones the engine types.
 
+### Fixed
+
+- A run (and a check run) of an App with an OpenAPI document fails when
+  two `ToSchema` types under its `src/` share a component name, naming
+  both files and lines: utoipa keeps one schema per name, so a
+  hand-written DTO named like a generated one replaced it and the Clients
+  came out wrong. `#[schema(as = path::Name)]` (named `path.Name`, as
+  utoipa names it) resolves the clash; generic types and test code are
+  left out.
+
 ## Workspace 0.9.0 - 2026-11-06
 
 Published as `rok-data-sqlc` 0.9.0 with the workspace (root `CHANGELOG.md`).

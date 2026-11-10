@@ -55,6 +55,14 @@ that it exists and won't ship a tag without it).
   l(item_id uuid, quantity int)`, a `serde_json::Value`). The engine
   README's "Writing query files" documents the patterns.
 
+**Fixed**
+
+- `rok gen` and `rok gen check` fail when two `ToSchema` types in the
+  App share a component name (a hand-written DTO named like a generated
+  response, say), naming both files, instead of the OpenAPI document
+  silently keeping one of them and the Clients coming out wrong. Rename
+  one of the types or give it `#[schema(as = ...)]`.
+
 ## [0.9.0] — strict, better-typed `rok gen`; one rule for finding the project; `:page` and shared queries
 
 Breaking for some projects. `rok gen` fails on a table or query it can't

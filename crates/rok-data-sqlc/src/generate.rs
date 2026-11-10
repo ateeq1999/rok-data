@@ -16,6 +16,7 @@ use crate::{api_config, generator, output, parser};
 
 mod constraint_messages;
 mod query_files;
+mod schema_names;
 mod snapshot;
 
 use query_files::{AnalyzedFile, analyze_query_file, query_inputs};
@@ -332,6 +333,11 @@ fn run(config: &Config, report: &mut Report, analysis: &mut Analysis) -> anyhow:
         .iter()
         .flat_map(|(_, paths)| paths.iter().cloned())
         .collect();
+    // The OpenAPI document holds one schema per component name.
+    if let Some(api) = config.api.as_ref().filter(|api| api.openapi) {
+        let src = api.output.parent().unwrap_or(&api.output);
+        schema_names::check(src, &files, &stale)?;
+    }
 
     if config.check {
         (report.missing, report.changed) = output::compare_files(&files)?;
