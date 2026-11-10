@@ -10,6 +10,7 @@
 mod getting_started;
 mod migration_guide;
 mod pagination;
+mod validation;
 
 use std::path::{Path, PathBuf};
 
@@ -83,6 +84,7 @@ fn every_rust_sample_compiles_or_says_why_not() {
         "docs/getting-started.md",
         "docs/migration-guide.md",
         "docs/pagination.md",
+        "docs/validation.md",
     ] {
         let document = std::fs::read_to_string(root().join(name))
             .unwrap_or_else(|error| panic!("{name}: {error}"));

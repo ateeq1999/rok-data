@@ -28,6 +28,7 @@ contents for everything else.
 | [`architecture.md`](architecture.md) | crate responsibilities, dependency rules, migration-system layers |
 | [`feature-matrix.md`](feature-matrix.md) | what exists where, mapped from the four source repositories |
 | [`pagination.md`](pagination.md) | paging, cursors, chunking, streaming — the wire shapes too |
+| [`validation.md`](validation.md) | validating input: field rules, database rules, context, nesting, messages, the 422 body, JSON Schema |
 | [`migration-guide.md`](migration-guide.md) | moving a project from rok-db / rok-sqlc / rok-fluent / rok-orm, and the 0.3.0 / 0.4.0 / 0.5.0 / 0.6.0 / 0.7.0 / 0.8.0 / 0.9.0 upgrades |
 | [`benchmarks.md`](benchmarks.md) | the builder-effort bench, honestly scoped |
 
@@ -43,9 +44,9 @@ before the body, so the page needs no surrounding conversation to be
 usable. Pages are kept self-contained: facts cite workspace ADRs and
 crate paths by repository-relative location, never by bare "see above".
 
-Three pages carry compile-checked Rust samples —
+Four pages carry compile-checked Rust samples —
 [`getting-started.md`](getting-started.md),
-[`migration-guide.md`](migration-guide.md), [`pagination.md`](pagination.md).
+[`migration-guide.md`](migration-guide.md), [`pagination.md`](pagination.md), [`validation.md`](validation.md).
 Each sample block is marked `<!-- source: <path> -->` and is held,
 verbatim (modulo indentation), against the compiled file the marker
 names by `crates/rok-data/tests/docs`. Do not edit those samples in the

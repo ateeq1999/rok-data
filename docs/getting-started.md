@@ -338,6 +338,18 @@ Supplier::patch(&db, supplier.id, patch).await?;
 Supplier::destroy(&db, supplier.id).await?;
 ```
 
+Data on its way to becoming rows (a request body, a form) is an
+**Input**: `#[derive(Input)]` gives it transforms, field rules and
+database rules such as `unique` and `exists`, and `validate` returns the
+transformed input or every failure. [`validation.md`](validation.md) has
+the whole surface.
+
+<!-- source: crates/rok-data/tests/docs/validation.rs -->
+```rust
+// the transformed input, or `Error::Validation` with every failure
+let input = body.validate(&db).await?;
+```
+
 Tests that touch the database use `#[rok_data::test]` (attribute; it
 creates a schema-scoped `Db` for the test, like the original
 `#[rok_db::test]`).
@@ -409,6 +421,7 @@ $ rok sqlc check-arch
   unattended loop): `docs/coding-agents.md`
 - What rok-data is, its crates at a glance, and the naming trap:
   `docs/overview.md`
+- Validating request bodies and forms (`#[derive(Input)]`): `docs/validation.md`
 - Coming from rok-db/rok-sqlc/rok-fluent/rok-orm:
   `docs/migration-guide.md`
 - Why the workspace looks like this: `docs/architecture.md`,
