@@ -4,7 +4,7 @@
 
 use serde_json::{Map, Value};
 
-use super::{Error, Result, Schema, object, only, pointer, unsupported};
+use super::{Error, Result, Rules, Schema, object, only, pointer, unsupported};
 
 /// An HTTP method an operation answers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -257,7 +257,7 @@ fn parameters(map: &Map<String, Value>, path: &str, at: &str) -> Result<Paramete
                 .to_owned();
             let schema = match parameter_map.get("schema") {
                 Some(schema) => Schema::parse(schema, &pointer(&here, "schema"))?,
-                None => Schema::String,
+                None => Schema::String(Rules::default()),
             };
             let parsed = Parameter {
                 name,

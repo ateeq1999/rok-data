@@ -21,7 +21,7 @@ mod operation;
 mod schema;
 
 pub use operation::{Body, Method, Operation, Parameter, Response};
-pub use schema::{Property, Schema};
+pub use schema::{Property, Rules, Schema};
 
 /// An `openapi.json` read into the subset's model.
 #[derive(Debug, Clone, PartialEq)]

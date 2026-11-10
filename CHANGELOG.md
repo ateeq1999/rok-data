@@ -9,6 +9,15 @@ that it exists and won't ship a tag without it).
 
 ## [Unreleased]
 
+**Changed**
+
+- The TypeScript Client's types are zod 4 schemas (`ThingSchema`, with
+  `type Thing` inferred from it, names unchanged), carrying the server's
+  rules (lengths, bounds, patterns, formats) for forms to check input
+  with, and every call checks its JSON success, rejecting with
+  `ContractError` when the body is not what the contract describes
+  (unknown keys are dropped). A web App depends on `zod@^4`.
+
 **Added**
 
 - `docs/validation.md`, a guide to validating input with

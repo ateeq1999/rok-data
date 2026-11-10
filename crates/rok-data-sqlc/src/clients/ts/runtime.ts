@@ -32,6 +32,52 @@ export class ApiError extends Error {
   }
 }
 
+/** One way a response differs from its schema: where, and how. */
+export type ContractIssue = {
+  /** The path into the body, dotted (`items.2.price`); `""` is the body. */
+  path: string
+  message: string
+}
+
+/**
+ * A success whose body the contract doesn't describe: the server and this
+ * Client disagree. Unknown keys are not an issue (they are dropped), so an
+ * older Client keeps working against a newer server.
+ */
+export class ContractError extends Error {
+  /** The operation, as the contract names it (`GET /things/{id}`). */
+  readonly operation: string
+  readonly issues: ContractIssue[]
+
+  constructor(operation: string, issues: ContractIssue[]) {
+    const where = issues
+      .map((issue) => `${issue.path || "(body)"}: ${issue.message}`)
+      .join("; ")
+    super(`${operation} answered a body the contract doesn't describe: ${where}`)
+    this.name = "ContractError"
+    this.operation = operation
+    this.issues = issues
+  }
+}
+
+/**
+ * What a call checks its response with: a zod schema, read by its
+ * `safeParse` alone.
+ */
+export type ResponseSchema = {
+  safeParse(data: unknown):
+    | { success: true; data: unknown }
+    | {
+        success: false
+        error: {
+          issues: ReadonlyArray<{
+            path: ReadonlyArray<PropertyKey>
+            message: string
+          }>
+        }
+      }
+}
+
 /** How the client reaches the API, set once with `configure`. */
 export type ClientConfig = {
   /** Prefixed to every path: the API's origin, or "" for the same origin. */
@@ -78,6 +124,8 @@ type HeaderValue = string | number | boolean | null | undefined
 
 /** One call, as the generated operations describe it. */
 export type Call = {
+  /** The operation, as the contract names it (`GET /things/{id}`). */
+  operation: string
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
   path: string
   query?: { [name: string]: QueryValue }
@@ -89,6 +137,8 @@ export type Call = {
   secured: boolean
   /** What its success answers. */
   response: "json" | "blob" | "none"
+  /** The schema a JSON success's body is checked with. */
+  schema?: ResponseSchema
 }
 
 function buildUrl(path: string, query?: Call["query"]) {
@@ -144,7 +194,11 @@ async function toApiError(res: Response) {
   )
 }
 
-/** Sends `call`; resolves to its success's body, rejects with an ApiError. */
+/**
+ * Sends `call`; resolves to its success's body, checked with its schema
+ * (unknown keys dropped). Rejects with an ApiError, or a ContractError when
+ * the body is not what the contract describes.
+ */
 export async function request<T>(
   call: Call,
   options: RequestOptions = {}
@@ -190,10 +244,23 @@ export async function request<T>(
   }
   if (call.response === "blob") return (await res.blob()) as T
   if (call.response === "none" || res.status === 204) return undefined as T
+  let body: unknown
   try {
-    return (await res.json()) as T
+    body = await res.json()
   } catch {
     // empty or non-JSON success body
     return null as T
   }
+  if (!call.schema) return body as T
+  const checked = call.schema.safeParse(body)
+  if (!checked.success) {
+    throw new ContractError(
+      call.operation,
+      checked.error.issues.map((issue) => ({
+        path: issue.path.map(String).join("."),
+        message: issue.message,
+      }))
+    )
+  }
+  return checked.data as T
 }

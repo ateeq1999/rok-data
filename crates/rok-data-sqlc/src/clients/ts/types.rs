@@ -1,20 +1,32 @@
-//! `src/types.ts`: a TypeScript type per component schema, and per
+//! `types.ts`: a zod schema and its type per component schema
+//! (`ThingSchema`, `type Thing = z.infer<typeof ThingSchema>`), checking
+//! the server's rules (`minLength`, `pattern`, `format`, …); and per
 //! operation with query parameters, its query type; with header
-//! parameters, its headers type (the fields its options add).
+//! parameters, its headers type (the fields its options add), as plain
+//! types.
 
-use super::super::openapi::{Document, Parameter, Schema};
+use std::collections::HashSet;
+
+use super::super::openapi::{Document, Parameter, Rules, Schema};
 use super::{Named, TypeNames, doc, header_field, property_key};
 
-/// The text of `src/types.ts` (after the header).
+/// The text of `types.ts` (after the header).
 pub(super) fn file(document: &Document, operations: &[Named<'_>], names: &TypeNames) -> String {
-    let mut out = String::new();
-    for (name, schema) in &document.schemas {
-        out.push('\n');
+    let mut out = String::from("\nimport { z } from \"zod\"\n");
+    let mut declared = HashSet::new();
+    for (name, schema) in ordered(document) {
+        let zod = Zod {
+            names,
+            declared: Some(&declared),
+        };
+        let type_name = names.schema(name);
         out.push_str(&format!(
-            "export type {} = {}\n",
-            names.schema(name),
-            render(schema, names, "")
+            "\nexport const {} = {}\nexport type {type_name} = z.infer<typeof {}>\n",
+            schema_const(&type_name),
+            zod.render(schema, ""),
+            schema_const(&type_name),
         ));
+        declared.insert(name.as_str());
     }
     for named in operations {
         if named.op.query_params.is_empty() {
@@ -45,6 +57,193 @@ pub(super) fn file(document: &Document, operations: &[Named<'_>], names: &TypeNa
     out
 }
 
+/// The const holding the zod schema of the type `type_name`.
+pub(super) fn schema_const(type_name: &str) -> String {
+    format!("{type_name}Schema")
+}
+
+/// The document's schemas, each after the schemas it refers to (a cycle
+/// broken where it closes), otherwise by name.
+fn ordered(document: &Document) -> Vec<(&String, &Schema)> {
+    fn visit<'a>(
+        name: &'a String,
+        document: &'a Document,
+        seen: &mut HashSet<&'a str>,
+        out: &mut Vec<(&'a String, &'a Schema)>,
+    ) {
+        // Marked on entry, so a cycle stops where it closes.
+        if !seen.insert(name.as_str()) {
+            return;
+        }
+        let Some(schema) = document.schemas.get(name) else {
+            return;
+        };
+        for next in schema.refs() {
+            if let Some((next, _)) = document.schemas.get_key_value(next) {
+                visit(next, document, seen, out);
+            }
+        }
+        out.push((name, schema));
+    }
+    let mut seen = HashSet::new();
+    let mut out = Vec::new();
+    for name in document.schemas.keys() {
+        visit(name, document, &mut seen, &mut out);
+    }
+    out
+}
+
+/// Renders zod schemas. `declared` holds the component schemas whose
+/// consts exist where the text goes: a reference to another one is
+/// deferred, by a getter in an object (which keeps a recursive type
+/// inferable) or by `z.lazy` elsewhere. `None` means every const exists.
+pub(super) struct Zod<'a> {
+    /// The type names of the component schemas.
+    pub names: &'a TypeNames,
+    /// The component schemas already declared, or `None` for all.
+    pub declared: Option<&'a HashSet<&'a str>>,
+}
+
+impl Zod<'_> {
+    /// Whether every schema `schema` refers to is declared.
+    fn ready(&self, schema: &Schema) -> bool {
+        self.declared
+            .is_none_or(|declared| schema.refs().iter().all(|name| declared.contains(name)))
+    }
+
+    /// The zod schema of `schema`, multi-line objects indented for a place
+    /// at `indent`.
+    pub fn render(&self, schema: &Schema, indent: &str) -> String {
+        match schema {
+            Schema::Ref(name) => {
+                let constant = schema_const(&self.names.schema(name));
+                if self.ready(schema) {
+                    constant
+                } else {
+                    format!("z.lazy(() => {constant})")
+                }
+            }
+            Schema::Any => "z.unknown()".to_owned(),
+            Schema::Null => "z.null()".to_owned(),
+            Schema::Boolean => "z.boolean()".to_owned(),
+            Schema::Integer(rules) => format!("z.int(){}", bounds(rules)),
+            Schema::Number(rules) => format!("z.number(){}", bounds(rules)),
+            Schema::String(rules) => string(rules),
+            Schema::StringEnum(values) if values.is_empty() => "z.string()".to_owned(),
+            Schema::StringEnum(values) => {
+                let values: Vec<String> = values.iter().map(|value| literal(value)).collect();
+                format!("z.enum([{}])", values.join(", "))
+            }
+            Schema::Array(items) => format!("z.array({})", self.render(items, indent)),
+            Schema::Object {
+                properties,
+                additional,
+            } => {
+                let map = additional
+                    .as_ref()
+                    .map(|values| self.render(values, indent));
+                if properties.is_empty() {
+                    let values = map.unwrap_or_else(|| "z.unknown()".to_owned());
+                    return format!("z.record(z.string(), {values})");
+                }
+                let inner = format!("{indent}  ");
+                let mut out = String::from("z.object({\n");
+                for property in properties {
+                    out.push_str(&doc(property.description.as_deref(), &inner));
+                    let key = property_key(&property.name);
+                    let ready = self.ready(&property.schema);
+                    // A schema declared later (or this one) is read in a
+                    // getter, when the object is parsed.
+                    let renderer = Zod {
+                        names: self.names,
+                        declared: if ready { self.declared } else { None },
+                    };
+                    let mut value = renderer.render(&property.schema, &inner);
+                    if !property.required {
+                        value.push_str(".optional()");
+                    }
+                    if ready {
+                        out.push_str(&format!("{inner}{key}: {value},\n"));
+                    } else {
+                        out.push_str(&format!(
+                            "{inner}get {key}() {{\n{inner}  return {value}\n{inner}}},\n"
+                        ));
+                    }
+                }
+                out.push_str(&format!("{indent}}})"));
+                match map {
+                    Some(values) => format!("{out}.catchall({values})"),
+                    None => out,
+                }
+            }
+            Schema::Nullable(inner) => format!("{}.nullable()", self.render(inner, indent)),
+            Schema::OneOf(variants) => match variants.as_slice() {
+                [only] => self.render(only, indent),
+                _ => {
+                    let variants: Vec<String> = variants
+                        .iter()
+                        .map(|variant| self.render(variant, indent))
+                        .collect();
+                    format!("z.union([{}])", variants.join(", "))
+                }
+            },
+            Schema::AllOf(parts) => {
+                let mut parts = parts.iter().map(|part| self.render(part, indent));
+                let first = parts.next().unwrap_or_else(|| "z.unknown()".to_owned());
+                parts.fold(first, |all, part| format!("z.intersection({all}, {part})"))
+            }
+        }
+    }
+}
+
+/// A JavaScript string literal of `text` (JSON's escaping is JavaScript's).
+fn literal(text: &str) -> String {
+    serde_json::to_string(text).unwrap_or_else(|_| format!("{text:?}"))
+}
+
+/// A number as JavaScript writes it: `2`, `0.5`.
+fn number(value: f64) -> String {
+    format!("{value}")
+}
+
+/// The bounds of a number: `.gte(1).lt(10)`.
+fn bounds(rules: &Rules) -> String {
+    let mut out = String::new();
+    for (method, value) in [
+        ("gte", rules.minimum),
+        ("gt", rules.exclusive_minimum),
+        ("lte", rules.maximum),
+        ("lt", rules.exclusive_maximum),
+    ] {
+        if let Some(value) = value {
+            out.push_str(&format!(".{method}({})", number(value)));
+        }
+    }
+    out
+}
+
+/// A string's zod schema: its format's, then its length and pattern.
+fn string(rules: &Rules) -> String {
+    let mut out = match rules.format.as_deref() {
+        Some("email") => "z.email()",
+        Some("uuid") => "z.uuid()",
+        Some("date-time") => "z.iso.datetime({ offset: true, local: true })",
+        Some("date") => "z.iso.date()",
+        _ => "z.string()",
+    }
+    .to_owned();
+    if let Some(min) = rules.min_length {
+        out.push_str(&format!(".min({min})"));
+    }
+    if let Some(max) = rules.max_length {
+        out.push_str(&format!(".max({max})"));
+    }
+    if let Some(pattern) = &rules.pattern {
+        out.push_str(&format!(".regex(new RegExp({}))", literal(pattern)));
+    }
+    out
+}
+
 /// An object type of `parameters`, each its `key`, optional unless
 /// required.
 fn parameters(parameters: &[Parameter], names: &TypeNames, key: fn(&str) -> String) -> String {
@@ -63,16 +262,17 @@ fn parameters(parameters: &[Parameter], names: &TypeNames, key: fn(&str) -> Stri
     out
 }
 
-/// The TypeScript type of `schema`; a multi-line object type is indented
-/// for a place at `indent`.
+/// The TypeScript type of `schema`, for a call's arguments and the query
+/// and header types; a multi-line object type is indented for a place at
+/// `indent`.
 pub(super) fn render(schema: &Schema, names: &TypeNames, indent: &str) -> String {
     match schema {
         Schema::Ref(name) => names.schema(name),
         Schema::Any => "unknown".to_owned(),
         Schema::Null => "null".to_owned(),
         Schema::Boolean => "boolean".to_owned(),
-        Schema::Integer | Schema::Number => "number".to_owned(),
-        Schema::String => "string".to_owned(),
+        Schema::Integer(_) | Schema::Number(_) => "number".to_owned(),
+        Schema::String(_) => "string".to_owned(),
         Schema::StringEnum(values) if values.is_empty() => "string".to_owned(),
         Schema::StringEnum(values) => values
             .iter()

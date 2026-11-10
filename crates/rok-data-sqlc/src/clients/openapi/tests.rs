@@ -89,7 +89,7 @@ fn the_generated_features_document_defines_every_ref() {
         update.header_params,
         [Parameter {
             name: "If-Match".to_owned(),
-            schema: Schema::String,
+            schema: Schema::String(Rules::default()),
             required: true,
             description: Some("The row's `ETag`.".to_owned()),
         }]
@@ -193,13 +193,16 @@ fn nullable_types_maps_and_any_values_read() -> Result<()> {
     assert!(!by_name("note").required);
     assert_eq!(
         by_name("note").schema,
-        Schema::Nullable(Box::new(Schema::String))
+        Schema::Nullable(Box::new(Schema::String(Rules {
+            max_length: Some(10),
+            ..Rules::default()
+        })))
     );
     assert_eq!(
         by_name("headers").schema,
         Schema::Object {
             properties: Vec::new(),
-            additional: Some(Box::new(Schema::String)),
+            additional: Some(Box::new(Schema::String(Rules::default()))),
         }
     );
     assert_eq!(by_name("details").schema, Schema::Any);

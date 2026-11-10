@@ -179,9 +179,9 @@ impl<'a> Models<'a> {
             Schema::Any => Ty::Any,
             Schema::Null => return Err(unsupported(at, "a value that is only ever `null`")),
             Schema::Boolean => Ty::Bool,
-            Schema::Integer => Ty::Int,
-            Schema::Number => Ty::Double,
-            Schema::String => Ty::String,
+            Schema::Integer(_) => Ty::Int,
+            Schema::Number(_) => Ty::Double,
+            Schema::String(_) => Ty::String,
             Schema::StringEnum(values) if values.is_empty() => Ty::String,
             Schema::StringEnum(_) => match self.component_like(schema) {
                 Some(dart) => Ty::Enum(dart),

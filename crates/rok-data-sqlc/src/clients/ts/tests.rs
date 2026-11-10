@@ -63,10 +63,13 @@ fn calls_are_typed_per_operation() {
     let calls = file(&files, "src/calls.ts");
     assert!(calls.contains(
         "    login: (\n      body: CredentialsDto,\n      options?: RequestOptions\n    ) =>\n      \
-         request<LoginResponse>(\n        {\n          method: \"POST\",\n          \
+         request<LoginResponse>(\n        {\n          operation: \"POST /api/v1/auth/login\",\n          \
+         method: \"POST\",\n          \
          path: \"/api/v1/auth/login\",\n          json: body,\n          secured: false,\n          \
-         response: \"json\",\n        },\n        options\n      ),\n"
+         response: \"json\",\n          schema: LoginResponseSchema,\n        },\n        options\n      ),\n"
     ));
+    // The schemas a response is checked with are imported as values.
+    assert!(calls.contains("  LoginResponseSchema,\n"), "{calls}");
     assert!(calls.contains(
         "    update: (\n      id: string,\n      body: UpdateUserDto,\n      options?: RequestOptions\n    ) =>"
     ));
@@ -90,14 +93,34 @@ fn calls_are_typed_per_operation() {
 fn types_follow_the_schemas() {
     let files = emitted(&monorepo());
     let types = file(&files, "src/types.ts");
-    assert!(types.contains("export type Role = \"user\" | \"admin\"\n"));
-    assert!(types.contains("  avatar_url?: string | null\n"));
-    assert!(types.contains("  role: Role\n"));
-    assert!(types.contains("  scope?: null | ApiKeyScope\n"));
-    assert!(types.contains("export type CreatedApiKeyResponse = ApiKeyResponse & {\n"));
-    assert!(types.contains("  headers: Record<string, string>\n"));
+    assert!(types.starts_with(&format!("{HEADER}{ZOD}\nimport {{ z }} from \"zod\"\n")));
+    assert!(types.contains(
+        "export const RoleSchema = z.enum([\"user\", \"admin\"])\n\
+         export type Role = z.infer<typeof RoleSchema>\n"
+    ));
+    // Nullable and optional, a reference, a nullable reference.
+    assert!(types.contains("  avatar_url: z.string().nullable().optional(),\n"));
+    assert!(types.contains("  role: RoleSchema,\n"));
+    assert!(types.contains("  scope: z.union([z.null(), ApiKeyScopeSchema]).optional(),\n"));
+    // Formats, an intersection, a map.
+    assert!(types.contains("  id: z.uuid(),\n"));
+    assert!(types.contains("  created_at: z.iso.datetime({ offset: true, local: true }),\n"));
+    assert!(types.contains(
+        "export const CreatedApiKeyResponseSchema = z.intersection(ApiKeyResponseSchema, z.object({\n"
+    ));
+    assert!(types.contains("  headers: z.record(z.string(), z.string()),\n"));
+    // A schema is declared after the ones it refers to.
+    let declared = |name: &str| {
+        types
+            .find(&format!("export const {name} ="))
+            .unwrap_or_else(|| panic!("no {name}"))
+    };
+    assert!(declared("RoleSchema") < declared("AccountResponseSchema"));
+    // Query types stay plain types.
     assert!(types.contains("export type UsersListQuery = {\n"));
     assert!(types.contains("  sort?: UserSort\n"));
+    // The index re-exports the schemas as values.
+    assert!(file(&files, "src/index.ts").contains("export * from \"./types\"\n"));
 }
 
 /// Every `GET` has a `queryOptions` factory keyed under its tag; every
@@ -108,7 +131,7 @@ fn query_and_mutation_factories_cover_the_operations() {
     let files = emitted(&monorepo());
     let queries = file(&files, "src/queries.ts");
     assert!(queries.starts_with(&format!(
-        "{HEADER}\nimport {{ mutationOptions, queryOptions }} from \"@tanstack/react-query\"\n"
+        "{HEADER}{ZOD}\nimport {{ mutationOptions, queryOptions }} from \"@tanstack/react-query\"\n"
     )));
     assert!(queries.contains("  users: [\"users\"] as const,\n"));
     assert!(queries.contains(
@@ -209,10 +232,12 @@ fn header_parameters_are_options_of_the_call() {
     assert!(calls.contains(
         "    update: (\n      id: string,\n      body: UpdateDocumentDto,\n      \
          options: RequestOptions & DocumentsUpdateHeaders\n    ) =>\n      \
-         request<DocumentResponse>(\n        {\n          method: \"PATCH\",\n          \
+         request<DocumentResponse>(\n        {\n          \
+         operation: \"PATCH /api/v1/documents/{id}\",\n          method: \"PATCH\",\n          \
          path: `/api/v1/documents/${encodeURIComponent(String(id))}`,\n          \
          json: body,\n          headers: { \"If-Match\": options.ifMatch },\n          \
-         secured: true,\n          response: \"json\",\n        },\n        options\n      ),\n"
+         secured: true,\n          response: \"json\",\n          \
+         schema: DocumentResponseSchema,\n        },\n        options\n      ),\n"
     ));
     let queries = file(&files, "src/queries.ts");
     assert!(queries.contains(
@@ -272,11 +297,116 @@ fn a_nullable_enum_field_keeps_its_comment() {
     let files = emitted(&next_payout());
     let types = file(&files, "src/types.ts");
     assert!(
-        types.contains("  /** Where the payout is. */\n  status?: null | PayoutStatus\n"),
+        types.contains(
+            "  /** Where the payout is. */\n  \
+             status: z.union([z.null(), PayoutStatusSchema]).optional(),\n"
+        ),
         "{types}"
     );
     assert!(
-        types.contains("  /** The payout's own kind. */\n  kind?: null | PayoutStatus\n"),
+        types.contains(
+            "  /** The payout's own kind. */\n  \
+             kind: z.union([z.null(), PayoutStatusSchema]).optional(),\n"
+        ),
         "{types}"
     );
+}
+
+/// A document with one schema, `Thing`, of `properties`.
+fn things(properties: serde_json::Value, required: &[&str]) -> Document {
+    let json = json!({
+        "openapi": "3.1.0", "info": {}, "paths": {},
+        "components": {"schemas": {
+            "Thing": {"type": "object", "required": required, "properties": properties},
+        }},
+    });
+    Document::parse(&json.to_string()).unwrap_or_else(|err| panic!("{err}"))
+}
+
+/// The server's rules become zod's: lengths, bounds (inclusive and
+/// exclusive), a pattern, the formats; an array, a nullable enum.
+#[test]
+fn the_servers_rules_become_zod_rules() {
+    let document = things(
+        json!({
+            "name": {"type": "string", "minLength": 2, "maxLength": 40},
+            "slug": {"type": "string", "pattern": "^[a-z0-9-]+$"},
+            "price": {"type": "number", "exclusiveMinimum": 0, "maximum": 1000.5},
+            "count": {"type": "integer", "format": "int32", "minimum": 1, "exclusiveMaximum": 10},
+            "contact": {"type": "string", "format": "email"},
+            "id": {"type": "string", "format": "uuid"},
+            "at": {"type": "string", "format": "date-time"},
+            "on": {"type": "string", "format": "date"},
+            "tags": {"type": "array", "items": {"type": "string", "maxLength": 8}},
+            "kind": {"type": ["string", "null"], "enum": ["a", "b", null]},
+        }),
+        &["name"],
+    );
+    let files = emitted(&document);
+    let types = file(&files, "src/types.ts");
+    for line in [
+        "  name: z.string().min(2).max(40),\n",
+        "  slug: z.string().regex(new RegExp(\"^[a-z0-9-]+$\")).optional(),\n",
+        "  price: z.number().gt(0).lte(1000.5).optional(),\n",
+        "  count: z.int().gte(1).lt(10).optional(),\n",
+        "  contact: z.email().optional(),\n",
+        "  id: z.uuid().optional(),\n",
+        "  at: z.iso.datetime({ offset: true, local: true }).optional(),\n",
+        "  on: z.iso.date().optional(),\n",
+        "  tags: z.array(z.string().max(8)).optional(),\n",
+        "  kind: z.enum([\"a\", \"b\"]).nullable().optional(),\n",
+    ] {
+        assert!(types.contains(line), "{line}in {types}");
+    }
+}
+
+/// A schema that refers to itself reads the reference in a getter, so the
+/// recursive type still infers; so does one declared later in a cycle.
+#[test]
+fn a_recursive_schema_reads_itself_in_a_getter() {
+    let document = things(
+        json!({
+            "id": {"type": "integer"},
+            "children": {"type": "array", "items": {"$ref": "#/components/schemas/Thing"}},
+        }),
+        &["id", "children"],
+    );
+    let files = emitted(&document);
+    let types = file(&files, "src/types.ts");
+    assert!(
+        types.contains(
+            "export const ThingSchema = z.object({\n  \
+             get children() {\n    return z.array(ThingSchema)\n  },\n  \
+             id: z.int(),\n})\n"
+        ),
+        "{types}"
+    );
+}
+
+/// A schema whose zod schema would take a name the runtime exports is
+/// refused, naming both.
+#[test]
+fn a_schema_whose_zod_schema_takes_a_runtime_name_is_refused() {
+    let json = json!({
+        "openapi": "3.1.0", "info": {}, "paths": {},
+        "components": {"schemas": {"Response": {"type": "string"}}},
+    });
+    let document = Document::parse(&json.to_string()).unwrap_or_else(|err| panic!("{err}"));
+    let error = emit(&document).map(|_| ()).unwrap_err().to_string();
+    assert!(error.contains("`ResponseSchema`"), "{error}");
+}
+
+/// The runtime checks a JSON success with the call's schema: a mismatch
+/// is a `ContractError` naming the operation and each issue's path.
+#[test]
+fn the_runtime_checks_responses_with_the_calls_schema() {
+    let files = emitted(&monorepo());
+    let runtime = file(&files, "src/runtime.ts");
+    assert!(runtime.contains("export class ContractError extends Error {\n"));
+    assert!(runtime.contains("  const checked = call.schema.safeParse(body)\n"));
+    assert!(runtime.contains("    throw new ContractError(\n      call.operation,\n"));
+    // A success with no body is still `undefined`, unchecked.
+    assert!(runtime.contains(
+        "  if (call.response === \"none\" || res.status === 204) return undefined as T\n"
+    ));
 }
