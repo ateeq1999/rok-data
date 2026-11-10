@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A data-layer change that breaks a call site ends with that message and the first error
-- [ ] `--json` carries it in the failed step
+- [x] A data-layer change that breaks a call site ends with that message and the first error
+- [x] `--json` carries it in the failed step

@@ -55,6 +55,15 @@ that it exists and won't ship a tag without it).
   l(item_id uuid, quantity int)`, a `serde_json::Value`). The engine
   README's "Writing query files" documents the patterns.
 
+**Fixed**
+
+- A `rok gen` whose contract export is a `cargo` command, and fails
+  because the App no longer compiles (a data-layer change broke a call
+  site), says so: "the App doesn't build after this change: fix the call
+  sites, then run `rok gen` to write the contract and the Clients",
+  followed by the compiler's first error. `--json` carries it as the
+  failed export step's `error`. Other export failures keep their message.
+
 ## [0.9.0] — strict, better-typed `rok gen`; one rule for finding the project; `:page` and shared queries
 
 Breaking for some projects. `rok gen` fails on a table or query it can't

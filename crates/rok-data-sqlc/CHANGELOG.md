@@ -105,6 +105,14 @@ the *generated* API count as breaking (see ADR 0012).
   function in `FROM` failed the query; other functions still do, naming
   the ones the engine types.
 
+### Fixed
+
+- `Project::export` with a `cargo` command that fails because the App
+  doesn't compile returns "the App doesn't build after this change: fix
+  the call sites, then run `rok gen` to write the contract and the
+  Clients" and the compiler's first error; cargo's output is still shown
+  as it comes. Other export failures keep their message.
+
 ## Workspace 0.9.0 - 2026-11-06
 
 Published as `rok-data-sqlc` 0.9.0 with the workspace (root `CHANGELOG.md`).
