@@ -517,3 +517,55 @@ async fn test_databases_are_dropped() {
         .unwrap();
     assert!(!exists, "{name} should have been dropped");
 }
+
+/// What a service's own error looks like: the runtime's, or its refusal.
+#[derive(Debug)]
+enum ServiceError {
+    Data(#[allow(dead_code, reason = "shown through Debug")] Error),
+    Refused,
+}
+
+impl From<Error> for ServiceError {
+    fn from(error: Error) -> Self {
+        ServiceError::Data(error)
+    }
+}
+
+/// `rok_data::transaction` on a plain `PgPool` (what a service holds)
+/// commits when the closure returns `Ok` and rolls back when it returns
+/// `Err`.
+#[rok_data::test]
+async fn a_transaction_on_a_pool_commits_on_ok_and_rolls_back_on_err(db: Db) {
+    db.execute("CREATE TABLE ledger (id INT PRIMARY KEY)")
+        .await
+        .unwrap();
+    let pool = db.pool().clone();
+
+    rok_data::transaction(&pool, |tx| {
+        Box::pin(async move {
+            raw("INSERT INTO ledger VALUES (1)")
+                .execute(&mut *tx)
+                .await?;
+            Ok::<_, ServiceError>(())
+        })
+    })
+    .await
+    .unwrap();
+
+    let refused = rok_data::transaction(&pool, |tx| {
+        Box::pin(async move {
+            raw("INSERT INTO ledger VALUES (2)")
+                .execute(&mut *tx)
+                .await?;
+            Err::<(), _>(ServiceError::Refused)
+        })
+    })
+    .await;
+    assert!(matches!(refused, Err(ServiceError::Refused)), "{refused:?}");
+
+    let ids: Vec<i32> = raw("SELECT id FROM ledger ORDER BY id")
+        .scalars(&db)
+        .await
+        .unwrap();
+    assert_eq!(ids, [1], "the refused insert was rolled back");
+}

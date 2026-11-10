@@ -303,3 +303,38 @@ fn the_config_sets_the_watched_framework() -> Result<()> {
     assert_eq!(api.framework, ApiFramework::ActixWeb);
     Ok(())
 }
+
+/// A service controls its transactions: `sqlx::Transaction`, a
+/// savepoint's `begin` (through `Acquire`) and the runtime's
+/// `rok_data::transaction` pass rule 2; writing SQL still fails it.
+#[test]
+fn a_service_may_control_a_transaction_but_not_write_sql() -> Result<()> {
+    let service = "\
+use sqlx::{Acquire, PgPool, Postgres, Transaction};
+pub struct NotesService(PgPool);
+impl NotesService {
+    pub async fn audited(&self, tx: &mut Transaction<'_, Postgres>) -> Result<(), AppError> {
+        let savepoint = tx.begin().await?;
+        Ok(savepoint.commit().await?)
+    }
+    pub async fn whole(&self) -> Result<(), rok_data::Error> {
+        rok_data::transaction(&self.0, |_tx| Box::pin(async move { Ok(()) })).await
+    }
+}
+";
+    let files = [("src/features/notes/service.rs", service)];
+    assert_eq!(
+        violations(ApiFramework::Axum, &files)?,
+        Vec::<String>::new()
+    );
+
+    let writes =
+        "pub async fn f(pool: &sqlx::PgPool) { let _ = sqlx::query(\"DELETE FROM notes\"); }\n";
+    let files = [("src/features/notes/service.rs", writes)];
+    let found = violations(ApiFramework::Axum, &files)?;
+    assert!(
+        found.iter().any(|v| v.contains("rule-2: `sqlx::query`")),
+        "{found:?}"
+    );
+    Ok(())
+}

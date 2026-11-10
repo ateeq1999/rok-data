@@ -259,6 +259,51 @@ impl Db {
     }
 }
 
+/// [`Db::transaction`] on a plain sqlx `pool`, which is what a service
+/// often holds: run `f` inside a transaction, committing if it returns
+/// `Ok` and rolling back if it returns `Err`. The [`Tx`] it gets works
+/// wherever a session does (generated writes, queries, models), and
+/// `tx.begin()` inside it is a savepoint.
+///
+/// ```ignore
+/// let order = rok_data::transaction(&self.pool, |tx| Box::pin(async move {
+///     let order = Order::create(&mut *tx, new_order).await?;
+///     AuditLogEntry::create(&mut *tx, entry_for(&order)).await?;
+///     Ok::<_, AppError>(order)
+/// })).await?;
+/// ```
+///
+/// # Errors
+///
+/// `f`'s error, or [`Error`] (converted into `E`) when the transaction
+/// cannot begin, commit or roll back.
+pub async fn transaction<T, E, F>(pool: &PgPool, f: F) -> std::result::Result<T, E>
+where
+    F: for<'t> FnOnce(&'t mut Tx) -> BoxFuture<'t, std::result::Result<T, E>>,
+    E: From<Error>,
+{
+    #[cfg_attr(not(feature = "json"), allow(unused_mut))]
+    let mut tx = Tx {
+        inner: pool.begin().await.map_err(Error::from)?,
+        ctx: None,
+        touched: Mutex::default(),
+    };
+    #[cfg(feature = "json")]
+    if let Some(actor) = crate::audit::current_actor() {
+        tx.set_actor(&actor).await?;
+    }
+    match f(&mut tx).await {
+        Ok(value) => {
+            tx.commit().await?;
+            Ok(value)
+        }
+        Err(err) => {
+            tx.rollback().await?;
+            Err(err)
+        }
+    }
+}
+
 impl From<PgPool> for Db {
     fn from(pool: PgPool) -> Self {
         Self::from_pool(pool)

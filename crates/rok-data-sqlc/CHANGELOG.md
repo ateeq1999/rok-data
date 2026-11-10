@@ -40,6 +40,10 @@ the *generated* API count as breaking (see ADR 0012).
   before its body extractor (`ValidatedJson`, `Json`, `Form`), reported
   as `caller-first`, so a caller without permission gets the 403 before
   the body's 422.
+- `check-arch` lets `service.rs` and `service_api.rs` control a
+  transaction: `sqlx::Transaction`, `sqlx::Postgres`, and the `Acquire`
+  and `Connection` traits a savepoint's `begin` needs. Writing SQL there
+  (`sqlx::query`) still fails rule 2.
 - `-- rok:constraint <name> [<field>] "<message>"` anywhere in the schema
   dir says what a broken constraint means: a check, unique or foreign-key
   constraint, a unique index, or a name a trigger raises. The data layer

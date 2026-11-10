@@ -9,9 +9,9 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None for the rule; grpc-api-template/08 for the template half
 
-**Status:** ready-for-agent
+**Status:** blocked (the rule and the runtime helper are done; the template half waits on the next rok-templates release)
 
-- [ ] A service using a savepoint, or `rok_data::transaction`, passes check-arch; one calling `sqlx::query` still fails
-- [ ] `rok_data::transaction(&pool, …)` commits on `Ok`, rolls back on `Err` (DB-backed test)
+- [x] A service using a savepoint, or `rok_data::transaction`, passes check-arch; one calling `sqlx::query` still fails
+- [x] `rok_data::transaction(&pool, …)` commits on `Ok`, rolls back on `Err` (DB-backed test)
 - [ ] Template: `AGENTS.md` shows it for an audited multi-step write
 - [ ] Template: AGENTS.md pattern, `reqwest` `json` enabled

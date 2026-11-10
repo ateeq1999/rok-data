@@ -75,6 +75,13 @@ pub(super) const SQLX_FEATURE: &[&str] = &["repo.rs", "model.rs"];
 pub(super) const SQLX_PORT_FILES: &[&str] = &["service.rs", "service_api.rs"];
 /// The `sqlx` items the [`SQLX_PORT_FILES`] may name (rule 2).
 pub(super) const SQLX_PORT_TYPES: &[&str] = &["PgPool", "PgConnection"];
+/// The `sqlx` items the [`SQLX_PORT_FILES`] may also name to control a
+/// transaction, never to write SQL: `Transaction<'_, Postgres>`, and the
+/// `Acquire` and `Connection` traits a savepoint's `begin` needs. Kept out
+/// of rule 2's text, which the templates' `AGENTS.md` carry; the
+/// architecture guide states it.
+pub(super) const SQLX_TRANSACTION_TYPES: &[&str] =
+    &["Transaction", "Postgres", "Acquire", "Connection"];
 
 /// `a`, `b` and `c`, each in backticks.
 fn listed(items: &[&str]) -> String {

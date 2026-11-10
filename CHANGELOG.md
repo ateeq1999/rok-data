@@ -24,6 +24,11 @@ that it exists and won't ship a tag without it).
 
 **Added**
 
+- `rok_data::transaction(&pool, |tx| …)` runs a closure in a transaction
+  on a plain `PgPool` (what a service holds), committing on `Ok` and
+  rolling back on `Err`; its `tx` is a `rok_data::Tx`. `check-arch` lets
+  a service control its transactions (`sqlx::Transaction`, a savepoint's
+  `begin`) and still fails `sqlx::query` there.
 - `docs/validation.md`, a guide to validating input with
   `#[derive(Input)]`: field rules and transforms, database rules,
   context, conditional rules, nesting, messages, the 422 body, JSON
