@@ -320,3 +320,49 @@ fn a_nullable_enum_field_keeps_its_comment() {
         "{types}"
     );
 }
+
+/// A `POST` body and a `PATCH` body, each with an optional nullable `note`.
+fn create_and_patch() -> Document {
+    let body = |schema: &str| json!({"content": {"application/json": {"schema": {"$ref": format!("#/components/schemas/{schema}")}}}});
+    parsed(
+        json!({
+            "/things": {"post": {"operationId": "create", "tags": ["things"],
+                "requestBody": body("NewThing"), "responses": {"204": {"description": ""}}}},
+            "/things/{id}": {"patch": {"operationId": "update", "tags": ["things"],
+                "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string"}}],
+                "requestBody": body("UpdateThing"), "responses": {"204": {"description": ""}}}},
+        }),
+        json!({
+            "NewThing": {"type": "object", "required": ["name"], "properties": {
+                "name": {"type": "string"}, "note": {"type": ["string", "null"]}}},
+            "UpdateThing": {"type": "object", "properties": {
+                "note": {"type": ["string", "null"]}}},
+        }),
+    )
+}
+
+/// Only a `PATCH` body tells "left out" from `null`: a `POST` body's
+/// optional nullable field is a plain `Option`, a `PATCH` body's keeps
+/// three states, and a body of optional fields only derives `Default`.
+#[test]
+fn only_a_patch_body_has_three_state_fields() {
+    let files = emitted(&create_and_patch());
+    let types = file(&files, "src/types.rs");
+    let create = types
+        .split("pub struct NewThing {")
+        .nth(1)
+        .and_then(|rest| rest.split("\n}\n").next())
+        .unwrap_or_else(|| panic!("no NewThing in {types}"));
+    assert!(create.contains("    pub note: Option<String>,"), "{create}");
+    assert!(!create.contains("Option<Option"), "{create}");
+    assert!(
+        types.contains(
+            "#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]\npub struct UpdateThing {"
+        ),
+        "{types}"
+    );
+    assert!(
+        types.contains("    pub note: Option<Option<String>>,\n"),
+        "{types}"
+    );
+}

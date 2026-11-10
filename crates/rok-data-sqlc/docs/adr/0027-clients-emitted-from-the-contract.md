@@ -192,3 +192,18 @@ or without them, and the server checks them.
   (`revision`), not its `ETag`. The runtimes send a bare value of
   `If-Match` or `If-None-Match` quoted (`3` as `"3"`); an entity tag
   (`"3"`, `W/"3"`) or `*` goes as it is. Other headers go as given.
+
+## Amended 2026-11-10
+
+- **Three states only where the API tells them apart.** A body field
+  that may be left out and may be `null` is three-state (Rust
+  `Option<Option<T>>`, Dart `Nullable<T>?`, TypeScript `T | null`
+  optional) only in a component a `PATCH` body reaches, where leaving it
+  out keeps the value and `null` clears it. Elsewhere the two mean the
+  same, so the field is plain optional: Rust `Option<T>` (skipped when
+  `None`), Dart `T?`, TypeScript `field?: T` for a component only
+  non-`PATCH` bodies reach (one a response also reaches keeps `null`, the
+  answer's value). A Rust body whose fields are all optional derives
+  `Default`. This replaces "every request's optional, nullable field is
+  three-state" in the Rust and Dart sections above: a `POST` caller wrote
+  `Some(Some(…))` and `Nullable(name)` for nothing.

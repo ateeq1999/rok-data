@@ -6,7 +6,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::super::openapi::{Body, Document, Property, Schema};
+use super::super::openapi::{Body, Document, Method, Property, Schema};
 use super::{Error, RESERVED_TYPES, doc, ident, type_ident};
 
 /// The types of the client, as the calls ask for them.
@@ -460,12 +460,15 @@ impl<'d> Types<'d> {
     }
 }
 
-/// The component schemas a request body reaches, through any `$ref`.
+/// The component schemas a `PATCH` body reaches, through any `$ref`: only
+/// there does the API tell a field left out (kept) from `null` (cleared),
+/// so only their optional nullable fields are three-state.
 fn inputs(document: &Document) -> BTreeSet<String> {
     let mut found = BTreeSet::new();
     let mut pending: Vec<&str> = document
         .operations
         .iter()
+        .filter(|op| op.method == Method::Patch)
         .filter_map(|op| match &op.body {
             Some(Body::Json(schema)) => Some(schema.refs()),
             _ => None,

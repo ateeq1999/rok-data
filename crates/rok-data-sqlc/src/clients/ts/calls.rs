@@ -283,6 +283,7 @@ fn response_schema(named: &Named<'_>, names: &TypeNames) -> Option<String> {
             Zod {
                 names,
                 declared: None,
+                plain: false,
             }
             .render(schema, "          "),
         ),

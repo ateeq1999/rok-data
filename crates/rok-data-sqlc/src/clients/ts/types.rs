@@ -7,17 +7,19 @@
 
 use std::collections::HashSet;
 
-use super::super::openapi::{Document, Parameter, Rules, Schema};
+use super::super::openapi::{Body, Document, Method, Parameter, Response, Rules, Schema};
 use super::{Named, TypeNames, doc, header_field, property_key};
 
 /// The text of `types.ts` (after the header).
 pub(super) fn file(document: &Document, operations: &[Named<'_>], names: &TypeNames) -> String {
     let mut out = String::from("\nimport { z } from \"zod\"\n");
     let mut declared = HashSet::new();
+    let plain = plain_inputs(document);
     for (name, schema) in ordered(document) {
         let zod = Zod {
             names,
             declared: Some(&declared),
+            plain: plain.contains(name.as_str()),
         };
         let type_name = names.schema(name);
         out.push_str(&format!(
@@ -93,6 +95,65 @@ fn ordered(document: &Document) -> Vec<(&String, &Schema)> {
     out
 }
 
+/// The component schemas only non-`PATCH` request bodies reach: no
+/// response and no `PATCH` body does. Their optional nullable fields are
+/// plain optional, as leaving one out and sending `null` mean the same.
+fn plain_inputs(document: &Document) -> HashSet<String> {
+    let reach = |roots: Vec<&Schema>| {
+        let mut seen: HashSet<String> = HashSet::new();
+        let mut pending: Vec<String> = roots
+            .into_iter()
+            .flat_map(|schema| schema.refs().into_iter().map(str::to_owned))
+            .collect();
+        while let Some(name) = pending.pop() {
+            if seen.insert(name.clone())
+                && let Some(schema) = document.schemas.get(&name)
+            {
+                pending.extend(schema.refs().into_iter().map(str::to_owned));
+            }
+        }
+        seen
+    };
+    let (mut sent, mut patched, mut answered) = (Vec::new(), Vec::new(), Vec::new());
+    for operation in &document.operations {
+        if let Some(Body::Json(schema)) = &operation.body {
+            if operation.method == Method::Patch {
+                patched.push(schema);
+            } else {
+                sent.push(schema);
+            }
+        }
+        if let Response::Json(schema) = &operation.response {
+            answered.push(schema);
+        }
+    }
+    let (patched, answered) = (reach(patched), reach(answered));
+    reach(sent)
+        .into_iter()
+        .filter(|name| !patched.contains(name) && !answered.contains(name))
+        .collect()
+}
+
+/// `schema` without its `null`: a nullable schema's inner one, a `oneOf`'s
+/// other branches.
+fn without_null(schema: &Schema) -> Schema {
+    match schema {
+        Schema::Nullable(inner) => (**inner).clone(),
+        Schema::OneOf(variants) if variants.contains(&Schema::Null) => {
+            let rest: Vec<Schema> = variants
+                .iter()
+                .filter(|variant| **variant != Schema::Null)
+                .cloned()
+                .collect();
+            match rest.as_slice() {
+                [only] => only.clone(),
+                _ => Schema::OneOf(rest),
+            }
+        }
+        _ => schema.clone(),
+    }
+}
+
 /// Renders zod schemas. `declared` holds the component schemas whose
 /// consts exist where the text goes: a reference to another one is
 /// deferred, by a getter in an object (which keeps a recursive type
@@ -102,6 +163,10 @@ pub(super) struct Zod<'a> {
     pub names: &'a TypeNames,
     /// The component schemas already declared, or `None` for all.
     pub declared: Option<&'a HashSet<&'a str>>,
+    /// Rendering a body only non-`PATCH` requests send: an optional field
+    /// left out and one sent as `null` mean the same, so it is plain
+    /// optional (`field?: T`).
+    pub plain: bool,
 }
 
 impl Zod<'_> {
@@ -157,8 +222,14 @@ impl Zod<'_> {
                     let renderer = Zod {
                         names: self.names,
                         declared: if ready { self.declared } else { None },
+                        plain: self.plain,
                     };
-                    let mut value = renderer.render(&property.schema, &inner);
+                    let schema = if self.plain && !property.required {
+                        without_null(&property.schema)
+                    } else {
+                        property.schema.clone()
+                    };
+                    let mut value = renderer.render(&schema, &inner);
                     if !property.required {
                         value.push_str(".optional()");
                     }

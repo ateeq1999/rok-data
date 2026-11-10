@@ -101,7 +101,10 @@ fn types_follow_the_schemas() {
     // Nullable and optional, a reference, a nullable reference.
     assert!(types.contains("  avatar_url: z.string().nullable().optional(),\n"));
     assert!(types.contains("  role: RoleSchema,\n"));
-    assert!(types.contains("  scope: z.union([z.null(), ApiKeyScopeSchema]).optional(),\n"));
+    // A `POST`-only body's optional field is plain optional; a `PATCH`
+    // body's keeps `null` apart from left out.
+    assert!(types.contains("  scope: ApiKeyScopeSchema.optional(),\n"));
+    assert!(types.contains("  role: z.union([z.null(), RoleSchema]).optional(),\n"));
     // Formats, an intersection, a map.
     assert!(types.contains("  id: z.uuid(),\n"));
     assert!(types.contains("  created_at: z.iso.datetime({ offset: true, local: true }),\n"));
