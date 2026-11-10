@@ -48,7 +48,7 @@ pub use collection::ModelCollection;
 pub use context::Executor;
 pub use copy::CopyTarget;
 pub use cursor::{Cursor, CursorPage};
-pub use db::{Db, DbBuilder, Isolation, PoolStats, Retryable, Tx, TxOptions};
+pub use db::{Db, DbBuilder, Isolation, PoolStats, Retryable, Tx, TxOptions, transaction};
 #[cfg(feature = "encryption")]
 pub use encrypted::{ENCRYPTION_KEY_VAR, Encrypted, set_encryption_key};
 pub use error::{Error, Result};

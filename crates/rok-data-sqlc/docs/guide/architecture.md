@@ -365,6 +365,15 @@ override there. Because every other method keeps its default, an endpoint a
 later schema change adds arrives working, and regeneration never breaks your
 file.
 
+**A service controls its transactions; it never writes SQL.** Beyond
+`sqlx::PgPool` and `sqlx::PgConnection`, `service.rs` and `service_api.rs`
+may name `sqlx::Transaction`, `sqlx::Postgres`, and the `Acquire` and
+`Connection` traits a savepoint's `begin` needs; `check-arch` still fails
+`sqlx::query` there. For a write of several steps, `rok_data::transaction`
+runs a closure on the service's `PgPool`, committing on `Ok` and rolling
+back on `Err`, and the closure's `tx` works wherever a session does:
+`rok_data::transaction(&self.pool, |tx| Box::pin(async move { … }))`.
+
 ## 7. Ports: one feature writing another's data
 
 A feature may read any table through `crate::db`. It writes another

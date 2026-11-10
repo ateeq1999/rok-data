@@ -20,8 +20,8 @@ use crate::ApiFramework;
 
 pub(crate) use rules::rules_markdown;
 use rules::{
-    Rule1, SQLX_FEATURE, SQLX_PORT_FILES, SQLX_PORT_TYPES, SQLX_ROOT, WIRING_DIR, WIRING_FILE,
-    rule_1,
+    Rule1, SQLX_FEATURE, SQLX_PORT_FILES, SQLX_PORT_TYPES, SQLX_ROOT, SQLX_TRANSACTION_TYPES,
+    WIRING_DIR, WIRING_FILE, rule_1,
 };
 use source::Reference;
 
@@ -493,7 +493,8 @@ impl Layout {
                     let ports = feature.is_some()
                         && SQLX_PORT_FILES.contains(&file)
                         && path.len() == 2
-                        && SQLX_PORT_TYPES.contains(&path[1].as_str());
+                        && (SQLX_PORT_TYPES.contains(&path[1].as_str())
+                            || SQLX_TRANSACTION_TYPES.contains(&path[1].as_str()));
                     let allowed = infrastructure
                         || ports
                         || Self::is_root(rel, SQLX_ROOT)
