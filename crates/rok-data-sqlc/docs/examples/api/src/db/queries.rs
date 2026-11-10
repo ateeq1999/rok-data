@@ -59,6 +59,7 @@ where
 }
 
 /// Runs the `ProjectNames` query (`:many`).
+/// Takes its parameters as arguments: three or fewer (`query_params = "auto"`).
 pub async fn project_names<'e, E>(
     executor: E,
     owner_id: uuid::Uuid,
