@@ -185,3 +185,25 @@ fn errors_point_at_the_file() {
     let err = parse_text("\n-- name: x :maybe\nSELECT 1;").unwrap_err();
     assert!(err.to_string().contains("db/user.sql:3"), "{err}");
 }
+
+/// A statement rok can't undo is refused with its first line named and
+/// the marker's place spelled out, so a file with several triggers says
+/// which one lacks its own `-- rok:down`.
+#[test]
+fn a_statement_without_its_undo_is_named_and_told_where_the_marker_goes() {
+    let err = parse_text(
+        "CREATE TABLE books (id BIGSERIAL PRIMARY KEY);
+CREATE TRIGGER books_touch BEFORE UPDATE ON books
+    FOR EACH ROW EXECUTE FUNCTION touch();
+-- rok:down
+DROP TRIGGER books_touch ON books;
+CREATE TRIGGER books_audit AFTER INSERT ON books
+    FOR EACH ROW EXECUTE FUNCTION audit();",
+    )
+    .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "db/user.sql:6: rok can't undo `CREATE TRIGGER books_audit AFTER INSERT ON books` \
+         by itself; add `-- rok:down` and the SQL that undoes it immediately after this statement"
+    );
+}
