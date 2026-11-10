@@ -35,6 +35,11 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Added
 
+- `check-arch` checks that a feature's handler takes its caller extractor
+  (`AuthUser`, `AdminUser`, or a struct the App marks `/// rok:caller`)
+  before its body extractor (`ValidatedJson`, `Json`, `Form`), reported
+  as `caller-first`, so a caller without permission gets the 403 before
+  the body's 422.
 - `-- rok:constraint <name> [<field>] "<message>"` anywhere in the schema
   dir says what a broken constraint means: a check, unique or foreign-key
   constraint, a unique index, or a name a trigger raises. The data layer
