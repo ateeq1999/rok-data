@@ -520,7 +520,7 @@ fn literal_type(value: &Value) -> Option<String> {
 }
 
 /// The arguments of a `coalesce(…)` call with at least one.
-fn coalesce_arguments(function: &Function) -> Option<Vec<&Expr>> {
+pub(super) fn coalesce_arguments(function: &Function) -> Option<Vec<&Expr>> {
     if !object_leaf_name(&function.name).eq_ignore_ascii_case("coalesce") {
         return None;
     }

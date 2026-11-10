@@ -9,6 +9,7 @@ use sqlparser::ast::{
     visit_expressions,
 };
 
+use super::results::coalesce_arguments;
 use super::{Analysis, Param, Slot};
 use crate::parser::postgres::map_type;
 use crate::queries::annotations::{ParamOverride, QueryDef};
@@ -84,6 +85,9 @@ impl<'a, 'c> Analysis<'a, 'c> {
                 self.expr(inner)
             }
             Expr::Function(function) => {
+                if let Some(arguments) = coalesce_arguments(function) {
+                    self.coalesce(&arguments)?;
+                }
                 if let FunctionArguments::List(list) = &function.args {
                     for argument in &list.args {
                         if let FunctionArg::Unnamed(FunctionArgExpr::Expr(argument)) = argument {
@@ -139,6 +143,36 @@ impl<'a, 'c> Analysis<'a, 'c> {
             &column.sqlx_type,
             false,
         )
+    }
+
+    /// Types each placeholder argument of `coalesce(…)` from the first column
+    /// among its arguments, optional: `coalesce($2, locale)` keeps `locale`
+    /// when the caller passes `None`. PostgreSQL types the placeholder from
+    /// its sibling arguments the same way.
+    fn coalesce(&mut self, arguments: &[&Expr]) -> Result<(), String> {
+        let mut column = None;
+        for argument in arguments {
+            if let Some(reference) = self.column_reference(argument)? {
+                column = Some(self.reference_column(&reference).clone());
+                break;
+            }
+        }
+        let Some(column) = column else {
+            return Ok(());
+        };
+        for index in arguments
+            .iter()
+            .filter_map(|argument| placeholder(argument))
+        {
+            self.assign(
+                index,
+                &column.rust_name,
+                column.value_type(),
+                &column.sqlx_type,
+                true,
+            )?;
+        }
+        Ok(())
     }
 
     /// Types `value` from a numeric `column` it is added to, subtracted

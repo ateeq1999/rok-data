@@ -105,6 +105,14 @@ the *generated* API count as breaking (see ADR 0012).
   function in `FROM` failed the query; other functions still do, naming
   the ones the engine types.
 
+### Fixed
+
+- A placeholder beside a column in `coalesce` takes that column's type,
+  optional: `SET locale = coalesce($2, locale)` (either order) infers
+  `Option<T>` for a text column, a typed id, a SQL enum or a CHECK-list
+  enum, with no `-- param:`. A `-- param:` still wins, and a `coalesce`
+  that names no column still asks for one.
+
 ## Workspace 0.9.0 - 2026-11-06
 
 Published as `rok-data-sqlc` 0.9.0 with the workspace (root `CHANGELOG.md`).
