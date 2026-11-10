@@ -6,8 +6,8 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done (rok-ui #27; the 0.10.0 tag is the maintainer's)
 
-- [ ] A custom theme survives `toggle_mode` and `sync_with_system_appearance` (tests)
-- [ ] Presets behave as before
-- [ ] rok-ui changelog and docs updated
+- [x] A custom theme survives `toggle_mode` and `sync_with_system_appearance` (tests)
+- [x] Presets behave as before
+- [x] rok-ui changelog and docs updated

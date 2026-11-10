@@ -6,8 +6,8 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None for the rule; the template docs after grpc-api-template/08
 
-**Status:** ready-for-agent
+**Status:** done (the templates' docs say it with their next release)
 
-- [ ] A body-before-caller handler fails check-arch, naming it; caller-first passes
-- [ ] The App can name its own caller extractors (config or marker)
+- [x] A body-before-caller handler fails check-arch, naming it; caller-first passes
+- [x] The App can name its own caller extractors (config or marker)
 - [ ] Template docs updated
