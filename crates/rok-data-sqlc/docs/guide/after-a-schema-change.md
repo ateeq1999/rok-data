@@ -40,6 +40,34 @@ right after the previous statement's `;` — with the undo directly under it
 and at least one statement before it. A marker inside a string literal,
 or any comment that is not exactly `rok:down`, is a comment.
 
+## What a broken constraint says
+
+A violation names its constraint (`drops_month_check`), which means
+nothing to a user. A `-- rok:constraint` line, anywhere in the schema
+dir, says what it means:
+
+```sql
+CREATE TABLE drops (
+    id BIGSERIAL PRIMARY KEY,
+    org_id BIGINT NOT NULL REFERENCES orgs (id),
+    month INT NOT NULL CHECK (month BETWEEN 1 AND 12)
+);
+-- rok:constraint drops_month_check month "Pick a month from 1 to 12."
+-- rok:constraint drops_org_id_fkey "That organization doesn't exist."
+```
+
+`<name> [<field>] "<message>"`: the name is a check, unique or
+foreign-key constraint (as declared, or the name PostgreSQL gives an
+unnamed one), a unique index, or a name a trigger raises (`RAISE …
+USING CONSTRAINT = '<name>'`). The field, when given, is a column of the
+constraint's table. The data layer gets `constraints.rs`, the table of
+every annotated constraint, and the scaffolded `error.rs` answers a
+violation of one with its message: a check (or a raised name) as a `422`
+naming the field, a unique key or foreign key as a `409`. A constraint
+without an annotation answers with PostgreSQL's own message. An unknown
+name or field, or a second annotation of one constraint, fails the run
+at its line.
+
 ## What regenerates and what stays yours
 
 | Files | On a schema change |

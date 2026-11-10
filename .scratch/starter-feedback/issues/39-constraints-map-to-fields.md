@@ -14,10 +14,10 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 Karibu Pass's clients show `offer_drops_month_check` and `offer_drop_offers_offer_drop_id_fkey` as messages, and its web screens reword each 409 by hand (tickets 05, 06, 25).
 
-**Blocked by:** None
+**Blocked by:** a rok release carrying the engine side (merged: the annotation, `constraints.rs` and the engine scaffold's `error.rs`); the rok-templates `error.rs` (actix, axum, grpc, the monorepo API) then adopts the same mapping, since their data layers come from the released `rok`
 
-**Status:** ready-for-agent
+**Status:** blocked
 
-- [ ] The annotation parses for check, unique and foreign-key constraints; an unknown field or constraint fails, naming it
-- [ ] The generated table lists every annotated constraint
+- [x] The annotation parses for check, unique and foreign-key constraints; an unknown field or constraint fails, naming it
+- [x] The generated table lists every annotated constraint
 - [ ] Template: a mapped CHECK is a 422 on its field with the message; a mapped foreign key is a 409 with its message; a trigger's RAISE text reaches the client

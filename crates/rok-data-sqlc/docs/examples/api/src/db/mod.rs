@@ -15,6 +15,7 @@
 //   utoipa = { version = "5", features = ["chrono", "uuid"] }
 //   utoipa-swagger-ui = { version = "9", features = ["actix-web", "vendored"] }
 
+pub mod constraints;
 pub mod http;
 pub mod nullable;
 pub mod pool;

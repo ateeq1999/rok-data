@@ -13,6 +13,7 @@
 //   serde_path_to_error = "0.1"
 //   actix-web = "4"
 
+pub mod constraints;
 pub mod http;
 pub mod members;
 pub mod nullable;

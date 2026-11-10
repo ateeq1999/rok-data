@@ -11,6 +11,7 @@
 //   rust_decimal = "1"
 
 pub mod categories;
+pub mod constraints;
 pub mod products;
 pub mod queries;
 pub mod schema;
