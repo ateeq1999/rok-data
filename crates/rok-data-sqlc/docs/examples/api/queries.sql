@@ -8,3 +8,7 @@ WHERE id = $1 AND owner_id = $2;
 SELECT count(*) AS projects, coalesce(sum(open_tasks), 0)::BIGINT AS open_tasks
 FROM projects
 WHERE owner_id = $1;
+
+-- name: ProjectNames :many
+-- returns: crate::shared::listing::ProjectName
+SELECT id, name FROM projects WHERE owner_id = $1 ORDER BY name;

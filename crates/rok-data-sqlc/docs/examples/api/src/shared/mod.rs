@@ -9,6 +9,7 @@
 
 pub mod auth;
 pub mod health;
+pub mod listing;
 pub mod pagination;
 pub mod response;
 pub mod tenant;

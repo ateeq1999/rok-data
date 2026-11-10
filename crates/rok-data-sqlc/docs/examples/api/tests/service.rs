@@ -78,3 +78,27 @@ async fn a_task_goes_only_into_the_callers_project(pool: PgPool) -> TestResult {
     assert_eq!(project.open_tasks, 0);
     Ok(())
 }
+
+/// A query that `-- returns:` a hand-written type decodes into it: the
+/// data layer generates no row struct for `ProjectNames`.
+#[sqlx::test]
+async fn a_query_decodes_into_a_hand_written_type(pool: PgPool) -> TestResult {
+    let projects = ProjectsService::new(pool.clone());
+    let alice = caller();
+    for name in ["Zeta", "Alpha"] {
+        projects
+            .create(
+                alice,
+                CreateProjectDto {
+                    name: name.to_owned(),
+                    open_tasks: None,
+                    created_at: None,
+                },
+            )
+            .await?;
+    }
+    let names = rok_data_sqlc_api_example::db::queries::project_names(&pool, alice.id).await?;
+    let names: Vec<&str> = names.iter().map(|project| project.name.as_str()).collect();
+    assert_eq!(names, ["Alpha", "Zeta"]);
+    Ok(())
+}

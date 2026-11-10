@@ -549,6 +549,7 @@ A query file holds SQL statements, each starting with a `-- name:` line:
 -- name: <Name> :<mode>
 -- param: $<n> <name>[!] [<RustType>] (optional, repeatable)
 -- column: <name> <RustType>          (optional, repeatable)
+-- returns: <RowType or path::Type>    (optional)
 -- rok:skip [<note>]                  (optional)
 <one SQL statement>
 ```
@@ -561,6 +562,18 @@ through hand-written SQLx code. The run prints a note instead of failing,
 without `--lenient`: ``note: queries/holds.sql:12: query `HoldRooms` left
 ungenerated (`-- rok:skip`: <note>)``. `rok gen --json` lists it under
 `skipped_on_purpose`, apart from `failures` and `skipped`.
+
+`-- returns:` gives the query an existing row type instead of its own
+`{Name}Row`. It names another query's row type of the same file
+(`-- returns: FindCheckoutRow`) or a model of the run (`-- returns:
+Checkout`), and the columns must match it in name, order, type and
+nullability: a difference fails the run, naming the column and both types.
+It may also name a hand-written type by path (`-- returns:
+crate::shared::listing::ProjectName`): the rows decode straight into it
+(it derives `sqlx::FromRow`), and no row struct is generated. The engine
+can't see that type's fields, so a mismatch is the compiler's or the row
+decode's to catch, not `rok gen`'s. Two queries with the same columns get
+one struct each unless one says `-- returns:`.
 
 | Return mode | Runs | Returns |
 |---|---|---|

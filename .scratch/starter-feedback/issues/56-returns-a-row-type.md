@@ -8,8 +8,8 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Two queries share one row type; the generated code has one struct
-- [ ] A mismatch fails naming the column and both types
-- [ ] A query returning a hand-written `FromRow` DTO generates no row struct and decodes into it (DB-backed test)
+- [x] Two queries share one row type; the generated code has one struct
+- [x] A mismatch fails naming the column and both types
+- [x] A query returning a hand-written `FromRow` DTO generates no row struct and decodes into it (DB-backed test)

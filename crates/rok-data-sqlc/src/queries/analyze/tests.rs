@@ -1587,3 +1587,75 @@ fn set_returning_functions_explain_what_they_need() {
         ResultShape::Scalar("i32".to_owned())
     );
 }
+
+/// `-- returns:` reuses another query's row type when the columns match,
+/// and names each difference when they don't.
+#[test]
+fn returns_reuses_a_row_type_of_the_file() {
+    let (analyzed, failures) = analyze(
+        "-- name: FindProduct :one\nSELECT id, sku FROM products WHERE id = $1;\n\
+         -- name: ProductsBySku :many\n-- returns: FindProductRow\nSELECT id, sku FROM products WHERE sku = $1;\n",
+    );
+    assert!(failures.is_empty(), "{failures:?}");
+    let ResultShape::Shared { name, columns } = &analyzed[1].result else {
+        panic!("not shared: {:?}", analyzed[1].result);
+    };
+    assert_eq!(name, "FindProductRow");
+    assert_eq!(columns.len(), 2);
+
+    let (_, failures) = analyze(
+        "-- name: FindProduct :one\nSELECT id, sku FROM products WHERE id = $1;\n\
+         -- name: Others :many\n-- returns: FindProductRow\nSELECT sku, id, stock FROM products;\n",
+    );
+    let reason = &failures[0].reason;
+    assert!(
+        reason.contains("column 1 is `sku` here and `id` in `FindProductRow`"),
+        "{reason}"
+    );
+    assert!(
+        reason.contains("column `stock` is not in `FindProductRow`"),
+        "{reason}"
+    );
+
+    let (_, failures) = analyze(
+        "-- name: FindProduct :one\nSELECT id, sku FROM products WHERE id = $1;\n\
+         -- name: Retyped :many\n-- returns: FindProductRow\nSELECT id, stock AS sku FROM products;\n",
+    );
+    let reason = &failures[0].reason;
+    assert!(
+        reason.contains("column `sku` is `i32` here and `String` in `FindProductRow`"),
+        "{reason}"
+    );
+}
+
+/// `-- returns:` names a model when the columns are its table's, or a
+/// hand-written type by path, which decodes as it is.
+#[test]
+fn returns_names_a_model_or_a_hand_written_type() {
+    let model =
+        one("-- name: Named :many\n-- returns: Category\nSELECT id, name FROM categories;\n");
+    assert_eq!(
+        model.result,
+        ResultShape::Model {
+            module: "categories".to_owned(),
+            struct_name: "Category".to_owned()
+        }
+    );
+    let external = one(
+        "-- name: Summary :many\n-- returns: crate::features::payouts::dto::PayoutSummary\n\
+         SELECT id, sku FROM products;\n",
+    );
+    assert_eq!(
+        external.result,
+        ResultShape::External("crate::features::payouts::dto::PayoutSummary".to_owned())
+    );
+    let reason =
+        failure("-- name: Count :one\n-- returns: CountRow2\nSELECT count(*) FROM products;\n");
+    assert!(reason.contains("returns one column"), "{reason}");
+    let reason =
+        failure("-- name: Nope :many\n-- returns: Nowhere\nSELECT id, sku FROM products;\n");
+    assert!(
+        reason.contains("no query of this file returns `Nowhere`"),
+        "{reason}"
+    );
+}

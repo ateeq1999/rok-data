@@ -378,6 +378,8 @@ fn row_type(query: &AnalyzedQuery) -> String {
         ResultShape::Model { struct_name, .. } => struct_name.clone(),
         ResultShape::Scalar(rust_type) => rust_type.clone(),
         ResultShape::Row(_) => format!("{}Row", query.name),
+        ResultShape::Shared { name, .. } => name.clone(),
+        ResultShape::External(path) => path.clone(),
     }
 }
 
@@ -388,10 +390,10 @@ pub fn mentioned_types<'a>(queries: impl IntoIterator<Item = &'a AnalyzedQuery>)
         types.extend(query.params.iter().map(|param| param.rust_type.clone()));
         match &query.result {
             ResultShape::Scalar(rust_type) => types.push(rust_type.clone()),
-            ResultShape::Row(columns) => {
+            ResultShape::Row(columns) | ResultShape::Shared { columns, .. } => {
                 types.extend(columns.iter().map(|column| column.rust_type.clone()));
             }
-            ResultShape::None | ResultShape::Model { .. } => {}
+            ResultShape::None | ResultShape::Model { .. } | ResultShape::External(_) => {}
         }
     }
     types
@@ -604,5 +606,32 @@ mod tests {
         let exec = render(&[query(ReturnMode::Exec, vec![], ResultShape::None)]);
         assert!(exec.contains("-> Result<(), rok_data::Error>"));
         assert!(exec.contains("    .execute(executor)\n    .await?;\n    Ok(())\n}"));
+    }
+
+    /// A query that `-- returns:` another's row type defines no struct of
+    /// its own; one returning a hand-written type decodes into its path.
+    #[test]
+    fn a_shared_row_type_is_defined_once() {
+        let columns = vec![OutputColumn {
+            sql_name: "id".to_owned(),
+            rust_name: "id".to_owned(),
+            rust_type: "i64".to_owned(),
+        }];
+        let mut first = query(ReturnMode::One, vec![], ResultShape::Row(columns.clone()));
+        first.name = "FindThing".to_owned();
+        first.fn_name = "find_thing".to_owned();
+        let shared = ResultShape::Shared {
+            name: "FindThingRow".to_owned(),
+            columns,
+        };
+        let rendered = render(&[first, query(ReturnMode::Many, vec![], shared)]);
+        assert_eq!(rendered.matches("pub struct ").count(), 1, "{rendered}");
+        assert!(rendered.contains("pub struct FindThingRow {"), "{rendered}");
+        assert!(rendered.contains("-> Result<Vec<FindThingRow>, rok_data::Error>"));
+
+        let external = ResultShape::External("crate::dto::Summary".to_owned());
+        let rendered = render(&[query(ReturnMode::Many, vec![], external)]);
+        assert!(!rendered.contains("pub struct "), "{rendered}");
+        assert!(rendered.contains("-> Result<Vec<crate::dto::Summary>, rok_data::Error>"));
     }
 }
