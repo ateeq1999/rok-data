@@ -16,8 +16,8 @@ Karibu Pass's call sites broke when `SetLocation` (ticket 09) and `OpenWeekends`
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done (the project key is `query_params`: a top-level `queries` key already holds the query files, so a `[queries]` table can't sit beside it)
 
-- [ ] `-- rok:params struct` on a two-parameter query generates a `…Params` struct; `positional` on a five-parameter one keeps arguments
-- [ ] `[queries] params = "struct"` makes every query take its struct; the annotation overrides it
-- [ ] The doc comment names the rule; existing generated signatures unchanged under `"auto"` (fixtures)
+- [x] `-- rok:params struct` on a two-parameter query generates a `…Params` struct; `positional` on a five-parameter one keeps arguments
+- [x] `[queries] params = "struct"` makes every query take its struct; the annotation overrides it
+- [x] The doc comment names the rule; existing generated signatures unchanged under `"auto"` (fixtures)

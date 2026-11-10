@@ -127,6 +127,7 @@ impl GenerateArgs {
             queries: self.queries.clone(),
             output: self.output.clone(),
             resource: self.resource.clone(),
+            query_params: None,
             conventions: Default::default(),
             derive: (!self.derive.is_empty())
                 .then(|| self.derive.iter().copied().map(Derive::from).collect()),
@@ -159,6 +160,7 @@ impl GenerateArgs {
             queries: merged.queries,
             output: merged.output.unwrap_or(defaults.output),
             resource: merged.resource,
+            query_params: merged.query_params.unwrap_or_default(),
             dry_run: self.dry_run,
             check: self.check,
             force: self.force,

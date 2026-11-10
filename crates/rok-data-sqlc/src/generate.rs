@@ -204,11 +204,15 @@ fn run(config: &Config, report: &mut Report, analysis: &mut Analysis) -> anyhow:
     let mut failed_files = Vec::new();
     for input in &query_inputs {
         let AnalyzedFile {
-            queries,
+            mut queries,
             failures,
             skipped,
             lines,
         } = analyze_query_file(&input.path, input.shared, &parsed, &selected)?;
+        // The project's `query_params`, for the queries that don't say.
+        for query in &mut queries {
+            query.params_default = config.query_params;
+        }
         report.skipped_queries.extend(skipped);
         analysis
             .queries
