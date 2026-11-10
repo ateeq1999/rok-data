@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] An `int32` property is `i32` in the Rust Client, an `int64` one `i64` (emission tests)
-- [ ] api-app's document emits a Rust Client that builds
+- [x] An `int32` property is `i32` in the Rust Client, an `int64` one `i64` (emission tests)
+- [x] api-app's document emits a Rust Client that builds (checked by hand: its 40 `i32` fields build with `cargo clippy -D warnings`)

@@ -11,6 +11,8 @@ that it exists and won't ship a tag without it).
 
 **Changed**
 
+- The Rust Client types an integer by its contract `format`: `int32` is
+  `i32` (a `smallint` too), `int64` or no format stays `i64`.
 - A Client's body field that may be left out and may be `null` is
   three-state only in a `PATCH` body; elsewhere it is plain optional, so
   a `POST` reads `Some(value)` in Rust and `name` in Dart instead of

@@ -366,3 +366,30 @@ fn only_a_patch_body_has_three_state_fields() {
         "{types}"
     );
 }
+
+/// A `Counts` object with integers of each `format` utoipa writes.
+fn counts() -> Document {
+    parsed(
+        json!({}),
+        json!({"Counts": {"type": "object", "required": ["small", "big", "plain"], "properties": {
+            "small": {"type": "integer", "format": "int32", "minimum": 0},
+            "big": {"type": "integer", "format": "int64"},
+            "plain": {"type": "integer"},
+            "maybe": {"type": ["integer", "null"], "format": "int32"},
+        }}}),
+    )
+}
+
+/// `int32` is `i32`; `int64`, or no format, is `i64`.
+#[test]
+fn an_integer_is_as_wide_as_its_format() {
+    let files = emitted(&counts());
+    let types = file(&files, "src/types.rs");
+    assert!(types.contains("    pub small: i32,\n"), "{types}");
+    assert!(types.contains("    pub big: i64,\n"), "{types}");
+    assert!(types.contains("    pub plain: i64,\n"), "{types}");
+    assert!(
+        types.contains("    pub maybe: Option<i32>,\n"),
+        "{types}"
+    );
+}
