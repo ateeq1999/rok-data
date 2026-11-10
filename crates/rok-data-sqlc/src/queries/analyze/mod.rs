@@ -20,6 +20,7 @@ mod conflict;
 mod params;
 mod resolve;
 mod results;
+mod returns;
 mod set_returning;
 mod statements;
 #[cfg(test)]
@@ -70,6 +71,15 @@ pub enum ResultShape {
     Scalar(String),
     /// Several columns: a dedicated `{Name}Row` struct.
     Row(Vec<OutputColumn>),
+    /// `-- returns: <Other>Row`: another query's row struct, its columns
+    /// the same (`columns`); no struct of its own.
+    Shared {
+        name: String,
+        columns: Vec<OutputColumn>,
+    },
+    /// `-- returns: path::Type`: a hand-written `sqlx::FromRow` type the
+    /// rows decode into.
+    External(String),
 }
 
 /// A query ready for code generation.
@@ -128,6 +138,39 @@ pub fn analyze_queries(
             Err(reason) => failures.push(QueryFailure::new(&def.name, reason).at_line(def.line)),
         }
     }
+    // `-- returns:`, once every row type of the file is known.
+    let rows: HashMap<String, Vec<OutputColumn>> = analyzed
+        .iter()
+        .filter_map(|query| match &query.result {
+            ResultShape::Row(columns) => Some((format!("{}Row", query.name), columns.clone())),
+            _ => None,
+        })
+        .collect();
+    analyzed.retain_mut(|query| {
+        let Some(def) = defs.iter().find(|def| def.name == query.name) else {
+            return true;
+        };
+        let Some(target) = &def.returns else {
+            return true;
+        };
+        match returns::resolve(
+            target,
+            &query.name,
+            &query.result,
+            &rows,
+            tables,
+            generated_modules,
+        ) {
+            Ok(shape) => {
+                query.result = shape;
+                true
+            }
+            Err(reason) => {
+                failures.push(QueryFailure::new(&def.name, reason).at_line(def.line));
+                false
+            }
+        }
+    });
     (analyzed, failures)
 }
 

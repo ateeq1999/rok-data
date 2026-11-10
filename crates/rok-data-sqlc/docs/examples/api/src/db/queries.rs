@@ -55,3 +55,21 @@ where
     .fetch_one(executor)
     .await
 }
+
+/// Runs the `ProjectNames` query (`:many`).
+pub async fn project_names<'e, E>(
+    executor: E,
+    owner_id: uuid::Uuid,
+) -> Result<Vec<crate::shared::listing::ProjectName>, rok_data::Error>
+where
+    E: rok_data::Executor<'e>,
+{
+    rok_data::raw(
+        r#"
+        SELECT id, name FROM projects WHERE owner_id = $1 ORDER BY name
+        "#,
+    )
+    .bind(owner_id)
+    .fetch_all(executor)
+    .await
+}

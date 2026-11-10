@@ -44,6 +44,11 @@ the *generated* API count as breaking (see ADR 0012).
   transaction: `sqlx::Transaction`, `sqlx::Postgres`, and the `Acquire`
   and `Connection` traits a savepoint's `begin` needs. Writing SQL there
   (`sqlx::query`) still fails rule 2.
+- `-- returns: <Type>` gives a query an existing row type instead of its
+  own `{Name}Row`: another query's row type of the file or a model of the
+  run, the columns checked in name, order, type and nullability (each
+  difference named), or a hand-written `sqlx::FromRow` type by path, which
+  the rows decode straight into with no row struct generated.
 - `-- rok:constraint <name> [<field>] "<message>"` anywhere in the schema
   dir says what a broken constraint means: a check, unique or foreign-key
   constraint, a unique index, or a name a trigger raises. The data layer

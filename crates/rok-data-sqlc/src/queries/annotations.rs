@@ -101,6 +101,11 @@ pub struct QueryDef {
     /// `-- rok:skip [note]`: the query is left ungenerated on purpose, with
     /// the note as written (empty when there is none).
     pub skip: Option<String>,
+    /// `-- returns: <Type>`: the row type the query returns instead of a
+    /// generated `{Name}Row`: another query's row type or a model of this
+    /// run, checked column for column, or a hand-written type by path
+    /// (`crate::features::payouts::dto::PayoutSummary`).
+    pub returns: Option<String>,
 }
 
 /// A query that cannot be generated, with the reason.
@@ -168,6 +173,7 @@ pub fn parse_query_file(text: &str) -> (Vec<QueryDef>, Vec<QueryFailure>) {
                     parse_param as fn(&str, &mut QueryDef) -> Result<(), String>,
                 ),
                 ("column:", parse_column),
+                ("returns:", parse_returns),
                 ("rok:skip", parse_skip),
             ] {
                 // `rok:skip` is a whole word, its note after a space.
@@ -286,6 +292,7 @@ fn start(header: &str, line: usize) -> Pending {
             params: Vec::new(),
             columns: Vec::new(),
             skip: None,
+            returns: None,
         }),
         errors: Vec::new(),
         label,
@@ -360,6 +367,24 @@ fn parse_param(directive: &str, def: &mut QueryDef) -> Result<(), String> {
 
 fn parse_skip(note: &str, def: &mut QueryDef) -> Result<(), String> {
     def.skip = Some(note.to_owned());
+    Ok(())
+}
+
+fn parse_returns(directive: &str, def: &mut QueryDef) -> Result<(), String> {
+    let is_path = !directive.is_empty()
+        && directive.split("::").all(|part| {
+            part.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
+                && part.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        });
+    if !is_path {
+        return Err(format!(
+            "expected `-- returns: <RowType>` or `-- returns: <path::to::Type>`, found `{directive}`"
+        ));
+    }
+    if def.returns.is_some() {
+        return Err("`-- returns:` is given more than once".to_owned());
+    }
+    def.returns = Some(directive.to_owned());
     Ok(())
 }
 

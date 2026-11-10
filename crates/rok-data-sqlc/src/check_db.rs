@@ -151,7 +151,9 @@ impl Found<'_> {
             }
         }
         let expected = expected_columns(&query.result, analysis).len();
-        if !matches!(query.result, ResultShape::None) && expected != described.columns.len() {
+        if !matches!(query.result, ResultShape::None | ResultShape::External(_))
+            && expected != described.columns.len()
+        {
             self.mismatch(format!(
                 "answers {} column(s) in the database; the generated code reads {expected}",
                 described.columns.len()
@@ -180,13 +182,13 @@ struct Expected {
 
 fn expected_columns(result: &ResultShape, analysis: &Analysis) -> Vec<Expected> {
     match result {
-        ResultShape::None => Vec::new(),
+        ResultShape::None | ResultShape::External(_) => Vec::new(),
         ResultShape::Scalar(rust_type) => vec![Expected {
             name: None,
             nullable: types::is_option(rust_type),
             rust_type: rust_type.clone(),
         }],
-        ResultShape::Row(columns) => columns
+        ResultShape::Row(columns) | ResultShape::Shared { columns, .. } => columns
             .iter()
             .map(|column| Expected {
                 name: Some(column.sql_name.clone()),
