@@ -35,6 +35,40 @@ Seven sections are not about a repository lineage: **To 0.9.0**,
 output changes in 0.9.0, 0.4.0 and 0.3.0, and the runtime's public
 surface in the last two; 0.5.0 changes the templates only.
 
+## To the next release (unreleased)
+
+### The TypeScript Client is built on zod 4
+
+`rok gen` now writes each type of the TypeScript Client as a zod schema
+with its type inferred from it, so the types keep their names and
+imports compile unchanged. Add zod to the web App, then regenerate:
+
+```console
+$ bun add zod@^4
+$ rok gen
+```
+
+- **Schemas to check input with:** `<Type>Schema` carries the server's
+  rules (lengths, bounds, patterns, formats), so a form can check a body
+  before it is sent: `NewUserDtoSchema.safeParse(values)`.
+- **Responses are checked:** a call whose JSON success is not what the
+  contract describes rejects with `ContractError` (`operation`, and
+  `issues` with each `path` and `message`), beside `ApiError` for a
+  failed request. Unknown keys are dropped, not rejected. Code that
+  catches errors from a call can tell the two apart:
+
+```ts
+import { ApiError, ContractError } from "./lib/api"
+
+try {
+  await api.users.me()
+} catch (error) {
+  if (error instanceof ContractError) report(error.operation, error.issues)
+  else if (error instanceof ApiError) show(error.message)
+  else throw error
+}
+```
+
 ## To 0.9.0
 
 Move the `rok-data` pin to `"0.9"` and regenerate. The runtime's API is

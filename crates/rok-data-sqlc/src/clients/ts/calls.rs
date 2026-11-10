@@ -7,7 +7,7 @@
 use std::collections::BTreeSet;
 
 use super::super::openapi::{Body, Response};
-use super::types::render;
+use super::types::{Zod, render, schema_const};
 use super::{Named, TypeNames, doc, header_field, identifier};
 
 /// One argument of a call: its name and its TypeScript parameter text.
@@ -172,9 +172,30 @@ pub(super) fn groups<'a, 'b>(
 /// The text of `src/calls.ts` (after the header).
 pub(super) fn file(operations: &[Named<'_>], names: &TypeNames) -> String {
     let all: Vec<&Named<'_>> = operations.iter().collect();
-    let mut out = String::from("\nimport { request } from \"./runtime\"\n");
+    let checks: Vec<String> = all
+        .iter()
+        .filter_map(|named| response_schema(named, names))
+        .collect();
+    let mut out = String::new();
+    if checks.iter().any(|check| check.contains("z.")) {
+        out.push_str("\nimport { z } from \"zod\"\n");
+    }
+    out.push_str("\nimport { request } from \"./runtime\"\n");
     out.push_str("import type { RequestOptions } from \"./runtime\"\n");
     out.push_str(&import_types(&used_types(&all, names, true)));
+    let constants: BTreeSet<String> = all
+        .iter()
+        .filter_map(|named| match &named.op.response {
+            Response::Json(schema) => Some(schema.refs()),
+            _ => None,
+        })
+        .flatten()
+        .map(|name| schema_const(&names.schema(name)))
+        .collect();
+    if !constants.is_empty() {
+        let list = constants.into_iter().collect::<Vec<_>>().join(",\n  ");
+        out.push_str(&format!("import {{\n  {list},\n}} from \"./types\"\n"));
+    }
     out.push_str("\n/** Every operation of the API, grouped by tag. */\nexport const api = {\n");
     for (group, members) in groups(&all) {
         out.push_str(&format!("  {group}: {{\n"));
@@ -204,6 +225,10 @@ fn call(named: &Named<'_>, names: &TypeNames) -> String {
         options_type(named)
     ));
     let mut fields = vec![
+        format!(
+            "operation: {:?}",
+            format!("{} {}", op.method.upper(), op.path)
+        ),
         format!("method: {:?}", op.method.upper()),
         format!("path: {}", path_expression(&op.path, &op.path_params)),
     ];
@@ -237,6 +262,9 @@ fn call(named: &Named<'_>, names: &TypeNames) -> String {
             Response::Json(_) => "json",
         }
     ));
+    if let Some(schema) = response_schema(named, names) {
+        fields.push(format!("schema: {schema}"));
+    }
     format!(
         "{}    {}: (\n      {}\n    ) =>\n      request<{}>(\n        {{\n          {},\n        }},\n        options\n      ),\n",
         doc(Some(&summary), "    "),
@@ -245,6 +273,21 @@ fn call(named: &Named<'_>, names: &TypeNames) -> String {
         success_type(named, names),
         fields.join(",\n          "),
     )
+}
+
+/// The zod schema a JSON success of `named` is checked with; none for
+/// another success.
+fn response_schema(named: &Named<'_>, names: &TypeNames) -> Option<String> {
+    match &named.op.response {
+        Response::Json(schema) => Some(
+            Zod {
+                names,
+                declared: None,
+            }
+            .render(schema, "          "),
+        ),
+        _ => None,
+    }
 }
 
 /// The call's path: a string, or a template literal with each `{name}`

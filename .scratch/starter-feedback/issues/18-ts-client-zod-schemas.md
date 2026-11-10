@@ -10,9 +10,9 @@ Spec: `docs/specs/starter-feedback.md` (Typed web data) · engine ADR 0027 (amen
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Emission tests: object, nullable/optional, enum, array, `oneOf` union, each constraint
-- [ ] A response that doesn't match throws `ContractError`; unknown keys are stripped, not rejected
-- [ ] Type names unchanged, so existing imports compile
-- [ ] Dart and Rust Clients unchanged (their emission tests still pass)
+- [x] Emission tests: object, nullable/optional, enum, array, `oneOf` union, each constraint
+- [x] A response that doesn't match throws `ContractError`; unknown keys are stripped, not rejected
+- [x] Type names unchanged, so existing imports compile
+- [x] Dart and Rust Clients unchanged (their emission tests still pass)

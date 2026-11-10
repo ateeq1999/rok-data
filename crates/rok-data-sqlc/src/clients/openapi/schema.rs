@@ -16,12 +16,13 @@ pub enum Schema {
     Null,
     /// `{"type": "boolean"}`.
     Boolean,
-    /// `{"type": "integer"}`, whatever its `format`.
-    Integer,
-    /// `{"type": "number"}`.
-    Number,
-    /// `{"type": "string"}`, whatever its `format` (`uuid`, `date-time`).
-    String,
+    /// `{"type": "integer"}`, whatever its `format`, and its bounds.
+    Integer(Rules),
+    /// `{"type": "number"}`, and its bounds.
+    Number(Rules),
+    /// `{"type": "string"}`, its `format` (`uuid`, `date-time`) and its
+    /// length and pattern.
+    String(Rules),
     /// A string `enum`: its values.
     StringEnum(Vec<String>),
     /// `{"type": "array", "items": ...}`.
@@ -40,6 +41,48 @@ pub enum Schema {
     OneOf(Vec<Schema>),
     /// `allOf`: all of the schemas at once.
     AllOf(Vec<Schema>),
+}
+
+/// The server's rules a scalar's schema states: the TypeScript Client
+/// checks them (as zod rules); the others read past them, their types the
+/// same either way.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Rules {
+    /// `format`: `email`, `uuid`, `date-time`, `date`, `int64`, ….
+    pub format: Option<String>,
+    /// `minLength`.
+    pub min_length: Option<u64>,
+    /// `maxLength`.
+    pub max_length: Option<u64>,
+    /// `pattern`, an ECMA-262 regular expression.
+    pub pattern: Option<String>,
+    /// `minimum`.
+    pub minimum: Option<f64>,
+    /// `maximum`.
+    pub maximum: Option<f64>,
+    /// `exclusiveMinimum` (a number, as JSON Schema 2020-12 writes it).
+    pub exclusive_minimum: Option<f64>,
+    /// `exclusiveMaximum`.
+    pub exclusive_maximum: Option<f64>,
+}
+
+impl Rules {
+    /// The rules `map` states.
+    fn of(map: &Map<String, Value>) -> Rules {
+        let text = |key: &str| map.get(key).and_then(Value::as_str).map(str::to_owned);
+        let count = |key: &str| map.get(key).and_then(Value::as_u64);
+        let number = |key: &str| map.get(key).and_then(Value::as_f64);
+        Rules {
+            format: text("format"),
+            min_length: count("minLength"),
+            max_length: count("maxLength"),
+            pattern: text("pattern"),
+            minimum: number("minimum"),
+            maximum: number("maximum"),
+            exclusive_minimum: number("exclusiveMinimum"),
+            exclusive_maximum: number("exclusiveMaximum"),
+        }
+    }
 }
 
 /// A property of an object schema.
@@ -164,9 +207,9 @@ impl Schema {
             Schema::Any
             | Schema::Null
             | Schema::Boolean
-            | Schema::Integer
-            | Schema::Number
-            | Schema::String
+            | Schema::Integer(_)
+            | Schema::Number(_)
+            | Schema::String(_)
             | Schema::StringEnum(_) => {}
         }
     }
@@ -206,9 +249,9 @@ fn typed(map: &Map<String, Value>, kind: &str, at: &str) -> Result<Schema> {
     match kind {
         "null" => Ok(Schema::Null),
         "boolean" => Ok(Schema::Boolean),
-        "integer" => Ok(Schema::Integer),
-        "number" => Ok(Schema::Number),
-        "string" => Ok(Schema::String),
+        "integer" => Ok(Schema::Integer(Rules::of(map))),
+        "number" => Ok(Schema::Number(Rules::of(map))),
+        "string" => Ok(Schema::String(Rules::of(map))),
         "array" => match map.get("items") {
             Some(items) => Ok(Schema::Array(Box::new(Schema::parse(
                 items,
@@ -317,7 +360,7 @@ fn object_schema(map: &Map<String, Value>, at: &str) -> Result<Schema> {
         // A map's keys are strings on the wire; anything narrower is a
         // constraint the server checks.
         let names = Schema::parse(names, &pointer(at, "propertyNames"))?;
-        if !matches!(names, Schema::String | Schema::StringEnum(_)) {
+        if !matches!(names, Schema::String(_) | Schema::StringEnum(_)) {
             return Err(unsupported(
                 at,
                 "propertyNames",

@@ -149,9 +149,9 @@ impl<'d> Types<'d> {
             Schema::Any => "serde_json::Value".to_owned(),
             Schema::Null => "()".to_owned(),
             Schema::Boolean => "bool".to_owned(),
-            Schema::Integer => "i64".to_owned(),
-            Schema::Number => "f64".to_owned(),
-            Schema::String => "String".to_owned(),
+            Schema::Integer(_) => "i64".to_owned(),
+            Schema::Number(_) => "f64".to_owned(),
+            Schema::String(_) => "String".to_owned(),
             Schema::StringEnum(values) if values.is_empty() => "String".to_owned(),
             Schema::StringEnum(values) => {
                 let name = self.fresh(hint);
@@ -513,9 +513,9 @@ fn variant_name(variant: &Schema, index: usize, names: &BTreeMap<String, String>
     match variant {
         Schema::Ref(name) => names.get(name).cloned().unwrap_or_else(|| type_ident(name)),
         Schema::Boolean => "Boolean".to_owned(),
-        Schema::Integer => "Integer".to_owned(),
-        Schema::Number => "Number".to_owned(),
-        Schema::String | Schema::StringEnum(_) => "Text".to_owned(),
+        Schema::Integer(_) => "Integer".to_owned(),
+        Schema::Number(_) => "Number".to_owned(),
+        Schema::String(_) | Schema::StringEnum(_) => "Text".to_owned(),
         Schema::Array(_) => "List".to_owned(),
         Schema::Any => "Value".to_owned(),
         Schema::Object { properties, .. } => properties

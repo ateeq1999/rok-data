@@ -135,7 +135,10 @@ fn gen_emits_the_client_and_a_contract_change_flows_through_check() -> Result<()
         "{types}"
     );
     assert!(
-        types.contains("export type Thing = {\n  id: string\n}\n"),
+        types.contains(
+            "export const ThingSchema = z.object({\n  id: z.string(),\n})\n\
+             export type Thing = z.infer<typeof ThingSchema>\n"
+        ),
         "{types}"
     );
     assert_success(&rok(dir, &["gen", "check"])?);
@@ -171,7 +174,10 @@ fn gen_emits_the_client_and_a_contract_change_flows_through_check() -> Result<()
     // `rok gen` brings it up to date.
     assert_success(&rok(dir, &["gen"])?);
     let types = fs::read_to_string(dir.join("clients/ts/src/types.ts"))?;
-    assert!(types.contains("  name?: string | null\n"), "{types}");
+    assert!(
+        types.contains("  name: z.string().nullable().optional(),\n"),
+        "{types}"
+    );
     assert_success(&rok(dir, &["gen", "check"])?);
     Ok(())
 }

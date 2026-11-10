@@ -5,8 +5,9 @@
 //!   error shape), `configure` (the base URL, the session's bearer token,
 //!   what a rejected token does) and the one `request` every call goes
 //!   through. The same text for every document.
-//! - `src/types.ts` — a type per component schema, and each operation's
-//!   query parameters.
+//! - `src/types.ts` — a zod schema and its type per component schema
+//!   (`ThingSchema`, `type Thing`), checking the server's rules, and each
+//!   operation's query parameters as a plain type.
 //! - `src/calls.ts` — `api`, one typed call per operation, grouped by tag:
 //!   `api.users.update(id, body)`.
 //! - `src/queries.ts` — TanStack Query factories: `queries.users.list(q)`
@@ -14,6 +15,11 @@
 //!   (`mutationOptions`) for every other method, and `keys` to invalidate
 //!   by tag.
 //! - `src/index.ts` and `README.md`.
+//!
+//! A call checks a JSON success with its response schema and throws
+//! `ContractError` when the body is not what the contract describes;
+//! unknown keys are dropped. The Client targets zod 4, which its App
+//! depends on.
 //!
 //! Every file carries the engine's generated marker, so regeneration
 //! rewrites it, a hand edit is refused without `--force`, and a file no
@@ -34,11 +40,17 @@ mod types;
 /// The runtime every call goes through: the same for every document.
 const RUNTIME: &str = include_str!("ts/runtime.ts");
 
+/// The second line of every TypeScript file: the zod major it targets.
+const ZOD: &str = "// The Client targets zod 4: its App depends on `zod@^4`.\n";
+
 /// The names `src/runtime.ts`, `src/calls.ts` and `src/queries.ts`
 /// export, which `src/index.ts` re-exports beside the types: no type may
 /// take one.
 const RESERVED: &[&str] = &[
     "ApiError",
+    "ContractError",
+    "ContractIssue",
+    "ResponseSchema",
     "FieldIssue",
     "FieldDetails",
     "ClientConfig",
@@ -71,25 +83,28 @@ pub fn emit(document: &Document) -> Result<Vec<(PathBuf, String)>, Error> {
         (
             PathBuf::from("src/index.ts"),
             format!(
-                "{HEADER}\nexport * from \"./runtime\"\nexport type * from \"./types\"\n\
+                "{HEADER}{ZOD}\nexport * from \"./runtime\"\nexport * from \"./types\"\n\
                  export * from \"./calls\"\nexport * from \"./queries\"\n"
             ),
         ),
         (
             PathBuf::from("src/runtime.ts"),
-            format!("{HEADER}\n{RUNTIME}"),
+            format!("{HEADER}{ZOD}\n{RUNTIME}"),
         ),
         (
             PathBuf::from("src/types.ts"),
-            format!("{HEADER}{}", types::file(document, &operations, &names)),
+            format!(
+                "{HEADER}{ZOD}{}",
+                types::file(document, &operations, &names)
+            ),
         ),
         (
             PathBuf::from("src/calls.ts"),
-            format!("{HEADER}{}", calls::file(&operations, &names)),
+            format!("{HEADER}{ZOD}{}", calls::file(&operations, &names)),
         ),
         (
             PathBuf::from("src/queries.ts"),
-            format!("{HEADER}{}", queries::file(&operations, &names)),
+            format!("{HEADER}{ZOD}{}", queries::file(&operations, &names)),
         ),
     ];
     files.sort_by(|a, b| a.0.cmp(&b.0));
@@ -146,6 +161,13 @@ impl TypeNames {
                 return Err(Error(format!(
                     "the schema `{name}` takes the name of the client's `{ident}`; rename the \
                      Rust type (or its `#[schema(as = ...)]`)"
+                )));
+            }
+            let constant = types::schema_const(&ident);
+            if RESERVED.contains(&constant.as_str()) {
+                return Err(Error(format!(
+                    "the schema `{name}`'s zod schema would be `{constant}`, the client's own \
+                     `{constant}`; rename the Rust type (or its `#[schema(as = ...)]`)"
                 )));
             }
             if !taken.insert(ident.clone()) {
@@ -223,6 +245,12 @@ fn readme(operations: &[Named<'_>]) -> String {
          `keys.<tag>`: the prefix of a tag's query keys, to invalidate them.\n\
          - `ApiError` (`status`, `code`, `message`, `details` of `FieldIssue`s on a \
          `422`) is what every failure rejects with.\n\
+         - `<Type>Schema`: the zod schema of each type, with the server's rules \
+         (lengths, bounds, patterns, formats), for a form to check input with. \
+         Every call checks its JSON success with its schema and rejects with \
+         `ContractError` (the operation, and each issue's path) when the body is \
+         not what the contract describes; unknown keys are dropped.\n\
+         - The App depends on zod 4 (`zod@^4`).\n\
          - `configure({{ baseUrl, token, onUnauthorized }})` once, at start-up: the \
          session's bearer token goes to the operations that need it, and a `401` to \
          one of them calls `onUnauthorized`.\n{example}"

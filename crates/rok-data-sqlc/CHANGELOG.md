@@ -7,6 +7,25 @@ the *generated* API count as breaking (see ADR 0012).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking for TypeScript Client users:** the TypeScript Client's types
+  are zod 4 schemas. Each component schema is `export const
+  <Type>Schema = z.object(...)` with `export type <Type> = z.infer<...>`
+  (type names unchanged), `oneOf` a `z.union`, and the server's rules
+  (`minLength`/`maxLength`, `minimum`/`maximum` and their exclusive
+  forms, `pattern`, the `email`, `uuid`, `date-time` and `date` formats)
+  zod's rules, for a form to check input with. Every call checks its JSON
+  success with its response schema and rejects with `ContractError` (the
+  operation, each issue's path) when the body is not what the contract
+  describes; unknown keys are dropped, so an older Client keeps working
+  against a newer server. Request bodies are sent unchecked. The App
+  depends on `zod@^4`; each file's header says so. A recursive schema
+  reads itself in a getter, so its type still infers.
+- The OpenAPI reader keeps a scalar's rules (`openapi::Rules` on
+  `Schema::String`, `Integer` and `Number`); the Dart and Rust Clients
+  read past them, their output unchanged.
+
 ### Added
 
 - A `[clients]` entry may be a table, `{ dir = "…", layout = "…" }`.

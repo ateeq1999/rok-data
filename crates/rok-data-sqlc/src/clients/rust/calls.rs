@@ -106,7 +106,7 @@ fn call(named: &Named<'_>, types: &mut Types<'_>) -> Result<(String, bool), Erro
     let mut lines = Vec::new();
     for parameter in &op.path_params {
         let name = argument(&parameter.name);
-        if parameter.schema == Schema::String {
+        if matches!(parameter.schema, Schema::String(_)) {
             arguments.push(format!("{name}: &str"));
             lines.push(format!("let {name} = crate::segment({name});"));
         } else {
@@ -161,7 +161,7 @@ fn call(named: &Named<'_>, types: &mut Types<'_>) -> Result<(String, bool), Erro
         }
         let name = argument(&parameter.name);
         let header = format!("{:?}", parameter.name);
-        let (ty, value) = if parameter.schema == Schema::String {
+        let (ty, value) = if matches!(parameter.schema, Schema::String(_)) {
             ("&str".to_owned(), name.clone())
         } else {
             let ty = types.ty(
