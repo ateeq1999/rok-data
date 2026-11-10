@@ -128,7 +128,7 @@ impl From<ValidationErrors> for AppError {
 /// A violated constraint. One the schema annotates (`-- rok:constraint`)
 /// answers with its message: a check (or a name a trigger raises) is a
 /// `Validation` on its field, a unique key or foreign key a `Conflict`.
-/// Any other answers with PostgreSQL's own message: a unique or foreign-key
+/// Any other answers with the database's own message: a unique or foreign-key
 /// violation is a `Conflict`, a check or another named constraint a
 /// `Validation`. `RowNotFound` is a `NotFound`, and anything else is
 /// `Internal`.
