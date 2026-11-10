@@ -1,7 +1,7 @@
 ---
 title: Feature matrix
 description: What exists where — runtime and generation capabilities traced from the four source repositories to this workspace.
-updated: 2026-10-29
+updated: 2026-11-10
 kind: reference
 source: docs/migration-guide.md, crates/*/README.md
 ---
@@ -37,6 +37,7 @@ equivalent without a ported implementation.
 | Nested eager loading (0.4.0)      | —               | —                   | —                | —                 | ✔ `with(rel.with(…))`, `view.nested` |
 | Collections (0.4.0)               | —               | —                   | —                | —                 | ✔ `ModelCollection` from `get`       |
 | Encrypted columns, value objects (0.4.0) | —        | —                   | —                | —                 | ✔ `Encrypted`, `value_object`, `set_with` |
+| Input validation, database rules (0.3.0) | —            | —                   | —                | —                 | ✔ `#[derive(Input)]` ([`validation.md`](validation.md)) |
 | Migrations: file pairs + journal  | ✔               | —                   | —                | —                 | ✔ core `migration` + `migration_file` |
 | Migrations: single-file sections  | —               | ✔                   | —                | —                 | ✔ same loader accepts both          |
 | Status rows (state/drift/checksum)| ✔               | —                   | —                | —                 | ✔ (`StatusRow` JSON contract)        |
@@ -60,6 +61,7 @@ equivalent without a ported implementation.
 | API feature layer (actix, extractors)          | —                   | ✔                 | ✔ (engine feature)                    |
 | API feature layer for axum (`[api] framework`)   | —                   | —                 | ✔ (engine feature)                    |
 | OpenAPI schemas (`utoipa`)                     | —                   | ✔                 | ✔ (engine feature)                    |
+| Generated bodies derive `Input` (0.3.0)        | —                   | — (`validator`)   | ✔ (engine ADR 0025)                   |
 | Init scaffold (dir + templates)                | —                   | ✔                 | ✔ `rok init` (`--template actix`/`axum`/`grpc`) / legacy `rok sqlc init` |
 | check-arch (engine ADR 0016 layout rules)             | —                   | ✔                 | ✔ `rok sqlc check-arch`               |
 | `@generated` markers, stale detection          | ✔ (`// generated…`) | ✔                 | ✔ both marker generations recognized  |

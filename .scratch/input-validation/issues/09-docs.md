@@ -4,7 +4,7 @@
 
 **Blocked by:** 01–08
 
-**Status:** ready-for-agent
+**Status:** done (2026-11-10)
 
-- [ ] Samples compiled (`<!-- source: … -->`)
-- [ ] Glossary terms linked (Input, Field rule, Database rule)
+- [x] Samples compiled (`<!-- source: … -->`)
+- [x] Glossary terms linked (Input, Field rule, Database rule)

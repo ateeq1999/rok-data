@@ -4,11 +4,11 @@
 
 **Blocked by:** 03, 04, 05, 06, 07
 
-**Status:** ready-for-agent
+**Status:** done (2026-11-10)
 
-- [ ] Wire answers byte-identical (templates' contract tests, fixture apps)
-- [ ] Engine ADR recording the switch (next engine number)
-- [ ] `validator` dropped from generated manifests where unused
+- [x] Wire answers byte-identical (templates' contract tests, fixture apps)
+- [x] Engine ADR recording the switch (next engine number)
+- [x] `validator` dropped from generated manifests where unused
 
 **Decisions (2026-10-27/28, with the user):**
 - `params.value` is dropped from the generated answers when they adopt the derive (option a): a documented wire change.
@@ -17,7 +17,7 @@
 
 **Progress:**
 - [x] Part 1: validation context in the runtime and the derive (`type Context`, `validate_with`, context-aware scopes / custom rules / record rule, nested and enum inputs share it).
-- [ ] Part 2: generated DTOs derive `Input`, the generated pre-checks become context-scoped database rules, `validator` leaves the generated manifests.
+- [x] Part 2: generated DTOs derive `Input`, the generated pre-checks become context-scoped database rules, `validator` leaves the generated manifests.
 
 **Decisions (2026-10-28, with the user):**
 - Caller-scoped `exists` / `unique` need who is calling: inputs gain a **validation context** (`#[rok(context = Caller)]`, `validate_with(&db, &ctx)`, scopes and custom rules receive `&ctx`). Done (first part).

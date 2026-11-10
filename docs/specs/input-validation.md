@@ -1,6 +1,6 @@
 # Spec — input validation with database rules
 
-Status: ready-for-agent · Tickets: `.scratch/input-validation/issues` · Decided: 2026-10-27 (grilling session) · Implements: workspace ADR 0021 · Glossary: **Input**, **Field rule**, **Database rule** (`GLOSSARY.md`)
+Status: done · Tickets: `.scratch/input-validation/issues` · Decided: 2026-10-27 (grilling session) · Implements: workspace ADR 0021 · Glossary: **Input**, **Field rule**, **Database rule** (`GLOSSARY.md`)
 
 ---
 

@@ -11,6 +11,11 @@ that it exists and won't ship a tag without it).
 
 **Added**
 
+- `docs/validation.md`, a guide to validating input with
+  `#[derive(Input)]`: field rules and transforms, database rules,
+  context, conditional rules, nesting, messages, the 422 body, JSON
+  Schema, and what generated APIs do with it. Its samples are compiled.
+
 - Typed queries support data-modifying CTEs (`WITH x AS (UPDATE …
   RETURNING …) INSERT … SELECT … FROM x`): each CTE's `RETURNING` columns
   are known to the statements after it, and the final statement types the
