@@ -55,6 +55,12 @@ that it exists and won't ship a tag without it).
   l(item_id uuid, quantity int)`, a `serde_json::Value`). The engine
   README's "Writing query files" documents the patterns.
 
+**Fixed**
+
+- A partial update's `coalesce($2, locale)` types `$2` as the column's
+  `Option<T>` (a CHECK-list enum included) instead of asking for
+  `-- param:`.
+
 ## [0.9.0] — strict, better-typed `rok gen`; one rule for finding the project; `:page` and shared queries
 
 Breaking for some projects. `rok gen` fails on a table or query it can't
