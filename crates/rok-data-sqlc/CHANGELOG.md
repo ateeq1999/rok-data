@@ -9,6 +9,15 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Changed
 
+- The TypeScript Client writes a `oneOf` of `null` and one schema (what
+  utoipa writes for an `Option<T>` of a component) as `T | null` and
+  `TSchema.nullable()`, instead of `null | T` and
+  `z.union([z.null(), TSchema])`; the types are the same. A nullable
+  success, such as an `Option<BillResponse>` answered `200` with `null`
+  before a value exists, returns `Promise<BillResponse | null>`; the
+  Dart (`Future<BillResponse?>`) and Rust
+  (`Result<Option<BillResponse>, ApiError>`) Clients already returned a
+  nullable type, and emission tests now hold all three.
 - **Breaking for Client callers:** a body field that may be left out and
   may be `null` is three-state only in a `PATCH` body, where the API
   tells "keep" from "clear". Elsewhere it is plain optional: Rust

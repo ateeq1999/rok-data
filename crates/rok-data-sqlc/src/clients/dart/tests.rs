@@ -384,3 +384,37 @@ fn only_a_patch_body_has_three_state_fields() {
         "{models}"
     );
 }
+
+/// "None yet" is an answer: an `Option<T>` success, as utoipa writes it
+/// (`oneOf` of `null` and the `$ref`), is a nullable return.
+#[test]
+fn a_nullable_success_answers_null() {
+    let document = document(
+        json!({"/me/tables/{id}/bill": {"get": {
+            "tags": ["tables"], "operationId": "bill",
+            "parameters": [{"name": "id", "in": "path", "required": true,
+                            "schema": {"type": "string"}}],
+            "responses": {"200": {"description": "", "content": {"application/json": {
+                "schema": {"oneOf": [
+                    {"type": "null"},
+                    {"$ref": "#/components/schemas/BillResponse"},
+                ]},
+            }}}},
+        }}}),
+        json!({"BillResponse": {
+            "type": "object", "required": ["total"],
+            "properties": {"total": {"type": "integer"}},
+        }}),
+    );
+    let files = emitted(&document);
+    let client = file(&files, "lib/src/client.dart");
+    assert!(client.contains("Future<BillResponse?> bill("), "{client}");
+    assert!(
+        client.contains(
+            "(json) => json == null\n          ? null\n          : BillResponse.fromJson(json as Map<String, Object?>),"
+        ) || client.contains(
+            "(json) => json == null ? null : BillResponse.fromJson(json as Map<String, Object?>),"
+        ),
+        "{client}"
+    );
+}

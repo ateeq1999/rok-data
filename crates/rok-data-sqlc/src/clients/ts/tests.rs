@@ -104,7 +104,7 @@ fn types_follow_the_schemas() {
     // A `POST`-only body's optional field is plain optional; a `PATCH`
     // body's keeps `null` apart from left out.
     assert!(types.contains("  scope: ApiKeyScopeSchema.optional(),\n"));
-    assert!(types.contains("  role: z.union([z.null(), RoleSchema]).optional(),\n"));
+    assert!(types.contains("  role: RoleSchema.nullable().optional(),\n"));
     // Formats, an intersection, a map.
     assert!(types.contains("  id: z.uuid(),\n"));
     assert!(types.contains("  created_at: z.iso.datetime({ offset: true, local: true }),\n"));
@@ -302,14 +302,14 @@ fn a_nullable_enum_field_keeps_its_comment() {
     assert!(
         types.contains(
             "  /** Where the payout is. */\n  \
-             status: z.union([z.null(), PayoutStatusSchema]).optional(),\n"
+             status: PayoutStatusSchema.nullable().optional(),\n"
         ),
         "{types}"
     );
     assert!(
         types.contains(
             "  /** The payout's own kind. */\n  \
-             kind: z.union([z.null(), PayoutStatusSchema]).optional(),\n"
+             kind: PayoutStatusSchema.nullable().optional(),\n"
         ),
         "{types}"
     );
@@ -412,4 +412,41 @@ fn the_runtime_checks_responses_with_the_calls_schema() {
     assert!(runtime.contains(
         "  if (call.response === \"none\" || res.status === 204) return undefined as T\n"
     ));
+}
+
+/// `GET /me/tables/{id}/bill`: the table's bill, or `null` before the
+/// diner orders, as utoipa writes `body = Option<BillResponse>`.
+fn none_yet() -> Document {
+    let json = json!({
+        "openapi": "3.1.0", "info": {},
+        "paths": {"/me/tables/{id}/bill": {"get": {
+            "tags": ["tables"], "operationId": "bill",
+            "parameters": [{"name": "id", "in": "path", "required": true,
+                            "schema": {"type": "string"}}],
+            "responses": {"200": {"description": "", "content": {"application/json": {
+                "schema": {"oneOf": [
+                    {"type": "null"},
+                    {"$ref": "#/components/schemas/BillResponse"},
+                ]},
+            }}}},
+        }}},
+        "components": {"schemas": {"BillResponse": {
+            "type": "object", "required": ["total"],
+            "properties": {"total": {"type": "integer"}},
+        }}},
+    });
+    Document::parse(&json.to_string()).unwrap_or_else(|err| panic!("{err}"))
+}
+
+/// "None yet" is an answer: an `Option<T>` success is `T | null`, which
+/// the query's `data` carries instead of an error.
+#[test]
+fn a_nullable_success_answers_null() {
+    let files = emitted(&none_yet());
+    let calls = file(&files, "src/calls.ts");
+    assert!(calls.contains("request<BillResponse | null>("), "{calls}");
+    assert!(
+        calls.contains("schema: BillResponseSchema.nullable(),"),
+        "{calls}"
+    );
 }

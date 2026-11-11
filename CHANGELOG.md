@@ -11,6 +11,11 @@ that it exists and won't ship a tag without it).
 
 **Changed**
 
+- The TypeScript Client spells an `Option<T>` (a `oneOf` of `null` and
+  one schema) as `T | null` and `TSchema.nullable()`, a nullable success
+  included: `GET /me/tables/{id}/bill` declared `Option<BillResponse>`
+  returns `Promise<BillResponse | null>`. "None yet" is `200` with
+  `null`; a 404 still means no such resource.
 - A Client's body field that may be left out and may be `null` is
   three-state only in a `PATCH` body; elsewhere it is plain optional, so
   a `POST` reads `Some(value)` in Rust and `name` in Dart instead of
