@@ -106,6 +106,9 @@ pub struct QueryDef {
     /// run, checked column for column, or a hand-written type by path
     /// (`crate::features::payouts::dto::PayoutSummary`).
     pub returns: Option<String>,
+    /// `-- rok:params struct` or `positional`: the shape of the generated
+    /// function's parameters, whatever their number.
+    pub params_shape: Option<crate::ParamsShape>,
 }
 
 /// A query that cannot be generated, with the reason.
@@ -175,6 +178,7 @@ pub fn parse_query_file(text: &str) -> (Vec<QueryDef>, Vec<QueryFailure>) {
                 ("column:", parse_column),
                 ("returns:", parse_returns),
                 ("rok:skip", parse_skip),
+                ("rok:params", parse_params_shape),
             ] {
                 // `rok:skip` is a whole word, its note after a space.
                 let directive = comment.strip_prefix(prefix).filter(|rest| {
@@ -293,6 +297,7 @@ fn start(header: &str, line: usize) -> Pending {
             columns: Vec::new(),
             skip: None,
             returns: None,
+            params_shape: None,
         }),
         errors: Vec::new(),
         label,
@@ -385,6 +390,23 @@ fn parse_returns(directive: &str, def: &mut QueryDef) -> Result<(), String> {
         return Err("`-- returns:` is given more than once".to_owned());
     }
     def.returns = Some(directive.to_owned());
+    Ok(())
+}
+
+fn parse_params_shape(directive: &str, def: &mut QueryDef) -> Result<(), String> {
+    let shape = match directive {
+        "struct" => crate::ParamsShape::Struct,
+        "positional" => crate::ParamsShape::Positional,
+        other => {
+            return Err(format!(
+                "expected `-- rok:params struct` or `-- rok:params positional`, found `{other}`"
+            ));
+        }
+    };
+    if def.params_shape.is_some() {
+        return Err("`-- rok:params` is given more than once".to_owned());
+    }
+    def.params_shape = Some(shape);
     Ok(())
 }
 
@@ -514,6 +536,42 @@ mod tests {
             failures[0]
                 .reason
                 .contains("expected `-- param: $<N> <name>"),
+            "{failures:?}"
+        );
+    }
+
+    #[test]
+    fn rok_params_fixes_the_shape() {
+        let (queries, failures) = parse(
+            "-- name: A :exec
+-- rok:params struct
+SELECT 1;
+-- name: B :exec
+-- rok:params positional
+SELECT 1;
+-- name: C :exec
+SELECT 1;",
+        );
+        assert!(failures.is_empty(), "{failures:?}");
+        let shapes: Vec<Option<crate::ParamsShape>> =
+            queries.iter().map(|query| query.params_shape).collect();
+        assert_eq!(
+            shapes,
+            [
+                Some(crate::ParamsShape::Struct),
+                Some(crate::ParamsShape::Positional),
+                None
+            ]
+        );
+        let (_, failures) = parse(
+            "-- name: D :exec
+-- rok:params tuple
+SELECT 1;",
+        );
+        assert!(
+            failures[0]
+                .reason
+                .contains("expected `-- rok:params struct` or `-- rok:params positional`"),
             "{failures:?}"
         );
     }

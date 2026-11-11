@@ -35,6 +35,14 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Added
 
+- A query's parameter shape no longer flips when it grows a fourth
+  parameter, if you say so: `-- rok:params struct` (or `positional`)
+  fixes one query's, and `query_params = "auto" | "struct" |
+  "positional"` (in `rok-data-sqlc.toml`, or `[generate]` in `rok.toml`)
+  sets the project's default; the annotation wins. `"auto"` stays the
+  default (arguments up to three, a struct from four). Each generated
+  function's doc comment says which rule applied, so generated query
+  modules change by one doc line per function with parameters.
 - `check-arch` checks that a feature's handler takes its caller extractor
   (`AuthUser`, `AdminUser`, or a struct the App marks `/// rok:caller`)
   before its body extractor (`ValidatedJson`, `Json`, `Form`), reported

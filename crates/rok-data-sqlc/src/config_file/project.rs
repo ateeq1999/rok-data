@@ -13,6 +13,7 @@ use serde::Deserialize;
 
 use super::{
     ApiKeys, ChangeValue, ConventionKeys, DeriveName, ExtractorName, FileConfig, OneOrMany,
+    ParamsName,
 };
 
 /// The unified project file.
@@ -71,6 +72,8 @@ pub(super) struct GenerationKeys {
     output: Option<PathBuf>,
     /// The table to generate, with the resources already generated.
     resource: Option<String>,
+    /// How query functions take their parameters.
+    query_params: Option<ParamsName>,
     /// The extra derives for the generated types.
     derive: Option<Vec<DeriveName>>,
     /// The HTTP frameworks to generate extractors for.
@@ -113,6 +116,7 @@ impl GenerationKeys {
             queries: paths(self.queries),
             output: self.output.map(|path| base.join(path)),
             resource: self.resource,
+            query_params: self.query_params.map(ParamsName::shape),
             conventions: ConventionKeys::default(),
             derive: self
                 .derive
@@ -149,6 +153,25 @@ mod tests {
     fn settings(toml: &str) -> FileConfig {
         let raw: RawProject = toml::from_str(toml).expect("valid project file");
         raw.resolve(Path::new("/project"))
+    }
+
+    #[test]
+    fn query_params_sets_the_project_default() {
+        let file = settings(
+            "[generate]
+query_params = \"struct\"
+",
+        );
+        assert_eq!(file.query_params, Some(crate::ParamsShape::Struct));
+        let error = toml::from_str::<RawProject>(
+            "[generate]
+query_params = \"tuple\"
+",
+        )
+        .map(|_| ())
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("unknown variant `tuple`"), "{error}");
     }
 
     #[test]
