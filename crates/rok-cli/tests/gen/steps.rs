@@ -132,3 +132,105 @@ fn the_finishing_command_keeps_the_runs_flags() -> Result<()> {
     );
     Ok(())
 }
+
+/// A monorepo whose contract export is a `cargo` command building an App
+/// that no longer compiles: a call site still passes one argument to a
+/// function that now takes two.
+fn uncompilable_export() -> Result<TempDir> {
+    let dir = failing_export()?;
+    fs::write(
+        dir.path().join("rok.toml"),
+        "[apps]\napi = \"apps/api\"\n\n[contract]\ndocument = \"openapi.json\"\n\
+         export = [\"cargo\", \"run\", \"--quiet\", \"--manifest-path\", \"exporter/Cargo.toml\", \"--\"]\n\n\
+         [clients]\nts = \"clients/ts\"\n",
+    )?;
+    let exporter = dir.path().join("exporter");
+    fs::create_dir_all(exporter.join("src"))?;
+    fs::write(
+        exporter.join("Cargo.toml"),
+        "[package]\nname = \"exporter\"\nversion = \"0.0.0\"\nedition = \"2021\"\n\n[workspace]\n",
+    )?;
+    fs::write(
+        exporter.join("src/main.rs"),
+        "fn find_user(id: u32, active: bool) -> u32 {\n    if active { id } else { 0 }\n}\n\n\
+         fn main() {\n    println!(\"{}\", find_user(1));\n}\n",
+    )?;
+    Ok(dir)
+}
+
+/// An App that no longer builds says so, with the compiler's first error.
+#[test]
+fn an_export_that_does_not_compile_says_so() -> Result<()> {
+    let dir = uncompilable_export()?;
+    let output = run_in(dir.path(), &["gen"])?;
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = stderr(&output);
+    assert!(
+        stderr.contains(
+            "the contract export failed: the App doesn't build after this change: fix the call \
+             sites, then run `rok gen` to write the contract and the Clients"
+        ),
+        "{stderr}"
+    );
+    let summary = &stderr[stderr
+        .find("the contract export failed")
+        .unwrap_or_default()..];
+    assert!(summary.contains("error[E0061]"), "{stderr}");
+    assert!(summary.contains("main.rs:6:20"), "{stderr}");
+    assert!(!summary.contains("help: provide the argument"), "{stderr}");
+    assert!(
+        summary.contains("steps:\n  done     `api`'s data layer\n  failed   the contract export\n"),
+        "{stderr}"
+    );
+    Ok(())
+}
+
+/// `--json` carries the same message in the failed step.
+#[test]
+fn json_carries_an_export_that_does_not_compile() -> Result<()> {
+    let dir = uncompilable_export()?;
+    let output = run_in(dir.path(), &["gen", "--json"])?;
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = stdout(&output);
+    let bodies: serde_json::Value =
+        serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("{e}: {stdout}"));
+    let steps = bodies
+        .as_array()
+        .and_then(|bodies| bodies.last())
+        .map(|summary| summary["steps"].clone())
+        .unwrap_or_default();
+    let export = steps
+        .as_array()
+        .and_then(|steps| steps.iter().find(|step| step["kind"] == "export"))
+        .cloned()
+        .unwrap_or_default();
+    assert_eq!(export["status"], "failed", "{stdout}");
+    let error = export["error"].as_str().unwrap_or_default();
+    assert!(
+        error.starts_with("the App doesn't build after this change"),
+        "{stdout}"
+    );
+    assert!(error.contains("error[E0061]"), "{stdout}");
+    Ok(())
+}
+
+/// A `cargo` export that fails without compiling anything keeps the
+/// export's own message.
+#[test]
+fn a_cargo_export_failing_otherwise_keeps_its_message() -> Result<()> {
+    let dir = failing_export()?;
+    fs::write(
+        dir.path().join("rok.toml"),
+        "[apps]\napi = \"apps/api\"\n\n[contract]\ndocument = \"openapi.json\"\n\
+         export = [\"cargo\", \"rok-no-such-subcommand\"]\n\n[clients]\nts = \"clients/ts\"\n",
+    )?;
+    let output = run_in(dir.path(), &["gen"])?;
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = stderr(&output);
+    assert!(
+        stderr.contains("the contract export failed: re-exporting the contract"),
+        "{stderr}"
+    );
+    assert!(!stderr.contains("doesn't build"), "{stderr}");
+    Ok(())
+}

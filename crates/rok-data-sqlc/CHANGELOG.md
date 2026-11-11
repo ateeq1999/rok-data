@@ -120,6 +120,11 @@ the *generated* API count as breaking (see ADR 0012).
   `Option<T>` for a text column, a typed id, a SQL enum or a CHECK-list
   enum, with no `-- param:`. A `-- param:` still wins, and a `coalesce`
   that names no column still asks for one.
+- `Project::export` with a `cargo` command that fails because the App
+  doesn't compile returns "the App doesn't build after this change: fix
+  the call sites, then run `rok gen` to write the contract and the
+  Clients" and the compiler's first error; cargo's output is still shown
+  as it comes. Other export failures keep their message.
 
 ## Workspace 0.9.0 - 2026-11-06
 
