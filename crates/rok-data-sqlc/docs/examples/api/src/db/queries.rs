@@ -89,6 +89,7 @@ pub struct ProjectsAroundRow {
 }
 
 /// Runs the `ProjectsAround` query (`:many`).
+/// Takes its parameters as arguments: three or fewer (`query_params = "auto"`).
 pub async fn projects_around<'e, E>(
     executor: E,
     owner_id: uuid::Uuid,
