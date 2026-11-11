@@ -57,7 +57,7 @@ pub fn emit(document: &Document) -> Result<Vec<(PathBuf, String)>, Error> {
         .map(|named| client::group_class(&named.group))
         .collect();
     let mut models = models::Models::of(document, groups)?;
-    let client = client::file(&operations, &mut models)?;
+    let client = client::file(document, &operations, &mut models)?;
     let models = render::file(&models.finish());
     let mut files = vec![
         (
@@ -135,7 +135,7 @@ library;
 export 'src/client.dart';
 export 'src/models.dart';
 export 'src/runtime.dart'
-    show ApiException, Bytes, FieldIssue, Nullable, RequestOptions, Session;
+    show ApiException, Bytes, FieldIssue, Nullable, Pager, RequestOptions, Session;
 ";
 
 /// The client's `README.md`.
@@ -161,6 +161,10 @@ fn readme(operations: &[super::emit::Named<'_>]) -> String {
          - `ApiClient(baseUrl: ..., session: ...)`: one per App. `api.<tag>.<operation>(...)` \
          is one typed method per operation: path parameters first, then the body, then the \
          query and the headers (`ifMatch:`) by name, then `options` (`RequestOptions`).\n\
+         - A list that pages (by page number or by cursor) also has \
+         `api.<tag>.<operation>Pager(...)`, a `Pager` of its rows: `load()` reads the \
+         first page, `more()` the next (nothing after the last), `stream` gives every row \
+         read so far each time a page arrives.\n\
          - Every model has `fromJson` and `toJson`; a `oneOf` is a sealed class to `switch` \
          over. A request's optional, nullable field takes `Nullable(value)`: \
          `Nullable(null)` clears it, leaving it out keeps it.\n\

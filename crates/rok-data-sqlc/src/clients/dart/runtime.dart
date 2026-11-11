@@ -373,3 +373,95 @@ final class Transport {
     };
   }
 }
+
+/// A list read a page at a time, for an infinite list: [load] reads the
+/// first page, [more] the next one, and [stream] gives every row read so
+/// far each time a page arrives (or the error a page failed with).
+///
+/// ```dart
+/// final pager = api.users.listPager(q: 'ada');
+/// await pager.load();
+/// // at the end of the list on screen:
+/// await pager.more();
+/// ```
+final class Pager<T> {
+  Pager._(this._read);
+
+  /// A pager over a list paged by number: `read(page)` reads page `page`,
+  /// from 1, and says whether rows remain after it.
+  factory Pager.numbered(Future<(List<T>, bool)> Function(int page) read) =>
+      Pager._((start) async {
+        final page = start is int ? start : 1;
+        final (rows, remain) = await read(page);
+        return (rows, remain ? page + 1 : null);
+      });
+
+  /// A pager over a list paged by cursor: `read(cursor)` reads the page at
+  /// `cursor` (the first at `null`) and gives the next page's cursor,
+  /// `null` on the last page.
+  factory Pager.cursor(
+    Future<(List<T>, String?)> Function(String? cursor) read,
+  ) => Pager._((start) => read(start is String ? start : null));
+
+  final Future<(List<T>, Object?)> Function(Object? start) _read;
+  final StreamController<List<T>> _changes =
+      StreamController<List<T>>.broadcast();
+  List<T> _items = List.unmodifiable(<T>[]);
+  Object? _next;
+  bool _last = false;
+  int _generation = 0;
+  Future<List<T>>? _reading;
+
+  /// Every row read so far, in the list's order.
+  List<T> get items => _items;
+
+  /// Whether [more] has a page left to read: false once the last page is
+  /// read.
+  bool get hasMore => !_last;
+
+  /// Whether a page is being read.
+  bool get isLoading => _reading != null;
+
+  /// [items], each time a page arrives.
+  Stream<List<T>> get stream => _changes.stream;
+
+  /// Reads the first page, dropping every row read before (a refresh).
+  Future<List<T>> load() {
+    _generation++;
+    _items = List.unmodifiable(<T>[]);
+    _next = null;
+    _last = false;
+    return _reading = _page();
+  }
+
+  /// Reads the next page and appends its rows: the first page when none
+  /// is read yet, nothing after the last page. While a page is being
+  /// read, it waits for that one.
+  Future<List<T>> more() {
+    if (!hasMore) return Future.value(_items);
+    return _reading ??= _page();
+  }
+
+  /// Closes [stream].
+  Future<void> close() => _changes.close();
+
+  Future<List<T>> _page() async {
+    final generation = _generation;
+    try {
+      final (rows, next) = await _read(_next);
+      if (generation != _generation) return _items;
+      _items = List.unmodifiable([..._items, ...rows]);
+      _next = next;
+      _last = next == null;
+      if (!_changes.isClosed) _changes.add(_items);
+      return _items;
+    } catch (error, stackTrace) {
+      if (generation == _generation && !_changes.isClosed) {
+        _changes.addError(error, stackTrace);
+      }
+      rethrow;
+    } finally {
+      if (generation == _generation) _reading = null;
+    }
+  }
+}

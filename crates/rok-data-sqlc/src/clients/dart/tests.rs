@@ -188,7 +188,7 @@ fn the_runtime_carries_the_session_hook_and_the_error_shape() {
     let library = file(&files, "lib/api_client.dart");
     assert!(library.contains(
         "export 'src/runtime.dart'\n    show ApiException, Bytes, FieldIssue, Nullable, \
-         RequestOptions, Session;\n"
+         Pager, RequestOptions, Session;\n"
     ));
 }
 
@@ -383,4 +383,45 @@ fn only_a_patch_body_has_three_state_fields() {
         models.contains("  final Nullable<String>? note;\n"),
         "{models}"
     );
+}
+
+/// Every list that pages gets a `Pager` method beside its call, taking
+/// the call's arguments but the page (or cursor): a page-number list's
+/// pager reads pages from 1 while rows remain, a cursor list's from no
+/// cursor while a page names the `next` one.
+#[test]
+fn a_paged_list_gets_a_pager() {
+    let files = emitted(&api_app());
+    let client = file(&files, "lib/src/client.dart");
+    assert!(
+        client.contains(
+            "  Pager<NoteResponse> listPager({\n    int? perPage,\n    String? q,\n    \
+             NoteSort? sort,\n    SortOrder? order,\n    RequestOptions? options,\n  \
+             }) => Pager.numbered((page) async {\n    final result = await list(\n      \
+             page: page,\n      perPage: perPage,\n      q: q,\n      sort: sort,\n      \
+             order: order,\n      options: options,\n    );\n    \
+             return (result.items, result.page * result.perPage < result.total);\n  });\n"
+        ),
+        "{client}"
+    );
+    assert!(client.contains(
+        "  Pager<LabelResponse> listPager({\n    int? perPage,\n    String? q,\n    \
+         LabelSort? sort,\n    SortOrder? order,\n    RequestOptions? options,\n  \
+         }) => Pager.cursor((cursor) async {\n    final result = await list(\n      \
+         cursor: cursor,\n      perPage: perPage,\n      q: q,\n      sort: sort,\n      \
+         order: order,\n      options: options,\n    );\n    \
+         return (result.items, result.next);\n  });\n"
+    ));
+    let runtime = file(&files, "lib/src/runtime.dart");
+    assert!(runtime.contains("final class Pager<T> {"));
+    assert!(runtime.contains("  Future<List<T>> load() {"));
+    assert!(
+        runtime
+            .contains("  Future<List<T>> more() {\n    if (!hasMore) return Future.value(_items);")
+    );
+    assert!(runtime.contains("  Stream<List<T>> get stream => _changes.stream;"));
+    let library = file(&files, "lib/api_client.dart");
+    assert!(library.contains(
+        "show ApiException, Bytes, FieldIssue, Nullable, Pager, RequestOptions, Session;"
+    ));
 }

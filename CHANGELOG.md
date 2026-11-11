@@ -32,6 +32,12 @@ that it exists and won't ship a tag without it).
 
 **Added**
 
+- Every Client pages a list for you: TypeScript
+  `useInfiniteQuery(pagers.notes.list({ q }))`, Dart
+  `api.notes.listPager(q: q)` (a `Pager` with `load()`, `more()` and a
+  `stream` of the rows), Rust `client.notes().list_pages(&query)` (`while
+  let Some(page) = pages.next().await`). Both list shapes are read:
+  page numbers and `[api] cursor` cursors.
 - `rok_data::transaction(&pool, |tx| …)` runs a closure in a transaction
   on a plain `PgPool` (what a service holds), committing on `Ok` and
   rolling back on `Err`; its `tx` is a `rok_data::Tx`. `check-arch` lets

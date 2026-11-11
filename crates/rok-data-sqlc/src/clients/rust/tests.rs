@@ -390,3 +390,43 @@ fn an_integer_is_as_wide_as_its_format() {
     assert!(types.contains("    pub plain: i64,\n"), "{types}");
     assert!(types.contains("    pub maybe: Option<i32>,\n"), "{types}");
 }
+
+/// Every list that pages gets a `<call>_pages` method beside its call: an
+/// async iterator of its pages from the query's page (or cursor) on, a
+/// page-number list's while rows remain, a cursor list's while a page
+/// names the `next` one.
+#[test]
+fn a_paged_list_gets_a_pages_iterator() {
+    let files = emitted(&api_app());
+    let calls = file(&files, "src/calls.rs");
+    assert!(
+        calls.contains(
+            "    pub fn list_pages(\n        &self,\n        query: &types::NotesListQuery,\n    \
+             ) -> crate::Pages<'_, types::PaginatedResponseNoteResponse> {\n        \
+             let calls = *self;\n        \
+             let read = move |query: types::NotesListQuery| async move {\n            \
+             let page = calls.list(&query).await?;\n            \
+             let more = i64::from(page.page) * i64::from(page.per_page) < page.total;\n            \
+             let next = more.then(|| types::NotesListQuery {\n                \
+             page: Some(page.page + 1),\n                ..query\n            });\n            \
+             Ok((page, next))\n        };\n        \
+             crate::Pages::new(query.clone(), read)\n    }\n"
+        ),
+        "{calls}"
+    );
+    assert!(calls.contains(
+        "    ) -> crate::Pages<'_, types::CursorResponseLabelResponse> {\n        \
+         let calls = *self;\n        \
+         let read = move |query: types::LabelsListQuery| async move {\n            \
+         let page = calls.list(&query).await?;\n            \
+         let next = page.next.clone().map(|cursor| types::LabelsListQuery {\n                \
+         cursor: Some(cursor),\n                ..query\n            });\n            \
+         Ok((page, next))\n        };\n        \
+         crate::Pages::new(query.clone(), read)\n    }\n"
+    ));
+    let runtime = file(&files, "src/runtime.rs");
+    assert!(runtime.contains("pub struct Pages<'a, P> {"));
+    assert!(runtime.contains("    pub async fn next(&mut self) -> Option<Result<P, ApiError>> {"));
+    let lib = file(&files, "src/lib.rs");
+    assert!(lib.contains("pub use runtime::{ApiError, Client, FieldDetails, FieldIssue, Pages};"));
+}

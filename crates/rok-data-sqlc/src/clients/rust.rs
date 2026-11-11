@@ -41,6 +41,7 @@ const RESERVED_TYPES: &[&str] = &[
     "Client",
     "FieldIssue",
     "FieldDetails",
+    "Pages",
     "Call",
     "Option",
     "Some",
@@ -125,7 +126,7 @@ pub mod calls;
 mod runtime;
 pub mod types;
 
-pub use runtime::{ApiError, Client, FieldDetails, FieldIssue};
+pub use runtime::{ApiError, Client, FieldDetails, FieldIssue, Pages};
 #[doc(hidden)]
 pub use runtime::{Call, nullable, segment};
 pub use types::*;
@@ -251,6 +252,9 @@ fn readme(operations: &[Named<'_>]) -> String {
          - `client.<tag>().<operation>(...)`: one typed `async` call per operation, \
          path parameters first, then the body, then the query, then the headers \
          (`if_match`).\n\
+         - A list that pages (by page number or by cursor) also has \
+         `client.<tag>().<operation>_pages(&query)`, its `Pages`: `while let Some(page) \
+         = pages.next().await` reads one page at a time, to the last.\n\
          - The API's types (serde) sit beside `Client`; a property that may be left \
          out is an `Option`, one that may also be `null` an `Option<Option<_>>`.\n\
          - `ApiError` (`status`, `code`, `message`, `details` of `FieldIssue`s on a \

@@ -383,3 +383,42 @@ pub(crate) fn next_payout() -> Value {
         },
     }})
 }
+
+/// A list answers one of the engine's two paging shapes, and the reader
+/// tells which: page numbers (`items`, `page`, `per_page`, `total`, read
+/// with `?page=`) or cursors (`items`, `next`, read with `?cursor=`). A
+/// read answering anything else, and every write, pages by neither.
+#[test]
+fn a_list_pages_by_number_or_by_cursor() {
+    let document = Document::parse(&api_app_document()).unwrap_or_else(|err| panic!("{err}"));
+    let paging = |method, path| document.paging(operation(&document, method, path));
+    assert_eq!(paging(Method::Get, "/api/v1/notes"), Some(Paging::Numbered));
+    assert_eq!(paging(Method::Get, "/api/v1/labels"), Some(Paging::Cursor));
+    assert_eq!(paging(Method::Get, "/api/v1/notes/{id}"), None);
+    assert_eq!(paging(Method::Post, "/api/v1/notes"), None);
+}
+
+/// A bare array, or a page without the query parameter that moves it on,
+/// is not paged: a Client has no next page to ask for.
+#[test]
+fn a_bare_array_or_an_unmovable_page_is_not_paged() {
+    let items = json!({"type": "array", "items": {"type": "string"}});
+    let bare = one_operation(
+        json!({"responses": {"200": {"description": "ok", "content": {
+            "application/json": {"schema": items.clone()}
+        }}}}),
+    );
+    let bare = Document::parse(&bare).unwrap_or_else(|err| panic!("{err}"));
+    assert_eq!(bare.paging(&bare.operations[0]), None);
+
+    let page = json!({"type": "object", "required": ["items", "page", "per_page", "total"],
+        "properties": {"items": items, "page": {"type": "integer"},
+            "per_page": {"type": "integer"}, "total": {"type": "integer"}}});
+    let unmovable = one_operation(
+        json!({"responses": {"200": {"description": "ok", "content": {
+            "application/json": {"schema": page}
+        }}}}),
+    );
+    let unmovable = Document::parse(&unmovable).unwrap_or_else(|err| panic!("{err}"));
+    assert_eq!(unmovable.paging(&unmovable.operations[0]), None);
+}

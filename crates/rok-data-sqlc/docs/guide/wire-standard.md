@@ -86,6 +86,31 @@ the same `sort`, `order`, `page` and `per_page` in its body, beside a
 `filter` ([Configuring](configuring.md#search_endpoint)), and answers the
 same page.
 
+### One paging shape per list, and a pager in every Client
+
+Every list answers one of two shapes: page numbers (`{items, page,
+per_page, total}`, asked for with `?page=`, the default) or, for the
+tables in `[api] cursor`, cursors (`{items, next, prev, per_page}`, asked
+for with `?cursor=`). A hand-written list pages the same way: write it as
+a `:page` query and answer `PaginatedResponse::from(page)`. Keep a bare
+array for a list bounded by nature (a row's few tags, an enum's values).
+
+The contract reader recognises both shapes, so each Client gives every
+list that pages a pager beside its call:
+
+- TypeScript: `pagers.<tag>.<operation>(query)`, an `infiniteQueryOptions`
+  factory: `useInfiniteQuery(pagers.notes.list({ q }))`. Its
+  `getNextPageParam` is the runtime's `nextPage`, which reads either shape.
+- Dart: `api.<tag>.<operation>Pager(...)`, a `Pager<T>` of the rows:
+  `load()` reads the first page, `more()` the next (nothing after the last
+  page), `items` holds every row read, `stream` gives them each time a
+  page arrives.
+- Rust: `client.<tag>().<operation>_pages(&query)`, `Pages` of the
+  answers: `while let Some(page) = pages.next().await` reads one page at a
+  time, ending after the last page (or one that failed).
+
+A pager starts at the query's own page (or cursor), the first without one.
+
 ## Errors
 
 Every error answers the same body: a snake_case `code` to branch on, a

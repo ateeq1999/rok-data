@@ -63,6 +63,8 @@ const RESERVED: &[&str] = &[
     "keys",
     "queries",
     "mutations",
+    "pagers",
+    "nextPage",
 ];
 
 /// The client's files for `document`, each its path relative to the
@@ -104,7 +106,10 @@ pub fn emit(document: &Document) -> Result<Vec<(PathBuf, String)>, Error> {
         ),
         (
             PathBuf::from("src/queries.ts"),
-            format!("{HEADER}{ZOD}{}", queries::file(&operations, &names)),
+            format!(
+                "{HEADER}{ZOD}{}",
+                queries::file(document, &operations, &names)
+            ),
         ),
     ];
     files.sort_by(|a, b| a.0.cmp(&b.0));
@@ -243,6 +248,9 @@ fn readme(operations: &[Named<'_>]) -> String {
          - `queries.<tag>.<operation>(...)`: `queryOptions` for every `GET`; \
          `mutations.<tag>.<operation>()`: `mutationOptions` for the others; \
          `keys.<tag>`: the prefix of a tag's query keys, to invalidate them.\n\
+         - `pagers.<tag>.<operation>(...)`: `infiniteQueryOptions` for every list that \
+         pages (by page number or by cursor), for `useInfiniteQuery`; `nextPage` reads \
+         the next page off either shape.\n\
          - `ApiError` (`status`, `code`, `message`, `details` of `FieldIssue`s on a \
          `422`) is what every failure rejects with.\n\
          - `<Type>Schema`: the zod schema of each type, with the server's rules \
