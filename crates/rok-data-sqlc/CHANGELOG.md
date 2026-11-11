@@ -35,6 +35,9 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Added
 
+- `rok sqlc query add NAME SQL` reads its SQL the way `-j` reads a
+  payload: `@path` from that file, `-` from stdin, anything else inline.
+  Scripted edits need no shell quoting on any OS.
 - `check-arch` checks that a feature's handler takes its caller extractor
   (`AuthUser`, `AdminUser`, or a struct the App marks `/// rok:caller`)
   before its body extractor (`ValidatedJson`, `Json`, `Form`), reported

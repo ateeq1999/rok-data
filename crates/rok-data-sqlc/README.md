@@ -941,6 +941,15 @@ again, and the error says why, with its line.
 rok sqlc query add OwnedMedia "SELECT * FROM media WHERE id = \$1 AND owner_id = \$2 LIMIT 1" --file media
 ```
 
+The SQL argument works the way `-j` does: `@path` reads the SQL from that
+file, `-` reads it from stdin, and anything else is the SQL itself. Put
+anything with quotes in a file, and no shell quoting gets in the way on
+any OS:
+
+```sh
+rok sqlc query add MediaByKind @media_by_kind.sql --file media
+```
+
 `--file` takes a stem (`media`) under the one configured `queries` directory,
 or a path ending in `.sql`. The return mode is inferred:
 

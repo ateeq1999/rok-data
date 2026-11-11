@@ -24,6 +24,9 @@ that it exists and won't ship a tag without it).
 
 **Added**
 
+- `rok sqlc query add NAME @q.sql` reads the SQL from a file, and
+  `query add NAME -` from stdin, so SQL with quotes needs no shell
+  quoting.
 - `rok_data::transaction(&pool, |tx| …)` runs a closure in a transaction
   on a plain `PgPool` (what a service holds), committing on `Ok` and
   rolling back on `Err`; its `tx` is a `rok_data::Tx`. `check-arch` lets
