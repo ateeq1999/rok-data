@@ -104,6 +104,12 @@ the *generated* API count as breaking (see ADR 0012).
   copy-forward run in the fixture's PostgreSQL suite. Before, any
   function in `FROM` failed the query; other functions still do, naming
   the ones the engine types.
+- A `bool` switch types in a query: a placeholder used as a `CASE WHEN $n
+  THEN` condition or under `NOT` is a `bool`, and a cast or switch in
+  `ORDER BY` types its placeholder too (before, a placeholder only in
+  `ORDER BY` failed the query). One query serves "upcoming or past":
+  `CASE WHEN $2::bool THEN … ELSE … END` in `WHERE`, one `CASE` per
+  sort direction in `ORDER BY`; the README shows the pattern.
 
 ## Workspace 0.9.0 - 2026-11-06
 

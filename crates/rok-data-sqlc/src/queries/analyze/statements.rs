@@ -371,6 +371,7 @@ impl<'a, 'c> Analysis<'a, 'c> {
                 );
             }
         };
+        self.order_by(query)?;
         self.limit_clause(query)?;
         Ok(outputs)
     }

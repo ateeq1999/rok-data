@@ -5,8 +5,8 @@ use std::collections::{BTreeSet, HashSet};
 use std::ops::ControlFlow;
 
 use sqlparser::ast::{
-    BinaryOperator, Expr, FunctionArg, FunctionArgExpr, FunctionArguments, Statement, Value,
-    visit_expressions,
+    BinaryOperator, Expr, FunctionArg, FunctionArgExpr, FunctionArguments, OrderBy, OrderByKind,
+    Query, Statement, UnaryOperator, Value, visit_expressions,
 };
 
 use super::{Analysis, Param, Slot};
@@ -67,6 +67,35 @@ impl<'a, 'c> Analysis<'a, 'c> {
                 self.expr(expr)?;
                 self.expr(pattern)
             }
+            Expr::Case {
+                operand,
+                conditions,
+                else_result,
+                ..
+            } => {
+                if let Some(operand) = operand {
+                    self.expr(operand)?;
+                }
+                for when in conditions {
+                    match operand {
+                        Some(operand) => self.compare(operand, &when.condition)?,
+                        None => self.switch(&when.condition)?,
+                    }
+                    self.expr(&when.condition)?;
+                    self.expr(&when.result)?;
+                }
+                match else_result {
+                    Some(else_result) => self.expr(else_result),
+                    None => Ok(()),
+                }
+            }
+            Expr::UnaryOp {
+                op: UnaryOperator::Not,
+                expr: inner,
+            } => {
+                self.switch(inner)?;
+                self.expr(inner)
+            }
             Expr::Nested(inner)
             | Expr::UnaryOp { expr: inner, .. }
             | Expr::IsNull(inner)
@@ -112,6 +141,72 @@ impl<'a, 'c> Analysis<'a, 'c> {
                 self.subquery(subquery);
                 self.expr(inner)
             }
+            _ => Ok(()),
+        }
+    }
+
+    /// Types a placeholder used as a condition (`CASE WHEN $2 THEN`,
+    /// `NOT $2`) as `bool`: a switch the caller turns on or off.
+    fn switch(&mut self, condition: &Expr) -> Result<(), String> {
+        match placeholder(condition) {
+            Some(index) => self.assign(index, &format!("param_{index}"), "bool", "bool", false),
+            None => Ok(()),
+        }
+    }
+
+    /// Types the placeholders of an `ORDER BY` that a switch or a cast
+    /// determines (`CASE WHEN $2::bool THEN starts_at END`). Its columns
+    /// are not resolved: they may name the query's own output columns.
+    pub(super) fn order_by(&mut self, query: &Query) -> Result<(), String> {
+        let Some(OrderBy {
+            kind: OrderByKind::Expressions(items),
+            ..
+        }) = &query.order_by
+        else {
+            return Ok(());
+        };
+        let mut typed = Ok(());
+        let _ = visit_expressions(items, |expr| {
+            typed = self.order_by_expr(expr);
+            if typed.is_err() {
+                ControlFlow::Break(())
+            } else {
+                ControlFlow::Continue(())
+            }
+        });
+        typed
+    }
+
+    fn order_by_expr(&mut self, expr: &Expr) -> Result<(), String> {
+        match expr {
+            Expr::Cast {
+                expr: inner,
+                data_type,
+                ..
+            } => match placeholder(inner) {
+                Some(index) => {
+                    let (_, sqlx_type) = map_type(data_type, self.context.enums)?;
+                    self.assign(
+                        index,
+                        &format!("param_{index}"),
+                        &sqlx_type,
+                        &sqlx_type,
+                        false,
+                    )
+                }
+                None => Ok(()),
+            },
+            Expr::Case {
+                operand: None,
+                conditions,
+                ..
+            } => conditions
+                .iter()
+                .try_for_each(|when| self.switch(&when.condition)),
+            Expr::UnaryOp {
+                op: UnaryOperator::Not,
+                expr: inner,
+            } => self.switch(inner),
             _ => Ok(()),
         }
     }
