@@ -726,12 +726,18 @@ query.
 **Everyday expressions are typed, and NULL when an operand can be.** An
 expression is `Option` unless every operand is never NULL: a `NOT NULL`
 column off the outer side of a join, a literal, `count(…)`, a clock
-function, or such an expression itself. A parameter may be NULL.
+function, or such an expression itself. A parameter may be NULL. `sum`,
+`avg`, `min` and `max` may be NULL (no rows, or only NULLs), in a
+`SELECT`, a CTE or a subquery alike; `coalesce(sum(stock), 0)` is `i64`
+with no cast, and a cast still decides the type.
 
 | Expression | Type |
 | --- | --- |
 | `=`, `<>`, `<`, `<=`, `>`, `>=`, `BETWEEN`, `IN (…)`, `LIKE`, `ILIKE`, `~`, `AND`, `OR`, `NOT` | `bool` |
 | `IS [NOT] NULL`, `IS [NOT] DISTINCT FROM`, `IS [NOT] TRUE` | `bool`, never NULL |
+| `sum(…)` | `i64` for `smallint` or `integer`, `rust_decimal::Decimal` for `bigint` or `numeric`, the argument's float type for a float |
+| `avg(…)` | `rust_decimal::Decimal` for an integer or `numeric`, `f64` for a float |
+| `min(…)`, `max(…)` | the argument's type |
 | `EXISTS (…)`, `NOT EXISTS (…)` | `bool`, never NULL |
 | `x IN (SELECT …)` | `bool` |
 | `+`, `-`, `*`, `/`, `%` | the operands' shared type: integers widen to the larger, `numeric` wins over integers, floats over `numeric` |

@@ -24,6 +24,10 @@ that it exists and won't ship a tag without it).
 
 **Added**
 
+- Queries: `sum`, `avg`, `min` and `max` are typed by PostgreSQL's rules
+  in a `SELECT`, a CTE and a subquery alike (`sum(stock)` over an
+  `integer` is `Option<i64>`, `coalesce(sum(stock), 0)` is `i64`), so
+  they no longer need a cast. A cast still decides the type.
 - `rok_data::transaction(&pool, |tx| …)` runs a closure in a transaction
   on a plain `PgPool` (what a service holds), committing on `Ok` and
   rolling back on `Err`; its `tx` is a `rok_data::Tx`. `check-arch` lets
