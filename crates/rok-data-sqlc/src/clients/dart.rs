@@ -140,8 +140,15 @@ export 'src/runtime.dart'
 
 /// The client's `README.md`.
 fn readme(operations: &[super::emit::Named<'_>]) -> String {
+    let routes = if operations.iter().any(|named| named.op.is_browser_route()) {
+        "- `api.<tag>.<operation>Url(...)` for a Browser route (an operation whose \n         every answer is a redirect): its full `Uri`, with its path and query \n         parameters, for a browser to follow; it sends nothing.
+"
+    } else {
+        ""
+    };
     let example = operations
-        .first()
+        .iter()
+        .find(|named| !named.op.is_browser_route())
         .map_or_else(String::new, |named| {
             format!(
                 "\n```dart\nimport 'package:{PACKAGE}/{PACKAGE}.dart';\n\n\
@@ -167,7 +174,7 @@ fn readme(operations: &[super::emit::Named<'_>]) -> String {
          - `Session` gives the bearer token the secured operations send; a `401` to one \
          of them calls its `expired` (unless the call says `keepSession`).\n\
          - `ApiException` (`status`, `code`, `message`, and a `422`'s `details` of \
-         `FieldIssue`s by field) is what every failure throws.\n{example}"
+         `FieldIssue`s by field) is what every failure throws.\n{routes}{example}"
     )
 }
 

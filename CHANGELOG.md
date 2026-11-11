@@ -24,6 +24,13 @@ that it exists and won't ship a tag without it).
 
 **Added**
 
+- A contract operation whose answers are redirects (no `2xx`, a `3xx`),
+  such as a sign-in's start and callback at an OpenID provider, is a
+  Browser route: `rok gen` accepts it instead of failing with "no success
+  response", and each Client builds its URL instead of calling it
+  (`api.auth.oidcStartUrl(provider, { return_to })` in TypeScript,
+  `api.auth.oidcStartUrl(provider, returnTo: ...)` in Dart,
+  `client.auth().oidc_start_url("google", &query)` in Rust).
 - `rok_data::transaction(&pool, |tx| …)` runs a closure in a transaction
   on a plain `PgPool` (what a service holds), committing on `Ok` and
   rolling back on `Err`; its `tx` is a `rok_data::Tx`. `check-arch` lets

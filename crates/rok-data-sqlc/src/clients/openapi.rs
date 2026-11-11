@@ -2,7 +2,8 @@
 //! the OpenAPI 3.1 subset utoipa emits, and no more. [`Document::parse`]
 //! turns an `openapi.json` into the model every client emitter reads —
 //! the component schemas and the operations, each with its path, query
-//! and header parameters, its request body, its success response and whether it
+//! and header parameters, its request body, its success response (or that
+//! it is a Browser route, every answer a redirect) and whether it
 //! carries the bearer auth marker.
 //!
 //! What utoipa does not emit is refused, not guessed at: a cookie
@@ -47,7 +48,7 @@ pub enum Error {
         construct: String,
     },
     /// A document the subset covers, but broken: an
-    /// operation without a success response.
+    /// operation with neither a success nor a redirect response.
     Invalid {
         /// The JSON pointer of the problem.
         at: String,

@@ -122,6 +122,18 @@ pub enum Response {
     /// Any other media type (`image/jpeg`, `application/octet-stream`):
     /// raw bytes.
     Binary,
+    /// No success, only redirects (`3xx`): a Browser route, which a
+    /// browser follows, so a Client builds its URL instead of calling it.
+    Redirect,
+}
+
+impl Operation {
+    /// Whether it is a Browser route: every answer a redirect, so a Client
+    /// builds its URL (path and query parameters on the base URL) instead
+    /// of calling it.
+    pub fn is_browser_route(&self) -> bool {
+        self.response == Response::Redirect
+    }
 }
 
 /// The operations of the path item `item` at `path`.
@@ -200,6 +212,14 @@ fn parse_operation(
         None => None,
     };
     let response = success(map, at)?;
+    if response == Response::Redirect && (body.is_some() || !header_params.is_empty()) {
+        return Err(Error::Invalid {
+            at: at.to_owned(),
+            message: "a Browser route (every answer a redirect) takes only path and query \
+                      parameters: a browser following it sends no body or header"
+                .to_owned(),
+        });
+    }
     let security = match map.get("security") {
         Some(value) => security(value, &pointer(at, "security"), bearer)?,
         None => default_security.unwrap_or_default(),
@@ -368,7 +388,8 @@ fn media_schema(value: &Value, at: &str) -> Result<Schema> {
     }
 }
 
-/// What the operation's success — its lowest `2xx` — answers.
+/// What the operation's success — its lowest `2xx` — answers, or
+/// [`Response::Redirect`] when it has none but a redirect (`3xx`).
 fn success(map: &Map<String, Value>, at: &str) -> Result<Response> {
     let at = pointer(at, "responses");
     let responses = match map.get("responses") {
@@ -380,14 +401,18 @@ fn success(map: &Map<String, Value>, at: &str) -> Result<Response> {
             });
         }
     };
-    let Some((status, response)) = responses
-        .iter()
-        .filter(|(status, _)| status.len() == 3 && status.starts_with('2'))
-        .min_by_key(|(status, _)| status.as_str())
-    else {
+    let answers = |class: char| {
+        responses
+            .iter()
+            .filter(move |(status, _)| status.len() == 3 && status.starts_with(class))
+    };
+    let Some((status, response)) = answers('2').min_by_key(|(status, _)| status.as_str()) else {
+        if answers('3').next().is_some() {
+            return Ok(Response::Redirect);
+        }
         return Err(Error::Invalid {
             at,
-            message: "the operation has no success (`2xx`) response".to_owned(),
+            message: "the operation has no success (`2xx`) or redirect (`3xx`) response".to_owned(),
         });
     };
     let at = pointer(&at, status);

@@ -102,9 +102,12 @@ export function configure(settings: Partial<ClientConfig>) {
   Object.assign(config, settings)
 }
 
-/** For <img src> and full-page navigations: the path on the API's origin. */
-export function apiUrl(path: string) {
-  return `${config.baseUrl}${path}`
+/**
+ * For <img src> and full-page navigations (a Browser route's URL builder):
+ * the path, with its query, on the API's origin.
+ */
+export function apiUrl(path: string, query?: Call["query"]) {
+  return buildUrl(path, query)
 }
 
 /** Per-call options every operation takes last. */

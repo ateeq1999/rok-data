@@ -200,7 +200,9 @@ fn call(named: &Named<'_>, types: &mut Types<'_>) -> Result<(String, bool), Erro
             parameter.name
         ));
     }
+    let route = op.is_browser_route();
     let (answer, finish) = match &op.response {
+        Response::Redirect => ("String".to_owned(), ".url()"),
         Response::Empty => ("()".to_owned(), ".empty_answer()"),
         Response::Binary => ("Vec<u8>".to_owned(), ".bytes_answer()"),
         Response::Json(schema) => (
@@ -209,7 +211,9 @@ fn call(named: &Named<'_>, types: &mut Types<'_>) -> Result<(String, bool), Erro
         ),
     };
     chain.push(finish.to_owned());
-    chain.push(".await".to_owned());
+    if !route {
+        chain.push(".await".to_owned());
+    }
     let chain = if chain.concat().len() <= CHAIN_WIDTH {
         chain.concat()
     } else {
@@ -226,33 +230,46 @@ fn call(named: &Named<'_>, types: &mut Types<'_>) -> Result<(String, bool), Erro
         "let call = self.client.call(Method::{}, {}path, {})?;",
         op.method.upper(),
         if op.path_params.is_empty() { "" } else { "&" },
-        op.secured
+        op.secured && !route
     ));
     lines.push(chain);
 
     let summary = op.summary.as_deref();
-    let fallback = format!("`{} {}`.", op.method.upper(), op.path);
+    let fallback = if route {
+        format!(
+            "The URL of `{} {}`, which a browser follows.",
+            op.method.upper(),
+            op.path
+        )
+    } else {
+        format!("`{} {}`.", op.method.upper(), op.path)
+    };
     let mut text = doc(summary, &fallback, "    ");
-    if op.optional_sign_in {
+    // A Browser route sends no token: a browser follows it.
+    if op.optional_sign_in && !route {
         text.push_str("    ///\n    /// Sends the session's token when there is one.\n");
-    } else if op.secured {
+    } else if op.secured && !route {
         text.push_str("    ///\n    /// Sends the session's token.\n");
     }
     for line in header_docs {
         text.push_str("    ///\n");
         text.push_str(&line);
     }
-    let name = call_name(named);
+    let (name, function) = if route {
+        (format!("{}_url", call_name(named)), "fn")
+    } else {
+        (call_name(named), "async fn")
+    };
     let answer = format!("Result<{answer}, ApiError>");
     let one_line = format!(
-        "    pub async fn {name}({}) -> {answer} {{",
+        "    pub {function} {name}({}) -> {answer} {{",
         arguments.join(", ")
     );
     if one_line.len() <= MAX_WIDTH {
         text.push_str(&one_line);
         text.push('\n');
     } else {
-        text.push_str(&format!("    pub async fn {name}(\n"));
+        text.push_str(&format!("    pub {function} {name}(\n"));
         for argument in &arguments {
             text.push_str(&format!("        {argument},\n"));
         }

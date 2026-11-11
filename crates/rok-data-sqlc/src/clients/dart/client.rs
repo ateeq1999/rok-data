@@ -205,14 +205,18 @@ fn method(named: &Named<'_>, models: &mut Models<'_>) -> Result<(String, bool), 
             ty.encode(&name, 0)
         ));
     }
-    named_params.push("RequestOptions? options".to_owned());
+    // A Browser route is a URL builder: nothing is sent, so no options.
+    let route = op.is_browser_route();
+    if !route {
+        named_params.push("RequestOptions? options".to_owned());
+    }
     if !query.is_empty() {
         call_fields.insert(0, format!("query: {{{}}}", query.join(", ")));
     }
     if !headers.is_empty() {
         call_fields.push(format!("headers: {{{}}}", headers.join(", ")));
     }
-    if op.secured {
+    if op.secured && !route {
         call_fields.push("secured: true".to_owned());
     }
     // The path's literal text escaped, then each parameter interpolated.
@@ -223,6 +227,10 @@ fn method(named: &Named<'_>, models: &mut Models<'_>) -> Result<(String, bool), 
     }
     call.push_str(",\n    )");
     let (result, send) = match &op.response {
+        Response::Redirect => (
+            "Uri".to_owned(),
+            format!("_transport.urlOf(\n    {call},\n  )"),
+        ),
         Response::Empty => (
             "void".to_owned(),
             format!("_transport.none(\n    {call},\n    options,\n  )"),
@@ -244,10 +252,17 @@ fn method(named: &Named<'_>, models: &mut Models<'_>) -> Result<(String, bool), 
             )
         }
     };
-    let summary = op
-        .summary
-        .clone()
-        .unwrap_or_else(|| format!("`{} {}`.", op.method.upper(), op.path));
+    let summary = op.summary.clone().unwrap_or_else(|| {
+        if route {
+            format!(
+                "The URL of `{} {}`, which a browser follows.",
+                op.method.upper(),
+                op.path
+            )
+        } else {
+            format!("`{} {}`.", op.method.upper(), op.path)
+        }
+    });
     // `dart format`'s shape: positional parameters, the last one opening
     // the named ones' braces.
     let mut parameters = String::new();
@@ -255,17 +270,30 @@ fn method(named: &Named<'_>, models: &mut Models<'_>) -> Result<(String, bool), 
         let last = index + 1 == positional.len();
         parameters.push_str(&format!(
             "    {parameter},{}\n",
-            if last { " {" } else { "" }
+            if last && !named_params.is_empty() {
+                " {"
+            } else {
+                ""
+            }
         ));
     }
-    let open = if positional.is_empty() { "{" } else { "" };
+    let (open, close) = match (positional.is_empty(), named_params.is_empty()) {
+        (true, true) => ("", ""),
+        (true, false) => ("{\n", "  }"),
+        (false, true) => ("\n", "  "),
+        (false, false) => ("\n", "  }"),
+    };
     for parameter in &named_params {
         parameters.push_str(&format!("    {parameter},\n"));
     }
+    let (result, name) = if route {
+        (result, format!("{}Url", member_name(&named.name)))
+    } else {
+        (format!("Future<{result}>"), member_name(&named.name))
+    };
     let text = format!(
-        "{}  Future<{result}> {}({open}\n{parameters}  }}) => {send};\n",
+        "{}  {result} {name}({open}{parameters}{close}) => {send};\n",
         doc(Some(&summary), "  "),
-        member_name(&named.name),
     );
     Ok((text, uses_models))
 }
