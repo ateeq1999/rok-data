@@ -59,6 +59,13 @@ the *generated* API count as breaking (see ADR 0012).
   new `urlOf`), Rust `<operation>_url(...)` (a plain `fn` giving
   `Result<String, ApiError>`, through the runtime's new `Call::url`).
   An operation with any `2xx` is unchanged (engine ADR 0027, amended).
+- `sum`, `avg`, `min` and `max` are typed by PostgreSQL's rules, in a
+  `SELECT`, a CTE and a subquery alike: `sum` of `smallint`/`integer` is
+  `i64`, of `bigint`/`numeric` `rust_decimal::Decimal`, of a float that
+  float; `avg` of an integer or `numeric` is `rust_decimal::Decimal`, of a
+  float `f64`; `min` and `max` keep the argument's type. Each is `Option`
+  unless wrapped in `coalesce(…, non-null)`; a cast still wins. Before,
+  they failed with "cannot infer the type" unless cast.
 - `check-arch` checks that a feature's handler takes its caller extractor
   (`AuthUser`, `AdminUser`, or a struct the App marks `/// rok:caller`)
   before its body extractor (`ValidatedJson`, `Json`, `Form`), reported
