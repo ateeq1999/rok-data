@@ -12,3 +12,11 @@ WHERE owner_id = $1;
 -- name: ProjectNames :many
 -- returns: crate::shared::listing::ProjectName
 SELECT id, name FROM projects WHERE owner_id = $1 ORDER BY name;
+
+-- name: TasksWithProject :many
+-- A query reads any table: one join gives each task its project's name.
+SELECT t.id, t.title, t.done, p.name AS project_name
+FROM tasks t
+JOIN projects p ON p.id = t.project_id
+WHERE t.owner_id = $1
+ORDER BY t.created_at;

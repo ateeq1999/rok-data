@@ -11,6 +11,10 @@ that it exists and won't ship a tag without it).
 
 **Changed**
 
+- `check-arch`'s rule-4 messages (`rule-4`, `cross-feature-write`,
+  `cross-feature-query`) say that a feature's queries may join and read
+  any table, and that writing another feature's table goes through that
+  feature's service. The architecture guide shows such a join.
 - A Client's body field that may be left out and may be `null` is
   three-state only in a `PATCH` body; elsewhere it is plain optional, so
   a `POST` reads `Some(value)` in Rust and `name` in Dart instead of

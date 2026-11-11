@@ -288,15 +288,16 @@ A service writes no SQL. Put the query in a query file, so the data layer
 generates a function for it, and call that.
 
 ```text
-src/features/users/service.rs:35: rule-4: `crate::features::articles::ArticlesService::new`: feature `users` refers to another feature; declare a port in its service.rs instead; a pure helper with no feature state belongs in shared/
+src/features/users/service.rs:35: rule-4: `crate::features::articles::ArticlesService::new`: feature `users` refers to another feature; a feature's queries may join and read any table; writing another feature's table goes through that feature's service: declare a port in its service.rs; a pure helper with no feature state belongs in shared/
 ```
 
 Declare a port trait in this feature's `service.rs` and implement it in
 `app.rs` ([Customizing](customizing.md#writing-a-port)). To read the other
-table, call `crate::db::<table>::read` instead, which is allowed.
+table, call `crate::db::<table>::read`, or join it in your feature's own
+query: both are allowed.
 
 ```text
-src/features/users/service.rs:36: cross-feature-write: `crate::db::articles::write::delete`: feature `users` writes another table; declare a port in its service.rs and implement it in app.rs
+src/features/users/service.rs:36: cross-feature-write: `crate::db::articles::write::delete`: feature `users` writes another table; a feature's queries may join and read any table; writing another feature's table goes through that feature's service: declare a port in its service.rs and implement it in app.rs
 ```
 
 Writes to another feature's table go through that feature's service, so

@@ -9,6 +9,12 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Changed
 
+- `check-arch`'s rule-4 messages (`rule-4`, `cross-feature-write`,
+  `cross-feature-query`) now say what a feature may do: "a feature's
+  queries may join and read any table; writing another feature's table
+  goes through that feature's service". The architecture guide says so
+  too and shows a query joining another table (`TasksWithProject` in
+  `docs/examples/api`). The numbered rule text is unchanged.
 - **Breaking for Client callers:** a body field that may be left out and
   may be `null` is three-state only in a `PATCH` body, where the API
   tells "keep" from "clear". Elsewhere it is plain optional: Rust

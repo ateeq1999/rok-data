@@ -9,7 +9,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The new message and guide text (test for the message)
-- [ ] The guide's example query generates
+- [x] The new message and guide text (test for the message): every rule-4 message (`rule-4`, `cross-feature-write`, `cross-feature-query`) carries the sentence, tested in `check_arch/tests.rs`; the guide says it under "Reads cross features; writes don't". The templates' `AGENTS.md` rule text is unchanged: it waits on a rok-templates release (the numbered rules are held verbatim against the released crate).
+- [x] The guide's example query generates: `TasksWithProject` in `docs/examples/api/queries.sql` (a task joined to its project's name; the guide notes a pass reads its event's `cancel_reason` the same way), generated and compiled with the example.

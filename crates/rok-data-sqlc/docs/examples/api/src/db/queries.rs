@@ -3,6 +3,7 @@
 //! Functions for the annotated queries in the query file.
 
 use super::projects::models::ProjectId;
+use super::tasks::models::TaskId;
 
 /// Runs the `OpenTask` query (`:execrows`).
 /// Returns the number of affected rows.
@@ -67,6 +68,41 @@ where
     rok_data::raw(
         r#"
         SELECT id, name FROM projects WHERE owner_id = $1 ORDER BY name
+        "#,
+    )
+    .bind(owner_id)
+    .fetch_all(executor)
+    .await
+}
+
+/// A row returned by `tasks_with_project`.
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow, serde::Serialize, serde::Deserialize)]
+pub struct TasksWithProjectRow {
+    /// The `id` column.
+    pub id: TaskId,
+    /// The `title` column.
+    pub title: String,
+    /// The `done` column.
+    pub done: bool,
+    /// The `project_name` column.
+    pub project_name: String,
+}
+
+/// Runs the `TasksWithProject` query (`:many`).
+pub async fn tasks_with_project<'e, E>(
+    executor: E,
+    owner_id: uuid::Uuid,
+) -> Result<Vec<TasksWithProjectRow>, rok_data::Error>
+where
+    E: rok_data::Executor<'e>,
+{
+    rok_data::raw(
+        r#"
+        SELECT t.id, t.title, t.done, p.name AS project_name
+        FROM tasks t
+        JOIN projects p ON p.id = t.project_id
+        WHERE t.owner_id = $1
+        ORDER BY t.created_at
         "#,
     )
     .bind(owner_id)
