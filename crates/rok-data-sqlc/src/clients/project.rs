@@ -19,6 +19,7 @@
 //! the [`Layout`] (`package`, or `sources` for the TypeScript and Dart
 //! Clients). Paths are relative to the file's directory.
 
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -245,7 +246,9 @@ impl Project {
     ///
     /// # Errors
     ///
-    /// When the command does not start or fails.
+    /// When the command does not start or fails. A `cargo` export that
+    /// fails because the App doesn't compile says so, with the compiler's
+    /// first error.
     pub fn export(&self) -> Result<()> {
         let Some((program, args)) = self.export.as_ref().and_then(|parts| parts.split_first())
         else {
@@ -258,7 +261,10 @@ impl Project {
             .as_ref()
             .map(|parts| parts.join(" "))
             .unwrap_or_default();
-        let status = Command::new(program)
+        let cargo = Path::new(program)
+            .file_stem()
+            .is_some_and(|stem| stem.eq_ignore_ascii_case("cargo"));
+        let mut child = Command::new(program)
             .args(args)
             .arg(&document)
             .current_dir(if self.root.as_os_str().is_empty() {
@@ -268,9 +274,27 @@ impl Project {
             })
             .stdin(Stdio::null())
             .stdout(Stdio::from(std::io::stderr()))
-            .status()
+            // A `cargo` export's diagnostics are read (and still shown as
+            // they come) to tell an App that doesn't build from an export
+            // that fails.
+            .stderr(if cargo {
+                Stdio::piped()
+            } else {
+                Stdio::inherit()
+            })
+            .spawn()
             .with_context(|| format!("re-exporting the contract: `{shown}` did not start"))?;
+        let diagnostics = child.stderr.take().map(tee).unwrap_or_default();
+        let status = child
+            .wait()
+            .with_context(|| format!("re-exporting the contract: `{shown}` did not finish"))?;
         if !status.success() {
+            if let Some(error) = first_compile_error(&diagnostics) {
+                bail!(
+                    "the App doesn't build after this change: fix the call sites, then run \
+                     `rok gen` to write the contract and the Clients\n\n{error}"
+                );
+            }
             bail!(
                 "re-exporting the contract: `{shown}` failed ({status}); {} was not rewritten",
                 display_path(&self.document)
@@ -373,6 +397,55 @@ fn module_path(src: &Path, file: &Path) -> Option<String> {
     }
     parts.insert(0, "crate".to_owned());
     Some(parts.join("::"))
+}
+
+/// Copies `stream` to stderr as it comes, line by line, and returns what
+/// it held.
+fn tee(stream: impl Read) -> String {
+    let mut reader = BufReader::new(stream);
+    let mut held = Vec::new();
+    let mut line = Vec::new();
+    while reader
+        .read_until(b'\n', &mut line)
+        .is_ok_and(|read| read > 0)
+    {
+        // Best effort: a closed stderr must not stop the export.
+        let _ = std::io::stderr().write_all(&line);
+        held.append(&mut line);
+    }
+    String::from_utf8_lossy(&held).into_owned()
+}
+
+/// The most lines of the compiler's first error a summary shows.
+const ERROR_LINES: usize = 12;
+
+/// The compiler's first error in cargo's `diagnostics`, when cargo could
+/// not compile a crate: its `error` line and the code it points at, up to
+/// its first note or help (or the blank line that ends it).
+fn first_compile_error(diagnostics: &str) -> Option<String> {
+    let cargo_line = |line: &str| {
+        line.starts_with("error: could not compile") || line.starts_with("error: aborting")
+    };
+    if !diagnostics
+        .lines()
+        .any(|line| line.starts_with("error: could not compile"))
+    {
+        return None;
+    }
+    let lines: Vec<&str> = diagnostics
+        .lines()
+        .skip_while(|line| !line.starts_with("error") || cargo_line(line))
+        .enumerate()
+        .take_while(|(at, line)| {
+            *at == 0
+                || !(line.trim().is_empty()
+                    || line.starts_with("note:")
+                    || line.starts_with("help:"))
+        })
+        .map(|(_, line)| line)
+        .take(ERROR_LINES)
+        .collect();
+    (!lines.is_empty()).then(|| lines.join("\n"))
 }
 
 #[cfg(test)]

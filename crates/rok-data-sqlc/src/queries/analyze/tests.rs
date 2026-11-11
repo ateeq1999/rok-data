@@ -1740,3 +1740,65 @@ fn a_subquery_alias_column_list_renames_its_columns() {
             .contains("column `id` does not exist in `t`")
     );
 }
+
+/// A placeholder beside a column in `coalesce` takes the column's value
+/// type, optional: `SET level = coalesce($1, level)` keeps the stored value
+/// when the caller passes `None`. Either argument order works.
+#[test]
+fn coalesce_types_a_placeholder_from_the_column_beside_it() {
+    for (query, expected) in [
+        (
+            "UPDATE gauges SET level = coalesce($1, level) WHERE id = $2;",
+            param(1, "level", "Option<types::GaugeLevel>"),
+        ),
+        (
+            "UPDATE gauges SET level = coalesce(level, $1) WHERE id = $2;",
+            param(1, "level", "Option<types::GaugeLevel>"),
+        ),
+        (
+            "UPDATE products SET name = coalesce($1, name) WHERE id = $2;",
+            param(1, "name", "Option<String>"),
+        ),
+        (
+            "UPDATE products SET name = coalesce(name, $1) WHERE id = $2;",
+            param(1, "name", "Option<String>"),
+        ),
+        (
+            "UPDATE listings SET status = coalesce($1, status) WHERE id = $2;",
+            param(1, "status", "Option<types::ProductStatus>"),
+        ),
+        (
+            "UPDATE listings SET status = coalesce(status, $1) WHERE id = $2;",
+            param(1, "status", "Option<types::ProductStatus>"),
+        ),
+    ] {
+        let analyzed = one(&format!("-- name: Q :exec\n{query}"));
+        assert_eq!(analyzed.params[0], expected, "{query}");
+    }
+    for query in [
+        "UPDATE products SET category_id = coalesce($1, category_id) WHERE id = $2;",
+        "UPDATE products SET category_id = coalesce(category_id, $1) WHERE id = $2;",
+    ] {
+        let analyzed = typed_one(&format!("-- name: Q :exec\n{query}"));
+        assert_eq!(
+            analyzed.params[0],
+            param(1, "category_id", "Option<CategoryId>"),
+            "{query}"
+        );
+    }
+}
+
+/// A `-- param:` override still wins over the column's type, and a
+/// `coalesce` that names no column still asks for one.
+#[test]
+fn coalesce_without_a_column_still_asks_for_a_param_override() {
+    let analyzed = one(
+        "-- name: Q :exec\n-- param: $1 level Option<String>\nUPDATE gauges SET level = coalesce($1, level) WHERE id = $2;",
+    );
+    assert_eq!(analyzed.params[0], param(1, "level", "Option<String>"));
+    let reason =
+        failure("-- name: Q :exec\nUPDATE gauges SET level = coalesce($1, $2) WHERE id = $3;");
+    assert!(reason.contains("cannot infer the type of `$1`"), "{reason}");
+    let reason = failure("-- name: Q :one\nSELECT coalesce($1, 'x') AS x FROM gauges;");
+    assert!(reason.contains("cannot infer the type"), "{reason}");
+}

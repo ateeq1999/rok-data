@@ -20,6 +20,7 @@ pub struct ActiveProductsInCategoryRow {
 }
 
 /// Runs the `ActiveProductsInCategory` query (`:many`).
+/// Takes its parameters as arguments: three or fewer (`query_params = "auto"`).
 pub async fn active_products_in_category<'e, E>(
     executor: E,
     category_id: CategoryId,
@@ -84,6 +85,7 @@ pub struct UpsertProductPriceParams {
 
 /// Runs the `UpsertProductPrice` query (`:one`).
 /// Fails with `rok_data::Error::Database(sqlx::Error::RowNotFound)` when no row matches.
+/// Takes its parameters as `UpsertProductPriceParams`: more than three (`query_params = "auto"`).
 pub async fn upsert_product_price<'e, E>(
     executor: E,
     params: UpsertProductPriceParams,
@@ -117,6 +119,7 @@ pub struct SearchProductNamesRow {
 }
 
 /// Runs the `SearchProductNames` query (`:many`).
+/// Takes its parameters as arguments: three or fewer (`query_params = "auto"`).
 pub async fn search_product_names<'e, E>(
     executor: E,
     pattern: &str,
@@ -139,6 +142,7 @@ where
 
 /// Runs the `ArchiveCategory` query (`:execrows`).
 /// Returns the number of affected rows.
+/// Takes its parameters as arguments: three or fewer (`query_params = "auto"`).
 pub async fn archive_category<'e, E>(
     executor: E,
     category_id: CategoryId,
@@ -172,6 +176,7 @@ pub struct ProductsInCategoryPageRow {
 /// Runs the `ProductsInCategoryPage` query (`:page`): page `page` (from 1, 0 is 1) of `per_page` rows,
 /// with the total across every page.
 /// Fails with `rok_data::Error::InvalidQuery` when `per_page` is 0.
+/// Takes its parameters as arguments: three or fewer (`query_params = "auto"`).
 pub async fn products_in_category_page<'e, E>(
     executor: E,
     category_id: CategoryId,
