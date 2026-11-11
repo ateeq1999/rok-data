@@ -43,6 +43,9 @@ that it exists and won't ship a tag without it).
   in a `SELECT`, a CTE and a subquery alike (`sum(stock)` over an
   `integer` is `Option<i64>`, `coalesce(sum(stock), 0)` is `i64`), so
   they no longer need a cast. A cast still decides the type.
+- `rok sqlc query add NAME @q.sql` reads the SQL from a file, and
+  `query add NAME -` from stdin, so SQL with quotes needs no shell
+  quoting.
 - `rok_data::transaction(&pool, |tx| …)` runs a closure in a transaction
   on a plain `PgPool` (what a service holds), committing on `Ok` and
   rolling back on `Err`; its `tx` is a `rok_data::Tx`. `check-arch` lets
