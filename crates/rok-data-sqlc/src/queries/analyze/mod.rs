@@ -92,6 +92,11 @@ pub struct AnalyzedQuery {
     pub sql: String,
     pub params: Vec<Param>,
     pub result: ResultShape,
+    /// `-- rok:params`: the shape the query asks for, if it does.
+    pub params_shape: Option<crate::ParamsShape>,
+    /// The project's `query_params`, which applies when the query doesn't
+    /// say; `rok gen` sets it.
+    pub params_default: crate::ParamsShape,
 }
 
 /// Analyzes each query against the schema.
@@ -222,6 +227,8 @@ fn analyze_one(def: &QueryDef, context: &Context<'_>) -> Result<AnalyzedQuery, S
             .to_owned(),
         params,
         result,
+        params_shape: def.params_shape,
+        params_default: crate::ParamsShape::default(),
     })
 }
 

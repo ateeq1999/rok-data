@@ -35,6 +35,8 @@ fn query(name: &str, sql: &str, params: &[(&str, &str)], result: ResultShape) ->
                 })
                 .collect(),
             result,
+            params_shape: None,
+            params_default: crate::ParamsShape::Auto,
         },
     }
 }

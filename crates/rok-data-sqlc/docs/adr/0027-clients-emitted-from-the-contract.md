@@ -207,3 +207,12 @@ or without them, and the server checks them.
   `Default`. This replaces "every request's optional, nullable field is
   three-state" in the Rust and Dart sections above: a `POST` caller wrote
   `Some(Some(…))` and `Nullable(name)` for nothing.
+- **An integer is as wide as its `format`.** The reader keeps an
+  integer's `format`, and the Rust Client reads it: `int32` is `i32`,
+  `int64` or no format `i64` (was `i64` for every integer). utoipa has no
+  `int16` and writes `int32` for an `i16`, so a `smallint` column is an
+  `i32`. Bounds (`minimum`/`maximum`) are carried where a Client checks
+  values, the TypeScript Client's zod rules; the Rust Client has no
+  place for them, and Dart's `int` and TypeScript's `number` are one
+  width already, so "Formats are read past" above now means every format
+  but an integer's in Rust.

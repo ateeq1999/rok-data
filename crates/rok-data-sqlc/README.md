@@ -36,6 +36,7 @@ pub struct ActiveProductsInCategoryRow {
 }
 
 /// Runs the `ActiveProductsInCategory` query (`:many`).
+/// Takes its parameters as arguments: three or fewer (`query_params = "auto"`).
 pub async fn active_products_in_category<'e, E>(
     executor: E,
     category_id: CategoryId,
@@ -551,6 +552,7 @@ A query file holds SQL statements, each starting with a `-- name:` line:
 -- column: <name> <RustType>          (optional, repeatable)
 -- returns: <RowType or path::Type>    (optional)
 -- rok:skip [<note>]                  (optional)
+-- rok:params struct|positional         (optional)
 <one SQL statement>
 ```
 
@@ -574,6 +576,13 @@ crate::shared::listing::ProjectName`): the rows decode straight into it
 can't see that type's fields, so a mismatch is the compiler's or the row
 decode's to catch, not `rok gen`'s. Two queries with the same columns get
 one struct each unless one says `-- returns:`.
+
+A function takes up to three parameters as arguments and more as a
+`{Name}Params` struct, so a query that grows a fourth changes its call shape.
+`-- rok:params struct` (or `positional`) fixes the shape of one query, and
+`query_params = "struct"` (`"positional"`, `"auto"`) sets the project's
+default; the annotation wins, and each function's doc comment says which
+rule applied.
 
 | Return mode | Runs | Returns |
 |---|---|---|
@@ -1270,6 +1279,7 @@ schema   = ["migrations/"]   # a path or a list: SQL files or migration director
 queries  = ["queries/"]      # a path or a list: query files or directories
 output   = "src/db"          # the default
 resource = "products"        # add this table to the generated ones; rarely useful in a file
+query_params = "auto"        # how query functions take parameters: "auto" (arguments up to three, a struct from four), "struct" or "positional"; `-- rok:params` beats it
 derive   = ["serde", "validate"]  # extra derives for generated types; "validate" needs "serde"
 extractors = ["axum", "actix_web"]  # validated-body extractors to generate; need "validate"
 migrations = "migrations"   # the history dir: codegen stages the pairs and their snapshot into it; `rok migrate` reads it
