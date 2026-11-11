@@ -24,6 +24,10 @@ that it exists and won't ship a tag without it).
 
 **Added**
 
+- Typed queries take a subquery in `FROM` (`(SELECT …) AS x`, optionally
+  `x(a, b)`) and `LATERAL (SELECT …) x`, in a `SELECT`, `UPDATE … FROM`,
+  `DELETE … USING` and a data-modifying CTE, typed from its query as a
+  CTE is.
 - `rok_data::transaction(&pool, |tx| …)` runs a closure in a transaction
   on a plain `PgPool` (what a service holds), committing on `Ok` and
   rolling back on `Err`; its `tx` is a `rok_data::Tx`. `check-arch` lets

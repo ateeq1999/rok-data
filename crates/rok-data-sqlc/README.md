@@ -854,6 +854,13 @@ pub async fn search_product_names<'e, E>(
   FROM partner_photos WHERE partner_id = $2
   ON CONFLICT DO NOTHING;
   ```
+- A subquery in `FROM`, `(SELECT …) AS x`, reads like a table whose
+  columns are typed from its query, as a CTE's are; a column list
+  renames them (`AS x(a, b)`). It works in a `SELECT`, an `UPDATE …
+  FROM`, a `DELETE … USING` and a data-modifying CTE. It sees the queries
+  around its own, but the `FROM` tables beside it (an `UPDATE`'s target
+  among them) only when written `LATERAL (SELECT …) x`; without
+  `LATERAL`, a reference to one fails naming it.
 - Set-returning functions in `FROM` are typed from their signatures and
   read like a table under their alias. A one-column function's column takes
   the alias's name (`AS week`), a column list renames it (`AS t(day)`),

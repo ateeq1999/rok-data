@@ -8,8 +8,8 @@ Karibu Pass's `CancelEvent` needs it: its CTE `t` is `UPDATE ticket_tiers SET �
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `CancelEvent`'s shape, with `FROM (SELECT …) x` inside a data-modifying CTE, generates (test)
-- [ ] `LATERAL (SELECT …)` sees the outer row; a non-`LATERAL` subquery referring to an outer table fails naming it
-- [ ] Column alias lists rename the derived columns
+- [x] `CancelEvent`'s shape, with `FROM (SELECT …) x` inside a data-modifying CTE, generates (test)
+- [x] `LATERAL (SELECT …)` sees the outer row; a non-`LATERAL` subquery referring to an outer table fails naming it
+- [x] Column alias lists rename the derived columns

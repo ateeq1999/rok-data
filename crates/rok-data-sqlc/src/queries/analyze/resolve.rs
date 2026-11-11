@@ -87,7 +87,15 @@ impl<'a, 'c> Analysis<'a, 'c> {
         self.scope
             .iter()
             .rposition(|entry| entry.qualifier == qualifier)
-            .ok_or_else(|| format!("`{qualifier}` is not a table or alias in FROM"))
+            .ok_or_else(|| {
+                if self.beside.iter().any(|name| name == qualifier) {
+                    format!(
+                        "`{qualifier}` is a FROM table beside the subquery, which can't see it; write `LATERAL (SELECT …)` to refer to it"
+                    )
+                } else {
+                    format!("`{qualifier}` is not a table or alias in FROM")
+                }
+            })
     }
 
     /// Resolves a (possibly qualified) column reference. Returns `Ok(None)`
