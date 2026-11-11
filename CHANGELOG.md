@@ -74,6 +74,11 @@ that it exists and won't ship a tag without it).
   sites, then run `rok gen` to write the contract and the Clients",
   followed by the compiler's first error. `--json` carries it as the
   failed export step's `error`. Other export failures keep their message.
+- `rok gen` and `rok gen check` fail when two `ToSchema` types in the
+  App share a component name (a hand-written DTO named like a generated
+  response, say), naming both files, instead of the OpenAPI document
+  silently keeping one of them and the Clients coming out wrong. Rename
+  one of the types or give it `#[schema(as = ...)]`.
 
 ## [0.9.0] — strict, better-typed `rok gen`; one rule for finding the project; `:page` and shared queries
 
