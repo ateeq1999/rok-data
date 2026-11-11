@@ -413,3 +413,61 @@ fn the_runtime_checks_responses_with_the_calls_schema() {
         "  if (call.response === \"none\" || res.status === 204) return undefined as T\n"
     ));
 }
+
+/// A Browser route is a URL builder, not a call: its path and query
+/// parameters on the base URL, and no query or mutation factory.
+#[test]
+fn a_browser_route_is_a_url_builder() {
+    let files = emitted(&crate::clients::openapi::tests::browser_routes());
+    let calls = file(&files, "src/calls.ts");
+    assert!(
+        calls.contains("import { apiUrl, request } from \"./runtime\"\n"),
+        "{calls}"
+    );
+    assert!(
+        calls.contains(
+            "    /** Starts signing in at an OpenID provider. */\n    \
+         oidcStartUrl: (provider: string, query?: AuthOidcStartQuery): string =>\n      \
+         apiUrl(`/auth/oidc/${encodeURIComponent(String(provider))}/start`, query),\n"
+        ),
+        "{calls}"
+    );
+    assert!(
+        calls.contains(
+            "    /** The URL of `GET /auth/oidc/callback`, which a browser follows. */\n    \
+         oidcCallbackUrl: (query: AuthOidcCallbackQuery): string =>\n      \
+         apiUrl(\"/auth/oidc/callback\", query),\n"
+        ),
+        "{calls}"
+    );
+    assert!(!calls.contains("oidcStart:") && !calls.contains("\"GET /auth/oidc"));
+    let queries = file(&files, "src/queries.ts");
+    assert!(
+        queries.contains("    me: () =>") && !queries.contains("oidc"),
+        "{queries}"
+    );
+    let types = file(&files, "src/types.ts");
+    assert!(
+        types.contains("export type AuthOidcCallbackQuery = {"),
+        "{types}"
+    );
+    let runtime = file(&files, "src/runtime.ts");
+    assert!(runtime.contains("export function apiUrl(path: string, query?: Call[\"query\"]) {"));
+}
+
+/// The README names the URL builders when the document has a Browser
+/// route, and its example is a call.
+#[test]
+fn the_readme_names_browser_routes() {
+    let files = emitted(&crate::clients::openapi::tests::browser_routes());
+    let readme = file(&files, "README.md");
+    assert!(
+        readme.contains("api.<tag>.<operation>Url(...)` for a Browser route"),
+        "{readme}"
+    );
+    assert!(
+        readme.contains("const page = await api.auth.me("),
+        "{readme}"
+    );
+    assert!(!file(&emitted(&monorepo()), "README.md").contains("Browser route"));
+}

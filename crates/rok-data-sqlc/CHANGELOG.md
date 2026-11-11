@@ -48,6 +48,17 @@ the *generated* API count as breaking (see ADR 0012).
   default (arguments up to three, a struct from four). Each generated
   function's doc comment says which rule applied, so generated query
   modules change by one doc line per function with parameters.
+- **Browser routes in the Clients:** the contract reader reads an
+  operation with no success (`2xx`) but a redirect (`3xx`) as a Browser
+  route (`Response::Redirect`, `Operation::is_browser_route`) instead of
+  failing, and refuses one with a body or header parameter. Each Client
+  emits a URL builder for it in place of a call, taking its path and
+  query parameters: TypeScript `api.<tag>.<operation>Url(...)` (a
+  `string`, through `apiUrl(path, query)`, with no query or mutation
+  factory), Dart `<operation>Url(...)` (a `Uri`, through the transport's
+  new `urlOf`), Rust `<operation>_url(...)` (a plain `fn` giving
+  `Result<String, ApiError>`, through the runtime's new `Call::url`).
+  An operation with any `2xx` is unchanged (engine ADR 0027, amended).
 - `check-arch` checks that a feature's handler takes its caller extractor
   (`AuthUser`, `AdminUser`, or a struct the App marks `/// rok:caller`)
   before its body extractor (`ValidatedJson`, `Json`, `Form`), reported

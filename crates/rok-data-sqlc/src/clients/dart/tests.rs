@@ -384,3 +384,53 @@ fn only_a_patch_body_has_three_state_fields() {
         "{models}"
     );
 }
+
+/// A Browser route is a URL builder, not a call: `<operation>Url`, taking
+/// its path and query parameters and giving the full `Uri`, sending
+/// nothing.
+#[test]
+fn a_browser_route_is_a_url_builder() {
+    let files = emitted(&crate::clients::openapi::tests::browser_routes());
+    let client = file(&files, "lib/src/client.dart");
+    assert!(
+        client.contains(
+            "  /// Starts signing in at an OpenID provider.\n  \
+         Uri oidcStartUrl(\n    String provider, {\n    String? returnTo,\n  \
+         }) => _transport.urlOf(\n    Call(\n      'GET',\n      \
+         '/auth/oidc/${Uri.encodeComponent(provider)}/start',\n      \
+         query: {'return_to': returnTo},\n    ),\n  );\n"
+        ),
+        "{client}"
+    );
+    assert!(
+        client.contains(
+            "  /// The URL of `GET /auth/oidc/callback`, which a browser follows.\n  \
+         Uri oidcCallbackUrl({\n    required String code,\n    required String state,\n  \
+         }) => _transport.urlOf(\n"
+        ),
+        "{client}"
+    );
+    assert!(!client.contains("Future<void> oidc"), "{client}");
+    let runtime = file(&files, "lib/src/runtime.dart");
+    assert!(
+        runtime.contains("  Uri urlOf(Call call) => _url(call);\n"),
+        "{runtime}"
+    );
+}
+
+/// The README names the URL builders when the document has a Browser
+/// route, and its example is a call.
+#[test]
+fn the_readme_names_browser_routes() {
+    let files = emitted(&crate::clients::openapi::tests::browser_routes());
+    let readme = file(&files, "README.md");
+    assert!(
+        readme.contains("api.<tag>.<operation>Url(...)` for a Browser route"),
+        "{readme}"
+    );
+    assert!(
+        readme.contains("final result = await api.auth.me("),
+        "{readme}"
+    );
+    assert!(!file(&emitted(&monorepo()), "README.md").contains("Browser route"));
+}

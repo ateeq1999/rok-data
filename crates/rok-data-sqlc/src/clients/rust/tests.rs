@@ -390,3 +390,52 @@ fn an_integer_is_as_wide_as_its_format() {
     assert!(types.contains("    pub plain: i64,\n"), "{types}");
     assert!(types.contains("    pub maybe: Option<i32>,\n"), "{types}");
 }
+
+/// A Browser route is a URL builder, not a call: a plain `fn`, named
+/// `<operation>_url`, that takes its path and query parameters and gives
+/// the full URL, sending nothing.
+#[test]
+fn a_browser_route_is_a_url_builder() {
+    let files = emitted(&crate::clients::openapi::tests::browser_routes());
+    let calls = file(&files, "src/calls.rs");
+    assert!(
+        calls.contains(
+            "    /// Starts signing in at an OpenID provider.\n    \
+         pub fn oidc_start_url(\n        &self,\n        provider: &str,\n        \
+         query: &types::AuthOidcStartQuery,\n    ) -> Result<String, ApiError> {\n        \
+         let provider = crate::segment(provider);\n        \
+         let path = format!(\"/auth/oidc/{provider}/start\");\n        \
+         let call = self.client.call(Method::GET, &path, false)?;\n        \
+         call.query(query).url()\n    }\n"
+        ),
+        "{calls}"
+    );
+    assert!(
+        calls.contains(
+            "    /// The URL of `GET /auth/oidc/callback`, which a browser follows.\n    \
+         pub fn oidc_callback_url(\n"
+        ),
+        "{calls}"
+    );
+    assert!(!calls.contains("async fn oidc"), "{calls}");
+    assert!(calls.contains("    pub async fn me(&self) -> Result<(), ApiError> {\n"));
+    let runtime = file(&files, "src/runtime.rs");
+    assert!(runtime.contains("    pub fn url(self) -> Result<String, ApiError> {\n"));
+}
+
+/// The README names the URL builders when the document has a Browser
+/// route, and its example is a call.
+#[test]
+fn the_readme_names_browser_routes() {
+    let files = emitted(&crate::clients::openapi::tests::browser_routes());
+    let readme = file(&files, "README.md");
+    assert!(
+        readme.contains("client.<tag>().<operation>_url(...)` for a Browser route"),
+        "{readme}"
+    );
+    assert!(
+        readme.contains("let answer = client.auth().me().await?;"),
+        "{readme}"
+    );
+    assert!(!file(&emitted(&monorepo()), "README.md").contains("Browser route"));
+}
