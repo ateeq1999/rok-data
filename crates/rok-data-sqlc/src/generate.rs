@@ -16,6 +16,7 @@ use crate::{api_config, generator, output, parser};
 
 mod constraint_messages;
 mod query_files;
+mod schema_names;
 mod snapshot;
 
 use query_files::{AnalyzedFile, analyze_query_file, query_inputs};
@@ -204,11 +205,15 @@ fn run(config: &Config, report: &mut Report, analysis: &mut Analysis) -> anyhow:
     let mut failed_files = Vec::new();
     for input in &query_inputs {
         let AnalyzedFile {
-            queries,
+            mut queries,
             failures,
             skipped,
             lines,
         } = analyze_query_file(&input.path, input.shared, &parsed, &selected)?;
+        // The project's `query_params`, for the queries that don't say.
+        for query in &mut queries {
+            query.params_default = config.query_params;
+        }
         report.skipped_queries.extend(skipped);
         analysis
             .queries
@@ -332,6 +337,11 @@ fn run(config: &Config, report: &mut Report, analysis: &mut Analysis) -> anyhow:
         .iter()
         .flat_map(|(_, paths)| paths.iter().cloned())
         .collect();
+    // The OpenAPI document holds one schema per component name.
+    if let Some(api) = config.api.as_ref().filter(|api| api.openapi) {
+        let src = api.output.parent().unwrap_or(&api.output);
+        schema_names::check(src, &files, &stale)?;
+    }
 
     if config.check {
         (report.missing, report.changed) = output::compare_files(&files)?;

@@ -18,7 +18,7 @@ use serde::Deserialize;
 use serde::de::{self, Deserializer, Visitor};
 
 use crate::report::display_path;
-use crate::{Conventions, Derive, Extractor, IdGeneration, RelationshipChange};
+use crate::{Conventions, Derive, Extractor, IdGeneration, ParamsShape, RelationshipChange};
 
 mod api_keys;
 mod project;
@@ -45,6 +45,8 @@ pub(crate) struct FileConfig {
     pub(crate) queries: Vec<PathBuf>,
     pub(crate) output: Option<PathBuf>,
     pub(crate) resource: Option<String>,
+    /// `query_params`: how query functions take their parameters.
+    pub(crate) query_params: Option<ParamsShape>,
     pub(crate) conventions: ConventionKeys,
     /// `None` leaves `derive` to the sources below; a list (even an empty
     /// one) replaces theirs.
@@ -82,6 +84,7 @@ impl FileConfig {
             queries: list(self.queries, lower.queries),
             output: self.output.or(lower.output),
             resource: self.resource.or(lower.resource),
+            query_params: self.query_params.or(lower.query_params),
             conventions: self.conventions.over(lower.conventions),
             derive: self.derive.or(lower.derive),
             extractors: self.extractors.or(lower.extractors),
@@ -103,6 +106,7 @@ impl FileConfig {
             output: self.output.unwrap_or(defaults.output),
             resource: self.resource,
             dry_run: defaults.dry_run,
+            query_params: self.query_params.unwrap_or_default(),
             check: defaults.check,
             force: defaults.force,
             lenient: defaults.lenient,
@@ -157,6 +161,7 @@ struct RawFile {
     queries: Option<OneOrMany>,
     output: Option<PathBuf>,
     resource: Option<String>,
+    query_params: Option<ParamsName>,
     #[serde(default)]
     conventions: ConventionKeys,
     derive: Option<Vec<DeriveName>>,
@@ -224,6 +229,7 @@ impl RawFile {
             queries: resolve(self.queries),
             output: self.output.map(|p| base.join(p)),
             resource: self.resource,
+            query_params: self.query_params.map(ParamsName::shape),
             conventions: self.conventions,
             derive: self
                 .derive
@@ -549,5 +555,25 @@ mod tests {
         );
         assert_eq!(file.schema, vec![PathBuf::from("/project/schema")]);
         assert_eq!(file.migrations, Some(PathBuf::from("/project/history")));
+    }
+}
+
+/// A `query_params` value. Deserializing an unknown name fails with the
+/// list of known ones.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum ParamsName {
+    Auto,
+    Struct,
+    Positional,
+}
+
+impl ParamsName {
+    pub(super) fn shape(self) -> ParamsShape {
+        match self {
+            ParamsName::Auto => ParamsShape::Auto,
+            ParamsName::Struct => ParamsShape::Struct,
+            ParamsName::Positional => ParamsShape::Positional,
+        }
     }
 }

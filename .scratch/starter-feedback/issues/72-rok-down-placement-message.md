@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The message names the statement and says "immediately after" (test)
-- [ ] The guide's example
+- [x] The message names the statement and says "immediately after" (test)
+- [x] The guide's example

@@ -15,6 +15,14 @@ that it exists and won't ship a tag without it).
   `cross-feature-query`) say that a feature's queries may join and read
   any table, and that writing another feature's table goes through that
   feature's service. The architecture guide shows such a join.
+- A schema statement rok can't undo by itself, left without its
+  `-- rok:down`, is refused by its first line, and the message says to
+  add the block immediately after that statement ("rok can't undo
+  `CREATE TRIGGER books_audit …` by itself; add `-- rok:down` and the
+  SQL that undoes it immediately after this statement"). The guide's
+  *After a schema change* shows two triggers, each with its own block.
+- The Rust Client types an integer by its contract `format`: `int32` is
+  `i32` (a `smallint` too), `int64` or no format stays `i64`.
 - A Client's body field that may be left out and may be `null` is
   three-state only in a `PATCH` body; elsewhere it is plain optional, so
   a `POST` reads `Some(value)` in Rust and `name` in Dart instead of
@@ -58,6 +66,23 @@ that it exists and won't ship a tag without it).
   quantity)`) or from one JSON parameter (`jsonb_to_recordset($2) AS
   l(item_id uuid, quantity int)`, a `serde_json::Value`). The engine
   README's "Writing query files" documents the patterns.
+
+**Fixed**
+
+- A partial update's `coalesce($2, locale)` types `$2` as the column's
+  `Option<T>` (a CHECK-list enum included) instead of asking for
+  `-- param:`.
+- A `rok gen` whose contract export is a `cargo` command, and fails
+  because the App no longer compiles (a data-layer change broke a call
+  site), says so: "the App doesn't build after this change: fix the call
+  sites, then run `rok gen` to write the contract and the Clients",
+  followed by the compiler's first error. `--json` carries it as the
+  failed export step's `error`. Other export failures keep their message.
+- `rok gen` and `rok gen check` fail when two `ToSchema` types in the
+  App share a component name (a hand-written DTO named like a generated
+  response, say), naming both files, instead of the OpenAPI document
+  silently keeping one of them and the Clients coming out wrong. Rename
+  one of the types or give it `#[schema(as = ...)]`.
 
 ## [0.9.0] — strict, better-typed `rok gen`; one rule for finding the project; `:page` and shared queries
 

@@ -21,7 +21,38 @@ const MAX_POSITIONAL_PARAMS: usize = 3;
 
 /// Whether the query's function takes a `{Name}Params` struct.
 pub fn uses_params_struct(query: &AnalyzedQuery) -> bool {
-    query.params.len() > MAX_POSITIONAL_PARAMS
+    match query.params_shape.unwrap_or(query.params_default) {
+        crate::ParamsShape::Struct => true,
+        crate::ParamsShape::Positional => false,
+        crate::ParamsShape::Auto => query.params.len() > MAX_POSITIONAL_PARAMS,
+    }
+}
+
+/// The doc line saying how the query's function takes its parameters and
+/// why; none without parameters.
+fn params_rule(query: &AnalyzedQuery) -> Option<String> {
+    if query.params.is_empty() {
+        return None;
+    }
+    let structured = uses_params_struct(query);
+    let mut how = if structured {
+        format!("Takes its parameters as `{}Params`", query.name)
+    } else {
+        "Takes its parameters as arguments".to_owned()
+    };
+    let why = match (query.params_shape, query.params_default) {
+        (Some(shape), _) => format!("`-- rok:params {}`", shape.key()),
+        (None, crate::ParamsShape::Auto) => {
+            how.push_str(if structured {
+                ": more than three"
+            } else {
+                ": three or fewer"
+            });
+            "`query_params = \"auto\"`".to_owned()
+        }
+        (None, shape) => format!("`query_params = \"{}\"`", shape.key()),
+    };
+    Some(format!("{how} ({why})."))
 }
 
 /// Renders `db/queries.rs`, a direct child of `db`. `tables` are the
@@ -270,6 +301,7 @@ fn render_query(output: &mut String, query: &AnalyzedQuery, ids: &TypedIds<'_>, 
         ReturnMode::ExecRows => doc.push("Returns the number of affected rows.".to_owned()),
         _ => {}
     }
+    doc.extend(params_rule(query));
     let doc: Vec<&str> = doc.iter().map(String::as_str).collect();
     push_doc(output, 0, &doc);
     push_fn_head(
@@ -308,18 +340,17 @@ fn render_page(
 ) {
     fn_params.extend(["page: u64".to_owned(), "per_page: u64".to_owned()]);
     output.push('\n');
-    push_doc(
-        output,
-        0,
-        &[
-            &format!(
-                "Runs the `{}` query (`:page`): page `page` (from 1, 0 is 1) of `per_page` rows,",
-                query.name
-            ),
-            "with the total across every page.",
-            "Fails with `rok_data::Error::InvalidQuery` when `per_page` is 0.",
-        ],
-    );
+    let mut doc = vec![
+        format!(
+            "Runs the `{}` query (`:page`): page `page` (from 1, 0 is 1) of `per_page` rows,",
+            query.name
+        ),
+        "with the total across every page.".to_owned(),
+        "Fails with `rok_data::Error::InvalidQuery` when `per_page` is 0.".to_owned(),
+    ];
+    doc.extend(params_rule(query));
+    let doc: Vec<&str> = doc.iter().map(String::as_str).collect();
+    push_doc(output, 0, &doc);
     push_fn_head_bound(
         output,
         &query.fn_name,
@@ -416,6 +447,8 @@ mod tests {
             sql: "SELECT id, label\nFROM things\nWHERE id = $1".to_owned(),
             params,
             result,
+            params_shape: None,
+            params_default: crate::ParamsShape::Auto,
         }
     }
 
@@ -633,5 +666,53 @@ mod tests {
         let rendered = render(&[query(ReturnMode::Many, vec![], external)]);
         assert!(!rendered.contains("pub struct "), "{rendered}");
         assert!(rendered.contains("-> Result<Vec<crate::dto::Summary>, rok_data::Error>"));
+    }
+
+    /// `-- rok:params` and the project's `query_params` fix the shape,
+    /// whatever the number of parameters, and the doc says which rule did.
+    #[test]
+    fn the_parameter_shape_follows_the_annotation_then_the_project() {
+        use crate::ParamsShape;
+        let params = |count: usize| -> Vec<Param> {
+            (1..=count)
+                .map(|index| param(index, &format!("p{index}"), "i64"))
+                .collect()
+        };
+        let with = |count: usize, shape: Option<ParamsShape>, default: ParamsShape| {
+            let mut query = query(ReturnMode::Exec, params(count), ResultShape::None);
+            query.params_shape = shape;
+            query.params_default = default;
+            render(&[query])
+        };
+
+        let two = with(2, Some(ParamsShape::Struct), ParamsShape::Auto);
+        assert!(two.contains("pub struct ListThingsParams {"), "{two}");
+        assert!(two.contains("(`-- rok:params struct`)"), "{two}");
+
+        let five = with(5, Some(ParamsShape::Positional), ParamsShape::Struct);
+        assert!(!five.contains("ListThingsParams"), "{five}");
+        assert!(five.contains("    p5: i64,"), "{five}");
+        assert!(five.contains("(`-- rok:params positional`)"), "{five}");
+
+        let project = with(1, None, ParamsShape::Struct);
+        assert!(
+            project.contains("pub struct ListThingsParams {"),
+            "{project}"
+        );
+        assert!(
+            project.contains("(`query_params = \"struct\"`)"),
+            "{project}"
+        );
+
+        let auto = with(2, None, ParamsShape::Auto);
+        assert!(!auto.contains("ListThingsParams"), "{auto}");
+        assert!(
+            auto.contains(
+                "Takes its parameters as arguments: three or fewer (`query_params = \"auto\"`)."
+            ),
+            "{auto}"
+        );
+        let none = with(0, None, ParamsShape::Auto);
+        assert!(!none.contains("Takes its parameters"), "{none}");
     }
 }

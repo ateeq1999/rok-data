@@ -7,6 +7,7 @@ use super::tasks::models::TaskId;
 
 /// Runs the `OpenTask` query (`:execrows`).
 /// Returns the number of affected rows.
+/// Takes its parameters as arguments: three or fewer (`query_params = "auto"`).
 pub async fn open_task<'e, E>(
     executor: E,
     id: ProjectId,
@@ -38,6 +39,7 @@ pub struct ProjectStatsRow {
 
 /// Runs the `ProjectStats` query (`:one`).
 /// Fails with `rok_data::Error::Database(sqlx::Error::RowNotFound)` when no row matches.
+/// Takes its parameters as arguments: three or fewer (`query_params = "auto"`).
 pub async fn project_stats<'e, E>(
     executor: E,
     owner_id: uuid::Uuid,
@@ -58,6 +60,7 @@ where
 }
 
 /// Runs the `ProjectNames` query (`:many`).
+/// Takes its parameters as arguments: three or fewer (`query_params = "auto"`).
 pub async fn project_names<'e, E>(
     executor: E,
     owner_id: uuid::Uuid,

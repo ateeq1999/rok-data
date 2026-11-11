@@ -113,10 +113,13 @@ pub(crate) fn schema_statement(
         }
         _ => {
             let Some(down) = explicit_down else {
+                let first_line = stmt.sql.lines().next().unwrap_or_default().trim();
                 return Err(Error::at(
                     at,
-                    "rok can't undo this statement by itself; follow it with \
-                     `-- rok:down` and the SQL that undoes it",
+                    format!(
+                        "rok can't undo `{first_line}` by itself; add `-- rok:down` and \
+                         the SQL that undoes it immediately after this statement"
+                    ),
                 ));
             };
             schema.extras.push(Extra {

@@ -56,6 +56,9 @@ pub struct Config {
     /// Skip unsupported tables and queries (listed in the report) instead
     /// of failing.
     pub lenient: bool,
+    /// How a query's generated function takes its parameters, unless the
+    /// query says (`-- rok:params`): `query_params` in the file.
+    pub query_params: ParamsShape,
     /// Opt-in conventions about what certain columns mean across tables.
     /// All off by default; [`Conventions::rok`] gives the Rok preset.
     pub conventions: Conventions,
@@ -191,6 +194,7 @@ impl Default for Config {
             check: false,
             force: false,
             lenient: false,
+            query_params: ParamsShape::default(),
             conventions: Conventions::default(),
             derive: Vec::new(),
             extractors: Vec::new(),
@@ -300,5 +304,46 @@ impl Conventions {
             "rok" => Some(Self::rok()),
             _ => None,
         }
+    }
+}
+
+/// How a query's generated function takes its parameters.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ParamsShape {
+    /// Positional arguments up to three parameters, a `…Params` struct
+    /// from four.
+    #[default]
+    Auto,
+    /// Always the query's `…Params` struct, so a query that grows a
+    /// parameter keeps its call shape.
+    Struct,
+    /// Always positional arguments.
+    Positional,
+}
+
+impl ParamsShape {
+    /// Every shape, in the order errors list them.
+    pub const ALL: [ParamsShape; 3] = [
+        ParamsShape::Auto,
+        ParamsShape::Struct,
+        ParamsShape::Positional,
+    ];
+
+    /// Its name in the file and in `-- rok:params`.
+    #[must_use]
+    pub fn key(self) -> &'static str {
+        match self {
+            ParamsShape::Auto => "auto",
+            ParamsShape::Struct => "struct",
+            ParamsShape::Positional => "positional",
+        }
+    }
+
+    /// The shape named `key`.
+    #[must_use]
+    pub fn from_key(key: &str) -> Option<ParamsShape> {
+        ParamsShape::ALL
+            .into_iter()
+            .find(|shape| shape.key() == key)
     }
 }
