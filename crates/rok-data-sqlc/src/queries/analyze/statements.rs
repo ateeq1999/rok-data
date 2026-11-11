@@ -3,9 +3,10 @@
 use std::rc::Rc;
 
 use sqlparser::ast::{
-    AssignmentTarget, ConflictTarget, Cte, Expr, FromTable, JoinConstraint, JoinOperator,
-    LimitClause, OnConflictAction, OnInsert, Query, Select, SelectItem, SetExpr, SetOperator,
-    Statement, TableFactor, TableObject, TableWithJoins, UpdateTableFromKind,
+    AssignmentTarget, ConflictTarget, Cte, Expr, FromTable, FunctionArg, FunctionArgExpr,
+    FunctionArguments, GroupByExpr, JoinConstraint, JoinOperator, LimitClause, OnConflictAction,
+    OnInsert, Query, Select, SelectItem, SetExpr, SetOperator, Statement, TableFactor, TableObject,
+    TableWithJoins, UpdateTableFromKind,
 };
 
 use super::conflict::{check_conflict_constraint, check_conflict_target};
@@ -166,15 +167,16 @@ impl<'a, 'c> Analysis<'a, 'c> {
         self.levels.pop();
         self.scope.truncate(depth);
         let value_type = match outputs.as_deref() {
-            Ok([output]) => {
-                output
-                    .rust_type
-                    .as_deref()
-                    .map(|rust_type| match Shape::of(rust_type) {
-                        Shape::Optional(inner) => inner.to_owned(),
-                        Shape::List(_) | Shape::Value(_) => rust_type.to_owned(),
-                    })
-            }
+            Ok([output]) => output.rust_type.as_deref().map(|rust_type| {
+                let (value_type, optional) = match Shape::of(rust_type) {
+                    Shape::Optional(inner) => (inner, true),
+                    Shape::List(_) | Shape::Value(_) => (rust_type, false),
+                };
+                if !optional && returns_one_row(query) {
+                    self.never_null_subqueries.insert(key);
+                }
+                value_type.to_owned()
+            }),
             _ => None,
         };
         self.subquery_types.insert(key, value_type);
@@ -655,4 +657,106 @@ impl<'a, 'c> Analysis<'a, 'c> {
             None => Ok(Vec::new()),
         }
     }
+}
+
+/// Whether `query` always returns exactly one row: a plain `SELECT` with an
+/// aggregate in its projection and no `GROUP BY`, `HAVING`, `LIMIT`,
+/// `OFFSET`, `FETCH` or set operation. An aggregate over no rows still
+/// returns its one row, so `(SELECT count(*) FROM t)` is never NULL.
+fn returns_one_row(query: &Query) -> bool {
+    let SetExpr::Select(select) = query.body.as_ref() else {
+        return false;
+    };
+    let no_group_by = match &select.group_by {
+        GroupByExpr::Expressions(expressions, modifiers) => {
+            expressions.is_empty() && modifiers.is_empty()
+        }
+        GroupByExpr::All(_) => false,
+    };
+    no_group_by
+        && select.having.is_none()
+        && query.limit_clause.is_none()
+        && query.fetch.is_none()
+        && select.projection.iter().any(|item| match item {
+            SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } => {
+                has_aggregate(expr)
+            }
+            _ => false,
+        })
+}
+
+/// Whether `expr` calls an aggregate at its own query level (not in a
+/// subquery, and not as a window function). Looks through casts,
+/// parentheses, operators, `CASE` and function arguments; anything else
+/// counts as no aggregate.
+fn has_aggregate(expr: &Expr) -> bool {
+    match expr {
+        Expr::Function(function) => {
+            (function.over.is_none() && is_aggregate_name(&object_leaf_name(&function.name)))
+                || match &function.args {
+                    FunctionArguments::List(list) => list.args.iter().any(|argument| {
+                        let (FunctionArg::Unnamed(argument)
+                        | FunctionArg::Named { arg: argument, .. }
+                        | FunctionArg::ExprNamed { arg: argument, .. }) = argument;
+                        matches!(argument, FunctionArgExpr::Expr(inner) if has_aggregate(inner))
+                    }),
+                    _ => false,
+                }
+        }
+        Expr::Nested(inner)
+        | Expr::Cast { expr: inner, .. }
+        | Expr::UnaryOp { expr: inner, .. } => has_aggregate(inner),
+        Expr::BinaryOp { left, right, .. } => has_aggregate(left) || has_aggregate(right),
+        Expr::Case {
+            operand,
+            conditions,
+            else_result,
+            ..
+        } => {
+            operand.as_deref().is_some_and(has_aggregate)
+                || conditions
+                    .iter()
+                    .any(|when| has_aggregate(&when.condition) || has_aggregate(&when.result))
+                || else_result.as_deref().is_some_and(has_aggregate)
+        }
+        _ => false,
+    }
+}
+
+/// PostgreSQL's general-purpose and statistical aggregates.
+fn is_aggregate_name(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "count"
+            | "sum"
+            | "avg"
+            | "min"
+            | "max"
+            | "bool_and"
+            | "bool_or"
+            | "every"
+            | "bit_and"
+            | "bit_or"
+            | "bit_xor"
+            | "array_agg"
+            | "string_agg"
+            | "json_agg"
+            | "jsonb_agg"
+            | "json_object_agg"
+            | "jsonb_object_agg"
+            | "xmlagg"
+            | "stddev"
+            | "stddev_pop"
+            | "stddev_samp"
+            | "variance"
+            | "var_pop"
+            | "var_samp"
+            | "corr"
+            | "covar_pop"
+            | "covar_samp"
+            | "regr_count"
+            | "mode"
+            | "percentile_cont"
+            | "percentile_disc"
+    )
 }

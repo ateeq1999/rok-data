@@ -955,6 +955,63 @@ fn a_cast_filtered_count_is_not_null() {
     );
 }
 
+/// Ticket 95: an aggregate subquery without `GROUP BY`, `HAVING`, `LIMIT`,
+/// `OFFSET` or a set operation always returns one row, so it keeps its
+/// column's nullability. Any other scalar subquery may return none.
+#[test]
+fn a_one_row_subquery_keeps_its_columns_nullability() {
+    assert_eq!(
+        scalar("-- name: Total :one\nSELECT (SELECT count(*) FROM products) AS total;"),
+        "i64"
+    );
+    assert_eq!(
+        scalar(
+            "-- name: Stock :one\nSELECT (SELECT coalesce(sum(stock), 0)::bigint FROM products) AS stock;"
+        ),
+        "i64"
+    );
+    assert_eq!(
+        scalar(
+            "-- name: Total :one\nSELECT (SELECT count(*) FROM products GROUP BY category_id) AS total;"
+        ),
+        "Option<i64>"
+    );
+    assert_eq!(
+        scalar("-- name: Total :one\nSELECT (SELECT count(*) FROM products LIMIT 1) AS total;"),
+        "Option<i64>"
+    );
+    assert_eq!(
+        scalar(
+            "-- name: Total :one\nSELECT (SELECT count(*) FROM products HAVING count(*) > 1) AS total;"
+        ),
+        "Option<i64>"
+    );
+    assert_eq!(
+        scalar("-- name: Total :one\nSELECT (SELECT count(*) FROM products OFFSET 1) AS total;"),
+        "Option<i64>"
+    );
+    assert_eq!(
+        scalar(
+            "-- name: Total :one\nSELECT (SELECT count(*) FROM products UNION SELECT count(*) FROM passes) AS total;"
+        ),
+        "Option<i64>"
+    );
+    assert_eq!(
+        scalar("-- name: Sku :one\nSELECT (SELECT sku FROM products LIMIT 1) AS sku;"),
+        "Option<String>"
+    );
+}
+
+/// Ticket 95: a one-row subquery over a nullable aggregate is still NULL
+/// when the aggregate is.
+#[test]
+fn a_one_row_subquery_over_a_nullable_aggregate_stays_optional() {
+    assert_eq!(
+        scalar("-- name: Stock :one\nSELECT (SELECT sum(stock)::bigint FROM products) AS stock;"),
+        "Option<i64>"
+    );
+}
+
 #[test]
 fn a_cast_not_null_column_is_not_null() {
     assert_eq!(

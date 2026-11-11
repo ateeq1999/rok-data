@@ -11,6 +11,10 @@ that it exists and won't ship a tag without it).
 
 **Changed**
 
+- Queries: a scalar subquery that always returns one row, such as
+  `(SELECT count(*) FROM passes)`, is `i64` instead of `Option<i64>`;
+  one with `GROUP BY`, `HAVING`, `LIMIT`, `OFFSET` or a set operation,
+  or over a nullable aggregate, stays `Option`.
 - A Client's body field that may be left out and may be `null` is
   three-state only in a `PATCH` body; elsewhere it is plain optional, so
   a `POST` reads `Some(value)` in Rust and `name` in Dart instead of

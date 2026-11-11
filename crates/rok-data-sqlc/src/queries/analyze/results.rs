@@ -132,7 +132,8 @@ impl<'a, 'c> Analysis<'a, 'c> {
     /// literal, `count`, `now()` and the other clock functions, `coalesce`
     /// with an argument that is never NULL, a `NOT NULL` column that is not
     /// on the outer side of a join, an `IS [NOT] NULL`-style test, `[NOT]
-    /// EXISTS`, or an operator or cast none of whose operands can be NULL.
+    /// EXISTS`, a scalar subquery that always returns one row of a column
+    /// that is never NULL, or an operator or cast none of whose operands can be NULL.
     fn never_null(&self, expr: &Expr) -> Result<bool, String> {
         if let Some(reference) = self.column_reference(expr)? {
             let entry = &self.scope[reference.entry];
@@ -150,6 +151,9 @@ impl<'a, 'c> Analysis<'a, 'c> {
             },
             _ if is_is_test(expr) => true,
             Expr::Exists { .. } => true,
+            Expr::Subquery(query) => self
+                .never_null_subqueries
+                .contains(&std::ptr::from_ref(query.as_ref())),
             Expr::BinaryOp { left, op, right } if is_typed_operator(op) => {
                 self.all_never_null([&**left, &**right])?
             }

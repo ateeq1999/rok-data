@@ -9,6 +9,14 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Changed
 
+- **Breaking for generated code:** a scalar subquery that always returns
+  one row (an aggregate with no `GROUP BY`, `HAVING`, `LIMIT`, `OFFSET`
+  or set operation) keeps its column's nullability, so
+  `(SELECT count(*) FROM passes)` and
+  `(SELECT coalesce(sum(x), 0)::bigint FROM …)` are `i64` where they were
+  `Option<i64>`. Any other scalar subquery, and one over a nullable
+  aggregate such as `sum(x)`, stays `Option`. A call site that unwrapped
+  such a column drops the unwrap.
 - **Breaking for Client callers:** a body field that may be left out and
   may be `null` is three-state only in a `PATCH` body, where the API
   tells "keep" from "clear". Elsewhere it is plain optional: Rust
