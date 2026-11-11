@@ -9,6 +9,11 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Changed
 
+- **Breaking for Rust Client callers:** an integer is as wide as its
+  contract `format`: `int32` is `i32` (utoipa writes it for `i16` too, so
+  a `smallint` is `i32`), `int64` or no format stays `i64`. Every integer
+  was `i64` before. Dart and TypeScript are unchanged (engine ADR 0027,
+  amended).
 - **Breaking for Client callers:** a body field that may be left out and
   may be `null` is three-state only in a `PATCH` body, where the API
   tells "keep" from "clear". Elsewhere it is plain optional: Rust
