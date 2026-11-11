@@ -3,6 +3,7 @@
 //! Functions for the annotated queries in the query file.
 
 use super::projects::models::ProjectId;
+use super::tasks::models::TaskId;
 
 /// Runs the `OpenTask` query (`:execrows`).
 /// Returns the number of affected rows.
@@ -77,40 +78,38 @@ where
     .await
 }
 
-/// A row returned by `projects_around`.
+/// A row returned by `tasks_with_project`.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow, serde::Serialize, serde::Deserialize)]
-pub struct ProjectsAroundRow {
+pub struct TasksWithProjectRow {
     /// The `id` column.
-    pub id: ProjectId,
-    /// The `name` column.
-    pub name: String,
-    /// The `created_at` column.
-    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub id: TaskId,
+    /// The `title` column.
+    pub title: String,
+    /// The `done` column.
+    pub done: bool,
+    /// The `project_name` column.
+    pub project_name: String,
 }
 
-/// Runs the `ProjectsAround` query (`:many`).
+/// Runs the `TasksWithProject` query (`:many`).
 /// Takes its parameters as arguments: three or fewer (`query_params = "auto"`).
-pub async fn projects_around<'e, E>(
+pub async fn tasks_with_project<'e, E>(
     executor: E,
     owner_id: uuid::Uuid,
-    after: bool,
-    at: chrono::DateTime<chrono::Utc>,
-) -> Result<Vec<ProjectsAroundRow>, rok_data::Error>
+) -> Result<Vec<TasksWithProjectRow>, rok_data::Error>
 where
     E: rok_data::Executor<'e>,
 {
     rok_data::raw(
         r#"
-        SELECT id, name, created_at FROM projects
-        WHERE owner_id = $1
-          AND CASE WHEN $2::bool THEN created_at >= $3 ELSE created_at < $3 END
-        ORDER BY CASE WHEN $2 THEN created_at END ASC,
-                 CASE WHEN NOT $2 THEN created_at END DESC
+        SELECT t.id, t.title, t.done, p.name AS project_name
+        FROM tasks t
+        JOIN projects p ON p.id = t.project_id
+        WHERE t.owner_id = $1
+        ORDER BY t.created_at
         "#,
     )
     .bind(owner_id)
-    .bind(after)
-    .bind(at)
     .fetch_all(executor)
     .await
 }

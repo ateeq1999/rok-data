@@ -11,6 +11,10 @@ that it exists and won't ship a tag without it).
 
 **Changed**
 
+- `check-arch`'s rule-4 messages (`rule-4`, `cross-feature-write`,
+  `cross-feature-query`) say that a feature's queries may join and read
+  any table, and that writing another feature's table goes through that
+  feature's service. The architecture guide shows such a join.
 - A schema statement rok can't undo by itself, left without its
   `-- rok:down`, is refused by its first line, and the message says to
   add the block immediately after that statement ("rok can't undo

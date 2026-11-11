@@ -47,6 +47,12 @@ pub(crate) fn feature_files(framework: ApiFramework) -> Vec<&'static str> {
     files
 }
 
+/// What rule 4 lets a feature do with other tables, in every rule-4
+/// message: read as forbidding reads, the rule's wording sent projects to a
+/// second call for a column one join would have read.
+const READS_AND_WRITES: &str = "a feature's queries may join and read any table; writing \
+                                another feature's table goes through that feature's service:";
+
 /// Module names no project may have.
 const FORBIDDEN_NAMES: &[&str] = &["utils", "helpers", "common"];
 
@@ -565,19 +571,20 @@ impl Layout {
                 SQLX_PORT_TYPES.join(" and ")
             ),
             Rule::CrossFeature => format!(
-                "`{target}`: feature `{}` refers to another feature; declare a port in its \
-                 service.rs instead; a pure helper with no feature state belongs in shared/",
+                "`{target}`: feature `{}` refers to another feature; {READS_AND_WRITES} \
+                 declare a port in its service.rs; a pure helper with no feature state \
+                 belongs in shared/",
                 self.feature_of(rel).unwrap_or_default()
             ),
             Rule::SharedToFeatures => format!("`{target}`: shared/ refers to the features"),
             Rule::CrossFeatureWrite => format!(
-                "`{target}`: feature `{}` writes another table; declare a port in its \
-                 service.rs and implement it in app.rs",
+                "`{target}`: feature `{}` writes another table; {READS_AND_WRITES} declare a \
+                 port in its service.rs and implement it in app.rs",
                 self.feature_of(rel).unwrap_or_default()
             ),
             Rule::CrossFeatureQuery => format!(
-                "`{target}`: feature `{}` calls another feature's query module; declare a port \
-                 in its service.rs and implement it in app.rs",
+                "`{target}`: feature `{}` calls another feature's query module; \
+                 {READS_AND_WRITES} declare a port in its service.rs and implement it in app.rs",
                 self.feature_of(rel).unwrap_or_default()
             ),
             Rule::Layout | Rule::Panics | Rule::CallerFirst => String::new(),

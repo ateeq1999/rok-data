@@ -23,3 +23,11 @@ WHERE owner_id = $1
   AND CASE WHEN $2::bool THEN created_at >= $3 ELSE created_at < $3 END
 ORDER BY CASE WHEN $2 THEN created_at END ASC,
          CASE WHEN NOT $2 THEN created_at END DESC;
+
+-- name: TasksWithProject :many
+-- A query reads any table: one join gives each task its project's name.
+SELECT t.id, t.title, t.done, p.name AS project_name
+FROM tasks t
+JOIN projects p ON p.id = t.project_id
+WHERE t.owner_id = $1
+ORDER BY t.created_at;
