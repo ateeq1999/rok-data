@@ -413,3 +413,12 @@ fn the_runtime_checks_responses_with_the_calls_schema() {
         "  if (call.response === \"none\" || res.status === 204) return undefined as T\n"
     ));
 }
+
+/// Polling on the web is TanStack Query's own `refetchInterval`, not a
+/// helper of the Client's (ticket 81).
+#[test]
+fn the_readme_points_polling_at_refetch_interval() {
+    let files = emitted(&monorepo());
+    let readme = file(&files, "README.md");
+    assert!(readme.contains("refetchInterval"));
+}

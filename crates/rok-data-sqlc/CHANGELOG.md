@@ -35,6 +35,15 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Added
 
+- The Dart Client runtime has `poll(call, every:, until:)`, a
+  `Stream<T>` of `call`'s answers: one at once, then one every `every`
+  (counted from the previous answer), ending with the first that `until`
+  accepts; a failed call is an error event and polling goes on. It makes
+  no call while `AppLifecycle.foreground` is `false` (a Flutter App sets
+  it from `AppLifecycleListener`) or the subscription is paused, and one
+  at once on return. Both are exported from the library and documented in
+  its README; no per-operation code. The TypeScript Client's README
+  documents TanStack Query's `refetchInterval` for the same job.
 - `check-arch` checks that a feature's handler takes its caller extractor
   (`AuthUser`, `AdminUser`, or a struct the App marks `/// rok:caller`)
   before its body extractor (`ValidatedJson`, `Json`, `Form`), reported

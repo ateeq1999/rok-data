@@ -373,3 +373,107 @@ final class Transport {
     };
   }
 }
+
+/// Whether the App is in the foreground, which every [poll] follows. It
+/// starts `true`; a Flutter App sets it from its lifecycle once, at
+/// start-up:
+///
+/// ```dart
+/// AppLifecycleListener(
+///   onStateChange: (state) =>
+///       AppLifecycle.foreground = state == AppLifecycleState.resumed,
+/// );
+/// ```
+abstract final class AppLifecycle {
+  static bool _foreground = true;
+  static final _changes = StreamController<bool>.broadcast(sync: true);
+
+  /// Whether the App is in the foreground.
+  static bool get foreground => _foreground;
+
+  /// The App came to the foreground (`true`) or left it (`false`).
+  static set foreground(bool value) {
+    if (value == _foreground) return;
+    _foreground = value;
+    _changes.add(value);
+  }
+
+  /// Each change of [foreground].
+  static Stream<bool> get changes => _changes.stream;
+}
+
+/// `call`'s answers: one at once, then one every `every` (counted from
+/// the previous answer, so calls never overlap), until `until` holds for
+/// an answer, which is the stream's last. A failed call is an error event
+/// and polling goes on. While the App is in the background
+/// ([AppLifecycle.foreground] is `false`) or the subscription is paused,
+/// no call is made; on return, one is made at once. Cancelling the
+/// subscription stops it.
+///
+/// ```dart
+/// poll(() => api.bills.get(id), every: const Duration(seconds: 3),
+///     until: (bill) => bill.paid);
+/// ```
+Stream<T> poll<T>(
+  Future<T> Function() call, {
+  required Duration every,
+  bool Function(T value)? until,
+}) {
+  late final StreamController<T> controller;
+  StreamSubscription<bool>? lifecycle;
+  Timer? timer;
+  var calling = false;
+  var done = false;
+
+  bool running() => !done && !controller.isPaused && AppLifecycle.foreground;
+
+  void halt() {
+    timer?.cancel();
+    timer = null;
+  }
+
+  void stop() {
+    done = true;
+    halt();
+    unawaited(lifecycle?.cancel());
+  }
+
+  Future<void> tick() async {
+    timer = null;
+    if (calling || !running()) return;
+    calling = true;
+    try {
+      final value = await call();
+      if (done) return;
+      controller.add(value);
+      if (until?.call(value) ?? false) {
+        done = true;
+        unawaited(controller.close());
+        return;
+      }
+    } on Object catch (error, stack) {
+      if (done) return;
+      controller.addError(error, stack);
+    } finally {
+      calling = false;
+    }
+    if (running()) timer = Timer(every, tick);
+  }
+
+  void resume() {
+    if (timer == null && !calling) unawaited(tick());
+  }
+
+  controller = StreamController<T>(
+    onListen: () {
+      lifecycle = AppLifecycle.changes.listen(
+        (foreground) => foreground ? resume() : halt(),
+      );
+      unawaited(tick());
+    },
+    onPause: halt,
+    onResume: resume,
+    onCancel: stop,
+  );
+  return controller.stream;
+}

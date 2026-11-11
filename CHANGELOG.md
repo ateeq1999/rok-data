@@ -24,6 +24,12 @@ that it exists and won't ship a tag without it).
 
 **Added**
 
+- The Dart Client's `poll(() => api.<tag>.<operation>(...), every:, until:)`
+  is a `Stream` of a call's answers, repeated until one is done; it makes
+  no call while the App is in the background (`AppLifecycle.foreground`,
+  set from Flutter's lifecycle) and one at once on return. The
+  TypeScript Client's README points polling at TanStack Query's
+  `refetchInterval`.
 - `rok_data::transaction(&pool, |tx| …)` runs a closure in a transaction
   on a plain `PgPool` (what a service holds), committing on `Ok` and
   rolling back on `Err`; its `tx` is a `rok_data::Tx`. `check-arch` lets
