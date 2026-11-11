@@ -49,6 +49,13 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Added
 
+- Typed queries take a subquery in `FROM` (`(SELECT …) AS x`, with an
+  optional column list `x(a, b)`) and `LATERAL (SELECT …) x`, in a
+  `SELECT`, `UPDATE … FROM`, `DELETE … USING` and a data-modifying CTE.
+  Its columns are typed from its query, as a CTE's are; only a `LATERAL`
+  one sees the `FROM` tables beside it, and a reference to one from a
+  plain subquery fails naming it. This used to fail "only tables and
+  set-returning functions are supported in FROM (no subqueries)".
 - A query's parameter shape no longer flips when it grows a fourth
   parameter, if you say so: `-- rok:params struct` (or `positional`)
   fixes one query's, and `query_params = "auto" | "struct" |

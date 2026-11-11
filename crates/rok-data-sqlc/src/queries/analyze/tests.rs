@@ -1660,6 +1660,87 @@ fn returns_names_a_model_or_a_hand_written_type() {
     );
 }
 
+/// Karibu Pass's `CancelEvent` shape: a data-modifying CTE whose
+/// `UPDATE … FROM` reads a subquery, typed from its own query as a CTE is.
+const CANCEL_EVENT: &str = "WITH e AS (\n    UPDATE offers SET status = 'cancelled' WHERE id = $1 RETURNING id\n),\nt AS (\n    UPDATE allocations SET rooms_held = allocations.rooms_held - x.held\n    FROM (SELECT offer_id, sum(rooms)::int AS held FROM weekly_holds\n          WHERE offer_id IN (SELECT id FROM e) AND week_of >= $2 GROUP BY offer_id) x\n    WHERE allocations.offer_id = x.offer_id\n    RETURNING allocations.id, x.held\n)\nSELECT id, held FROM t";
+
+#[test]
+fn a_subquery_in_from_acts_as_a_table_typed_from_its_query() {
+    let query = one(&format!("-- name: CancelEvent :many\n{CANCEL_EVENT};"));
+    assert_eq!(
+        query.params,
+        [
+            param(1, "id", "i64"),
+            param(2, "week_of", "chrono::NaiveDate")
+        ]
+    );
+    // `sum` is null over no rows, so `held` stays optional.
+    assert_eq!(
+        row_columns(&query),
+        [("id", "i64"), ("held", "Option<i32>")]
+    );
+
+    let select = one(
+        "-- name: Held :many\nSELECT o.status, x.total FROM offers o JOIN (SELECT offer_id, count(*) AS total FROM weekly_holds GROUP BY offer_id) AS x ON x.offer_id = o.id WHERE x.total > $1;",
+    );
+    assert_eq!(select.params, [param(1, "total", "i64")]);
+    assert_eq!(
+        row_columns(&select),
+        [("status", "String"), ("total", "i64")]
+    );
+
+    let delete = one(
+        "-- name: DropEmpty :execrows\nDELETE FROM allocations USING (SELECT id FROM offers WHERE status = $1) gone WHERE allocations.offer_id = gone.id;",
+    );
+    assert_eq!(delete.params, [param(1, "status", "String")]);
+}
+
+/// Only a `LATERAL` subquery sees the `FROM` tables beside it, as in
+/// PostgreSQL; the queries around its own stay visible either way.
+#[test]
+fn only_a_lateral_subquery_sees_the_tables_beside_it() {
+    let latest = one(
+        "-- name: LatestHolds :many\nSELECT o.id, h.week_of FROM offers o, LATERAL (SELECT week_of FROM weekly_holds w WHERE w.offer_id = o.id AND w.rooms > $1 ORDER BY week_of DESC LIMIT 1) h;",
+    );
+    assert_eq!(latest.params, [param(1, "rooms", "i32")]);
+    assert_eq!(
+        row_columns(&latest),
+        [("id", "i64"), ("week_of", "chrono::NaiveDate")]
+    );
+
+    assert_eq!(
+        failure(
+            "-- name: Q :many\nSELECT o.id, h.week_of FROM offers o, (SELECT week_of FROM weekly_holds w WHERE w.offer_id = o.id) h;"
+        ),
+        "`o` is a FROM table beside the subquery, which can't see it; write `LATERAL (SELECT …)` to refer to it"
+    );
+    assert!(
+        failure(
+            "-- name: Q :execrows\nUPDATE allocations SET rooms_held = 0 FROM (SELECT id FROM offers WHERE offers.id = allocations.offer_id) x;"
+        )
+        .contains("`allocations` is a FROM table beside the subquery")
+    );
+}
+
+/// A subquery's alias may list its column names, as a CTE's may.
+#[test]
+fn a_subquery_alias_column_list_renames_its_columns() {
+    let query = one(
+        "-- name: Totals :many\nSELECT cat, n FROM (SELECT category_id, count(*) FROM products GROUP BY category_id) AS t (cat, n) WHERE n > $1;",
+    );
+    assert_eq!(query.params, [param(1, "n", "i64")]);
+    assert_eq!(row_columns(&query), [("cat", "i64"), ("n", "i64")]);
+
+    assert_eq!(
+        failure("-- name: Q :many\nSELECT a FROM (SELECT id FROM categories) t (a, b);"),
+        "subquery `t` names 2 columns but its query returns 1"
+    );
+    assert!(
+        failure("-- name: Q :many\nSELECT category_id FROM (SELECT category_id FROM products) t (category_id) WHERE t.id = $1;")
+            .contains("column `id` does not exist in `t`")
+    );
+}
+
 /// A placeholder beside a column in `coalesce` takes the column's value
 /// type, optional: `SET level = coalesce($1, level)` keeps the stored value
 /// when the caller passes `None`. Either argument order works.

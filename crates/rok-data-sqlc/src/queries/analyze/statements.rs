@@ -5,7 +5,7 @@ use std::rc::Rc;
 use sqlparser::ast::{
     AssignmentTarget, ConflictTarget, Cte, Expr, FromTable, JoinConstraint, JoinOperator,
     LimitClause, OnConflictAction, OnInsert, Query, Select, SelectItem, SetExpr, SetOperator,
-    Statement, TableFactor, TableObject, TableWithJoins, UpdateTableFromKind,
+    Statement, TableAlias, TableFactor, TableObject, TableWithJoins, UpdateTableFromKind,
 };
 
 use super::conflict::{check_conflict_constraint, check_conflict_target};
@@ -398,7 +398,7 @@ impl<'a, 'c> Analysis<'a, 'c> {
             _ => {}
         }
         let outputs = self.in_own_scope(|analysis| analysis.query(&cte.query));
-        let table = self.cte_table(cte, outputs?)?;
+        let table = self.result_table("CTE", &cte.alias, outputs?)?;
         self.ctes.push(Rc::new(table));
         Ok(())
     }
@@ -410,7 +410,7 @@ impl<'a, 'c> Analysis<'a, 'c> {
     fn recursive_cte(&mut self, cte: &Cte, anchor: &SetExpr, term: &SetExpr) -> Result<(), String> {
         let name = ident_name(&cte.alias.name);
         let anchor = self.term(anchor)?;
-        let mut table = self.cte_table(cte, anchor)?;
+        let mut table = self.result_table("CTE", &cte.alias, anchor)?;
         self.ctes.push(Rc::new(table.clone()));
         let outputs = self.term(term);
         self.ctes.pop();
@@ -457,14 +457,19 @@ impl<'a, 'c> Analysis<'a, 'c> {
         })
     }
 
-    /// The table a CTE's result columns make, named by its column list or
-    /// after its query's columns.
-    fn cte_table(&self, cte: &Cte, outputs: Vec<Output>) -> Result<Table, String> {
-        let name = ident_name(&cte.alias.name);
-        let aliases = &cte.alias.columns;
+    /// The table the result columns of a CTE or a `FROM` subquery (`kind`)
+    /// make, named by its alias's column list or after its query's columns.
+    fn result_table(
+        &self,
+        kind: &str,
+        alias: &TableAlias,
+        outputs: Vec<Output>,
+    ) -> Result<Table, String> {
+        let name = ident_name(&alias.name);
+        let aliases = &alias.columns;
         if aliases.len() > outputs.len() {
             return Err(format!(
-                "CTE `{name}` names {} columns but its query returns {}",
+                "{kind} `{name}` names {} columns but its query returns {}",
                 aliases.len(),
                 outputs.len()
             ));
@@ -478,12 +483,12 @@ impl<'a, 'c> Analysis<'a, 'c> {
             };
             if columns.iter().any(|column| column.sql_name == sql_name) {
                 return Err(format!(
-                    "CTE `{name}` returns column `{sql_name}` more than once; alias the duplicates"
+                    "{kind} `{name}` returns column `{sql_name}` more than once; alias the duplicates"
                 ));
             }
             let Some(rust_type) = output.rust_type else {
                 return Err(format!(
-                    "cannot infer the type of column `{sql_name}` of CTE `{name}`; cast it explicitly (`(expr)::type AS {sql_name}`)"
+                    "cannot infer the type of column `{sql_name}` of {kind} `{name}`; cast it explicitly (`(expr)::type AS {sql_name}`)"
                 ));
             };
             let (sqlx_type, nullable) = match Shape::of(&rust_type) {
@@ -493,7 +498,7 @@ impl<'a, 'c> Analysis<'a, 'c> {
             columns.push(Column {
                 rust_name: naming::rust_identifier(&sql_name)?,
                 sql_name,
-                // CTE columns exist only within their query; no SQL type is
+                // CTE and subquery columns exist only within their query; no SQL type is
                 // declared for them.
                 sql_type: String::new(),
                 rust_type,
@@ -602,6 +607,19 @@ impl<'a, 'c> Analysis<'a, 'c> {
                     .unwrap_or_else(|| table.sql_name.clone());
                 (qualifier, table)
             }
+            TableFactor::Derived {
+                lateral,
+                subquery,
+                alias,
+                ..
+            } => {
+                let Some(alias) = alias else {
+                    return Err("a subquery in FROM needs an alias: `(SELECT …) AS x`".to_owned());
+                };
+                let outputs = self.derived_query(subquery, *lateral)?;
+                let table = self.result_table("subquery", alias, outputs)?;
+                (table.sql_name.clone(), TableRef::Cte(Rc::new(table)))
+            }
             _ => match self.set_returning_table(factor) {
                 Some(table) => {
                     let table = table?;
@@ -609,7 +627,7 @@ impl<'a, 'c> Analysis<'a, 'c> {
                 }
                 None => {
                     return Err(
-                        "only tables and set-returning functions are supported in FROM (no subqueries)"
+                        "only tables, subqueries and set-returning functions are supported in FROM"
                             .to_owned(),
                     );
                 }
@@ -627,6 +645,25 @@ impl<'a, 'c> Analysis<'a, 'c> {
         }
         self.push_scope(qualifier, table, outer_nullable);
         Ok(())
+    }
+
+    /// A subquery in `FROM`: its own tables come first, and it sees the
+    /// queries around this one's. Only a `LATERAL` one also sees the `FROM`
+    /// tables before it (an `UPDATE`'s or `DELETE`'s target among them), as
+    /// in PostgreSQL; the others are set aside while it is analyzed.
+    fn derived_query(&mut self, query: &Query, lateral: bool) -> Result<Vec<Output>, String> {
+        let beside = if lateral {
+            Vec::new()
+        } else {
+            self.scope.split_off(self.floor())
+        };
+        let hidden = self.beside.len();
+        self.beside
+            .extend(beside.iter().map(|entry| entry.qualifier.clone()));
+        let outputs = self.in_level(|analysis| analysis.query(query));
+        self.beside.truncate(hidden);
+        self.scope.extend(beside);
+        outputs
     }
 
     fn push_scope(&mut self, qualifier: String, table: TableRef<'a>, outer_nullable: bool) {
