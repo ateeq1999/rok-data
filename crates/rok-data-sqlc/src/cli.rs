@@ -141,7 +141,9 @@ enum QueryCommand {
         #[arg(value_name = "NAME")]
         name: String,
 
-        /// The SQL, with `$1`, `$2`, … placeholders
+        /// The SQL, with `$1`, `$2`, … placeholders. `@path` reads it from
+        /// that file and `-` from stdin, so SQL with quotes needs no shell
+        /// quoting: `rok sqlc query add OwnedMedia @owned_media.sql`
         #[arg(value_name = "SQL")]
         sql: String,
 
@@ -228,7 +230,7 @@ where
         } => {
             let add = crate::query_add::QueryAdd {
                 name: name.clone(),
-                sql,
+                sql: crate::query_add::read_sql(&sql)?,
                 file,
                 mode: mode.mode(),
                 config,

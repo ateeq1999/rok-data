@@ -745,7 +745,7 @@ fn ctes_are_scoped_to_their_statement_and_must_be_typable() {
                 .contains("table `b` is not in the schema")
         );
     assert!(
-            failure("-- name: Q :many\nWITH a AS (SELECT SUM(stock) AS total FROM products) SELECT total FROM a;")
+            failure("-- name: Q :many\nWITH a AS (SELECT upper(name) + 1 AS total FROM products) SELECT total FROM a;")
                 .contains("cannot infer the type of column `total` of CTE `a`")
         );
     assert!(
@@ -1777,4 +1777,164 @@ fn coalesce_without_a_column_still_asks_for_a_param_override() {
     assert!(reason.contains("cannot infer the type of `$1`"), "{reason}");
     let reason = failure("-- name: Q :one\nSELECT coalesce($1, 'x') AS x FROM gauges;");
     assert!(reason.contains("cannot infer the type"), "{reason}");
+}
+
+/// `sum`, `avg`, `min` and `max` type by PostgreSQL's rules, in a plain
+/// `SELECT` and in a CTE alike, and may be NULL (no rows, or only NULLs).
+#[test]
+fn aggregates_take_postgres_result_types() {
+    for (expr, expected) in [
+        ("sum(seats)", "i64"),
+        ("sum(stock)", "i64"),
+        ("sum(category_id)", "rust_decimal::Decimal"),
+        ("sum(price)", "rust_decimal::Decimal"),
+        ("sum(stock::real)", "f32"),
+        ("sum(stock::float8)", "f64"),
+        ("avg(seats)", "rust_decimal::Decimal"),
+        ("avg(stock)", "rust_decimal::Decimal"),
+        ("avg(category_id)", "rust_decimal::Decimal"),
+        ("avg(price)", "rust_decimal::Decimal"),
+        ("avg(stock::real)", "f64"),
+        ("avg(stock::float8)", "f64"),
+        ("min(stock)", "i32"),
+        ("max(seats)", "i16"),
+        ("max(price)", "rust_decimal::Decimal"),
+        ("min(name)", "String"),
+        ("max(expires_at)", "chrono::DateTime<chrono::Utc>"),
+        ("sum(DISTINCT stock)", "i64"),
+    ] {
+        let from = if ["seats", "price", "expires_at"]
+            .iter()
+            .any(|column| expr.contains(column))
+        {
+            "passes"
+        } else {
+            "products"
+        };
+        let optional = format!("Option<{expected}>");
+        assert_eq!(
+            scalar(&format!("-- name: Q :one\nSELECT {expr} AS n FROM {from};")),
+            optional,
+            "{expr} in a SELECT"
+        );
+        assert_eq!(
+            scalar(&format!(
+                "-- name: Q :one\nWITH r AS (SELECT {expr} AS n FROM {from}) SELECT n FROM r;"
+            )),
+            optional,
+            "{expr} in a CTE"
+        );
+        assert_eq!(
+            scalar(&format!(
+                "-- name: Q :one\nSELECT (SELECT {expr} FROM {from}) AS n;"
+            )),
+            optional,
+            "{expr} in a subquery"
+        );
+    }
+}
+
+/// An aggregate's own name names an unaliased column, as `count` does.
+#[test]
+fn an_unaliased_aggregate_is_named_after_it() {
+    let query = one("-- name: Q :one\nSELECT sum(stock), max(stock) FROM products;");
+    assert_eq!(
+        row_columns(&query),
+        [("sum", "Option<i64>"), ("max", "Option<i32>")]
+    );
+}
+
+/// `coalesce` with a non-NULL fallback makes an aggregate non-null, uncast.
+#[test]
+fn coalesce_makes_an_aggregate_non_null() {
+    assert_eq!(
+        scalar("-- name: Q :one\nSELECT coalesce(sum(stock), 0) AS n FROM products;"),
+        "i64"
+    );
+    assert_eq!(
+        scalar(
+            "-- name: Q :one\nWITH r AS (SELECT coalesce(max(stock), 0) AS n FROM products) SELECT n FROM r;"
+        ),
+        "i32"
+    );
+}
+
+/// A cast still decides an aggregate's type, keeping its nullability.
+#[test]
+fn a_cast_decides_an_aggregates_type() {
+    assert_eq!(
+        scalar("-- name: Q :one\nSELECT sum(stock)::int AS n FROM products;"),
+        "Option<i32>"
+    );
+    assert_eq!(
+        scalar("-- name: Q :one\nSELECT coalesce(sum(stock), 0)::bigint AS n FROM products;"),
+        "i64"
+    );
+}
+
+/// An aggregate over what PostgreSQL can't sum, or the engine can't type,
+/// still fails with the usual message.
+#[test]
+fn untypeable_aggregates_still_fail() {
+    for expr in ["sum(name)", "avg(name)", "max(unknown_fn(stock))"] {
+        let reason = failure(&format!(
+            "-- name: Q :one\nSELECT {expr} AS v FROM products;"
+        ));
+        assert!(
+            reason.contains("cannot infer the type of result column `v`"),
+            "{expr}: {reason}"
+        );
+    }
+    assert!(
+        failure("-- name: Q :many\nWITH a AS (SELECT sum(name) AS total FROM products) SELECT total FROM a;")
+            .contains("cannot infer the type of column `total` of CTE `a`")
+    );
+}
+
+/// One query serves two listings: `$2::bool` switches the filter in `WHERE`
+/// and, one `CASE` per direction, the sort in `ORDER BY`.
+#[test]
+fn a_bool_cast_placeholder_switches_where_and_order_by() {
+    let query = one("-- name: ListPasses :many
+SELECT id, expires_at FROM passes
+WHERE seats > $1
+  AND CASE WHEN $2::bool THEN expires_at >= now() ELSE expires_at < now() END
+ORDER BY CASE WHEN $2 THEN expires_at END ASC,
+         CASE WHEN NOT $2 THEN expires_at END DESC;");
+    assert_eq!(
+        query.params,
+        [param(1, "seats", "i16"), param(2, "param_2", "bool")]
+    );
+}
+
+/// A count beside the listing takes the same switch.
+#[test]
+fn a_bool_cast_placeholder_switches_a_count() {
+    assert_eq!(
+        one("-- name: CountPasses :one
+SELECT count(*) AS total FROM passes
+WHERE CASE WHEN $1::bool THEN expires_at >= now() ELSE expires_at < now() END;")
+        .params,
+        [param(1, "param_1", "bool")]
+    );
+}
+
+/// A switch used only to sort is typed there, and a bare `CASE WHEN $1` or
+/// `NOT $1` condition is a `bool` without a cast. Sorting by an output
+/// column's alias still works.
+#[test]
+fn a_switch_in_order_by_alone_is_typed() {
+    assert_eq!(
+        one("-- name: SortPasses :many
+SELECT id, label AS title FROM passes
+ORDER BY CASE WHEN $1::bool THEN title END ASC, CASE WHEN NOT $1 THEN title END DESC;")
+        .params,
+        [param(1, "param_1", "bool")]
+    );
+    assert_eq!(
+        one("-- name: SwitchPasses :many
+SELECT id FROM passes WHERE CASE WHEN $1 THEN revoked_at IS NULL ELSE true END;")
+        .params,
+        [param(1, "param_1", "bool")]
+    );
 }

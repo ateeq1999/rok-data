@@ -23,6 +23,11 @@ that it exists and won't ship a tag without it).
   *After a schema change* shows two triggers, each with its own block.
 - The Rust Client types an integer by its contract `format`: `int32` is
   `i32` (a `smallint` too), `int64` or no format stays `i64`.
+- The TypeScript Client spells an `Option<T>` (a `oneOf` of `null` and
+  one schema) as `T | null` and `TSchema.nullable()`, a nullable success
+  included: `GET /me/tables/{id}/bill` declared `Option<BillResponse>`
+  returns `Promise<BillResponse | null>`. "None yet" is `200` with
+  `null`; a 404 still means no such resource.
 - A Client's body field that may be left out and may be `null` is
   three-state only in a `PATCH` body; elsewhere it is plain optional, so
   a `POST` reads `Some(value)` in Rust and `name` in Dart instead of
@@ -36,6 +41,20 @@ that it exists and won't ship a tag without it).
 
 **Added**
 
+- A contract operation whose answers are redirects (no `2xx`, a `3xx`),
+  such as a sign-in's start and callback at an OpenID provider, is a
+  Browser route: `rok gen` accepts it instead of failing with "no success
+  response", and each Client builds its URL instead of calling it
+  (`api.auth.oidcStartUrl(provider, { return_to })` in TypeScript,
+  `api.auth.oidcStartUrl(provider, returnTo: ...)` in Dart,
+  `client.auth().oidc_start_url("google", &query)` in Rust).
+- Queries: `sum`, `avg`, `min` and `max` are typed by PostgreSQL's rules
+  in a `SELECT`, a CTE and a subquery alike (`sum(stock)` over an
+  `integer` is `Option<i64>`, `coalesce(sum(stock), 0)` is `i64`), so
+  they no longer need a cast. A cast still decides the type.
+- `rok sqlc query add NAME @q.sql` reads the SQL from a file, and
+  `query add NAME -` from stdin, so SQL with quotes needs no shell
+  quoting.
 - `rok_data::transaction(&pool, |tx| …)` runs a closure in a transaction
   on a plain `PgPool` (what a service holds), committing on `Ok` and
   rolling back on `Err`; its `tx` is a `rok_data::Tx`. `check-arch` lets
@@ -66,6 +85,10 @@ that it exists and won't ship a tag without it).
   quantity)`) or from one JSON parameter (`jsonb_to_recordset($2) AS
   l(item_id uuid, quantity int)`, a `serde_json::Value`). The engine
   README's "Writing query files" documents the patterns.
+- One query serves "upcoming or past": a `bool` switch
+  (`CASE WHEN $2::bool THEN … ELSE … END` in `WHERE`, one `CASE` per
+  sort direction in `ORDER BY`) types its placeholder, also when it
+  appears only in `ORDER BY`. The engine README documents the pattern.
 
 **Fixed**
 

@@ -10,7 +10,7 @@ Karibu Pass's repositories catch the 404 and return `null` by hand (ticket 23).
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** blocked (engine part done on `sf/80`; the guide part is rok-templates work)
 
-- [ ] An `Option<T>` response emits a nullable return in each Client (emission tests)
-- [ ] The guide's example compiles in a template gate
+- [x] An `Option<T>` response emits a nullable return in each Client (emission tests): utoipa writes `body = Option<BillResponse>` as `oneOf: [{type: null}, {$ref}]`. Dart (`Future<BillResponse?>`) and Rust (`Result<Option<types::BillResponse>, ApiError>`) already returned it; TypeScript wrote `Promise<null | BillResponse>` and `z.union([z.null(), …])`, now `Promise<BillResponse | null>` and `BillResponseSchema.nullable()`. Each runtime already decodes a `null` body. Tests: `a_nullable_success_answers_*` in `clients/{ts,dart,rust}/tests.rs`; the wire standard guide says 404 is "no such resource" and `null` is "none yet".
+- [ ] The guide's example compiles in a template gate: rok-templates work, not built here. It needs no rok release: the released Clients already return a nullable type (TypeScript spells it `null | BillResponse` until the next release). Add the guide line and an example handler declaring `body = Option<BillResponse>` on rok-templates `spec/starter-feedback`.

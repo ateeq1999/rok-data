@@ -226,9 +226,17 @@ pub(crate) fn check_groups(operations: &[Named<'_>]) -> Result<(), Error> {
 
 /// The client's `README.md`.
 fn readme(operations: &[Named<'_>]) -> String {
+    let routes = if operations.iter().any(|named| named.op.is_browser_route()) {
+        "- `client.<tag>().<operation>_url(...)` for a Browser route (an operation \n         whose every answer is a redirect): its full URL, with its path and query \n         parameters, for a browser to follow; it sends nothing.
+"
+    } else {
+        ""
+    };
     let example = operations
         .iter()
-        .find(|named| named.is_query() && named.op.path_params.is_empty())
+        .find(|named| {
+            named.is_query() && !named.op.is_browser_route() && named.op.path_params.is_empty()
+        })
         .map_or_else(String::new, |named| {
             let query = if named.op.query_params.is_empty() {
                 String::new()
@@ -258,7 +266,7 @@ fn readme(operations: &[Named<'_>]) -> String {
          - `Client::new(base_url)`, then `set_token(Some(token))` after signing in: \
          the session's bearer token goes to the operations that need it, and a `401` \
          to one of them calls the `on_unauthorized` handler (unless the call is made \
-         through `keep_session()`). Clones share the session.\n{example}"
+         through `keep_session()`). Clones share the session.\n{routes}{example}"
     )
 }
 

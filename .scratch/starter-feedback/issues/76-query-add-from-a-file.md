@@ -11,8 +11,8 @@ Scripted edits then need no shell quoting on any OS (Karibu lost two rounds to h
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `query add Name @q.sql` appends the file's SQL and generates (test)
-- [ ] `query add Name -` reads stdin (test)
-- [ ] A missing `@path` fails naming it
+- [x] `query add Name @q.sql` appends the file's SQL and generates (test)
+- [x] `query add Name -` reads stdin (test)
+- [x] A missing `@path` fails naming it

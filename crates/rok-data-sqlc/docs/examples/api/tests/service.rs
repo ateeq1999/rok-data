@@ -102,3 +102,40 @@ async fn a_query_decodes_into_a_hand_written_type(pool: PgPool) -> TestResult {
     assert_eq!(names, ["Alpha", "Zeta"]);
     Ok(())
 }
+
+/// One query lists both sides of a moment: `after` switches the filter
+/// and the sort, nearest first on either side.
+#[sqlx::test]
+async fn one_query_lists_both_sides_of_a_moment(pool: PgPool) -> TestResult {
+    use rok_data_sqlc_api_example::db::queries::projects_around;
+
+    let projects = ProjectsService::new(pool.clone());
+    let alice = caller();
+    let day = |day: u32| {
+        chrono::NaiveDate::from_ymd_opt(2026, 5, day)
+            .and_then(|date| date.and_hms_opt(12, 0, 0))
+            .map(|time| time.and_utc())
+            .ok_or("a valid date")
+    };
+    for (name, created) in [("May 1", 1), ("May 3", 3), ("May 7", 7), ("May 9", 9)] {
+        projects
+            .create(
+                alice,
+                CreateProjectDto {
+                    name: name.to_owned(),
+                    open_tasks: None,
+                    created_at: Some(day(created)?),
+                },
+            )
+            .await?;
+    }
+    let names = |rows: Vec<rok_data_sqlc_api_example::db::queries::ProjectsAroundRow>| {
+        rows.into_iter().map(|row| row.name).collect::<Vec<_>>()
+    };
+
+    let after = projects_around(&pool, alice.id, true, day(5)?).await?;
+    assert_eq!(names(after), ["May 7", "May 9"]);
+    let before = projects_around(&pool, alice.id, false, day(5)?).await?;
+    assert_eq!(names(before), ["May 3", "May 1"]);
+    Ok(())
+}

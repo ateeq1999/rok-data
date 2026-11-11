@@ -3,6 +3,7 @@
 //! generation succeeds; otherwise it is restored and the error says why.
 
 use std::fs;
+use std::io::Read as _;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result, bail};
@@ -110,6 +111,23 @@ fn query_file(configured: &[PathBuf], file: Option<&str>) -> Result<PathBuf> {
             [only] if !only.is_dir() => Ok(only.clone()),
             _ => bail!("pass --file: the query file (`media`, or a path ending in `.sql`)"),
         },
+    }
+}
+
+/// The SQL a `query add` argument names, the way `-j` takes a payload: `-`
+/// reads it from stdin, `@path` from that file, and anything else is the SQL
+/// itself.
+pub(crate) fn read_sql(arg: &str) -> Result<String> {
+    if arg == "-" {
+        let mut sql = String::new();
+        std::io::stdin()
+            .read_to_string(&mut sql)
+            .context("failed to read the SQL from stdin")?;
+        Ok(sql)
+    } else if let Some(path) = arg.strip_prefix('@') {
+        fs::read_to_string(path).with_context(|| format!("failed to read the SQL file {path}"))
+    } else {
+        Ok(arg.to_owned())
     }
 }
 

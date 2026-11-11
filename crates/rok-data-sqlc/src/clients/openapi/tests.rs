@@ -293,7 +293,7 @@ fn broken_documents_say_what_is_wrong() {
         ),
         (
             one_operation(json!({"responses": {"404": {"description": "no"}}})),
-            "#/paths/~1things/get/responses: the operation has no success (`2xx`) response",
+            "#/paths/~1things/get/responses: the operation has no success (`2xx`) or redirect (`3xx`) response",
         ),
         (
             document(
@@ -382,4 +382,103 @@ pub(crate) fn next_payout() -> Value {
             },
         },
     }})
+}
+
+/// An operation whose answers are redirects (no `2xx`, a `3xx`) is a
+/// Browser route: its path and query parameters are read, and the Clients
+/// build its URL instead of calling it.
+#[test]
+fn a_redirect_only_operation_reads_as_a_browser_route() {
+    let json = document(
+        json!({"/auth/oidc/{provider}/start": {"get": {
+            "operationId": "oidc_start",
+            "tags": ["auth"],
+            "parameters": [
+                {"name": "provider", "in": "path", "required": true, "schema": {"type": "string"}},
+                {"name": "return_to", "in": "query", "schema": {"type": "string"}},
+            ],
+            "responses": {
+                "302": {"description": "to the provider", "headers": {"Location": {"schema": {"type": "string"}}}},
+                "404": {"description": "no such provider"},
+            },
+        }}}),
+        json!({}),
+    );
+    let document = Document::parse(&json).unwrap_or_else(|err| panic!("{err}"));
+    let start = operation(&document, Method::Get, "/auth/oidc/{provider}/start");
+    assert_eq!(start.response, Response::Redirect);
+    assert!(start.is_browser_route());
+    assert_eq!(start.path_params[0].name, "provider");
+    assert_eq!(start.query_params[0].name, "return_to");
+}
+
+/// An operation with a `2xx` stays a call, whatever redirects it also
+/// documents; a Browser route takes no body or header, since a browser
+/// following a link sends neither.
+#[test]
+fn a_success_keeps_a_call_and_a_browser_route_takes_only_path_and_query() {
+    let document_with = |responses: Value, extra: Value| {
+        let mut operation = json!({"operationId": "go", "tags": ["auth"], "responses": responses});
+        if let (Some(base), Some(extra)) = (operation.as_object_mut(), extra.as_object()) {
+            for (key, value) in extra {
+                base.insert(key.clone(), value.clone());
+            }
+        }
+        document(json!({"/go": {"post": operation}}), json!({}))
+    };
+    let both = Document::parse(&document_with(
+        json!({"200": {"description": "ok"}, "303": {"description": "see other"}}),
+        json!({}),
+    ))
+    .unwrap_or_else(|err| panic!("{err}"));
+    assert_eq!(both.operations[0].response, Response::Empty);
+    assert!(!both.operations[0].is_browser_route());
+
+    let redirect = json!({"302": {"description": "away"}});
+    let body =
+        json!({"requestBody": {"content": {"application/json": {"schema": {"type": "string"}}}}});
+    let header =
+        json!({"parameters": [{"name": "X-Trace", "in": "header", "schema": {"type": "string"}}]});
+    for extra in [body, header] {
+        let err = parse_err(&document_with(redirect.clone(), extra));
+        assert!(
+            err.starts_with(
+                "#/paths/~1go/post: a Browser route (every answer a redirect) takes only path \
+                 and query parameters"
+            ),
+            "got `{err}`"
+        );
+    }
+}
+
+/// A document with two Browser routes (a sign-in's start and callback at
+/// an OpenID provider) beside one call of the same tag, for the Clients'
+/// emission tests.
+pub(crate) fn browser_routes() -> Document {
+    let redirect = json!({"302": {"description": "redirect"}});
+    let json = document(
+        json!({
+            "/auth/me": {"get": {"operationId": "me", "tags": ["auth"],
+                "responses": {"204": {"description": "ok"}}}},
+            "/auth/oidc/{provider}/start": {"get": {
+                "operationId": "oidc_start", "tags": ["auth"],
+                "summary": "Starts signing in at an OpenID provider.",
+                "parameters": [
+                    {"name": "provider", "in": "path", "required": true, "schema": {"type": "string"}},
+                    {"name": "return_to", "in": "query", "schema": {"type": "string"}},
+                ],
+                "responses": redirect.clone(),
+            }},
+            "/auth/oidc/callback": {"get": {
+                "operationId": "oidc_callback", "tags": ["auth"],
+                "parameters": [
+                    {"name": "code", "in": "query", "required": true, "schema": {"type": "string"}},
+                    {"name": "state", "in": "query", "required": true, "schema": {"type": "string"}},
+                ],
+                "responses": redirect,
+            }},
+        }),
+        json!({}),
+    );
+    Document::parse(&json).unwrap_or_else(|err| panic!("{err}"))
 }
