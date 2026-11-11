@@ -110,6 +110,12 @@ takes `AuthUser` or `AdminUser`. Then name it in `paths(...)`. The
 example's hand-written `stats` feature does exactly this; [Customizing the
 generated API](customizing.md#a-hand-written-feature) walks through it.
 
+The document holds one schema per name, so two types deriving `ToSchema`
+under `src/` that take one name (your `NoteResponse` beside the generated
+one, say) fail `rok gen` and `rok gen check`, naming both files: rename
+yours, or give it `#[schema(as = notes::NoteSummary)]`, which utoipa names
+`notes.NoteSummary`. Generic types and test code are not counted.
+
 ## Serving the document
 
 The scaffolded `app.rs` mounts both routes. `/docs` redirects to `/docs/`,

@@ -9,6 +9,11 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Changed
 
+- **Breaking for Rust Client callers:** an integer is as wide as its
+  contract `format`: `int32` is `i32` (utoipa writes it for `i16` too, so
+  a `smallint` is `i32`), `int64` or no format stays `i64`. Every integer
+  was `i64` before. Dart and TypeScript are unchanged (engine ADR 0027,
+  amended).
 - **Breaking for Client callers:** a body field that may be left out and
   may be `null` is three-state only in a `PATCH` body, where the API
   tells "keep" from "clear". Elsewhere it is plain optional: Rust
@@ -44,6 +49,14 @@ the *generated* API count as breaking (see ADR 0012).
   at once on return. Both are exported from the library and documented in
   its README; no per-operation code. The TypeScript Client's README
   documents TanStack Query's `refetchInterval` for the same job.
+- A query's parameter shape no longer flips when it grows a fourth
+  parameter, if you say so: `-- rok:params struct` (or `positional`)
+  fixes one query's, and `query_params = "auto" | "struct" |
+  "positional"` (in `rok-data-sqlc.toml`, or `[generate]` in `rok.toml`)
+  sets the project's default; the annotation wins. `"auto"` stays the
+  default (arguments up to three, a struct from four). Each generated
+  function's doc comment says which rule applied, so generated query
+  modules change by one doc line per function with parameters.
 - `check-arch` checks that a feature's handler takes its caller extractor
   (`AuthUser`, `AdminUser`, or a struct the App marks `/// rok:caller`)
   before its body extractor (`ValidatedJson`, `Json`, `Form`), reported
@@ -113,6 +126,26 @@ the *generated* API count as breaking (see ADR 0012).
   copy-forward run in the fixture's PostgreSQL suite. Before, any
   function in `FROM` failed the query; other functions still do, naming
   the ones the engine types.
+
+### Fixed
+
+- A placeholder beside a column in `coalesce` takes that column's type,
+  optional: `SET locale = coalesce($2, locale)` (either order) infers
+  `Option<T>` for a text column, a typed id, a SQL enum or a CHECK-list
+  enum, with no `-- param:`. A `-- param:` still wins, and a `coalesce`
+  that names no column still asks for one.
+- `Project::export` with a `cargo` command that fails because the App
+  doesn't compile returns "the App doesn't build after this change: fix
+  the call sites, then run `rok gen` to write the contract and the
+  Clients" and the compiler's first error; cargo's output is still shown
+  as it comes. Other export failures keep their message.
+- A run (and a check run) of an App with an OpenAPI document fails when
+  two `ToSchema` types under its `src/` share a component name, naming
+  both files and lines: utoipa keeps one schema per name, so a
+  hand-written DTO named like a generated one replaced it and the Clients
+  came out wrong. `#[schema(as = path::Name)]` (named `path.Name`, as
+  utoipa names it) resolves the clash; generic types and test code are
+  left out.
 
 ## Workspace 0.9.0 - 2026-11-06
 

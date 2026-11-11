@@ -8,8 +8,8 @@ Karibu Pass's `UpdateProfile` (`SET locale = COALESCE($2, locale)`) hit the fail
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `SET locale = COALESCE($2, locale)` over a CHECK-list column infers `Option<types::UserLocale>` (analyzer test)
-- [ ] The same over a text, a typed-id and a SQL-enum column, in both argument orders
-- [ ] A `COALESCE` that names no column still asks for `-- param:`
+- [x] `SET locale = COALESCE($2, locale)` over a CHECK-list column infers `Option<types::UserLocale>` (analyzer test)
+- [x] The same over a text, a typed-id and a SQL-enum column, in both argument orders
+- [x] A `COALESCE` that names no column still asks for `-- param:`
