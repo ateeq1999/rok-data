@@ -92,6 +92,7 @@ pub struct TasksWithProjectRow {
 }
 
 /// Runs the `TasksWithProject` query (`:many`).
+/// Takes its parameters as arguments: three or fewer (`query_params = "auto"`).
 pub async fn tasks_with_project<'e, E>(
     executor: E,
     owner_id: uuid::Uuid,
