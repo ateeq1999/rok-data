@@ -11,6 +11,13 @@ that it exists and won't ship a tag without it).
 
 **Changed**
 
+- A schema statement rok can't undo by itself, left without its
+  `-- rok:down`, is refused by its first line, and the message says to
+  add the block immediately after that statement ("rok can't undo
+  `CREATE TRIGGER books_audit …` by itself; add `-- rok:down` and the
+  SQL that undoes it immediately after this statement"). The guide's
+  *After a schema change* shows two triggers, each with its own block.
+
 - A Client's body field that may be left out and may be `null` is
   three-state only in a `PATCH` body; elsewhere it is plain optional, so
   a `POST` reads `Some(value)` in Rust and `name` in Dart instead of
