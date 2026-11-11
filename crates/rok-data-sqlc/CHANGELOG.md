@@ -62,6 +62,15 @@ the *generated* API count as breaking (see ADR 0012).
   one sees the `FROM` tables beside it, and a reference to one from a
   plain subquery fails naming it. This used to fail "only tables and
   set-returning functions are supported in FROM (no subqueries)".
+- The Dart Client runtime has `poll(call, every:, until:)`, a
+  `Stream<T>` of `call`'s answers: one at once, then one every `every`
+  (counted from the previous answer), ending with the first that `until`
+  accepts; a failed call is an error event and polling goes on. It makes
+  no call while `AppLifecycle.foreground` is `false` (a Flutter App sets
+  it from `AppLifecycleListener`) or the subscription is paused, and one
+  at once on return. Both are exported from the library and documented in
+  its README; no per-operation code. The TypeScript Client's README
+  documents TanStack Query's `refetchInterval` for the same job.
 - A query's parameter shape no longer flips when it grows a fourth
   parameter, if you say so: `-- rok:params struct` (or `positional`)
   fixes one query's, and `query_params = "auto" | "struct" |

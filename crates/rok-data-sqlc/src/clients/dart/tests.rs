@@ -187,9 +187,29 @@ fn the_runtime_carries_the_session_hook_and_the_error_shape() {
     assert!(runtime.contains("abstract interface class Session {"));
     let library = file(&files, "lib/api_client.dart");
     assert!(library.contains(
-        "export 'src/runtime.dart'\n    show ApiException, Bytes, FieldIssue, Nullable, \
-         RequestOptions, Session;\n"
+        "export 'src/runtime.dart'\n    show\n        ApiException,\n        AppLifecycle,\n        \
+         Bytes,\n        FieldIssue,\n        Nullable,\n        RequestOptions,\n        \
+         Session,\n        poll;\n"
     ));
+}
+
+/// The runtime's polling helper: one stream per call, no per-operation
+/// code, following the App's foreground (ticket 81).
+#[test]
+fn the_runtime_carries_a_lifecycle_aware_poll() {
+    let files = emitted(&monorepo());
+    let runtime = file(&files, "lib/src/runtime.dart");
+    assert!(runtime.contains(
+        "Stream<T> poll<T>(\n  Future<T> Function() call, {\n  required Duration every,\n  \
+         bool Function(T value)? until,\n}) {"
+    ));
+    assert!(runtime.contains("abstract final class AppLifecycle {"));
+    assert!(runtime.contains("  static set foreground(bool value) {"));
+    let client = file(&files, "lib/src/client.dart");
+    assert!(!client.contains("poll("), "poll is not per operation");
+    let readme = file(&files, "README.md");
+    assert!(readme.contains("poll(() => api."));
+    assert!(readme.contains("AppLifecycle.foreground = state == AppLifecycleState.resumed"));
 }
 
 /// What the Dart client cannot type is reported, naming it and where.
