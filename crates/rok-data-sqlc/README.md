@@ -749,8 +749,12 @@ keeps the typed id, and arguments of one plain type under different
 typed ids take the plain type. It is never NULL when one of its arguments
 never is, such as a literal other than `NULL`, so a cast of it is not
 `Option` (`coalesce(sum(stock), 0)::bigint` is `i64`). A scalar subquery
-`(SELECT …)` takes the type of its one column and may be NULL; it sees
-the tables of the query around it, so
+`(SELECT …)` takes the type of its one column. It is never NULL when
+that column never is and the subquery always returns one row: an
+aggregate with no `GROUP BY`, `HAVING`, `LIMIT`, `OFFSET` or set
+operation, so `(SELECT count(*) FROM passes)` is `i64`. Any other
+scalar subquery may return no row, so it is `Option`. It sees the
+tables of the query around it, so
 `coalesce(p.cover_media_id, (SELECT ph.media_id FROM partner_photos ph
 WHERE ph.partner_id = p.id LIMIT 1))::uuid` is `Option<MediaId>`. A
 placeholder inside a subquery (scalar, `EXISTS` or `IN`) is typed from

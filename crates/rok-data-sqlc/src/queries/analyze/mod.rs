@@ -316,6 +316,9 @@ struct Analysis<'a, 'c> {
     /// the statement (which outlives the analysis); `None` when it returns
     /// several columns or the engine can't type it.
     subquery_types: HashMap<*const Query, Option<String>>,
+    /// The analyzed subqueries that are never NULL: their one column is not
+    /// optional and they always return one row.
+    never_null_subqueries: HashSet<*const Query>,
     /// The `WHERE` of an `ON CONFLICT (cols) WHERE … DO` target, taken out of
     /// the SQL before parsing (see [`take_conflict_predicate`]).
     conflict_predicate: Option<sqlparser::ast::Expr>,
@@ -332,6 +335,7 @@ impl<'a, 'c> Analysis<'a, 'c> {
             query_depth: 0,
             slots: BTreeMap::new(),
             subquery_types: HashMap::new(),
+            never_null_subqueries: HashSet::new(),
             conflict_predicate: None,
         }
     }

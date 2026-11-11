@@ -15,6 +15,14 @@ the *generated* API count as breaking (see ADR 0012).
   goes through that feature's service". The architecture guide says so
   too and shows a query joining another table (`TasksWithProject` in
   `docs/examples/api`). The numbered rule text is unchanged.
+- **Breaking for generated code:** a scalar subquery that always returns
+  one row (an aggregate with no `GROUP BY`, `HAVING`, `LIMIT`, `OFFSET`
+  or set operation) keeps its column's nullability, so
+  `(SELECT count(*) FROM passes)` and
+  `(SELECT coalesce(sum(x), 0)::bigint FROM …)` are `i64` where they were
+  `Option<i64>`. Any other scalar subquery, and one over a nullable
+  aggregate such as `sum(x)`, stays `Option`. A call site that unwrapped
+  such a column drops the unwrap.
 - **Breaking for Rust Client callers:** an integer is as wide as its
   contract `format`: `int32` is `i32` (utoipa writes it for `i16` too, so
   a `smallint` is `i32`), `int64` or no format stays `i64`. Every integer

@@ -15,6 +15,10 @@ that it exists and won't ship a tag without it).
   `cross-feature-query`) say that a feature's queries may join and read
   any table, and that writing another feature's table goes through that
   feature's service. The architecture guide shows such a join.
+- Queries: a scalar subquery that always returns one row, such as
+  `(SELECT count(*) FROM passes)`, is `i64` instead of `Option<i64>`;
+  one with `GROUP BY`, `HAVING`, `LIMIT`, `OFFSET` or a set operation,
+  or over a nullable aggregate, stays `Option`.
 - A schema statement rok can't undo by itself, left without its
   `-- rok:down`, is refused by its first line, and the message says to
   add the block immediately after that statement ("rok can't undo
