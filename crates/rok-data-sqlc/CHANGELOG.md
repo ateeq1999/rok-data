@@ -156,6 +156,13 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Fixed
 
+- A result column doing arithmetic with a placeholder takes the type
+  parameter typing gave the placeholder: `price * $1 AS total` is
+  `rust_decimal::Decimal` on a `NOT NULL numeric` column, `Option<…>` on
+  a nullable one, typed like `price * price`. A placeholder whose bound
+  type is not an `Option` (its `-- param:` type when it has one) counts
+  as never NULL, so `label ILIKE $2` is `bool`. A placeholder with no
+  numeric partner still asks for `-- param:`.
 - A placeholder beside a column in `coalesce` takes that column's type,
   optional: `SET locale = coalesce($2, locale)` (either order) infers
   `Option<T>` for a text column, a typed id, a SQL enum or a CHECK-list

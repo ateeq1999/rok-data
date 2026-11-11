@@ -7,6 +7,7 @@ use sqlparser::ast::{
     ObjectNamePart, SelectItem, SetOperator, UnaryOperator, Value,
 };
 
+use super::params::placeholder;
 use super::{Analysis, Context, Output, OutputColumn, ResultShape};
 use crate::parser::naming;
 use crate::parser::postgres::{ident_name, map_type, object_leaf_name};
@@ -131,12 +132,18 @@ impl<'a, 'c> Analysis<'a, 'c> {
     /// Whether `expr` is never NULL, as far as the engine can tell: a
     /// literal, `count`, `now()` and the other clock functions, `coalesce`
     /// with an argument that is never NULL, a `NOT NULL` column that is not
-    /// on the outer side of a join, an `IS [NOT] NULL`-style test, `[NOT]
+    /// on the outer side of a join, a placeholder whose parameter is not an
+    /// `Option`, an `IS [NOT] NULL`-style test, `[NOT]
     /// EXISTS`, or an operator or cast none of whose operands can be NULL.
     fn never_null(&self, expr: &Expr) -> Result<bool, String> {
         if let Some(reference) = self.column_reference(expr)? {
             let entry = &self.scope[reference.entry];
             return Ok(!entry.outer_nullable && !entry.table.columns[reference.column].nullable);
+        }
+        if let Some(index) = placeholder(expr) {
+            return Ok(self
+                .param_type(index)
+                .is_some_and(|rust_type| !split_optional(&rust_type).1));
         }
         Ok(match expr {
             Expr::Nested(inner)
@@ -377,8 +384,14 @@ impl<'a, 'c> Analysis<'a, 'c> {
     }
 
     /// The numeric type of an arithmetic operand: a column's plain type
-    /// (never its typed id), or what [`Self::value_type`] infers.
+    /// (never its typed id), a placeholder's parameter type (`price * $1`
+    /// is typed like `price * price`), or what [`Self::value_type`] infers.
     fn number_type(&self, expr: &Expr) -> Result<Option<Number>, String> {
+        if let Some(index) = placeholder(expr) {
+            return Ok(self
+                .param_type(index)
+                .and_then(|rust_type| Number::of(self.plain_type(split_optional(&rust_type).0))));
+        }
         let value_type = match self.column_reference(expr)? {
             Some(reference) => Some(self.reference_column(&reference).sqlx_type.clone()),
             None => self
