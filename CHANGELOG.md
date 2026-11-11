@@ -81,6 +81,10 @@ that it exists and won't ship a tag without it).
   quantity)`) or from one JSON parameter (`jsonb_to_recordset($2) AS
   l(item_id uuid, quantity int)`, a `serde_json::Value`). The engine
   README's "Writing query files" documents the patterns.
+- One query serves "upcoming or past": a `bool` switch
+  (`CASE WHEN $2::bool THEN … ELSE … END` in `WHERE`, one `CASE` per
+  sort direction in `ORDER BY`) types its placeholder, also when it
+  appears only in `ORDER BY`. The engine README documents the pattern.
 
 **Fixed**
 

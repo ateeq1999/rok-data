@@ -652,7 +652,9 @@ are:
   (see "More rules" below);
 - an explicit cast to a supported type, including an enum type
   (`$1::product_status` takes `types::ProductStatus`, and
-  `$1::product_status[]` a slice of them).
+  `$1::product_status[]` a slice of them);
+- a `CASE WHEN $n THEN` condition or `NOT $n` (`bool`), in `WHERE` or in
+  `ORDER BY`.
 
 A placeholder anywhere else fails generation. The error names the fix, a
 `-- param:` override.
@@ -672,6 +674,30 @@ comes in three forms:
 `!` is for a value written to a nullable column that the query always
 sets, as in `UPDATE offers SET reviewed_by = $2`. It can't go with a
 written type, which is used as is.
+
+**One query can serve both sides of a switch.** "Upcoming or past
+bookings" is one listing with a `bool` parameter, not two queries: cast it
+once (`$2::bool`), switch the filter with `CASE WHEN $2 THEN … ELSE … END`,
+and give each sort direction its own `CASE`, since a `CASE` can't switch
+`ASC`/`DESC` (the `CASE` that doesn't apply is `NULL` on every row and sorts
+nothing):
+
+<!-- source: docs/examples/api/queries.sql -->
+```sql
+-- name: ProjectsAround :many
+-- param: $2 after
+-- param: $3 at
+SELECT id, name, created_at FROM projects
+WHERE owner_id = $1
+  AND CASE WHEN $2::bool THEN created_at >= $3 ELSE created_at < $3 END
+ORDER BY CASE WHEN $2 THEN created_at END ASC,
+         CASE WHEN NOT $2 THEN created_at END DESC;
+```
+
+The function takes `after: bool`, and either side comes nearest first.
+A count beside the listing takes the same switch in its `WHERE`, and a
+second listing over the same columns (say, one page of each side) shares
+the row type with `-- returns: ProjectsAroundRow`.
 
 **Keys keep their typed ids.** A parameter typed by a primary key or foreign
 key column takes that table's typed id, and so does a result column taken

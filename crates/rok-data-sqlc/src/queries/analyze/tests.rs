@@ -1833,3 +1833,51 @@ fn untypeable_aggregates_still_fail() {
             .contains("cannot infer the type of column `total` of CTE `a`")
     );
 }
+
+/// One query serves two listings: `$2::bool` switches the filter in `WHERE`
+/// and, one `CASE` per direction, the sort in `ORDER BY`.
+#[test]
+fn a_bool_cast_placeholder_switches_where_and_order_by() {
+    let query = one("-- name: ListPasses :many
+SELECT id, expires_at FROM passes
+WHERE seats > $1
+  AND CASE WHEN $2::bool THEN expires_at >= now() ELSE expires_at < now() END
+ORDER BY CASE WHEN $2 THEN expires_at END ASC,
+         CASE WHEN NOT $2 THEN expires_at END DESC;");
+    assert_eq!(
+        query.params,
+        [param(1, "seats", "i16"), param(2, "param_2", "bool")]
+    );
+}
+
+/// A count beside the listing takes the same switch.
+#[test]
+fn a_bool_cast_placeholder_switches_a_count() {
+    assert_eq!(
+        one("-- name: CountPasses :one
+SELECT count(*) AS total FROM passes
+WHERE CASE WHEN $1::bool THEN expires_at >= now() ELSE expires_at < now() END;")
+        .params,
+        [param(1, "param_1", "bool")]
+    );
+}
+
+/// A switch used only to sort is typed there, and a bare `CASE WHEN $1` or
+/// `NOT $1` condition is a `bool` without a cast. Sorting by an output
+/// column's alias still works.
+#[test]
+fn a_switch_in_order_by_alone_is_typed() {
+    assert_eq!(
+        one("-- name: SortPasses :many
+SELECT id, label AS title FROM passes
+ORDER BY CASE WHEN $1::bool THEN title END ASC, CASE WHEN NOT $1 THEN title END DESC;")
+        .params,
+        [param(1, "param_1", "bool")]
+    );
+    assert_eq!(
+        one("-- name: SwitchPasses :many
+SELECT id FROM passes WHERE CASE WHEN $1 THEN revoked_at IS NULL ELSE true END;")
+        .params,
+        [param(1, "param_1", "bool")]
+    );
+}

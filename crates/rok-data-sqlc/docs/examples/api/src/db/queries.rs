@@ -76,3 +76,40 @@ where
     .fetch_all(executor)
     .await
 }
+
+/// A row returned by `projects_around`.
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow, serde::Serialize, serde::Deserialize)]
+pub struct ProjectsAroundRow {
+    /// The `id` column.
+    pub id: ProjectId,
+    /// The `name` column.
+    pub name: String,
+    /// The `created_at` column.
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Runs the `ProjectsAround` query (`:many`).
+pub async fn projects_around<'e, E>(
+    executor: E,
+    owner_id: uuid::Uuid,
+    after: bool,
+    at: chrono::DateTime<chrono::Utc>,
+) -> Result<Vec<ProjectsAroundRow>, rok_data::Error>
+where
+    E: rok_data::Executor<'e>,
+{
+    rok_data::raw(
+        r#"
+        SELECT id, name, created_at FROM projects
+        WHERE owner_id = $1
+          AND CASE WHEN $2::bool THEN created_at >= $3 ELSE created_at < $3 END
+        ORDER BY CASE WHEN $2 THEN created_at END ASC,
+                 CASE WHEN NOT $2 THEN created_at END DESC
+        "#,
+    )
+    .bind(owner_id)
+    .bind(after)
+    .bind(at)
+    .fetch_all(executor)
+    .await
+}

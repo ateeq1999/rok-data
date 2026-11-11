@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] One query serves both "upcoming" and "past" (DB-backed test)
-- [ ] Guide section with the pattern
+- [x] One query serves both "upcoming" and "past" (DB-backed test)
+- [x] Guide section with the pattern
