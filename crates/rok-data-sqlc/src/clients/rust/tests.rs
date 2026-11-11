@@ -439,3 +439,32 @@ fn the_readme_names_browser_routes() {
     );
     assert!(!file(&emitted(&monorepo()), "README.md").contains("Browser route"));
 }
+
+/// "None yet" is an answer: an `Option<T>` success, as utoipa writes it
+/// (`oneOf` of `null` and the `$ref`), answers `Option<T>`.
+#[test]
+fn a_nullable_success_answers_none() {
+    let document = parsed(
+        json!({"/me/tables/{id}/bill": {"get": {
+            "tags": ["tables"], "operationId": "bill",
+            "parameters": [{"name": "id", "in": "path", "required": true,
+                            "schema": {"type": "string"}}],
+            "responses": {"200": {"description": "", "content": {"application/json": {
+                "schema": {"oneOf": [
+                    {"type": "null"},
+                    {"$ref": "#/components/schemas/BillResponse"},
+                ]},
+            }}}},
+        }}}),
+        json!({"BillResponse": {
+            "type": "object", "required": ["total"],
+            "properties": {"total": {"type": "integer"}},
+        }}),
+    );
+    let files = emitted(&document);
+    let calls = file(&files, "src/calls.rs");
+    assert!(
+        calls.contains("-> Result<Option<types::BillResponse>, ApiError> {"),
+        "{calls}"
+    );
+}
