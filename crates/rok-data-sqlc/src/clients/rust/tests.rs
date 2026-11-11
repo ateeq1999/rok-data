@@ -388,8 +388,5 @@ fn an_integer_is_as_wide_as_its_format() {
     assert!(types.contains("    pub small: i32,\n"), "{types}");
     assert!(types.contains("    pub big: i64,\n"), "{types}");
     assert!(types.contains("    pub plain: i64,\n"), "{types}");
-    assert!(
-        types.contains("    pub maybe: Option<i32>,\n"),
-        "{types}"
-    );
+    assert!(types.contains("    pub maybe: Option<i32>,\n"), "{types}");
 }
