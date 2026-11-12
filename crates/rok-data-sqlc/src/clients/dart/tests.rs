@@ -187,9 +187,29 @@ fn the_runtime_carries_the_session_hook_and_the_error_shape() {
     assert!(runtime.contains("abstract interface class Session {"));
     let library = file(&files, "lib/api_client.dart");
     assert!(library.contains(
-        "export 'src/runtime.dart'\n    show ApiException, Bytes, FieldIssue, Nullable, \
-         RequestOptions, Session;\n"
+        "export 'src/runtime.dart'\n    show\n        ApiException,\n        AppLifecycle,\n        \
+         Bytes,\n        FieldIssue,\n        Nullable,\n        Pager,\n        RequestOptions,\n        \
+         Session,\n        poll;\n"
     ));
+}
+
+/// The runtime's polling helper: one stream per call, no per-operation
+/// code, following the App's foreground (ticket 81).
+#[test]
+fn the_runtime_carries_a_lifecycle_aware_poll() {
+    let files = emitted(&monorepo());
+    let runtime = file(&files, "lib/src/runtime.dart");
+    assert!(runtime.contains(
+        "Stream<T> poll<T>(\n  Future<T> Function() call, {\n  required Duration every,\n  \
+         bool Function(T value)? until,\n}) {"
+    ));
+    assert!(runtime.contains("abstract final class AppLifecycle {"));
+    assert!(runtime.contains("  static set foreground(bool value) {"));
+    let client = file(&files, "lib/src/client.dart");
+    assert!(!client.contains("poll("), "poll is not per operation");
+    let readme = file(&files, "README.md");
+    assert!(readme.contains("poll(() => api."));
+    assert!(readme.contains("AppLifecycle.foreground = state == AppLifecycleState.resumed"));
 }
 
 /// What the Dart client cannot type is reported, naming it and where.
@@ -382,5 +402,128 @@ fn only_a_patch_body_has_three_state_fields() {
     assert!(
         models.contains("  final Nullable<String>? note;\n"),
         "{models}"
+    );
+}
+
+/// Every list that pages gets a `Pager` method beside its call, taking
+/// the call's arguments but the page (or cursor): a page-number list's
+/// pager reads pages from 1 while rows remain, a cursor list's from no
+/// cursor while a page names the `next` one.
+#[test]
+fn a_paged_list_gets_a_pager() {
+    let files = emitted(&api_app());
+    let client = file(&files, "lib/src/client.dart");
+    assert!(
+        client.contains(
+            "  Pager<NoteResponse> listPager({\n    int? perPage,\n    String? q,\n    \
+             NoteSort? sort,\n    SortOrder? order,\n    RequestOptions? options,\n  \
+             }) => Pager.numbered((page) async {\n    final result = await list(\n      \
+             page: page,\n      perPage: perPage,\n      q: q,\n      sort: sort,\n      \
+             order: order,\n      options: options,\n    );\n    \
+             return (result.items, result.page * result.perPage < result.total);\n  });\n"
+        ),
+        "{client}"
+    );
+    assert!(client.contains(
+        "  Pager<LabelResponse> listPager({\n    int? perPage,\n    String? q,\n    \
+         LabelSort? sort,\n    SortOrder? order,\n    RequestOptions? options,\n  \
+         }) => Pager.cursor((cursor) async {\n    final result = await list(\n      \
+         cursor: cursor,\n      perPage: perPage,\n      q: q,\n      sort: sort,\n      \
+         order: order,\n      options: options,\n    );\n    \
+         return (result.items, result.next);\n  });\n"
+    ));
+    let runtime = file(&files, "lib/src/runtime.dart");
+    assert!(runtime.contains("final class Pager<T> {"));
+    assert!(runtime.contains("  Future<List<T>> load() {"));
+    assert!(
+        runtime
+            .contains("  Future<List<T>> more() {\n    if (!hasMore) return Future.value(_items);")
+    );
+    assert!(runtime.contains("  Stream<List<T>> get stream => _changes.stream;"));
+    let library = file(&files, "lib/api_client.dart");
+    assert!(library.contains("        Nullable,\n        Pager,\n        RequestOptions,\n"));
+}
+
+/// A Browser route is a URL builder, not a call: `<operation>Url`, taking
+/// its path and query parameters and giving the full `Uri`, sending
+/// nothing.
+#[test]
+fn a_browser_route_is_a_url_builder() {
+    let files = emitted(&crate::clients::openapi::tests::browser_routes());
+    let client = file(&files, "lib/src/client.dart");
+    assert!(
+        client.contains(
+            "  /// Starts signing in at an OpenID provider.\n  \
+         Uri oidcStartUrl(\n    String provider, {\n    String? returnTo,\n  \
+         }) => _transport.urlOf(\n    Call(\n      'GET',\n      \
+         '/auth/oidc/${Uri.encodeComponent(provider)}/start',\n      \
+         query: {'return_to': returnTo},\n    ),\n  );\n"
+        ),
+        "{client}"
+    );
+    assert!(
+        client.contains(
+            "  /// The URL of `GET /auth/oidc/callback`, which a browser follows.\n  \
+         Uri oidcCallbackUrl({\n    required String code,\n    required String state,\n  \
+         }) => _transport.urlOf(\n"
+        ),
+        "{client}"
+    );
+    assert!(!client.contains("Future<void> oidc"), "{client}");
+    let runtime = file(&files, "lib/src/runtime.dart");
+    assert!(
+        runtime.contains("  Uri urlOf(Call call) => _url(call);\n"),
+        "{runtime}"
+    );
+}
+
+/// The README names the URL builders when the document has a Browser
+/// route, and its example is a call.
+#[test]
+fn the_readme_names_browser_routes() {
+    let files = emitted(&crate::clients::openapi::tests::browser_routes());
+    let readme = file(&files, "README.md");
+    assert!(
+        readme.contains("api.<tag>.<operation>Url(...)` for a Browser route"),
+        "{readme}"
+    );
+    assert!(
+        readme.contains("final result = await api.auth.me("),
+        "{readme}"
+    );
+    assert!(!file(&emitted(&monorepo()), "README.md").contains("Browser route"));
+}
+
+/// "None yet" is an answer: an `Option<T>` success, as utoipa writes it
+/// (`oneOf` of `null` and the `$ref`), is a nullable return.
+#[test]
+fn a_nullable_success_answers_null() {
+    let document = document(
+        json!({"/me/tables/{id}/bill": {"get": {
+            "tags": ["tables"], "operationId": "bill",
+            "parameters": [{"name": "id", "in": "path", "required": true,
+                            "schema": {"type": "string"}}],
+            "responses": {"200": {"description": "", "content": {"application/json": {
+                "schema": {"oneOf": [
+                    {"type": "null"},
+                    {"$ref": "#/components/schemas/BillResponse"},
+                ]},
+            }}}},
+        }}}),
+        json!({"BillResponse": {
+            "type": "object", "required": ["total"],
+            "properties": {"total": {"type": "integer"}},
+        }}),
+    );
+    let files = emitted(&document);
+    let client = file(&files, "lib/src/client.dart");
+    assert!(client.contains("Future<BillResponse?> bill("), "{client}");
+    assert!(
+        client.contains(
+            "(json) => json == null\n          ? null\n          : BillResponse.fromJson(json as Map<String, Object?>),"
+        ) || client.contains(
+            "(json) => json == null ? null : BillResponse.fromJson(json as Map<String, Object?>),"
+        ),
+        "{client}"
     );
 }

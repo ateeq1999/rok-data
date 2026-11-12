@@ -249,6 +249,20 @@ impl<'a> Models<'a> {
         })
     }
 
+    /// The Dart type of the rows of the page class `page`: its `items`
+    /// field's elements.
+    pub fn items_of(&self, page: &str) -> Option<String> {
+        self.decls.iter().find_map(|decl| match decl {
+            Decl::Class(class) if class.name == page => {
+                class.fields.iter().find_map(|field| match &field.ty {
+                    Ty::List(item) if field.key == "items" => Some(item.dart()),
+                    _ => None,
+                })
+            }
+            _ => None,
+        })
+    }
+
     /// `name` as a new class name, or why it is taken.
     fn fresh(&mut self, name: &str, at: &str) -> Result<String, Error> {
         let name = class_name(name);

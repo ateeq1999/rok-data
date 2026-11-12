@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `price * $1 AS x` on a `NOT NULL numeric` column is `Decimal`; on a nullable one `Option<Decimal>`
-- [ ] A placeholder with no numeric partner still fails with the hint
+- [x] `price * $1 AS x` on a `NOT NULL numeric` column is `Decimal`; on a nullable one `Option<Decimal>`
+- [x] A placeholder with no numeric partner still fails with the hint

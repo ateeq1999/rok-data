@@ -6,7 +6,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::super::openapi::{Body, Document, Method, Property, Schema};
+use super::super::openapi::{Body, Document, Method, Property, Rules, Schema};
 use super::{Error, RESERVED_TYPES, doc, ident, type_ident};
 
 /// The types of the client, as the calls ask for them.
@@ -149,7 +149,7 @@ impl<'d> Types<'d> {
             Schema::Any => "serde_json::Value".to_owned(),
             Schema::Null => "()".to_owned(),
             Schema::Boolean => "bool".to_owned(),
-            Schema::Integer(_) => "i64".to_owned(),
+            Schema::Integer(rules) => integer(rules).to_owned(),
             Schema::Number(_) => "f64".to_owned(),
             Schema::String(_) => "String".to_owned(),
             Schema::StringEnum(values) if values.is_empty() => "String".to_owned(),
@@ -451,6 +451,11 @@ impl<'d> Types<'d> {
         ));
     }
 
+    /// The document the types are read from.
+    pub fn document(&self) -> &'d Document {
+        self.document
+    }
+
     /// The struct of an operation's query parameters, named from `hint`
     /// (numbered when a schema has the name already): its name.
     pub fn define_query(&mut self, hint: &str, fallback: &str, properties: &[Property]) -> String {
@@ -563,5 +568,14 @@ fn same_shape(a: &Schema, b: &Schema) -> bool {
             x.len() == y.len() && x.iter().zip(y).all(|(x, y)| same_shape(x, y))
         }
         _ => a == b,
+    }
+}
+
+/// The Rust integer an integer's `format` names: `int32` is `i32` (utoipa
+/// writes it for `i16` too, having no `int16`); `int64` or none is `i64`.
+fn integer(rules: &Rules) -> &'static str {
+    match rules.format.as_deref() {
+        Some("int32") => "i32",
+        _ => "i64",
     }
 }

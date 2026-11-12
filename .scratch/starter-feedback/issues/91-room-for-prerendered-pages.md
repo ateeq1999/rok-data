@@ -15,8 +15,8 @@ Karibu Pass prerendered its landing page at `/`, which silently replaced `_shell
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done (rok-templates PR #16)
 
-- [ ] Listing `/about` builds a prerendered `/about` and keeps `_shell.html` (build test)
-- [ ] Listing the shell's path fails the build, naming it
-- [ ] With the list empty, the build is the SPA it is today
+- [x] Listing `/about` builds a prerendered `/about` and keeps `_shell.html` (build test)
+- [x] Listing the shell's path fails the build, naming it
+- [x] With the list empty, the build is the SPA it is today

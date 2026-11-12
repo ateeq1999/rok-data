@@ -745,7 +745,7 @@ fn ctes_are_scoped_to_their_statement_and_must_be_typable() {
                 .contains("table `b` is not in the schema")
         );
     assert!(
-            failure("-- name: Q :many\nWITH a AS (SELECT SUM(stock) AS total FROM products) SELECT total FROM a;")
+            failure("-- name: Q :many\nWITH a AS (SELECT upper(name) + 1 AS total FROM products) SELECT total FROM a;")
                 .contains("cannot infer the type of column `total` of CTE `a`")
         );
     assert!(
@@ -955,6 +955,63 @@ fn a_cast_filtered_count_is_not_null() {
     );
 }
 
+/// Ticket 95: an aggregate subquery without `GROUP BY`, `HAVING`, `LIMIT`,
+/// `OFFSET` or a set operation always returns one row, so it keeps its
+/// column's nullability. Any other scalar subquery may return none.
+#[test]
+fn a_one_row_subquery_keeps_its_columns_nullability() {
+    assert_eq!(
+        scalar("-- name: Total :one\nSELECT (SELECT count(*) FROM products) AS total;"),
+        "i64"
+    );
+    assert_eq!(
+        scalar(
+            "-- name: Stock :one\nSELECT (SELECT coalesce(sum(stock), 0)::bigint FROM products) AS stock;"
+        ),
+        "i64"
+    );
+    assert_eq!(
+        scalar(
+            "-- name: Total :one\nSELECT (SELECT count(*) FROM products GROUP BY category_id) AS total;"
+        ),
+        "Option<i64>"
+    );
+    assert_eq!(
+        scalar("-- name: Total :one\nSELECT (SELECT count(*) FROM products LIMIT 1) AS total;"),
+        "Option<i64>"
+    );
+    assert_eq!(
+        scalar(
+            "-- name: Total :one\nSELECT (SELECT count(*) FROM products HAVING count(*) > 1) AS total;"
+        ),
+        "Option<i64>"
+    );
+    assert_eq!(
+        scalar("-- name: Total :one\nSELECT (SELECT count(*) FROM products OFFSET 1) AS total;"),
+        "Option<i64>"
+    );
+    assert_eq!(
+        scalar(
+            "-- name: Total :one\nSELECT (SELECT count(*) FROM products UNION SELECT count(*) FROM passes) AS total;"
+        ),
+        "Option<i64>"
+    );
+    assert_eq!(
+        scalar("-- name: Sku :one\nSELECT (SELECT sku FROM products LIMIT 1) AS sku;"),
+        "Option<String>"
+    );
+}
+
+/// Ticket 95: a one-row subquery over a nullable aggregate is still NULL
+/// when the aggregate is.
+#[test]
+fn a_one_row_subquery_over_a_nullable_aggregate_stays_optional() {
+    assert_eq!(
+        scalar("-- name: Stock :one\nSELECT (SELECT sum(stock)::bigint FROM products) AS stock;"),
+        "Option<i64>"
+    );
+}
+
 #[test]
 fn a_cast_not_null_column_is_not_null() {
     assert_eq!(
@@ -1049,8 +1106,8 @@ fn boolean_logic_is_bool() {
             ("changed", "bool"),
             ("plain", "bool"),
             ("small", "bool"),
-            // The engine does not assume a parameter is never NULL.
-            ("matched", "Option<bool>"),
+            // `$2` is bound as a `String`, never NULL.
+            ("matched", "bool"),
             ("discounted", "Option<bool>"),
         ]
     );
@@ -1076,6 +1133,28 @@ fn arithmetic_takes_its_operands_type() {
             ("rest", "i32"),
             ("share", "Option<rust_decimal::Decimal>"),
         ]
+    );
+}
+
+/// A placeholder in arithmetic takes the type its numeric partner gives it,
+/// so the result is typed like `price * price`: nullable when the column is.
+#[test]
+fn arithmetic_with_a_placeholder_takes_the_columns_type() {
+    let row = one("-- name: Scaled :one\nSELECT \
+             price * $1 AS scaled, \
+             $2 * discount AS reduced \
+         FROM passes WHERE id = $3;");
+    assert_eq!(
+        row_columns(&row),
+        [
+            ("scaled", "rust_decimal::Decimal"),
+            ("reduced", "Option<rust_decimal::Decimal>"),
+        ]
+    );
+    // Without a numeric partner the placeholder still needs declaring.
+    assert!(
+        failure("-- name: Q :one\nSELECT $1 * 2 AS doubled FROM passes;")
+            .contains("cannot infer the type of `$1` from its context; add `-- param: $1")
     );
 }
 
@@ -1657,5 +1736,331 @@ fn returns_names_a_model_or_a_hand_written_type() {
     assert!(
         reason.contains("no query of this file returns `Nowhere`"),
         "{reason}"
+    );
+}
+
+/// Karibu Pass's `CancelEvent` shape: a data-modifying CTE whose
+/// `UPDATE … FROM` reads a subquery, typed from its own query as a CTE is.
+const CANCEL_EVENT: &str = "WITH e AS (\n    UPDATE offers SET status = 'cancelled' WHERE id = $1 RETURNING id\n),\nt AS (\n    UPDATE allocations SET rooms_held = allocations.rooms_held - x.held\n    FROM (SELECT offer_id, sum(rooms)::int AS held FROM weekly_holds\n          WHERE offer_id IN (SELECT id FROM e) AND week_of >= $2 GROUP BY offer_id) x\n    WHERE allocations.offer_id = x.offer_id\n    RETURNING allocations.id, x.held\n)\nSELECT id, held FROM t";
+
+#[test]
+fn a_subquery_in_from_acts_as_a_table_typed_from_its_query() {
+    let query = one(&format!("-- name: CancelEvent :many\n{CANCEL_EVENT};"));
+    assert_eq!(
+        query.params,
+        [
+            param(1, "id", "i64"),
+            param(2, "week_of", "chrono::NaiveDate")
+        ]
+    );
+    // `sum` is null over no rows, so `held` stays optional.
+    assert_eq!(
+        row_columns(&query),
+        [("id", "i64"), ("held", "Option<i32>")]
+    );
+
+    let select = one(
+        "-- name: Held :many\nSELECT o.status, x.total FROM offers o JOIN (SELECT offer_id, count(*) AS total FROM weekly_holds GROUP BY offer_id) AS x ON x.offer_id = o.id WHERE x.total > $1;",
+    );
+    assert_eq!(select.params, [param(1, "total", "i64")]);
+    assert_eq!(
+        row_columns(&select),
+        [("status", "String"), ("total", "i64")]
+    );
+
+    let delete = one(
+        "-- name: DropEmpty :execrows\nDELETE FROM allocations USING (SELECT id FROM offers WHERE status = $1) gone WHERE allocations.offer_id = gone.id;",
+    );
+    assert_eq!(delete.params, [param(1, "status", "String")]);
+}
+
+/// Only a `LATERAL` subquery sees the `FROM` tables beside it, as in
+/// PostgreSQL; the queries around its own stay visible either way.
+#[test]
+fn only_a_lateral_subquery_sees_the_tables_beside_it() {
+    let latest = one(
+        "-- name: LatestHolds :many\nSELECT o.id, h.week_of FROM offers o, LATERAL (SELECT week_of FROM weekly_holds w WHERE w.offer_id = o.id AND w.rooms > $1 ORDER BY week_of DESC LIMIT 1) h;",
+    );
+    assert_eq!(latest.params, [param(1, "rooms", "i32")]);
+    assert_eq!(
+        row_columns(&latest),
+        [("id", "i64"), ("week_of", "chrono::NaiveDate")]
+    );
+
+    assert_eq!(
+        failure(
+            "-- name: Q :many\nSELECT o.id, h.week_of FROM offers o, (SELECT week_of FROM weekly_holds w WHERE w.offer_id = o.id) h;"
+        ),
+        "`o` is a FROM table beside the subquery, which can't see it; write `LATERAL (SELECT …)` to refer to it"
+    );
+    assert!(
+        failure(
+            "-- name: Q :execrows\nUPDATE allocations SET rooms_held = 0 FROM (SELECT id FROM offers WHERE offers.id = allocations.offer_id) x;"
+        )
+        .contains("`allocations` is a FROM table beside the subquery")
+    );
+}
+
+/// A subquery's alias may list its column names, as a CTE's may.
+#[test]
+fn a_subquery_alias_column_list_renames_its_columns() {
+    let query = one(
+        "-- name: Totals :many\nSELECT cat, n FROM (SELECT category_id, count(*) FROM products GROUP BY category_id) AS t (cat, n) WHERE n > $1;",
+    );
+    assert_eq!(query.params, [param(1, "n", "i64")]);
+    assert_eq!(row_columns(&query), [("cat", "i64"), ("n", "i64")]);
+
+    assert_eq!(
+        failure("-- name: Q :many\nSELECT a FROM (SELECT id FROM categories) t (a, b);"),
+        "subquery `t` names 2 columns but its query returns 1"
+    );
+    assert!(
+        failure("-- name: Q :many\nSELECT category_id FROM (SELECT category_id FROM products) t (category_id) WHERE t.id = $1;")
+            .contains("column `id` does not exist in `t`")
+    );
+}
+
+/// A placeholder beside a column in `coalesce` takes the column's value
+/// type, optional: `SET level = coalesce($1, level)` keeps the stored value
+/// when the caller passes `None`. Either argument order works.
+#[test]
+fn coalesce_types_a_placeholder_from_the_column_beside_it() {
+    for (query, expected) in [
+        (
+            "UPDATE gauges SET level = coalesce($1, level) WHERE id = $2;",
+            param(1, "level", "Option<types::GaugeLevel>"),
+        ),
+        (
+            "UPDATE gauges SET level = coalesce(level, $1) WHERE id = $2;",
+            param(1, "level", "Option<types::GaugeLevel>"),
+        ),
+        (
+            "UPDATE products SET name = coalesce($1, name) WHERE id = $2;",
+            param(1, "name", "Option<String>"),
+        ),
+        (
+            "UPDATE products SET name = coalesce(name, $1) WHERE id = $2;",
+            param(1, "name", "Option<String>"),
+        ),
+        (
+            "UPDATE listings SET status = coalesce($1, status) WHERE id = $2;",
+            param(1, "status", "Option<types::ProductStatus>"),
+        ),
+        (
+            "UPDATE listings SET status = coalesce(status, $1) WHERE id = $2;",
+            param(1, "status", "Option<types::ProductStatus>"),
+        ),
+    ] {
+        let analyzed = one(&format!("-- name: Q :exec\n{query}"));
+        assert_eq!(analyzed.params[0], expected, "{query}");
+    }
+    for query in [
+        "UPDATE products SET category_id = coalesce($1, category_id) WHERE id = $2;",
+        "UPDATE products SET category_id = coalesce(category_id, $1) WHERE id = $2;",
+    ] {
+        let analyzed = typed_one(&format!("-- name: Q :exec\n{query}"));
+        assert_eq!(
+            analyzed.params[0],
+            param(1, "category_id", "Option<CategoryId>"),
+            "{query}"
+        );
+    }
+}
+
+/// A `-- param:` override still wins over the column's type, and a
+/// `coalesce` that names no column still asks for one.
+#[test]
+fn coalesce_without_a_column_still_asks_for_a_param_override() {
+    let analyzed = one(
+        "-- name: Q :exec\n-- param: $1 level Option<String>\nUPDATE gauges SET level = coalesce($1, level) WHERE id = $2;",
+    );
+    assert_eq!(analyzed.params[0], param(1, "level", "Option<String>"));
+    let reason =
+        failure("-- name: Q :exec\nUPDATE gauges SET level = coalesce($1, $2) WHERE id = $3;");
+    assert!(reason.contains("cannot infer the type of `$1`"), "{reason}");
+    let reason = failure("-- name: Q :one\nSELECT coalesce($1, 'x') AS x FROM gauges;");
+    assert!(reason.contains("cannot infer the type"), "{reason}");
+}
+
+/// `sum`, `avg`, `min` and `max` type by PostgreSQL's rules, in a plain
+/// `SELECT` and in a CTE alike, and may be NULL (no rows, or only NULLs).
+#[test]
+fn aggregates_take_postgres_result_types() {
+    for (expr, expected) in [
+        ("sum(seats)", "i64"),
+        ("sum(stock)", "i64"),
+        ("sum(category_id)", "rust_decimal::Decimal"),
+        ("sum(price)", "rust_decimal::Decimal"),
+        ("sum(stock::real)", "f32"),
+        ("sum(stock::float8)", "f64"),
+        ("avg(seats)", "rust_decimal::Decimal"),
+        ("avg(stock)", "rust_decimal::Decimal"),
+        ("avg(category_id)", "rust_decimal::Decimal"),
+        ("avg(price)", "rust_decimal::Decimal"),
+        ("avg(stock::real)", "f64"),
+        ("avg(stock::float8)", "f64"),
+        ("min(stock)", "i32"),
+        ("max(seats)", "i16"),
+        ("max(price)", "rust_decimal::Decimal"),
+        ("min(name)", "String"),
+        ("max(expires_at)", "chrono::DateTime<chrono::Utc>"),
+        ("sum(DISTINCT stock)", "i64"),
+    ] {
+        let from = if ["seats", "price", "expires_at"]
+            .iter()
+            .any(|column| expr.contains(column))
+        {
+            "passes"
+        } else {
+            "products"
+        };
+        let optional = format!("Option<{expected}>");
+        assert_eq!(
+            scalar(&format!("-- name: Q :one\nSELECT {expr} AS n FROM {from};")),
+            optional,
+            "{expr} in a SELECT"
+        );
+        assert_eq!(
+            scalar(&format!(
+                "-- name: Q :one\nWITH r AS (SELECT {expr} AS n FROM {from}) SELECT n FROM r;"
+            )),
+            optional,
+            "{expr} in a CTE"
+        );
+        assert_eq!(
+            scalar(&format!(
+                "-- name: Q :one\nSELECT (SELECT {expr} FROM {from}) AS n;"
+            )),
+            optional,
+            "{expr} in a subquery"
+        );
+    }
+}
+
+/// An aggregate's own name names an unaliased column, as `count` does.
+#[test]
+fn an_unaliased_aggregate_is_named_after_it() {
+    let query = one("-- name: Q :one\nSELECT sum(stock), max(stock) FROM products;");
+    assert_eq!(
+        row_columns(&query),
+        [("sum", "Option<i64>"), ("max", "Option<i32>")]
+    );
+}
+
+/// `coalesce` with a non-NULL fallback makes an aggregate non-null, uncast.
+#[test]
+fn coalesce_makes_an_aggregate_non_null() {
+    assert_eq!(
+        scalar("-- name: Q :one\nSELECT coalesce(sum(stock), 0) AS n FROM products;"),
+        "i64"
+    );
+    assert_eq!(
+        scalar(
+            "-- name: Q :one\nWITH r AS (SELECT coalesce(max(stock), 0) AS n FROM products) SELECT n FROM r;"
+        ),
+        "i32"
+    );
+}
+
+/// A cast still decides an aggregate's type, keeping its nullability.
+#[test]
+fn a_cast_decides_an_aggregates_type() {
+    assert_eq!(
+        scalar("-- name: Q :one\nSELECT sum(stock)::int AS n FROM products;"),
+        "Option<i32>"
+    );
+    assert_eq!(
+        scalar("-- name: Q :one\nSELECT coalesce(sum(stock), 0)::bigint AS n FROM products;"),
+        "i64"
+    );
+}
+
+/// An aggregate over what PostgreSQL can't sum, or the engine can't type,
+/// still fails with the usual message.
+#[test]
+fn untypeable_aggregates_still_fail() {
+    for expr in ["sum(name)", "avg(name)", "max(unknown_fn(stock))"] {
+        let reason = failure(&format!(
+            "-- name: Q :one\nSELECT {expr} AS v FROM products;"
+        ));
+        assert!(
+            reason.contains("cannot infer the type of result column `v`"),
+            "{expr}: {reason}"
+        );
+    }
+    assert!(
+        failure("-- name: Q :many\nWITH a AS (SELECT sum(name) AS total FROM products) SELECT total FROM a;")
+            .contains("cannot infer the type of column `total` of CTE `a`")
+    );
+}
+
+/// One query serves two listings: `$2::bool` switches the filter in `WHERE`
+/// and, one `CASE` per direction, the sort in `ORDER BY`.
+#[test]
+fn a_bool_cast_placeholder_switches_where_and_order_by() {
+    let query = one("-- name: ListPasses :many
+SELECT id, expires_at FROM passes
+WHERE seats > $1
+  AND CASE WHEN $2::bool THEN expires_at >= now() ELSE expires_at < now() END
+ORDER BY CASE WHEN $2 THEN expires_at END ASC,
+         CASE WHEN NOT $2 THEN expires_at END DESC;");
+    assert_eq!(
+        query.params,
+        [param(1, "seats", "i16"), param(2, "param_2", "bool")]
+    );
+}
+
+/// A count beside the listing takes the same switch.
+#[test]
+fn a_bool_cast_placeholder_switches_a_count() {
+    assert_eq!(
+        one("-- name: CountPasses :one
+SELECT count(*) AS total FROM passes
+WHERE CASE WHEN $1::bool THEN expires_at >= now() ELSE expires_at < now() END;")
+        .params,
+        [param(1, "param_1", "bool")]
+    );
+}
+
+/// A switch used only to sort is typed there, and a bare `CASE WHEN $1` or
+/// `NOT $1` condition is a `bool` without a cast. Sorting by an output
+/// column's alias still works.
+#[test]
+fn a_switch_in_order_by_alone_is_typed() {
+    assert_eq!(
+        one("-- name: SortPasses :many
+SELECT id, label AS title FROM passes
+ORDER BY CASE WHEN $1::bool THEN title END ASC, CASE WHEN NOT $1 THEN title END DESC;")
+        .params,
+        [param(1, "param_1", "bool")]
+    );
+    assert_eq!(
+        one("-- name: SwitchPasses :many
+SELECT id FROM passes WHERE CASE WHEN $1 THEN revoked_at IS NULL ELSE true END;")
+        .params,
+        [param(1, "param_1", "bool")]
+    );
+}
+
+/// A function in `WHERE` is not typed, only read for its columns: a
+/// placeholder inside one is typed by a cast or a `-- param:` override,
+/// and a bare one fails with the `-- param:` hint.
+#[test]
+fn a_function_in_where_types_a_cast_or_declared_placeholder() {
+    let cast = one(
+        "-- name: Q :many\nSELECT id FROM products WHERE lower(name) = lower($1::text) AND abs(stock) > 0;",
+    );
+    assert_eq!(cast.params, [param(1, "param_1", "String")]);
+    let declared = one(
+        "-- name: Q :many\n-- param: $1 pattern String\nSELECT id FROM products WHERE lower(name) LIKE lower($1);",
+    );
+    assert_eq!(declared.params, [param(1, "pattern", "String")]);
+    assert!(
+        failure("-- name: Q :many\nSELECT id FROM products WHERE lower(name) = lower($1);")
+            .contains("cannot infer the type of `$1` from its context; add `-- param: $1")
+    );
+    assert!(
+        failure("-- name: Q :many\nSELECT id FROM products WHERE lower(colour) = 'x';")
+            .contains("column `colour` does not exist in `products`")
     );
 }

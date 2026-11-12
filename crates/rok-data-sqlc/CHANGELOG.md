@@ -9,6 +9,34 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Changed
 
+- `check-arch`'s rule-4 messages (`rule-4`, `cross-feature-write`,
+  `cross-feature-query`) now say what a feature may do: "a feature's
+  queries may join and read any table; writing another feature's table
+  goes through that feature's service". The architecture guide says so
+  too and shows a query joining another table (`TasksWithProject` in
+  `docs/examples/api`). The numbered rule text is unchanged.
+- **Breaking for generated code:** a scalar subquery that always returns
+  one row (an aggregate with no `GROUP BY`, `HAVING`, `LIMIT`, `OFFSET`
+  or set operation) keeps its column's nullability, so
+  `(SELECT count(*) FROM passes)` and
+  `(SELECT coalesce(sum(x), 0)::bigint FROM …)` are `i64` where they were
+  `Option<i64>`. Any other scalar subquery, and one over a nullable
+  aggregate such as `sum(x)`, stays `Option`. A call site that unwrapped
+  such a column drops the unwrap.
+- **Breaking for Rust Client callers:** an integer is as wide as its
+  contract `format`: `int32` is `i32` (utoipa writes it for `i16` too, so
+  a `smallint` is `i32`), `int64` or no format stays `i64`. Every integer
+  was `i64` before. Dart and TypeScript are unchanged (engine ADR 0027,
+  amended).
+- The TypeScript Client writes a `oneOf` of `null` and one schema (what
+  utoipa writes for an `Option<T>` of a component) as `T | null` and
+  `TSchema.nullable()`, instead of `null | T` and
+  `z.union([z.null(), TSchema])`; the types are the same. A nullable
+  success, such as an `Option<BillResponse>` answered `200` with `null`
+  before a value exists, returns `Promise<BillResponse | null>`; the
+  Dart (`Future<BillResponse?>`) and Rust
+  (`Result<Option<BillResponse>, ApiError>`) Clients already returned a
+  nullable type, and emission tests now hold all three.
 - **Breaking for Client callers:** a body field that may be left out and
   may be `null` is three-state only in a `PATCH` body, where the API
   tells "keep" from "clear". Elsewhere it is plain optional: Rust
@@ -35,6 +63,69 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Added
 
+- A guide page, [What typed queries support](docs/guide/typed-queries.md):
+  each SQL form query typing understands, whether it is typed, the
+  override when it isn't (`-- column:`, `-- param:`, `-- rok:skip`) and
+  the test that proves it. A rok-data-cli test fails when a test the page
+  cites no longer exists.
+- **A pager per list in each Client:** the contract reader tells the
+  engine's two list shapes apart (`Document::paging`: page numbers,
+  `{items, page, per_page, total}` with `?page=`; cursors, `{items, next,
+  …}` with `?cursor=`), and each Client gives every list that pages a
+  pager beside its call. TypeScript: `pagers.<tag>.<operation>(query)`,
+  an `infiniteQueryOptions` factory whose `getNextPageParam` is the
+  runtime's new `nextPage` (either shape). Dart:
+  `api.<tag>.<operation>Pager(...)`, a runtime `Pager<T>` with `load()`,
+  `more()` (nothing after the last page), `items` and a
+  `Stream<List<T>>`. Rust: `client.<tag>().<operation>_pages(&query)`, a
+  runtime `Pages` read with `while let Some(page) = pages.next().await`.
+  `Pager`, `Pages`, `pagers` and `nextPage` are names a schema may no
+  longer take. The wire-standard guide says which shape a list answers.
+- Typed queries take a subquery in `FROM` (`(SELECT …) AS x`, with an
+  optional column list `x(a, b)`) and `LATERAL (SELECT …) x`, in a
+  `SELECT`, `UPDATE … FROM`, `DELETE … USING` and a data-modifying CTE.
+  Its columns are typed from its query, as a CTE's are; only a `LATERAL`
+  one sees the `FROM` tables beside it, and a reference to one from a
+  plain subquery fails naming it. This used to fail "only tables and
+  set-returning functions are supported in FROM (no subqueries)".
+- The Dart Client runtime has `poll(call, every:, until:)`, a
+  `Stream<T>` of `call`'s answers: one at once, then one every `every`
+  (counted from the previous answer), ending with the first that `until`
+  accepts; a failed call is an error event and polling goes on. It makes
+  no call while `AppLifecycle.foreground` is `false` (a Flutter App sets
+  it from `AppLifecycleListener`) or the subscription is paused, and one
+  at once on return. Both are exported from the library and documented in
+  its README; no per-operation code. The TypeScript Client's README
+  documents TanStack Query's `refetchInterval` for the same job.
+- A query's parameter shape no longer flips when it grows a fourth
+  parameter, if you say so: `-- rok:params struct` (or `positional`)
+  fixes one query's, and `query_params = "auto" | "struct" |
+  "positional"` (in `rok-data-sqlc.toml`, or `[generate]` in `rok.toml`)
+  sets the project's default; the annotation wins. `"auto"` stays the
+  default (arguments up to three, a struct from four). Each generated
+  function's doc comment says which rule applied, so generated query
+  modules change by one doc line per function with parameters.
+- **Browser routes in the Clients:** the contract reader reads an
+  operation with no success (`2xx`) but a redirect (`3xx`) as a Browser
+  route (`Response::Redirect`, `Operation::is_browser_route`) instead of
+  failing, and refuses one with a body or header parameter. Each Client
+  emits a URL builder for it in place of a call, taking its path and
+  query parameters: TypeScript `api.<tag>.<operation>Url(...)` (a
+  `string`, through `apiUrl(path, query)`, with no query or mutation
+  factory), Dart `<operation>Url(...)` (a `Uri`, through the transport's
+  new `urlOf`), Rust `<operation>_url(...)` (a plain `fn` giving
+  `Result<String, ApiError>`, through the runtime's new `Call::url`).
+  An operation with any `2xx` is unchanged (engine ADR 0027, amended).
+- `sum`, `avg`, `min` and `max` are typed by PostgreSQL's rules, in a
+  `SELECT`, a CTE and a subquery alike: `sum` of `smallint`/`integer` is
+  `i64`, of `bigint`/`numeric` `rust_decimal::Decimal`, of a float that
+  float; `avg` of an integer or `numeric` is `rust_decimal::Decimal`, of a
+  float `f64`; `min` and `max` keep the argument's type. Each is `Option`
+  unless wrapped in `coalesce(…, non-null)`; a cast still wins. Before,
+  they failed with "cannot infer the type" unless cast.
+- `rok sqlc query add NAME SQL` reads its SQL the way `-j` reads a
+  payload: `@path` from that file, `-` from stdin, anything else inline.
+  Scripted edits need no shell quoting on any OS.
 - `check-arch` checks that a feature's handler takes its caller extractor
   (`AuthUser`, `AdminUser`, or a struct the App marks `/// rok:caller`)
   before its body extractor (`ValidatedJson`, `Json`, `Form`), reported
@@ -104,6 +195,39 @@ the *generated* API count as breaking (see ADR 0012).
   copy-forward run in the fixture's PostgreSQL suite. Before, any
   function in `FROM` failed the query; other functions still do, naming
   the ones the engine types.
+- A `bool` switch types in a query: a placeholder used as a `CASE WHEN $n
+  THEN` condition or under `NOT` is a `bool`, and a cast or switch in
+  `ORDER BY` types its placeholder too (before, a placeholder only in
+  `ORDER BY` failed the query). One query serves "upcoming or past":
+  `CASE WHEN $2::bool THEN … ELSE … END` in `WHERE`, one `CASE` per
+  sort direction in `ORDER BY`; the README shows the pattern.
+
+### Fixed
+
+- A result column doing arithmetic with a placeholder takes the type
+  parameter typing gave the placeholder: `price * $1 AS total` is
+  `rust_decimal::Decimal` on a `NOT NULL numeric` column, `Option<…>` on
+  a nullable one, typed like `price * price`. A placeholder whose bound
+  type is not an `Option` (its `-- param:` type when it has one) counts
+  as never NULL, so `label ILIKE $2` is `bool`. A placeholder with no
+  numeric partner still asks for `-- param:`.
+- A placeholder beside a column in `coalesce` takes that column's type,
+  optional: `SET locale = coalesce($2, locale)` (either order) infers
+  `Option<T>` for a text column, a typed id, a SQL enum or a CHECK-list
+  enum, with no `-- param:`. A `-- param:` still wins, and a `coalesce`
+  that names no column still asks for one.
+- `Project::export` with a `cargo` command that fails because the App
+  doesn't compile returns "the App doesn't build after this change: fix
+  the call sites, then run `rok gen` to write the contract and the
+  Clients" and the compiler's first error; cargo's output is still shown
+  as it comes. Other export failures keep their message.
+- A run (and a check run) of an App with an OpenAPI document fails when
+  two `ToSchema` types under its `src/` share a component name, naming
+  both files and lines: utoipa keeps one schema per name, so a
+  hand-written DTO named like a generated one replaced it and the Clients
+  came out wrong. `#[schema(as = path::Name)]` (named `path.Name`, as
+  utoipa names it) resolves the clash; generic types and test code are
+  left out.
 
 ## Workspace 0.9.0 - 2026-11-06
 

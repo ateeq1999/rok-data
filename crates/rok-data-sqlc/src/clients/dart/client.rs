@@ -8,10 +8,10 @@
 use heck::ToUpperCamelCase;
 
 use super::super::emit::Named;
-use super::super::openapi::{Body, Response};
+use super::super::openapi::{Body, Document, Paging, Response};
 use super::Error;
 use super::models::Models;
-use super::names::{doc, member_name, string};
+use super::names::{doc, field_name, member_name, string};
 use super::ty::Ty;
 
 /// The class of a tag's operations: `users` is `UsersApi`.
@@ -21,11 +21,15 @@ pub(super) fn group_class(group: &str) -> String {
 
 /// The text of `lib/src/client.dart` (after the header). Inline schemas
 /// of bodies and responses are declared in `models`.
-pub(super) fn file(operations: &[Named<'_>], models: &mut Models<'_>) -> Result<String, Error> {
+pub(super) fn file(
+    document: &Document,
+    operations: &[Named<'_>],
+    models: &mut Models<'_>,
+) -> Result<String, Error> {
     let mut groups: Vec<(&str, Vec<String>)> = Vec::new();
     let mut uses_models = false;
     for named in operations {
-        let (text, named_models) = method(named, models)?;
+        let (text, named_models) = method(named, document.paging(named.op), models)?;
         uses_models |= named_models;
         match groups.iter_mut().find(|(group, _)| *group == named.group) {
             Some((_, methods)) => methods.push(text),
@@ -101,8 +105,13 @@ fn unique(name: &str, taken: &mut Vec<String>) -> String {
     name
 }
 
-/// One method, and whether it names a model.
-fn method(named: &Named<'_>, models: &mut Models<'_>) -> Result<(String, bool), Error> {
+/// One method (and its pager, when it pages), and whether it names a
+/// model.
+fn method(
+    named: &Named<'_>,
+    paging: Option<Paging>,
+    models: &mut Models<'_>,
+) -> Result<(String, bool), Error> {
     let op = named.op;
     let at = format!("`{} {}`", op.method.upper(), op.path);
     let context = format!(
@@ -113,6 +122,11 @@ fn method(named: &Named<'_>, models: &mut Models<'_>) -> Result<(String, bool), 
     let mut taken = vec!["options".to_owned()];
     let mut positional = Vec::new();
     let mut named_params = Vec::new();
+    // What the pager passes on to the call: the path parameters by
+    // position; the query and header parameters by name, each with its
+    // declaration and its name on the wire.
+    let mut forward_positional: Vec<String> = Vec::new();
+    let mut forward_named: Vec<(String, String, String)> = Vec::new();
     let mut uses_models = false;
     let mut path = op.path.clone();
     for parameter in &op.path_params {
@@ -124,6 +138,7 @@ fn method(named: &Named<'_>, models: &mut Models<'_>) -> Result<(String, bool), 
         let name = unique(&parameter.name, &mut taken);
         uses_models |= ty.names_a_model();
         positional.push(format!("{} {name}", ty.dart()));
+        forward_positional.push(name.clone());
         let text = match ty {
             Ty::String => name.clone(),
             Ty::Enum(_) => format!("{name}.toJson()"),
@@ -170,6 +185,11 @@ fn method(named: &Named<'_>, models: &mut Models<'_>) -> Result<(String, bool), 
             if parameter.required { "required " } else { "" },
             ty.dart()
         ));
+        forward_named.push((
+            named_params[named_params.len() - 1].clone(),
+            name.clone(),
+            parameter.name.clone(),
+        ));
         query.push(format!(
             "{}: {}",
             string(&parameter.name),
@@ -199,20 +219,29 @@ fn method(named: &Named<'_>, models: &mut Models<'_>) -> Result<(String, bool), 
             if parameter.required { "required " } else { "" },
             ty.dart()
         ));
+        forward_named.push((
+            named_params[named_params.len() - 1].clone(),
+            name.clone(),
+            String::new(),
+        ));
         headers.push(format!(
             "{}: {}",
             string(&parameter.name),
             ty.encode(&name, 0)
         ));
     }
-    named_params.push("RequestOptions? options".to_owned());
+    // A Browser route is a URL builder: nothing is sent, so no options.
+    let route = op.is_browser_route();
+    if !route {
+        named_params.push("RequestOptions? options".to_owned());
+    }
     if !query.is_empty() {
         call_fields.insert(0, format!("query: {{{}}}", query.join(", ")));
     }
     if !headers.is_empty() {
         call_fields.push(format!("headers: {{{}}}", headers.join(", ")));
     }
-    if op.secured {
+    if op.secured && !route {
         call_fields.push("secured: true".to_owned());
     }
     // The path's literal text escaped, then each parameter interpolated.
@@ -222,7 +251,12 @@ fn method(named: &Named<'_>, models: &mut Models<'_>) -> Result<(String, bool), 
         call.push_str(&format!(",\n      {field}"));
     }
     call.push_str(",\n    )");
+    let mut answer = None;
     let (result, send) = match &op.response {
+        Response::Redirect => (
+            "Uri".to_owned(),
+            format!("_transport.urlOf(\n    {call},\n  )"),
+        ),
         Response::Empty => (
             "void".to_owned(),
             format!("_transport.none(\n    {call},\n    options,\n  )"),
@@ -234,6 +268,7 @@ fn method(named: &Named<'_>, models: &mut Models<'_>) -> Result<(String, bool), 
         Response::Json(schema) => {
             let ty = models.ty(schema, &format!("{context}Response"), false, &at)?;
             uses_models |= ty.names_a_model();
+            answer = Some(ty.clone());
             (
                 ty.dart(),
                 format!(
@@ -244,12 +279,88 @@ fn method(named: &Named<'_>, models: &mut Models<'_>) -> Result<(String, bool), 
             )
         }
     };
-    let summary = op
-        .summary
-        .clone()
-        .unwrap_or_else(|| format!("`{} {}`.", op.method.upper(), op.path));
+    let summary = op.summary.clone().unwrap_or_else(|| {
+        if route {
+            format!(
+                "The URL of `{} {}`, which a browser follows.",
+                op.method.upper(),
+                op.path
+            )
+        } else {
+            format!("`{} {}`.", op.method.upper(), op.path)
+        }
+    });
     // `dart format`'s shape: positional parameters, the last one opening
     // the named ones' braces.
+    let mut parameters = String::new();
+    for (index, parameter) in positional.iter().enumerate() {
+        let last = index + 1 == positional.len();
+        parameters.push_str(&format!(
+            "    {parameter},{}\n",
+            if last && !named_params.is_empty() {
+                " {"
+            } else {
+                ""
+            }
+        ));
+    }
+    let (open, close) = match (positional.is_empty(), named_params.is_empty()) {
+        (true, true) => ("", ""),
+        (true, false) => ("{\n", "  }"),
+        (false, true) => ("\n", "  "),
+        (false, false) => ("\n", "  }"),
+    };
+    for parameter in &named_params {
+        parameters.push_str(&format!("    {parameter},\n"));
+    }
+    let (result, name) = if route {
+        (result, format!("{}Url", member_name(&named.name)))
+    } else {
+        (format!("Future<{result}>"), member_name(&named.name))
+    };
+    let mut text = format!(
+        "{}  {result} {name}({open}{parameters}{close}) => {send};\n",
+        doc(Some(&summary), "  "),
+    );
+    if let (Some(paging), Some(Ty::Class(page))) = (paging, &answer)
+        && let Some(item) = models.items_of(page)
+    {
+        text.push('\n');
+        text.push_str(&pager(
+            named,
+            paging,
+            &item,
+            &positional,
+            &forward_positional,
+            &forward_named,
+        ));
+    }
+    Ok((text, uses_models))
+}
+
+/// The pager of a list that pages: `<name>Pager`, taking the call's
+/// arguments but the page (or cursor), and reading pages with the call.
+fn pager(
+    named: &Named<'_>,
+    paging: Paging,
+    item: &str,
+    positional: &[String],
+    forward_positional: &[String],
+    forward_named: &[(String, String, String)],
+) -> String {
+    let (start, factory, remain) = match paging {
+        Paging::Numbered => (
+            "page",
+            "numbered",
+            format!(
+                "result.{page} * result.{per_page} < result.{total}",
+                page = field_name("page"),
+                per_page = field_name("per_page"),
+                total = field_name("total"),
+            ),
+        ),
+        Paging::Cursor => ("cursor", "cursor", format!("result.{}", field_name("next"))),
+    };
     let mut parameters = String::new();
     for (index, parameter) in positional.iter().enumerate() {
         let last = index + 1 == positional.len();
@@ -259,15 +370,32 @@ fn method(named: &Named<'_>, models: &mut Models<'_>) -> Result<(String, bool), 
         ));
     }
     let open = if positional.is_empty() { "{" } else { "" };
-    for parameter in &named_params {
-        parameters.push_str(&format!("    {parameter},\n"));
+    let mut arguments: Vec<String> = forward_positional.to_vec();
+    for (declaration, name, wire) in forward_named {
+        if wire == start {
+            arguments.push(format!("{name}: {start}"));
+        } else {
+            parameters.push_str(&format!("    {declaration},\n"));
+            arguments.push(format!("{name}: {name}"));
+        }
     }
-    let text = format!(
-        "{}  Future<{result}> {}({open}\n{parameters}  }}) => {send};\n",
-        doc(Some(&summary), "  "),
-        member_name(&named.name),
-    );
-    Ok((text, uses_models))
+    parameters.push_str("    RequestOptions? options,\n");
+    arguments.push("options: options".to_owned());
+    let arguments: String = arguments
+        .iter()
+        .map(|argument| format!("      {argument},\n"))
+        .collect();
+    let name = member_name(&named.name);
+    format!(
+        "  /// Every page of `{method} {path}`, read on demand: [Pager.load] reads\n  \
+         /// the first, [Pager.more] the next, [Pager.stream] gives the rows.\n  \
+         Pager<{item}> {name}Pager({open}\n{parameters}  }}) => Pager.{factory}(({start}) async {{\n    \
+         final result = await {name}(\n{arguments}    );\n    \
+         return (result.{items}, {remain});\n  }});\n",
+        method = named.op.method.upper(),
+        path = named.op.path,
+        items = field_name("items"),
+    )
 }
 
 /// `construct`, at `at`, is outside what the Dart client reads.

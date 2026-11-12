@@ -5,13 +5,14 @@ use std::collections::{BTreeSet, HashSet};
 use std::ops::ControlFlow;
 
 use sqlparser::ast::{
-    BinaryOperator, Expr, FunctionArg, FunctionArgExpr, FunctionArguments, Statement, Value,
-    visit_expressions,
+    BinaryOperator, Expr, FunctionArg, FunctionArgExpr, FunctionArguments, OrderBy, OrderByKind,
+    Query, Statement, UnaryOperator, Value, visit_expressions,
 };
 
+use super::results::coalesce_arguments;
 use super::{Analysis, Param, Slot};
 use crate::parser::postgres::map_type;
-use crate::queries::annotations::{ParamOverride, QueryDef};
+use crate::queries::annotations::ParamOverride;
 use crate::schema::Column;
 
 impl<'a, 'c> Analysis<'a, 'c> {
@@ -67,6 +68,35 @@ impl<'a, 'c> Analysis<'a, 'c> {
                 self.expr(expr)?;
                 self.expr(pattern)
             }
+            Expr::Case {
+                operand,
+                conditions,
+                else_result,
+                ..
+            } => {
+                if let Some(operand) = operand {
+                    self.expr(operand)?;
+                }
+                for when in conditions {
+                    match operand {
+                        Some(operand) => self.compare(operand, &when.condition)?,
+                        None => self.switch(&when.condition)?,
+                    }
+                    self.expr(&when.condition)?;
+                    self.expr(&when.result)?;
+                }
+                match else_result {
+                    Some(else_result) => self.expr(else_result),
+                    None => Ok(()),
+                }
+            }
+            Expr::UnaryOp {
+                op: UnaryOperator::Not,
+                expr: inner,
+            } => {
+                self.switch(inner)?;
+                self.expr(inner)
+            }
             Expr::Nested(inner)
             | Expr::UnaryOp { expr: inner, .. }
             | Expr::IsNull(inner)
@@ -84,6 +114,9 @@ impl<'a, 'c> Analysis<'a, 'c> {
                 self.expr(inner)
             }
             Expr::Function(function) => {
+                if let Some(arguments) = coalesce_arguments(function) {
+                    self.coalesce(&arguments)?;
+                }
                 if let FunctionArguments::List(list) = &function.args {
                     for argument in &list.args {
                         if let FunctionArg::Unnamed(FunctionArgExpr::Expr(argument)) = argument {
@@ -116,6 +149,72 @@ impl<'a, 'c> Analysis<'a, 'c> {
         }
     }
 
+    /// Types a placeholder used as a condition (`CASE WHEN $2 THEN`,
+    /// `NOT $2`) as `bool`: a switch the caller turns on or off.
+    fn switch(&mut self, condition: &Expr) -> Result<(), String> {
+        match placeholder(condition) {
+            Some(index) => self.assign(index, &format!("param_{index}"), "bool", "bool", false),
+            None => Ok(()),
+        }
+    }
+
+    /// Types the placeholders of an `ORDER BY` that a switch or a cast
+    /// determines (`CASE WHEN $2::bool THEN starts_at END`). Its columns
+    /// are not resolved: they may name the query's own output columns.
+    pub(super) fn order_by(&mut self, query: &Query) -> Result<(), String> {
+        let Some(OrderBy {
+            kind: OrderByKind::Expressions(items),
+            ..
+        }) = &query.order_by
+        else {
+            return Ok(());
+        };
+        let mut typed = Ok(());
+        let _ = visit_expressions(items, |expr| {
+            typed = self.order_by_expr(expr);
+            if typed.is_err() {
+                ControlFlow::Break(())
+            } else {
+                ControlFlow::Continue(())
+            }
+        });
+        typed
+    }
+
+    fn order_by_expr(&mut self, expr: &Expr) -> Result<(), String> {
+        match expr {
+            Expr::Cast {
+                expr: inner,
+                data_type,
+                ..
+            } => match placeholder(inner) {
+                Some(index) => {
+                    let (_, sqlx_type) = map_type(data_type, self.context.enums)?;
+                    self.assign(
+                        index,
+                        &format!("param_{index}"),
+                        &sqlx_type,
+                        &sqlx_type,
+                        false,
+                    )
+                }
+                None => Ok(()),
+            },
+            Expr::Case {
+                operand: None,
+                conditions,
+                ..
+            } => conditions
+                .iter()
+                .try_for_each(|when| self.switch(&when.condition)),
+            Expr::UnaryOp {
+                op: UnaryOperator::Not,
+                expr: inner,
+            } => self.switch(inner),
+            _ => Ok(()),
+        }
+    }
+
     /// Types `value` from `column` when `value` is a placeholder and `column`
     /// a column reference.
     fn compare(&mut self, column: &Expr, value: &Expr) -> Result<(), String> {
@@ -139,6 +238,36 @@ impl<'a, 'c> Analysis<'a, 'c> {
             &column.sqlx_type,
             false,
         )
+    }
+
+    /// Types each placeholder argument of `coalesce(…)` from the first column
+    /// among its arguments, optional: `coalesce($2, locale)` keeps `locale`
+    /// when the caller passes `None`. PostgreSQL types the placeholder from
+    /// its sibling arguments the same way.
+    fn coalesce(&mut self, arguments: &[&Expr]) -> Result<(), String> {
+        let mut column = None;
+        for argument in arguments {
+            if let Some(reference) = self.column_reference(argument)? {
+                column = Some(self.reference_column(&reference).clone());
+                break;
+            }
+        }
+        let Some(column) = column else {
+            return Ok(());
+        };
+        for index in arguments
+            .iter()
+            .filter_map(|argument| placeholder(argument))
+        {
+            self.assign(
+                index,
+                &column.rust_name,
+                column.value_type(),
+                &column.sqlx_type,
+                true,
+            )?;
+        }
+        Ok(())
     }
 
     /// Types `value` from a numeric `column` it is added to, subtracted
@@ -238,11 +367,7 @@ impl<'a, 'c> Analysis<'a, 'c> {
 
     /// Combines inferred slots with overrides into the final, gap-free
     /// parameter list with unique names.
-    pub(super) fn params(
-        &self,
-        statement: &Statement,
-        def: &QueryDef,
-    ) -> Result<Vec<Param>, String> {
+    pub(super) fn params(&self, statement: &Statement) -> Result<Vec<Param>, String> {
         let mut used = BTreeSet::new();
         let _ = visit_expressions(statement, |expr| {
             if let Some(index) = placeholder(expr) {
@@ -251,7 +376,7 @@ impl<'a, 'c> Analysis<'a, 'c> {
             ControlFlow::<()>::Continue(())
         });
 
-        for override_ in &def.params {
+        for override_ in self.param_overrides {
             if !used.contains(&override_.index) {
                 return Err(format!(
                     "`-- param: ${}` overrides a placeholder the query does not use",
@@ -269,30 +394,18 @@ impl<'a, 'c> Analysis<'a, 'c> {
                     "`${index}` is never used, but `${highest}` is; PostgreSQL cannot infer the type of an unused placeholder"
                 ));
             }
-            let override_ = def.params.iter().find(|override_| override_.index == index);
-            let slot = self.slots.get(&index);
-            let (name, rust_type) = match (override_, slot) {
-                (
-                    Some(ParamOverride {
-                        name,
-                        rust_type: Some(rust_type),
-                        ..
-                    }),
-                    _,
-                ) => (name.clone(), rust_type.clone()),
-                (Some(override_), Some(slot)) => (
-                    override_.name.clone(),
-                    slot_type(slot, slot.nullable && !override_.not_null),
-                ),
-                (None, Some(slot)) => (slot.name.clone(), slot_type(slot, slot.nullable)),
-                (override_, None) => {
-                    let name = override_.map_or("<name>", |override_| &override_.name);
-                    return Err(format!(
-                        "cannot infer the type of `${index}` from its context; add `-- param: ${index} {name} <RustType>`"
-                    ));
-                }
+            let override_ = self.param_override(index);
+            let name = match (override_, self.slots.get(&index)) {
+                (Some(override_), _) => &override_.name,
+                (None, Some(slot)) => &slot.name,
+                (None, None) => "<name>",
             };
-            let name = unique_name(&name, &mut names);
+            let Some(rust_type) = self.param_type(index) else {
+                return Err(format!(
+                    "cannot infer the type of `${index}` from its context; add `-- param: ${index} {name} <RustType>`"
+                ));
+            };
+            let name = unique_name(name, &mut names);
             params.push(Param {
                 index,
                 name,
@@ -300,6 +413,25 @@ impl<'a, 'c> Analysis<'a, 'c> {
             });
         }
         Ok(params)
+    }
+
+    /// The Rust type placeholder `index` is bound as: its `-- param:` type,
+    /// else the type its context gave it, `Option` when nullable (unless the
+    /// override marks it `!`). `None` when nothing determines it.
+    pub(super) fn param_type(&self, index: usize) -> Option<String> {
+        let override_ = self.param_override(index);
+        if let Some(rust_type) = override_.and_then(|override_| override_.rust_type.as_ref()) {
+            return Some(rust_type.clone());
+        }
+        let slot = self.slots.get(&index)?;
+        let not_null = override_.is_some_and(|override_| override_.not_null);
+        Some(slot_type(slot, slot.nullable && !not_null))
+    }
+
+    fn param_override(&self, index: usize) -> Option<&ParamOverride> {
+        self.param_overrides
+            .iter()
+            .find(|override_| override_.index == index)
     }
 }
 

@@ -12,8 +12,8 @@ Karibu Pass's Partner Enquiry mails the partnerships team, who reply to the busi
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done (rok-templates PR #16)
 
-- [ ] A mail with `reply_to` reaches SMTP with a `Reply-To` header (transport test)
-- [ ] A job queued without `reply_to` still decodes
-- [ ] `Templates::message` escapes a paragraph's HTML
+- [x] A mail with `reply_to` reaches SMTP with a `Reply-To` header (transport test)
+- [x] A job queued without `reply_to` still decodes
+- [x] `Templates::message` escapes a paragraph's HTML

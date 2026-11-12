@@ -63,6 +63,8 @@ const RESERVED: &[&str] = &[
     "keys",
     "queries",
     "mutations",
+    "pagers",
+    "nextPage",
 ];
 
 /// The client's files for `document`, each its path relative to the
@@ -104,7 +106,10 @@ pub fn emit(document: &Document) -> Result<Vec<(PathBuf, String)>, Error> {
         ),
         (
             PathBuf::from("src/queries.ts"),
-            format!("{HEADER}{ZOD}{}", queries::file(&operations, &names)),
+            format!(
+                "{HEADER}{ZOD}{}",
+                queries::file(document, &operations, &names)
+            ),
         ),
     ];
     files.sort_by(|a, b| a.0.cmp(&b.0));
@@ -220,9 +225,15 @@ impl TypeNames {
 
 /// The client's `README.md`.
 fn readme(operations: &[Named<'_>]) -> String {
+    let routes = if operations.iter().any(|named| named.op.is_browser_route()) {
+        "- `api.<tag>.<operation>Url(...)` for a Browser route (an operation whose \n         every answer is a redirect): its full URL, with its path and query \n         parameters, for a browser to follow; it sends nothing.
+"
+    } else {
+        ""
+    };
     let example = operations
         .iter()
-        .find(|named| named.is_query())
+        .find(|named| named.is_query() && !named.op.is_browser_route())
         .map_or_else(String::new, |named| {
             format!(
                 "\n```ts\nimport {{ api, queries }} from \"<this directory>/src\"\n\n\
@@ -243,6 +254,14 @@ fn readme(operations: &[Named<'_>]) -> String {
          - `queries.<tag>.<operation>(...)`: `queryOptions` for every `GET`; \
          `mutations.<tag>.<operation>()`: `mutationOptions` for the others; \
          `keys.<tag>`: the prefix of a tag's query keys, to invalidate them.\n\
+         - `pagers.<tag>.<operation>(...)`: `infiniteQueryOptions` for every list that \
+         pages (by page number or by cursor), for `useInfiniteQuery`; `nextPage` reads \
+         the next page off either shape.\n\
+         - To poll, add TanStack Query's `refetchInterval` to a query; a function \
+         of the query that returns `false` stops it: `useQuery({{ \
+         ...queries.<tag>.<operation>(...), refetchInterval: (query) => \
+         (isDone(query.state.data) ? false : 3000) }})`. It pauses while the tab is \
+         hidden.\n\
          - `ApiError` (`status`, `code`, `message`, `details` of `FieldIssue`s on a \
          `422`) is what every failure rejects with.\n\
          - `<Type>Schema`: the zod schema of each type, with the server's rules \
@@ -253,7 +272,7 @@ fn readme(operations: &[Named<'_>]) -> String {
          - The App depends on zod 4 (`zod@^4`).\n\
          - `configure({{ baseUrl, token, onUnauthorized }})` once, at start-up: the \
          session's bearer token goes to the operations that need it, and a `401` to \
-         one of them calls `onUnauthorized`.\n{example}"
+         one of them calls `onUnauthorized`.\n{routes}{example}"
     )
 }
 

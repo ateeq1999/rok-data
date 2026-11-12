@@ -6,8 +6,8 @@ Spec: `docs/specs/starter-feedback.md`
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done (rok-templates PR #15, d9e8590)
 
-- [ ] No template Dockerfile runs `cargo install rok-data-cli`
-- [ ] The migrate stage's `rok` is the pinned release, checksum verified
-- [ ] Ticket 01's test also covers the Dockerfiles' version
+- [x] No template Dockerfile runs `cargo install rok-data-cli`
+- [x] The migrate stage's `rok` is the pinned release, checksum verified
+- [x] Ticket 01's test also covers the Dockerfiles' version

@@ -502,6 +502,17 @@ steps:
 nothing was rolled back; once the cause is fixed, `rok gen` finishes the rest
 ```
 
+When the export is a `cargo` command and the App no longer compiles (a
+data-layer change broke a call site), the error says so instead, followed
+by the compiler's first error:
+
+```text
+error: the contract export failed: the App doesn't build after this change: fix the call sites, then run `rok gen` to write the contract and the Clients
+
+error[E0061]: this function takes 2 arguments but 1 argument was supplied
+ --> apps/api/src/features/users/service.rs:14:9
+```
+
 The command keeps the run's flags, without `--migration` once a migration
 is staged. With `--json`, the steps are an object `{"steps": [{"kind":
 "data_layer"|"migration"|"export"|"client", "app"|"migration"|"client": ...,
@@ -1022,10 +1033,17 @@ query file, then generates the same way `rok sqlc generate` does with the
 discovered config. If generation fails, the file is restored (a new file is
 removed), and the error names the query's failure and its line.
 
+SQL with quotes reads best from a file:
+
+```console
+$ rok sqlc query add MediaByKind @media_by_kind.sql --file media
+added `MediaByKind` to queries/media.sql
+```
+
 | Flag                  | Meaning                                                              |
 | --------------------- | -------------------------------------------------------------------- |
 | `NAME`                | the query's name, PascalCase: `OwnedMedia` generates `owned_media`; must be new in the file |
-| `SQL`                 | the statement, with `$1`, `$2`, … placeholders                       |
+| `SQL`                 | the statement, with `$1`, `$2`, … placeholders; `@path` reads it from that file, `-` from stdin (no shell quoting) |
 | `-f, --file FILE`     | a stem (`media`) under the one configured `queries` directory, or a path ending in `.sql` |
 | `-o, --one`, `-m, --maybe-one`, `-M, --many`, `-x, --exec`, `-r, --execrows`, `-p, --page` | the return mode, at most one; omitted, it is inferred |
 | `-c, --config FILE`   | config file instead of discovered `rok-data-sqlc.toml`                |

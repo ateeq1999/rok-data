@@ -11,6 +11,27 @@ that it exists and won't ship a tag without it).
 
 **Changed**
 
+- `check-arch`'s rule-4 messages (`rule-4`, `cross-feature-write`,
+  `cross-feature-query`) say that a feature's queries may join and read
+  any table, and that writing another feature's table goes through that
+  feature's service. The architecture guide shows such a join.
+- Queries: a scalar subquery that always returns one row, such as
+  `(SELECT count(*) FROM passes)`, is `i64` instead of `Option<i64>`;
+  one with `GROUP BY`, `HAVING`, `LIMIT`, `OFFSET` or a set operation,
+  or over a nullable aggregate, stays `Option`.
+- A schema statement rok can't undo by itself, left without its
+  `-- rok:down`, is refused by its first line, and the message says to
+  add the block immediately after that statement ("rok can't undo
+  `CREATE TRIGGER books_audit …` by itself; add `-- rok:down` and the
+  SQL that undoes it immediately after this statement"). The guide's
+  *After a schema change* shows two triggers, each with its own block.
+- The Rust Client types an integer by its contract `format`: `int32` is
+  `i32` (a `smallint` too), `int64` or no format stays `i64`.
+- The TypeScript Client spells an `Option<T>` (a `oneOf` of `null` and
+  one schema) as `T | null` and `TSchema.nullable()`, a nullable success
+  included: `GET /me/tables/{id}/bill` declared `Option<BillResponse>`
+  returns `Promise<BillResponse | null>`. "None yet" is `200` with
+  `null`; a 404 still means no such resource.
 - A Client's body field that may be left out and may be `null` is
   three-state only in a `PATCH` body; elsewhere it is plain optional, so
   a `POST` reads `Some(value)` in Rust and `name` in Dart instead of
@@ -24,6 +45,42 @@ that it exists and won't ship a tag without it).
 
 **Added**
 
+- Docs: [What typed queries support](crates/rok-data-sqlc/docs/guide/typed-queries.md),
+  one table of every SQL form query typing understands (computed columns,
+  functions, CTEs, subqueries, set-returning functions, parameters,
+  `:page`), the `-- column:`, `-- param:` or `-- rok:skip` for the ones
+  it doesn't, and the test behind each row. Linked from the engine
+  README and `docs/llms.txt`.
+- Every Client pages a list for you: TypeScript
+  `useInfiniteQuery(pagers.notes.list({ q }))`, Dart
+  `api.notes.listPager(q: q)` (a `Pager` with `load()`, `more()` and a
+  `stream` of the rows), Rust `client.notes().list_pages(&query)` (`while
+  let Some(page) = pages.next().await`). Both list shapes are read:
+  page numbers and `[api] cursor` cursors.
+- A contract operation whose answers are redirects (no `2xx`, a `3xx`),
+  such as a sign-in's start and callback at an OpenID provider, is a
+  Browser route: `rok gen` accepts it instead of failing with "no success
+  response", and each Client builds its URL instead of calling it
+  (`api.auth.oidcStartUrl(provider, { return_to })` in TypeScript,
+  `api.auth.oidcStartUrl(provider, returnTo: ...)` in Dart,
+  `client.auth().oidc_start_url("google", &query)` in Rust).
+- Queries: `sum`, `avg`, `min` and `max` are typed by PostgreSQL's rules
+  in a `SELECT`, a CTE and a subquery alike (`sum(stock)` over an
+  `integer` is `Option<i64>`, `coalesce(sum(stock), 0)` is `i64`), so
+  they no longer need a cast. A cast still decides the type.
+- `rok sqlc query add NAME @q.sql` reads the SQL from a file, and
+  `query add NAME -` from stdin, so SQL with quotes needs no shell
+  quoting.
+- Typed queries take a subquery in `FROM` (`(SELECT …) AS x`, optionally
+  `x(a, b)`) and `LATERAL (SELECT …) x`, in a `SELECT`, `UPDATE … FROM`,
+  `DELETE … USING` and a data-modifying CTE, typed from its query as a
+  CTE is.
+- The Dart Client's `poll(() => api.<tag>.<operation>(...), every:, until:)`
+  is a `Stream` of a call's answers, repeated until one is done; it makes
+  no call while the App is in the background (`AppLifecycle.foreground`,
+  set from Flutter's lifecycle) and one at once on return. The
+  TypeScript Client's README points polling at TanStack Query's
+  `refetchInterval`.
 - `rok_data::transaction(&pool, |tx| …)` runs a closure in a transaction
   on a plain `PgPool` (what a service holds), committing on `Ok` and
   rolling back on `Err`; its `tx` is a `rok_data::Tx`. `check-arch` lets
@@ -54,6 +111,32 @@ that it exists and won't ship a tag without it).
   quantity)`) or from one JSON parameter (`jsonb_to_recordset($2) AS
   l(item_id uuid, quantity int)`, a `serde_json::Value`). The engine
   README's "Writing query files" documents the patterns.
+- One query serves "upcoming or past": a `bool` switch
+  (`CASE WHEN $2::bool THEN … ELSE … END` in `WHERE`, one `CASE` per
+  sort direction in `ORDER BY`) types its placeholder, also when it
+  appears only in `ORDER BY`. The engine README documents the pattern.
+
+**Fixed**
+
+- A result column that does arithmetic with a placeholder is typed like
+  the column it is paired with: `price * $1 AS total` is `Decimal` on a
+  `NOT NULL numeric` column and `Option<Decimal>` on a nullable one,
+  instead of asking for `-- column:`. A comparison with a placeholder
+  bound as a non-`Option` type is no longer `Option<bool>`.
+- A partial update's `coalesce($2, locale)` types `$2` as the column's
+  `Option<T>` (a CHECK-list enum included) instead of asking for
+  `-- param:`.
+- A `rok gen` whose contract export is a `cargo` command, and fails
+  because the App no longer compiles (a data-layer change broke a call
+  site), says so: "the App doesn't build after this change: fix the call
+  sites, then run `rok gen` to write the contract and the Clients",
+  followed by the compiler's first error. `--json` carries it as the
+  failed export step's `error`. Other export failures keep their message.
+- `rok gen` and `rok gen check` fail when two `ToSchema` types in the
+  App share a component name (a hand-written DTO named like a generated
+  response, say), naming both files, instead of the OpenAPI document
+  silently keeping one of them and the Clients coming out wrong. Rename
+  one of the types or give it `#[schema(as = ...)]`.
 
 ## [0.9.0] — strict, better-typed `rok gen`; one rule for finding the project; `:page` and shared queries
 

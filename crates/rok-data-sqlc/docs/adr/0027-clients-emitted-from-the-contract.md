@@ -207,3 +207,31 @@ or without them, and the server checks them.
   `Default`. This replaces "every request's optional, nullable field is
   three-state" in the Rust and Dart sections above: a `POST` caller wrote
   `Some(Some(…))` and `Nullable(name)` for nothing.
+- **An integer is as wide as its `format`.** The reader keeps an
+  integer's `format`, and the Rust Client reads it: `int32` is `i32`,
+  `int64` or no format `i64` (was `i64` for every integer). utoipa has no
+  `int16` and writes `int32` for an `i16`, so a `smallint` column is an
+  `i32`. Bounds (`minimum`/`maximum`) are carried where a Client checks
+  values, the TypeScript Client's zod rules; the Rust Client has no
+  place for them, and Dart's `int` and TypeScript's `number` are one
+  width already, so "Formats are read past" above now means every format
+  but an integer's in Rust.
+- **Browser routes are URL builders.** An operation with no success
+  (`2xx`) but a redirect (`3xx`) is a Browser route, such as the start
+  and callback of a sign-in at an OpenID provider: a browser follows it,
+  so the reader accepts it (`Response::Redirect`) where it used to fail
+  with "no success response", and each Client builds its URL instead of
+  calling it. The builder is named after the call with `Url` added and
+  takes the call's path parameters and query, never a body, header or
+  token (a Browser route with a body or header parameter is refused):
+  - TypeScript: `api.auth.oidcStartUrl(provider, { return_to })`, a
+    `string` on the configured base URL (`apiUrl(path, query)`); no
+    query or mutation factory.
+  - Dart: `api.auth.oidcStartUrl(provider, returnTo: ...)`, a `Uri`.
+  - Rust: `client.auth().oidc_start_url("google", &query)`, a plain
+    `fn` giving `Result<String, ApiError>` (an unparsable base URL is
+    the error), built by `reqwest` and sent nowhere.
+
+  An operation with any `2xx` stays a call, whatever redirects it also
+  documents. No `x-rok-client` extension marks either: the responses
+  say which it is.

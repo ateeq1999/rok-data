@@ -366,3 +366,145 @@ fn only_a_patch_body_has_three_state_fields() {
         "{types}"
     );
 }
+
+/// A `Counts` object with integers of each `format` utoipa writes.
+fn counts() -> Document {
+    parsed(
+        json!({}),
+        json!({"Counts": {"type": "object", "required": ["small", "big", "plain"], "properties": {
+            "small": {"type": "integer", "format": "int32", "minimum": 0},
+            "big": {"type": "integer", "format": "int64"},
+            "plain": {"type": "integer"},
+            "maybe": {"type": ["integer", "null"], "format": "int32"},
+        }}}),
+    )
+}
+
+/// `int32` is `i32`; `int64`, or no format, is `i64`.
+#[test]
+fn an_integer_is_as_wide_as_its_format() {
+    let files = emitted(&counts());
+    let types = file(&files, "src/types.rs");
+    assert!(types.contains("    pub small: i32,\n"), "{types}");
+    assert!(types.contains("    pub big: i64,\n"), "{types}");
+    assert!(types.contains("    pub plain: i64,\n"), "{types}");
+    assert!(types.contains("    pub maybe: Option<i32>,\n"), "{types}");
+}
+
+/// Every list that pages gets a `<call>_pages` method beside its call: an
+/// async iterator of its pages from the query's page (or cursor) on, a
+/// page-number list's while rows remain, a cursor list's while a page
+/// names the `next` one.
+#[test]
+fn a_paged_list_gets_a_pages_iterator() {
+    let files = emitted(&api_app());
+    let calls = file(&files, "src/calls.rs");
+    assert!(
+        calls.contains(
+            "    pub fn list_pages(\n        &self,\n        query: &types::NotesListQuery,\n    \
+             ) -> crate::Pages<'_, types::PaginatedResponseNoteResponse> {\n        \
+             let calls = *self;\n        \
+             let read = move |query: types::NotesListQuery| async move {\n            \
+             let page = calls.list(&query).await?;\n            \
+             let more = i64::from(page.page) * i64::from(page.per_page) < page.total;\n            \
+             let next = more.then(|| types::NotesListQuery {\n                \
+             page: Some(page.page + 1),\n                ..query\n            });\n            \
+             Ok((page, next))\n        };\n        \
+             crate::Pages::new(query.clone(), read)\n    }\n"
+        ),
+        "{calls}"
+    );
+    assert!(calls.contains(
+        "    ) -> crate::Pages<'_, types::CursorResponseLabelResponse> {\n        \
+         let calls = *self;\n        \
+         let read = move |query: types::LabelsListQuery| async move {\n            \
+         let page = calls.list(&query).await?;\n            \
+         let next = page.next.clone().map(|cursor| types::LabelsListQuery {\n                \
+         cursor: Some(cursor),\n                ..query\n            });\n            \
+         Ok((page, next))\n        };\n        \
+         crate::Pages::new(query.clone(), read)\n    }\n"
+    ));
+    let runtime = file(&files, "src/runtime.rs");
+    assert!(runtime.contains("pub struct Pages<'a, P> {"));
+    assert!(runtime.contains("    pub async fn next(&mut self) -> Option<Result<P, ApiError>> {"));
+    let lib = file(&files, "src/lib.rs");
+    assert!(lib.contains("pub use runtime::{ApiError, Client, FieldDetails, FieldIssue, Pages};"));
+}
+
+/// A Browser route is a URL builder, not a call: a plain `fn`, named
+/// `<operation>_url`, that takes its path and query parameters and gives
+/// the full URL, sending nothing.
+#[test]
+fn a_browser_route_is_a_url_builder() {
+    let files = emitted(&crate::clients::openapi::tests::browser_routes());
+    let calls = file(&files, "src/calls.rs");
+    assert!(
+        calls.contains(
+            "    /// Starts signing in at an OpenID provider.\n    \
+         pub fn oidc_start_url(\n        &self,\n        provider: &str,\n        \
+         query: &types::AuthOidcStartQuery,\n    ) -> Result<String, ApiError> {\n        \
+         let provider = crate::segment(provider);\n        \
+         let path = format!(\"/auth/oidc/{provider}/start\");\n        \
+         let call = self.client.call(Method::GET, &path, false)?;\n        \
+         call.query(query).url()\n    }\n"
+        ),
+        "{calls}"
+    );
+    assert!(
+        calls.contains(
+            "    /// The URL of `GET /auth/oidc/callback`, which a browser follows.\n    \
+         pub fn oidc_callback_url(\n"
+        ),
+        "{calls}"
+    );
+    assert!(!calls.contains("async fn oidc"), "{calls}");
+    assert!(calls.contains("    pub async fn me(&self) -> Result<(), ApiError> {\n"));
+    let runtime = file(&files, "src/runtime.rs");
+    assert!(runtime.contains("    pub fn url(self) -> Result<String, ApiError> {\n"));
+}
+
+/// The README names the URL builders when the document has a Browser
+/// route, and its example is a call.
+#[test]
+fn the_readme_names_browser_routes() {
+    let files = emitted(&crate::clients::openapi::tests::browser_routes());
+    let readme = file(&files, "README.md");
+    assert!(
+        readme.contains("client.<tag>().<operation>_url(...)` for a Browser route"),
+        "{readme}"
+    );
+    assert!(
+        readme.contains("let answer = client.auth().me().await?;"),
+        "{readme}"
+    );
+    assert!(!file(&emitted(&monorepo()), "README.md").contains("Browser route"));
+}
+
+/// "None yet" is an answer: an `Option<T>` success, as utoipa writes it
+/// (`oneOf` of `null` and the `$ref`), answers `Option<T>`.
+#[test]
+fn a_nullable_success_answers_none() {
+    let document = parsed(
+        json!({"/me/tables/{id}/bill": {"get": {
+            "tags": ["tables"], "operationId": "bill",
+            "parameters": [{"name": "id", "in": "path", "required": true,
+                            "schema": {"type": "string"}}],
+            "responses": {"200": {"description": "", "content": {"application/json": {
+                "schema": {"oneOf": [
+                    {"type": "null"},
+                    {"$ref": "#/components/schemas/BillResponse"},
+                ]},
+            }}}},
+        }}}),
+        json!({"BillResponse": {
+            "type": "object", "required": ["total"],
+            "properties": {"total": {"type": "integer"}},
+        }}),
+    );
+    let files = emitted(&document);
+    let calls = file(&files, "src/calls.rs");
+    assert!(
+        calls.contains("-> Result<Option<types::BillResponse>, ApiError> {"),
+        "{calls}"
+    );
+}

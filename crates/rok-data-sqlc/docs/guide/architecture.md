@@ -150,6 +150,29 @@ ones.
 The cross-feature write part of rule 4 is reported as `cross-feature-write`,
 its query part as `cross-feature-query`, and the layout as `layout`.
 
+**Reads cross features; writes don't.** Rule 4 is about writes and about
+another feature's modules, never about which tables a query reads: a
+feature's queries may join and read any table; writing another feature's
+table goes through that feature's service. Every rule-4 message says so,
+and `check-arch` never reads SQL. When a feature needs another table's
+column, join it in the query instead of making a second call. This query
+reads each task's project name in one round trip:
+
+<!-- source: docs/examples/api/queries.sql -->
+```sql
+-- name: TasksWithProject :many
+-- A query reads any table: one join gives each task its project's name.
+SELECT t.id, t.title, t.done, p.name AS project_name
+FROM tasks t
+JOIN projects p ON p.id = t.project_id
+WHERE t.owner_id = $1
+ORDER BY t.created_at;
+```
+
+A pass reads its event's `cancel_reason` the same way: `JOIN events e ON
+e.id = p.event_id` in the passes feature's query, not a call to the events
+feature.
+
 `check-arch` also checks that a handler takes its caller before its body
 (`caller-first`): a caller extractor (`AuthUser`, `AdminUser`, or a struct
 your App marks with a `/// rok:caller` doc line) comes before the body

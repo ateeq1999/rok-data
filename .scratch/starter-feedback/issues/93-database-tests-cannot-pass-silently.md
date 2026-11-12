@@ -11,8 +11,8 @@ Karibu Pass's `cargo test --test client` reported every test `ok` in 0.00s witho
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done (rok-templates PR #16)
 
-- [ ] With `DATABASE_URL` only in `.env`, the database tests run (test)
-- [ ] With `CI` set and no `DATABASE_URL`, they fail with that message
-- [ ] The same in all four Templates
+- [x] With `DATABASE_URL` only in `.env`, the database tests run (test)
+- [x] With `CI` set and no `DATABASE_URL`, they fail with that message
+- [x] The same in all four Templates

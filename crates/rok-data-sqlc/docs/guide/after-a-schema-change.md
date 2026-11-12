@@ -40,6 +40,28 @@ right after the previous statement's `;` — with the undo directly under it
 and at least one statement before it. A marker inside a string literal,
 or any comment that is not exactly `rok:down`, is a comment.
 
+Each statement rok can't undo by itself carries its own `-- rok:down`
+block, immediately after it. Two triggers are two pairs:
+
+```sql
+CREATE TRIGGER books_touch BEFORE UPDATE ON books
+    FOR EACH ROW EXECUTE FUNCTION touch();
+-- rok:down
+DROP TRIGGER books_touch ON books;
+
+CREATE TRIGGER books_audit AFTER INSERT ON books
+    FOR EACH ROW EXECUTE FUNCTION audit();
+-- rok:down
+DROP TRIGGER books_audit ON books;
+```
+
+A statement left without its block is refused by name, with the place
+its block goes:
+
+```text
+error: schema/books.sql:6: rok can't undo `CREATE TRIGGER books_audit AFTER INSERT ON books` by itself; add `-- rok:down` and the SQL that undoes it immediately after this statement
+```
+
 ## What a broken constraint says
 
 A violation names its constraint (`drops_month_check`), which means

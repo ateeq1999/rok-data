@@ -19,8 +19,8 @@ Today `sum(stock)` over an integer column fails in a plain SELECT ("cannot infer
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Each row of the table infers in a SELECT and in a CTE (analyzer tests)
-- [ ] `coalesce(sum(stock), 0)` is non-null with no cast
-- [ ] A cast on an aggregate still decides its type
+- [x] Each row of the table infers in a SELECT and in a CTE (analyzer tests)
+- [x] `coalesce(sum(stock), 0)` is non-null with no cast
+- [x] A cast on an aggregate still decides its type

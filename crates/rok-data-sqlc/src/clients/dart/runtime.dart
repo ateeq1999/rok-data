@@ -220,6 +220,10 @@ final class Transport {
   /// `path` on the API's origin.
   Uri url(String path) => Uri.parse('$_baseUrl$path');
 
+  /// `call`'s full URL, its query included, sent nowhere: a Browser
+  /// route's, for a browser to follow.
+  Uri urlOf(Call call) => _url(call);
+
   /// Sends `call`; its success's JSON body, read by `decode`.
   Future<T> json<T>(
     Call call,
@@ -372,4 +376,200 @@ final class Transport {
           ],
     };
   }
+}
+
+/// A list read a page at a time, for an infinite list: [load] reads the
+/// first page, [more] the next one, and [stream] gives every row read so
+/// far each time a page arrives (or the error a page failed with).
+///
+/// ```dart
+/// final pager = api.users.listPager(q: 'ada');
+/// await pager.load();
+/// // at the end of the list on screen:
+/// await pager.more();
+/// ```
+final class Pager<T> {
+  Pager._(this._read);
+
+  /// A pager over a list paged by number: `read(page)` reads page `page`,
+  /// from 1, and says whether rows remain after it.
+  factory Pager.numbered(Future<(List<T>, bool)> Function(int page) read) =>
+      Pager._((start) async {
+        final page = start is int ? start : 1;
+        final (rows, remain) = await read(page);
+        return (rows, remain ? page + 1 : null);
+      });
+
+  /// A pager over a list paged by cursor: `read(cursor)` reads the page at
+  /// `cursor` (the first at `null`) and gives the next page's cursor,
+  /// `null` on the last page.
+  factory Pager.cursor(
+    Future<(List<T>, String?)> Function(String? cursor) read,
+  ) => Pager._((start) => read(start is String ? start : null));
+
+  final Future<(List<T>, Object?)> Function(Object? start) _read;
+  final StreamController<List<T>> _changes =
+      StreamController<List<T>>.broadcast();
+  List<T> _items = List.unmodifiable(<T>[]);
+  Object? _next;
+  bool _last = false;
+  int _generation = 0;
+  Future<List<T>>? _reading;
+
+  /// Every row read so far, in the list's order.
+  List<T> get items => _items;
+
+  /// Whether [more] has a page left to read: false once the last page is
+  /// read.
+  bool get hasMore => !_last;
+
+  /// Whether a page is being read.
+  bool get isLoading => _reading != null;
+
+  /// [items], each time a page arrives.
+  Stream<List<T>> get stream => _changes.stream;
+
+  /// Reads the first page, dropping every row read before (a refresh).
+  Future<List<T>> load() {
+    _generation++;
+    _items = List.unmodifiable(<T>[]);
+    _next = null;
+    _last = false;
+    return _reading = _page();
+  }
+
+  /// Reads the next page and appends its rows: the first page when none
+  /// is read yet, nothing after the last page. While a page is being
+  /// read, it waits for that one.
+  Future<List<T>> more() {
+    if (!hasMore) return Future.value(_items);
+    return _reading ??= _page();
+  }
+
+  /// Closes [stream].
+  Future<void> close() => _changes.close();
+
+  Future<List<T>> _page() async {
+    final generation = _generation;
+    try {
+      final (rows, next) = await _read(_next);
+      if (generation != _generation) return _items;
+      _items = List.unmodifiable([..._items, ...rows]);
+      _next = next;
+      _last = next == null;
+      if (!_changes.isClosed) _changes.add(_items);
+      return _items;
+    } catch (error, stackTrace) {
+      if (generation == _generation && !_changes.isClosed) {
+        _changes.addError(error, stackTrace);
+      }
+      rethrow;
+    } finally {
+      if (generation == _generation) _reading = null;
+    }
+  }
+}
+
+/// Whether the App is in the foreground, which every [poll] follows. It
+/// starts `true`; a Flutter App sets it from its lifecycle once, at
+/// start-up:
+///
+/// ```dart
+/// AppLifecycleListener(
+///   onStateChange: (state) =>
+///       AppLifecycle.foreground = state == AppLifecycleState.resumed,
+/// );
+/// ```
+abstract final class AppLifecycle {
+  static bool _foreground = true;
+  static final _changes = StreamController<bool>.broadcast(sync: true);
+
+  /// Whether the App is in the foreground.
+  static bool get foreground => _foreground;
+
+  /// The App came to the foreground (`true`) or left it (`false`).
+  static set foreground(bool value) {
+    if (value == _foreground) return;
+    _foreground = value;
+    _changes.add(value);
+  }
+
+  /// Each change of [foreground].
+  static Stream<bool> get changes => _changes.stream;
+}
+
+/// `call`'s answers: one at once, then one every `every` (counted from
+/// the previous answer, so calls never overlap), until `until` holds for
+/// an answer, which is the stream's last. A failed call is an error event
+/// and polling goes on. While the App is in the background
+/// ([AppLifecycle.foreground] is `false`) or the subscription is paused,
+/// no call is made; on return, one is made at once. Cancelling the
+/// subscription stops it.
+///
+/// ```dart
+/// poll(() => api.bills.get(id), every: const Duration(seconds: 3),
+///     until: (bill) => bill.paid);
+/// ```
+Stream<T> poll<T>(
+  Future<T> Function() call, {
+  required Duration every,
+  bool Function(T value)? until,
+}) {
+  late final StreamController<T> controller;
+  StreamSubscription<bool>? lifecycle;
+  Timer? timer;
+  var calling = false;
+  var done = false;
+
+  bool running() => !done && !controller.isPaused && AppLifecycle.foreground;
+
+  void halt() {
+    timer?.cancel();
+    timer = null;
+  }
+
+  void stop() {
+    done = true;
+    halt();
+    unawaited(lifecycle?.cancel());
+  }
+
+  Future<void> tick() async {
+    timer = null;
+    if (calling || !running()) return;
+    calling = true;
+    try {
+      final value = await call();
+      if (done) return;
+      controller.add(value);
+      if (until?.call(value) ?? false) {
+        done = true;
+        unawaited(controller.close());
+        return;
+      }
+    } on Object catch (error, stack) {
+      if (done) return;
+      controller.addError(error, stack);
+    } finally {
+      calling = false;
+    }
+    if (running()) timer = Timer(every, tick);
+  }
+
+  void resume() {
+    if (timer == null && !calling) unawaited(tick());
+  }
+
+  controller = StreamController<T>(
+    onListen: () {
+      lifecycle = AppLifecycle.changes.listen(
+        (foreground) => foreground ? resume() : halt(),
+      );
+      unawaited(tick());
+    },
+    onPause: halt,
+    onResume: resume,
+    onCancel: stop,
+  );
+  return controller.stream;
 }

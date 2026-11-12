@@ -36,7 +36,7 @@ fn example_dirs() -> [PathBuf; 4] {
 }
 
 /// The guide's pages, which must all exist.
-const GUIDE_PAGES: [&str; 12] = [
+const GUIDE_PAGES: [&str; 13] = [
     "index.md",
     "getting-started.md",
     "configuring.md",
@@ -49,6 +49,7 @@ const GUIDE_PAGES: [&str; 12] = [
     "deploying.md",
     "after-a-schema-change.md",
     "troubleshooting.md",
+    "typed-queries.md",
 ];
 
 /// Every document whose samples are checked, as (repository-relative path,
@@ -383,6 +384,36 @@ fn every_code_sample_comes_from_its_source() -> Result<()> {
         }
     }
     ensure!(problems.is_empty(), "{}", problems.join("\n\n"));
+    Ok(())
+}
+
+/// The typed-queries page cites the test that proves each row: every
+/// ``[`name`](path.rs)`` link names a function of that file, so a renamed
+/// or deleted test fails here instead of leaving the page wrong.
+#[test]
+fn every_test_the_typed_queries_page_cites_exists() -> Result<()> {
+    let guide = manifest_dir().join("docs/guide");
+    let page = read_text(&guide.join("typed-queries.md"))?;
+    let mut problems = Vec::new();
+    let mut cited = 0;
+    for link in page.split("[`").skip(1) {
+        let Some((name, rest)) = link.split_once("`](") else {
+            continue;
+        };
+        let Some((path, _)) = rest.split_once(')') else {
+            continue;
+        };
+        if !path.ends_with(".rs") {
+            continue;
+        }
+        cited += 1;
+        let source = read_text(&guide.join(path))?;
+        if !source.contains(&format!("fn {name}(")) {
+            problems.push(format!("`{name}` is not a function of {path}"));
+        }
+    }
+    ensure!(cited > 0, "docs/guide/typed-queries.md cites no test");
+    ensure!(problems.is_empty(), "{}", problems.join("\n"));
     Ok(())
 }
 

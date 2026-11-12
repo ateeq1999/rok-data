@@ -2,7 +2,8 @@
 //! the OpenAPI 3.1 subset utoipa emits, and no more. [`Document::parse`]
 //! turns an `openapi.json` into the model every client emitter reads —
 //! the component schemas and the operations, each with its path, query
-//! and header parameters, its request body, its success response and whether it
+//! and header parameters, its request body, its success response (or that
+//! it is a Browser route, every answer a redirect) and whether it
 //! carries the bearer auth marker.
 //!
 //! What utoipa does not emit is refused, not guessed at: a cookie
@@ -33,6 +34,18 @@ pub struct Document {
     pub operations: Vec<Operation>,
 }
 
+/// How a list operation pages: one of the engine's two shapes (engine
+/// ADR 0027). Each Client gives an operation that pages a pager.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Paging {
+    /// Page numbers: `{"items", "page", "per_page", "total"}`, the page
+    /// asked for with `?page=`, from 1.
+    Numbered,
+    /// Cursors: `{"items", "next", "prev", "per_page"}`, the page asked
+    /// for with `?cursor=`, the `next` of the page before it.
+    Cursor,
+}
+
 /// Why a document is not read.
 #[derive(Debug)]
 pub enum Error {
@@ -47,7 +60,7 @@ pub enum Error {
         construct: String,
     },
     /// A document the subset covers, but broken: an
-    /// operation without a success response.
+    /// operation with neither a success nor a redirect response.
     Invalid {
         /// The JSON pointer of the problem.
         at: String,
@@ -209,6 +222,52 @@ impl Document {
         };
         document.check_refs()?;
         Ok(document)
+    }
+
+    /// How `operation` pages, if it does: a `GET` answering one of the
+    /// engine's two page shapes, whose optional query parameter (`page` or
+    /// `cursor`) asks for another page. A bare array, or a page nothing
+    /// moves on, is not paged.
+    #[must_use]
+    pub fn paging(&self, operation: &Operation) -> Option<Paging> {
+        if operation.method != Method::Get {
+            return None;
+        }
+        let Response::Json(schema) = &operation.response else {
+            return None;
+        };
+        let schema = match schema {
+            Schema::Ref(name) => self.schemas.get(name)?,
+            schema => schema,
+        };
+        let Schema::Object { properties, .. } = schema else {
+            return None;
+        };
+        let property = |name: &str| properties.iter().find(|property| property.name == name);
+        let required = |name: &str| property(name).is_some_and(|property| property.required);
+        let query = |name: &str| {
+            operation
+                .query_params
+                .iter()
+                .any(|parameter| parameter.name == name && !parameter.required)
+        };
+        if !matches!(
+            property("items"),
+            Some(Property {
+                schema: Schema::Array(_),
+                required: true,
+                ..
+            })
+        ) {
+            return None;
+        }
+        if ["page", "per_page", "total"].into_iter().all(required) && query("page") {
+            Some(Paging::Numbered)
+        } else if property("next").is_some() && query("cursor") {
+            Some(Paging::Cursor)
+        } else {
+            None
+        }
     }
 
     /// Every `$ref` names a schema the document defines.

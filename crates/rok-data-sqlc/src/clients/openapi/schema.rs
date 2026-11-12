@@ -16,7 +16,7 @@ pub enum Schema {
     Null,
     /// `{"type": "boolean"}`.
     Boolean,
-    /// `{"type": "integer"}`, whatever its `format`, and its bounds.
+    /// `{"type": "integer"}`, its `format` (`int32`, `int64`) and its bounds.
     Integer(Rules),
     /// `{"type": "number"}`, and its bounds.
     Number(Rules),
@@ -44,8 +44,8 @@ pub enum Schema {
 }
 
 /// The server's rules a scalar's schema states: the TypeScript Client
-/// checks them (as zod rules); the others read past them, their types the
-/// same either way.
+/// checks them (as zod rules); the Rust Client reads an integer's `format`
+/// for its width (`int32` is `i32`); otherwise the Clients read past them.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Rules {
     /// `format`: `email`, `uuid`, `date-time`, `date`, `int64`, ….

@@ -36,6 +36,7 @@ pub struct ActiveProductsInCategoryRow {
 }
 
 /// Runs the `ActiveProductsInCategory` query (`:many`).
+/// Takes its parameters as arguments: three or fewer (`query_params = "auto"`).
 pub async fn active_products_in_category<'e, E>(
     executor: E,
     category_id: CategoryId,
@@ -543,6 +544,10 @@ taken from the schema, and `extractors = ["axum", "actix_web"]` (or
 
 ## Writing query files
 
+[What typed queries support](docs/guide/typed-queries.md) lists every SQL
+form the engine types, the override for each one it doesn't, and the test
+that proves it.
+
 A query file holds SQL statements, each starting with a `-- name:` line:
 
 ```text
@@ -551,6 +556,7 @@ A query file holds SQL statements, each starting with a `-- name:` line:
 -- column: <name> <RustType>          (optional, repeatable)
 -- returns: <RowType or path::Type>    (optional)
 -- rok:skip [<note>]                  (optional)
+-- rok:params struct|positional         (optional)
 <one SQL statement>
 ```
 
@@ -574,6 +580,13 @@ crate::shared::listing::ProjectName`): the rows decode straight into it
 can't see that type's fields, so a mismatch is the compiler's or the row
 decode's to catch, not `rok gen`'s. Two queries with the same columns get
 one struct each unless one says `-- returns:`.
+
+A function takes up to three parameters as arguments and more as a
+`{Name}Params` struct, so a query that grows a fourth changes its call shape.
+`-- rok:params struct` (or `positional`) fixes the shape of one query, and
+`query_params = "struct"` (`"positional"`, `"auto"`) sets the project's
+default; the annotation wins, and each function's doc comment says which
+rule applied.
 
 | Return mode | Runs | Returns |
 |---|---|---|
@@ -643,7 +656,9 @@ are:
   (see "More rules" below);
 - an explicit cast to a supported type, including an enum type
   (`$1::product_status` takes `types::ProductStatus`, and
-  `$1::product_status[]` a slice of them).
+  `$1::product_status[]` a slice of them);
+- a `CASE WHEN $n THEN` condition or `NOT $n` (`bool`), in `WHERE` or in
+  `ORDER BY`.
 
 A placeholder anywhere else fails generation. The error names the fix, a
 `-- param:` override.
@@ -663,6 +678,30 @@ comes in three forms:
 `!` is for a value written to a nullable column that the query always
 sets, as in `UPDATE offers SET reviewed_by = $2`. It can't go with a
 written type, which is used as is.
+
+**One query can serve both sides of a switch.** "Upcoming or past
+bookings" is one listing with a `bool` parameter, not two queries: cast it
+once (`$2::bool`), switch the filter with `CASE WHEN $2 THEN … ELSE … END`,
+and give each sort direction its own `CASE`, since a `CASE` can't switch
+`ASC`/`DESC` (the `CASE` that doesn't apply is `NULL` on every row and sorts
+nothing):
+
+<!-- source: docs/examples/api/queries.sql -->
+```sql
+-- name: ProjectsAround :many
+-- param: $2 after
+-- param: $3 at
+SELECT id, name, created_at FROM projects
+WHERE owner_id = $1
+  AND CASE WHEN $2::bool THEN created_at >= $3 ELSE created_at < $3 END
+ORDER BY CASE WHEN $2 THEN created_at END ASC,
+         CASE WHEN NOT $2 THEN created_at END DESC;
+```
+
+The function takes `after: bool`, and either side comes nearest first.
+A count beside the listing takes the same switch in its `WHERE`, and a
+second listing over the same columns (say, one page of each side) shares
+the row type with `-- returns: ProjectsAroundRow`.
 
 **Keys keep their typed ids.** A parameter typed by a primary key or foreign
 key column takes that table's typed id, and so does a result column taken
@@ -714,8 +753,12 @@ keeps the typed id, and arguments of one plain type under different
 typed ids take the plain type. It is never NULL when one of its arguments
 never is, such as a literal other than `NULL`, so a cast of it is not
 `Option` (`coalesce(sum(stock), 0)::bigint` is `i64`). A scalar subquery
-`(SELECT …)` takes the type of its one column and may be NULL; it sees
-the tables of the query around it, so
+`(SELECT …)` takes the type of its one column. It is never NULL when
+that column never is and the subquery always returns one row: an
+aggregate with no `GROUP BY`, `HAVING`, `LIMIT`, `OFFSET` or set
+operation, so `(SELECT count(*) FROM passes)` is `i64`. Any other
+scalar subquery may return no row, so it is `Option`. It sees the
+tables of the query around it, so
 `coalesce(p.cover_media_id, (SELECT ph.media_id FROM partner_photos ph
 WHERE ph.partner_id = p.id LIMIT 1))::uuid` is `Option<MediaId>`. A
 placeholder inside a subquery (scalar, `EXISTS` or `IN`) is typed from
@@ -726,12 +769,18 @@ query.
 **Everyday expressions are typed, and NULL when an operand can be.** An
 expression is `Option` unless every operand is never NULL: a `NOT NULL`
 column off the outer side of a join, a literal, `count(…)`, a clock
-function, or such an expression itself. A parameter may be NULL.
+function, or such an expression itself. A parameter may be NULL. `sum`,
+`avg`, `min` and `max` may be NULL (no rows, or only NULLs), in a
+`SELECT`, a CTE or a subquery alike; `coalesce(sum(stock), 0)` is `i64`
+with no cast, and a cast still decides the type.
 
 | Expression | Type |
 | --- | --- |
 | `=`, `<>`, `<`, `<=`, `>`, `>=`, `BETWEEN`, `IN (…)`, `LIKE`, `ILIKE`, `~`, `AND`, `OR`, `NOT` | `bool` |
 | `IS [NOT] NULL`, `IS [NOT] DISTINCT FROM`, `IS [NOT] TRUE` | `bool`, never NULL |
+| `sum(…)` | `i64` for `smallint` or `integer`, `rust_decimal::Decimal` for `bigint` or `numeric`, the argument's float type for a float |
+| `avg(…)` | `rust_decimal::Decimal` for an integer or `numeric`, `f64` for a float |
+| `min(…)`, `max(…)` | the argument's type |
 | `EXISTS (…)`, `NOT EXISTS (…)` | `bool`, never NULL |
 | `x IN (SELECT …)` | `bool` |
 | `+`, `-`, `*`, `/`, `%` | the operands' shared type: integers widen to the larger, `numeric` wins over integers, floats over `numeric` |
@@ -854,6 +903,13 @@ pub async fn search_product_names<'e, E>(
   FROM partner_photos WHERE partner_id = $2
   ON CONFLICT DO NOTHING;
   ```
+- A subquery in `FROM`, `(SELECT …) AS x`, reads like a table whose
+  columns are typed from its query, as a CTE's are; a column list
+  renames them (`AS x(a, b)`). It works in a `SELECT`, an `UPDATE …
+  FROM`, a `DELETE … USING` and a data-modifying CTE. It sees the queries
+  around its own, but the `FROM` tables beside it (an `UPDATE`'s target
+  among them) only when written `LATERAL (SELECT …) x`; without
+  `LATERAL`, a reference to one fails naming it.
 - Set-returning functions in `FROM` are typed from their signatures and
   read like a table under their alias. A one-column function's column takes
   the alias's name (`AS week`), a column list renames it (`AS t(day)`),
@@ -939,6 +995,15 @@ again, and the error says why, with its line.
 
 ```sh
 rok sqlc query add OwnedMedia "SELECT * FROM media WHERE id = \$1 AND owner_id = \$2 LIMIT 1" --file media
+```
+
+The SQL argument works the way `-j` does: `@path` reads the SQL from that
+file, `-` reads it from stdin, and anything else is the SQL itself. Put
+anything with quotes in a file, and no shell quoting gets in the way on
+any OS:
+
+```sh
+rok sqlc query add MediaByKind @media_by_kind.sql --file media
 ```
 
 `--file` takes a stem (`media`) under the one configured `queries` directory,
@@ -1266,6 +1331,7 @@ schema   = ["migrations/"]   # a path or a list: SQL files or migration director
 queries  = ["queries/"]      # a path or a list: query files or directories
 output   = "src/db"          # the default
 resource = "products"        # add this table to the generated ones; rarely useful in a file
+query_params = "auto"        # how query functions take parameters: "auto" (arguments up to three, a struct from four), "struct" or "positional"; `-- rok:params` beats it
 derive   = ["serde", "validate"]  # extra derives for generated types; "validate" needs "serde"
 extractors = ["axum", "actix_web"]  # validated-body extractors to generate; need "validate"
 migrations = "migrations"   # the history dir: codegen stages the pairs and their snapshot into it; `rok migrate` reads it

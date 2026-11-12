@@ -7,6 +7,7 @@ use sqlparser::ast::{
     ObjectNamePart, SelectItem, SetOperator, UnaryOperator, Value,
 };
 
+use super::params::placeholder;
 use super::{Analysis, Context, Output, OutputColumn, ResultShape};
 use crate::parser::naming;
 use crate::parser::postgres::{ident_name, map_type, object_leaf_name};
@@ -131,12 +132,19 @@ impl<'a, 'c> Analysis<'a, 'c> {
     /// Whether `expr` is never NULL, as far as the engine can tell: a
     /// literal, `count`, `now()` and the other clock functions, `coalesce`
     /// with an argument that is never NULL, a `NOT NULL` column that is not
-    /// on the outer side of a join, an `IS [NOT] NULL`-style test, `[NOT]
-    /// EXISTS`, or an operator or cast none of whose operands can be NULL.
+    /// on the outer side of a join, a placeholder whose parameter is not an
+    /// `Option`, an `IS [NOT] NULL`-style test, `[NOT] EXISTS`, a scalar
+    /// subquery that always returns one row of a column that is never NULL,
+    /// or an operator or cast none of whose operands can be NULL.
     fn never_null(&self, expr: &Expr) -> Result<bool, String> {
         if let Some(reference) = self.column_reference(expr)? {
             let entry = &self.scope[reference.entry];
             return Ok(!entry.outer_nullable && !entry.table.columns[reference.column].nullable);
+        }
+        if let Some(index) = placeholder(expr) {
+            return Ok(self
+                .param_type(index)
+                .is_some_and(|rust_type| !split_optional(&rust_type).1));
         }
         Ok(match expr {
             Expr::Nested(inner)
@@ -150,6 +158,9 @@ impl<'a, 'c> Analysis<'a, 'c> {
             },
             _ if is_is_test(expr) => true,
             Expr::Exists { .. } => true,
+            Expr::Subquery(query) => self
+                .never_null_subqueries
+                .contains(&std::ptr::from_ref(query.as_ref())),
             Expr::BinaryOp { left, op, right } if is_typed_operator(op) => {
                 self.all_never_null([&**left, &**right])?
             }
@@ -349,9 +360,42 @@ impl<'a, 'c> Analysis<'a, 'c> {
             .then(|| first.to_owned())
     }
 
+    /// The type PostgreSQL gives `sum`, `avg`, `min` or `max` of its argument:
+    /// `sum` widens an integer to `bigint` (`int8` to `numeric`), `avg` gives
+    /// `numeric` for an integer or `numeric` and `double precision` for a
+    /// float, and `min` and `max` keep the argument's type. `None` for an
+    /// argument the engine can't type, or `sum` or `avg` of a non-number.
+    fn aggregate_type(&self, function: &Function) -> Result<Option<String>, String> {
+        let Some((aggregate, argument)) = aggregate(function) else {
+            return Ok(None);
+        };
+        if aggregate == Aggregate::Extreme {
+            return self.value_type(argument);
+        }
+        let Some(number) = self.number_type(argument)? else {
+            return Ok(None);
+        };
+        let result = match (aggregate, number) {
+            (Aggregate::Sum, Number::SmallInt | Number::Integer) => Number::BigInt,
+            (Aggregate::Sum, Number::BigInt) => Number::Numeric,
+            (Aggregate::Avg, Number::Real) => Number::Double,
+            (Aggregate::Avg, Number::SmallInt | Number::Integer | Number::BigInt) => {
+                Number::Numeric
+            }
+            (_, number) => number,
+        };
+        Ok(Some(result.rust_type().to_owned()))
+    }
+
     /// The numeric type of an arithmetic operand: a column's plain type
-    /// (never its typed id), or what [`Self::value_type`] infers.
+    /// (never its typed id), a placeholder's parameter type (`price * $1`
+    /// is typed like `price * price`), or what [`Self::value_type`] infers.
     fn number_type(&self, expr: &Expr) -> Result<Option<Number>, String> {
+        if let Some(index) = placeholder(expr) {
+            return Ok(self
+                .param_type(index)
+                .and_then(|rust_type| Number::of(self.plain_type(split_optional(&rust_type).0))));
+        }
         let value_type = match self.column_reference(expr)? {
             Some(reference) => Some(self.reference_column(&reference).sqlx_type.clone()),
             None => self
@@ -363,6 +407,7 @@ impl<'a, 'c> Analysis<'a, 'c> {
 
     /// The Rust type of `expr`'s non-NULL values, where the engine infers one
     /// without looking at nullability: a column, a literal, a cast, `count`,
+    /// `sum`, `avg`, `min` or `max`,
     /// a clock function, a comparison or boolean operator (`bool`),
     /// arithmetic (its operands' shared numeric type), `||` (text) or a `CASE`
     /// (the type its non-NULL branches share).
@@ -376,6 +421,9 @@ impl<'a, 'c> Analysis<'a, 'c> {
             Expr::Value(value) => literal_type(&value.value),
             Expr::TypedString(typed) => Some(map_type(&typed.data_type, self.context.enums)?.1),
             Expr::Function(function) if is_count(function) => Some("i64".to_owned()),
+            Expr::Function(function) if aggregate(function).is_some() => {
+                self.aggregate_type(function)?
+            }
             Expr::Function(function) => match coalesce_arguments(function) {
                 Some(arguments) => self.coalesce_type(&arguments)?,
                 None => clock_type(function)
@@ -520,7 +568,7 @@ fn literal_type(value: &Value) -> Option<String> {
 }
 
 /// The arguments of a `coalesce(…)` call with at least one.
-fn coalesce_arguments(function: &Function) -> Option<Vec<&Expr>> {
+pub(super) fn coalesce_arguments(function: &Function) -> Option<Vec<&Expr>> {
     if !object_leaf_name(&function.name).eq_ignore_ascii_case("coalesce") {
         return None;
     }
@@ -655,6 +703,34 @@ fn column_type(column: &Column, outer_nullable: bool) -> String {
         format!("Option<{}>", column.value_type())
     } else {
         column.field_type()
+    }
+}
+
+/// An aggregate the engine types from its argument.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Aggregate {
+    Sum,
+    Avg,
+    /// `min` or `max`.
+    Extreme,
+}
+
+/// The aggregate `function` calls and its one argument, for `sum`, `avg`,
+/// `min` and `max` (with or without `DISTINCT`, `FILTER` or `OVER`).
+fn aggregate(function: &Function) -> Option<(Aggregate, &Expr)> {
+    let name = object_leaf_name(&function.name).to_ascii_lowercase();
+    let aggregate = match name.as_str() {
+        "sum" => Aggregate::Sum,
+        "avg" => Aggregate::Avg,
+        "min" | "max" => Aggregate::Extreme,
+        _ => return None,
+    };
+    let FunctionArguments::List(list) = &function.args else {
+        return None;
+    };
+    match list.args.as_slice() {
+        [FunctionArg::Unnamed(FunctionArgExpr::Expr(argument))] => Some((aggregate, argument)),
+        _ => None,
     }
 }
 

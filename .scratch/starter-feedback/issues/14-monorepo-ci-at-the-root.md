@@ -6,8 +6,8 @@ Spec: `docs/specs/starter-feedback.md`
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done (rok-templates PR #15, d9e8590)
 
-- [ ] A scaffolded Monorepo project has its workflows under `.github/workflows/` at the root
-- [ ] The API job runs the same checks from `apps/api`
-- [ ] The template READMEs say where CI lives
+- [x] A scaffolded Monorepo project has its workflows under `.github/workflows/` at the root
+- [x] The API job runs the same checks from `apps/api`
+- [x] The template READMEs say where CI lives

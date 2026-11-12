@@ -5,6 +5,7 @@
 use super::super::super::accounts::models::AccountId;
 
 /// Runs the `AccountEmail` query (`:maybe_one`).
+/// Takes its parameters as arguments: three or fewer (`query_params = "auto"`).
 pub async fn account_email<'e, E>(
     executor: E,
     id: AccountId,

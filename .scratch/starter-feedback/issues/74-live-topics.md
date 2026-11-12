@@ -17,8 +17,8 @@ The glossary's **Topic** names it. Karibu Pass polls the Bill every 10 s, the ch
 
 **Blocked by:** 44 (done)
 
-**Status:** ready-for-agent
+**Status:** done (rok-templates PR #16)
 
-- [ ] A notice published in one request reaches a subscriber's stream, and none is sent when its transaction rolls back (tests against PostgreSQL)
-- [ ] A subscriber sees only its tenant's Topics; a caller the Guard refuses gets 403
-- [ ] The web helper invalidates the named queries, and the Dart stream reconnects (tests)
+- [x] A notice published in one request reaches a subscriber's stream, and none is sent when its transaction rolls back (tests against PostgreSQL)
+- [x] A subscriber sees only its tenant's Topics; a caller the Guard refuses gets 403
+- [x] The web helper invalidates the named queries, and the Dart stream reconnects (tests)

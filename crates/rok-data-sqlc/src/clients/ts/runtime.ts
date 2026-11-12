@@ -102,9 +102,12 @@ export function configure(settings: Partial<ClientConfig>) {
   Object.assign(config, settings)
 }
 
-/** For <img src> and full-page navigations: the path on the API's origin. */
-export function apiUrl(path: string) {
-  return `${config.baseUrl}${path}`
+/**
+ * For <img src> and full-page navigations (a Browser route's URL builder):
+ * the path, with its query, on the API's origin.
+ */
+export function apiUrl(path: string, query?: Call["query"]) {
+  return buildUrl(path, query)
 }
 
 /** Per-call options every operation takes last. */
@@ -263,4 +266,26 @@ export async function request<T>(
     )
   }
   return checked.data as T
+}
+
+/**
+ * The page after `page`, for `useInfiniteQuery`'s `getNextPageParam`, or
+ * `undefined` on the last page. A list answers one of two shapes: page
+ * numbers (`page`, `per_page`, `total`), whose next page is `page + 1`
+ * while rows remain, or cursors, whose next page starts at `next`.
+ */
+export function nextPage(page: {
+  page: number
+  per_page: number
+  total: number
+}): number | undefined
+export function nextPage(page: { next?: string | null }): string | undefined
+export function nextPage(
+  page:
+    | { page: number; per_page: number; total: number }
+    | { next?: string | null }
+): number | string | undefined {
+  if ("total" in page)
+    return page.page * page.per_page < page.total ? page.page + 1 : undefined
+  return page.next ?? undefined
 }

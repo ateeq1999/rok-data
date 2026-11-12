@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** None (ticket 44 has shipped `Allowed`'s body hold)
 
-**Status:** ready-for-agent
+**Status:** done (rok-templates 4046d11)
 
-- [ ] An unauthenticated call with a bad body gets 401, not 422 (actix tests); a non-admin gets 403
-- [ ] axum is unchanged (its extractors already run in order)
+- [x] An unauthenticated call with a bad body gets 401, not 422 (actix tests); a non-admin gets 403
+- [x] axum is unchanged (its extractors already run in order)
