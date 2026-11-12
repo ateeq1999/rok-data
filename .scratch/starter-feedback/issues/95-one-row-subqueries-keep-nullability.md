@@ -8,7 +8,7 @@ Karibu Pass's `PlatformMetrics` is one row of such subqueries, all `Option<i64>`
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `(SELECT count(*) FROM products)` infers `i64`; with `GROUP BY` or `LIMIT` it stays `Option<i64>` (analyzer tests)
-- [ ] A subquery over a nullable aggregate (`(SELECT sum(stock)::bigint FROM products)`) stays `Option<i64>`
+- [x] `(SELECT count(*) FROM products)` infers `i64`; with `GROUP BY` or `LIMIT` it stays `Option<i64>` (analyzer tests)
+- [x] A subquery over a nullable aggregate (`(SELECT sum(stock)::bigint FROM products)`) stays `Option<i64>`

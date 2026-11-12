@@ -249,6 +249,11 @@ fn readme(operations: &[Named<'_>]) -> String {
          - `queries.<tag>.<operation>(...)`: `queryOptions` for every `GET`; \
          `mutations.<tag>.<operation>()`: `mutationOptions` for the others; \
          `keys.<tag>`: the prefix of a tag's query keys, to invalidate them.\n\
+         - To poll, add TanStack Query's `refetchInterval` to a query; a function \
+         of the query that returns `false` stops it: `useQuery({{ \
+         ...queries.<tag>.<operation>(...), refetchInterval: (query) => \
+         (isDone(query.state.data) ? false : 3000) }})`. It pauses while the tab is \
+         hidden.\n\
          - `ApiError` (`status`, `code`, `message`, `details` of `FieldIssue`s on a \
          `422`) is what every failure rejects with.\n\
          - `<Type>Schema`: the zod schema of each type, with the server's rules \

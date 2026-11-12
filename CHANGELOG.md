@@ -11,6 +11,14 @@ that it exists and won't ship a tag without it).
 
 **Changed**
 
+- `check-arch`'s rule-4 messages (`rule-4`, `cross-feature-write`,
+  `cross-feature-query`) say that a feature's queries may join and read
+  any table, and that writing another feature's table goes through that
+  feature's service. The architecture guide shows such a join.
+- Queries: a scalar subquery that always returns one row, such as
+  `(SELECT count(*) FROM passes)`, is `i64` instead of `Option<i64>`;
+  one with `GROUP BY`, `HAVING`, `LIMIT`, `OFFSET` or a set operation,
+  or over a nullable aggregate, stays `Option`.
 - A schema statement rok can't undo by itself, left without its
   `-- rok:down`, is refused by its first line, and the message says to
   add the block immediately after that statement ("rok can't undo
@@ -51,6 +59,16 @@ that it exists and won't ship a tag without it).
 - `rok sqlc query add NAME @q.sql` reads the SQL from a file, and
   `query add NAME -` from stdin, so SQL with quotes needs no shell
   quoting.
+- Typed queries take a subquery in `FROM` (`(SELECT …) AS x`, optionally
+  `x(a, b)`) and `LATERAL (SELECT …) x`, in a `SELECT`, `UPDATE … FROM`,
+  `DELETE … USING` and a data-modifying CTE, typed from its query as a
+  CTE is.
+- The Dart Client's `poll(() => api.<tag>.<operation>(...), every:, until:)`
+  is a `Stream` of a call's answers, repeated until one is done; it makes
+  no call while the App is in the background (`AppLifecycle.foreground`,
+  set from Flutter's lifecycle) and one at once on return. The
+  TypeScript Client's README points polling at TanStack Query's
+  `refetchInterval`.
 - `rok_data::transaction(&pool, |tx| …)` runs a closure in a transaction
   on a plain `PgPool` (what a service holds), committing on `Ok` and
   rolling back on `Err`; its `tx` is a `rok_data::Tx`. `check-arch` lets

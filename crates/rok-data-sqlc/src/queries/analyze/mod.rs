@@ -11,7 +11,8 @@
 //! table for the statements after it; the final statement gives the result.
 //! `UPDATE … FROM` and `DELETE … USING` see their target and the other
 //! tables together, like a join. A subquery sees its own tables first, then
-//! the enclosing query's. `UNION`, `INTERSECT` and `EXCEPT` type each column
+//! the enclosing query's; one in `FROM` acts as a table typed like a CTE,
+//! and sees the `FROM` tables beside it only when `LATERAL`. `UNION`, `INTERSECT` and `EXCEPT` type each column
 //! from the type their branches share, as `CASE` does.
 //! `generate_series`, `unnest` and `jsonb_to_recordset` in `FROM` act as
 //! tables typed from their signatures (`set_returning.rs`).
@@ -302,6 +303,9 @@ struct Analysis<'a, 'c> {
     /// innermost last: a subquery sees the tables of the queries around it,
     /// and its own come first.
     levels: Vec<usize>,
+    /// The `FROM` tables set aside while a non-`LATERAL` subquery beside
+    /// them is analyzed, to explain a reference to one.
+    beside: Vec<String>,
     /// CTEs visible by name, in definition order.
     ctes: Vec<Rc<Table>>,
     /// How many queries enclose the one being analyzed: 1 for the
@@ -312,6 +316,9 @@ struct Analysis<'a, 'c> {
     /// the statement (which outlives the analysis); `None` when it returns
     /// several columns or the engine can't type it.
     subquery_types: HashMap<*const Query, Option<String>>,
+    /// The analyzed subqueries that are never NULL: their one column is not
+    /// optional and they always return one row.
+    never_null_subqueries: HashSet<*const Query>,
     /// The `WHERE` of an `ON CONFLICT (cols) WHERE … DO` target, taken out of
     /// the SQL before parsing (see [`take_conflict_predicate`]).
     conflict_predicate: Option<sqlparser::ast::Expr>,
@@ -326,10 +333,12 @@ impl<'a, 'c> Analysis<'a, 'c> {
             context,
             scope: Vec::new(),
             levels: Vec::new(),
+            beside: Vec::new(),
             ctes: Vec::new(),
             query_depth: 0,
             slots: BTreeMap::new(),
             subquery_types: HashMap::new(),
+            never_null_subqueries: HashSet::new(),
             conflict_predicate: None,
             param_overrides,
         }

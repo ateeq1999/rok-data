@@ -291,8 +291,8 @@ fn rule_4_a_feature_referring_to_another_feature_is_reported() -> Result<()> {
     assert_violations(
         &check_arch(&dir, &[]),
         &[
-            "src/features/notes/dto.rs:4: rule-4: `crate::features::labels::service::LabelsService`: feature `notes` refers to another feature; declare a port in its service.rs instead; a pure helper with no feature state belongs in shared/",
-            "src/features/notes/dto.rs:5: rule-4: `crate::features::labels::service::LabelsService`: feature `notes` refers to another feature; declare a port in its service.rs instead; a pure helper with no feature state belongs in shared/",
+            "src/features/notes/dto.rs:4: rule-4: `crate::features::labels::service::LabelsService`: feature `notes` refers to another feature; a feature's queries may join and read any table; writing another feature's table goes through that feature's service: declare a port in its service.rs; a pure helper with no feature state belongs in shared/",
+            "src/features/notes/dto.rs:5: rule-4: `crate::features::labels::service::LabelsService`: feature `notes` refers to another feature; a feature's queries may join and read any table; writing another feature's table goes through that feature's service: declare a port in its service.rs; a pure helper with no feature state belongs in shared/",
         ],
     );
     Ok(())
@@ -398,7 +398,7 @@ fn writing_another_tables_data_is_reported_and_reading_it_is_not() -> Result<()>
     )?;
     let message = |path: &str| {
         format!(
-            "`{path}`: feature `notes` writes another table; declare a port in its service.rs and implement it in app.rs"
+            "`{path}`: feature `notes` writes another table; a feature's queries may join and read any table; writing another feature's table goes through that feature's service: declare a port in its service.rs and implement it in app.rs"
         )
     };
     assert_violations(
@@ -444,8 +444,10 @@ fn a_feature_calls_its_own_query_module_but_not_another_features() -> Result<()>
     )?;
     let message = |path: &str| {
         format!(
-            "`{path}`: feature `notes` calls another feature's query module; declare a port in \
-             its service.rs and implement it in app.rs"
+            "`{path}`: feature `notes` calls another feature's query module; a feature's \
+             queries may join and read any table; writing another feature's table goes \
+             through that feature's service: declare a port in its service.rs and implement \
+             it in app.rs"
         )
     };
     assert_violations(
@@ -489,7 +491,9 @@ fn any_feature_calls_the_shared_queries() -> Result<()> {
         &check_arch(&dir, &[]),
         &["src/features/notes/service.rs:4: cross-feature-query: \
            `crate::db::queries::labels::rename`: feature `notes` calls another feature's query \
-           module; declare a port in its service.rs and implement it in app.rs"],
+           module; a feature's queries may join and read any table; writing another \
+           feature's table goes through that feature's service: declare a port in its \
+           service.rs and implement it in app.rs"],
     );
     Ok(())
 }
@@ -574,7 +578,7 @@ fn the_config_file_says_where_the_features_and_the_data_layer_are() -> Result<()
     assert_violations(
         &output,
         &[
-            "src/api/notes/service.rs:1: cross-feature-write: `crate::data::labels::write::create`: feature `notes` writes another table; declare a port in its service.rs and implement it in app.rs",
+            "src/api/notes/service.rs:1: cross-feature-write: `crate::data::labels::write::create`: feature `notes` writes another table; a feature's queries may join and read any table; writing another feature's table goes through that feature's service: declare a port in its service.rs and implement it in app.rs",
         ],
     );
     Ok(())
