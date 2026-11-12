@@ -112,6 +112,11 @@ that it exists and won't ship a tag without it).
 
 **Fixed**
 
+- A result column that does arithmetic with a placeholder is typed like
+  the column it is paired with: `price * $1 AS total` is `Decimal` on a
+  `NOT NULL numeric` column and `Option<Decimal>` on a nullable one,
+  instead of asking for `-- column:`. A comparison with a placeholder
+  bound as a non-`Option` type is no longer `Option<bool>`.
 - A partial update's `coalesce($2, locale)` types `$2` as the column's
   `Option<T>` (a CHECK-list enum included) instead of asking for
   `-- param:`.

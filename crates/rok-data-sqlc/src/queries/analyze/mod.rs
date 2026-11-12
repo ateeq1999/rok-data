@@ -38,7 +38,7 @@ use sqlparser::parser::Parser;
 
 use self::conflict::take_conflict_predicate;
 use self::results::result_shape;
-use super::annotations::{QueryDef, QueryFailure, ReturnMode};
+use super::annotations::{ParamOverride, QueryDef, QueryFailure, ReturnMode};
 use crate::parser::TableFailure;
 use crate::parser::naming;
 use crate::schema::{EnumType, SqlFunction, Table};
@@ -210,10 +210,10 @@ fn analyze_one(def: &QueryDef, context: &Context<'_>) -> Result<AnalyzedQuery, S
         super::page::check(statement)?;
     }
 
-    let mut analysis = Analysis::new(context);
+    let mut analysis = Analysis::new(context, &def.params);
     analysis.conflict_predicate = conflict.predicate;
     let outputs = analysis.statement(statement)?;
-    let params = analysis.params(statement, def)?;
+    let params = analysis.params(statement)?;
     let result = result_shape(def, outputs, context)?;
 
     Ok(AnalyzedQuery {
@@ -322,10 +322,13 @@ struct Analysis<'a, 'c> {
     /// The `WHERE` of an `ON CONFLICT (cols) WHERE … DO` target, taken out of
     /// the SQL before parsing (see [`take_conflict_predicate`]).
     conflict_predicate: Option<sqlparser::ast::Expr>,
+    /// The query's `-- param:` overrides, which win over the type a
+    /// placeholder's context gives it.
+    param_overrides: &'c [ParamOverride],
 }
 
 impl<'a, 'c> Analysis<'a, 'c> {
-    fn new(context: &'c Context<'a>) -> Self {
+    fn new(context: &'c Context<'a>, param_overrides: &'c [ParamOverride]) -> Self {
         Self {
             context,
             scope: Vec::new(),
@@ -337,6 +340,7 @@ impl<'a, 'c> Analysis<'a, 'c> {
             subquery_types: HashMap::new(),
             never_null_subqueries: HashSet::new(),
             conflict_predicate: None,
+            param_overrides,
         }
     }
 

@@ -1106,8 +1106,8 @@ fn boolean_logic_is_bool() {
             ("changed", "bool"),
             ("plain", "bool"),
             ("small", "bool"),
-            // The engine does not assume a parameter is never NULL.
-            ("matched", "Option<bool>"),
+            // `$2` is bound as a `String`, never NULL.
+            ("matched", "bool"),
             ("discounted", "Option<bool>"),
         ]
     );
@@ -1133,6 +1133,28 @@ fn arithmetic_takes_its_operands_type() {
             ("rest", "i32"),
             ("share", "Option<rust_decimal::Decimal>"),
         ]
+    );
+}
+
+/// A placeholder in arithmetic takes the type its numeric partner gives it,
+/// so the result is typed like `price * price`: nullable when the column is.
+#[test]
+fn arithmetic_with_a_placeholder_takes_the_columns_type() {
+    let row = one("-- name: Scaled :one\nSELECT \
+             price * $1 AS scaled, \
+             $2 * discount AS reduced \
+         FROM passes WHERE id = $3;");
+    assert_eq!(
+        row_columns(&row),
+        [
+            ("scaled", "rust_decimal::Decimal"),
+            ("reduced", "Option<rust_decimal::Decimal>"),
+        ]
+    );
+    // Without a numeric partner the placeholder still needs declaring.
+    assert!(
+        failure("-- name: Q :one\nSELECT $1 * 2 AS doubled FROM passes;")
+            .contains("cannot infer the type of `$1` from its context; add `-- param: $1")
     );
 }
 

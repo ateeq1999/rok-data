@@ -12,7 +12,7 @@ use sqlparser::ast::{
 use super::results::coalesce_arguments;
 use super::{Analysis, Param, Slot};
 use crate::parser::postgres::map_type;
-use crate::queries::annotations::{ParamOverride, QueryDef};
+use crate::queries::annotations::ParamOverride;
 use crate::schema::Column;
 
 impl<'a, 'c> Analysis<'a, 'c> {
@@ -367,11 +367,7 @@ impl<'a, 'c> Analysis<'a, 'c> {
 
     /// Combines inferred slots with overrides into the final, gap-free
     /// parameter list with unique names.
-    pub(super) fn params(
-        &self,
-        statement: &Statement,
-        def: &QueryDef,
-    ) -> Result<Vec<Param>, String> {
+    pub(super) fn params(&self, statement: &Statement) -> Result<Vec<Param>, String> {
         let mut used = BTreeSet::new();
         let _ = visit_expressions(statement, |expr| {
             if let Some(index) = placeholder(expr) {
@@ -380,7 +376,7 @@ impl<'a, 'c> Analysis<'a, 'c> {
             ControlFlow::<()>::Continue(())
         });
 
-        for override_ in &def.params {
+        for override_ in self.param_overrides {
             if !used.contains(&override_.index) {
                 return Err(format!(
                     "`-- param: ${}` overrides a placeholder the query does not use",
@@ -398,30 +394,18 @@ impl<'a, 'c> Analysis<'a, 'c> {
                     "`${index}` is never used, but `${highest}` is; PostgreSQL cannot infer the type of an unused placeholder"
                 ));
             }
-            let override_ = def.params.iter().find(|override_| override_.index == index);
-            let slot = self.slots.get(&index);
-            let (name, rust_type) = match (override_, slot) {
-                (
-                    Some(ParamOverride {
-                        name,
-                        rust_type: Some(rust_type),
-                        ..
-                    }),
-                    _,
-                ) => (name.clone(), rust_type.clone()),
-                (Some(override_), Some(slot)) => (
-                    override_.name.clone(),
-                    slot_type(slot, slot.nullable && !override_.not_null),
-                ),
-                (None, Some(slot)) => (slot.name.clone(), slot_type(slot, slot.nullable)),
-                (override_, None) => {
-                    let name = override_.map_or("<name>", |override_| &override_.name);
-                    return Err(format!(
-                        "cannot infer the type of `${index}` from its context; add `-- param: ${index} {name} <RustType>`"
-                    ));
-                }
+            let override_ = self.param_override(index);
+            let name = match (override_, self.slots.get(&index)) {
+                (Some(override_), _) => &override_.name,
+                (None, Some(slot)) => &slot.name,
+                (None, None) => "<name>",
             };
-            let name = unique_name(&name, &mut names);
+            let Some(rust_type) = self.param_type(index) else {
+                return Err(format!(
+                    "cannot infer the type of `${index}` from its context; add `-- param: ${index} {name} <RustType>`"
+                ));
+            };
+            let name = unique_name(name, &mut names);
             params.push(Param {
                 index,
                 name,
@@ -429,6 +413,25 @@ impl<'a, 'c> Analysis<'a, 'c> {
             });
         }
         Ok(params)
+    }
+
+    /// The Rust type placeholder `index` is bound as: its `-- param:` type,
+    /// else the type its context gave it, `Option` when nullable (unless the
+    /// override marks it `!`). `None` when nothing determines it.
+    pub(super) fn param_type(&self, index: usize) -> Option<String> {
+        let override_ = self.param_override(index);
+        if let Some(rust_type) = override_.and_then(|override_| override_.rust_type.as_ref()) {
+            return Some(rust_type.clone());
+        }
+        let slot = self.slots.get(&index)?;
+        let not_null = override_.is_some_and(|override_| override_.not_null);
+        Some(slot_type(slot, slot.nullable && !not_null))
+    }
+
+    fn param_override(&self, index: usize) -> Option<&ParamOverride> {
+        self.param_overrides
+            .iter()
+            .find(|override_| override_.index == index)
     }
 }
 
