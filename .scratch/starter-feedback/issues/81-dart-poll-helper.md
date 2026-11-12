@@ -8,7 +8,13 @@ Karibu Pass's `BillCubit` and `CheckoutCubit` each own a `Timer.periodic` with i
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `poll` stops when `until` holds, and pauses and resumes with the App lifecycle (Dart tests)
-- [ ] Documented in the Dart Client's README and the TypeScript guide
+- [x] `poll` stops when `until` holds, and pauses and resumes with the App lifecycle (Dart tests: run with fake_async against the emitted runtime in a scratch package; the engine tests check the emitted runtime, export and README)
+- [x] Documented in the Dart Client's README and the TypeScript Client's README (`refetchInterval`)
+
+The App lifecycle reaches `poll` through `AppLifecycle.foreground`, which the
+Flutter App sets from `AppLifecycleListener` (the Client is pure Dart, so it
+cannot import Flutter). Switching Karibu Pass's `BillCubit` and
+`CheckoutCubit` from `Timer.periodic` to `poll` in rok-templates waits on a
+rok release: the templates generate their Client with the released `rok`.

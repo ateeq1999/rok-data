@@ -5,8 +5,9 @@
 //! - `lib/src/runtime.dart` — `ApiException` (status, code, message and
 //!   the `422`'s `FieldIssue`s by field), `Session` (where the bearer
 //!   token comes from, and what a rejected one ends), `RequestOptions`,
-//!   `Bytes`, `Nullable` and the transport every call goes through. The
-//!   same text for every document.
+//!   `Bytes`, `Nullable`, `poll` (a call repeated as a `Stream`, following
+//!   `AppLifecycle`) and the transport every call goes through. The same
+//!   text for every document.
 //! - `lib/src/models.dart` — a class per object schema (with `fromJson`
 //!   and `toJson`), an enum per string enum, a sealed class per `oneOf`
 //!   of objects.
@@ -135,7 +136,16 @@ library;
 export 'src/client.dart';
 export 'src/models.dart';
 export 'src/runtime.dart'
-    show ApiException, Bytes, FieldIssue, Nullable, Pager, RequestOptions, Session;
+    show
+        ApiException,
+        AppLifecycle,
+        Bytes,
+        FieldIssue,
+        Nullable,
+        Pager,
+        RequestOptions,
+        Session,
+        poll;
 ";
 
 /// The client's `README.md`.
@@ -154,9 +164,12 @@ fn readme(operations: &[super::emit::Named<'_>]) -> String {
                 "\n```dart\nimport 'package:{PACKAGE}/{PACKAGE}.dart';\n\n\
                  final api = ApiClient(\n  baseUrl: 'https://api.example.com',\n  \
                  session: Session(token: () => store.token, onExpired: (_) => store.signOut()),\n);\n\
-                 final result = await api.{}.{}(/* ... */);\n```\n",
-                names::member_name(&named.group),
-                names::member_name(&named.name)
+                 final result = await api.{group}.{name}(/* ... */);\n\n\
+                 // Asked again every 3 seconds until it says it is done.\n\
+                 final updates = poll(\n  () => api.{group}.{name}(/* ... */),\n  \
+                 every: const Duration(seconds: 3),\n  until: (result) => /* done? */ false,\n);\n```\n",
+                group = names::member_name(&named.group),
+                name = names::member_name(&named.name)
             )
         });
     format!(
@@ -178,7 +191,16 @@ fn readme(operations: &[super::emit::Named<'_>]) -> String {
          - `Session` gives the bearer token the secured operations send; a `401` to one \
          of them calls its `expired` (unless the call says `keepSession`).\n\
          - `ApiException` (`status`, `code`, `message`, and a `422`'s `details` of \
-         `FieldIssue`s by field) is what every failure throws.\n{routes}{example}"
+         `FieldIssue`s by field) is what every failure throws.\n\
+         {routes}- `poll(() => api.<tag>.<operation>(...), every: ..., until: ...)` is a \
+         `Stream` of the call's answers: one at once, then one every `every` (counted \
+         from the previous answer), ending with the first answer `until` accepts. A \
+         failed call is an error event and polling goes on; cancelling the \
+         subscription stops it. It makes no call while the App is in the background, \
+         and one at once when it returns, once the App reports its lifecycle at \
+         start-up:\n\n\
+         ```dart\nAppLifecycleListener(\n  onStateChange: (state) =>\n      \
+         AppLifecycle.foreground = state == AppLifecycleState.resumed,\n);\n```\n{example}"
     )
 }
 

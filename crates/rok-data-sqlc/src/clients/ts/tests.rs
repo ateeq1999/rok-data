@@ -552,3 +552,12 @@ fn a_nullable_success_answers_null() {
         "{calls}"
     );
 }
+
+/// Polling on the web is TanStack Query's own `refetchInterval`, not a
+/// helper of the Client's (ticket 81).
+#[test]
+fn the_readme_points_polling_at_refetch_interval() {
+    let files = emitted(&monorepo());
+    let readme = file(&files, "README.md");
+    assert!(readme.contains("refetchInterval"));
+}

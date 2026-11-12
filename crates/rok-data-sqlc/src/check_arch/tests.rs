@@ -338,3 +338,52 @@ impl NotesService {
     );
     Ok(())
 }
+
+/// Rule 4's three messages say what a feature may do as well as what it
+/// may not: its queries join and read any table, and only writing another
+/// feature's table goes through that feature's service. Read as forbidding
+/// reads, the old wording sent a project to a second call for a column a
+/// join would have read.
+#[test]
+fn rule_4_says_a_features_queries_may_read_any_table() -> Result<()> {
+    let files = [
+        ("src/features/mod.rs", "pub mod labels;\npub mod notes;\n"),
+        ("src/features/labels/mod.rs", "pub mod service;\n"),
+        (
+            "src/features/labels/service.rs",
+            "pub struct LabelsService;\n",
+        ),
+        ("src/features/notes/mod.rs", "pub mod service;\n"),
+        (
+            "src/features/notes/service.rs",
+            "use crate::features::labels::service::LabelsService;\n\
+             pub fn f() { crate::db::labels::write::create(); }\n\
+             pub fn g() { crate::db::queries::labels::count(); }\n",
+        ),
+    ];
+    let said = "a feature's queries may join and read any table; writing another \
+                feature's table goes through that feature's service:";
+    assert_eq!(
+        violations(ApiFramework::ActixWeb, &files)?,
+        [
+            format!(
+                "src/features/notes/service.rs:1: rule-4: \
+                 `crate::features::labels::service::LabelsService`: feature `notes` refers \
+                 to another feature; {said} declare a port in its service.rs; a pure helper \
+                 with no feature state belongs in shared/"
+            ),
+            format!(
+                "src/features/notes/service.rs:2: cross-feature-write: \
+                 `crate::db::labels::write::create`: feature `notes` writes another table; \
+                 {said} declare a port in its service.rs and implement it in app.rs"
+            ),
+            format!(
+                "src/features/notes/service.rs:3: cross-feature-query: \
+                 `crate::db::queries::labels::count`: feature `notes` calls another \
+                 feature's query module; {said} declare a port in its service.rs and \
+                 implement it in app.rs"
+            ),
+        ],
+    );
+    Ok(())
+}

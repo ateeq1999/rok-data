@@ -9,6 +9,20 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Changed
 
+- `check-arch`'s rule-4 messages (`rule-4`, `cross-feature-write`,
+  `cross-feature-query`) now say what a feature may do: "a feature's
+  queries may join and read any table; writing another feature's table
+  goes through that feature's service". The architecture guide says so
+  too and shows a query joining another table (`TasksWithProject` in
+  `docs/examples/api`). The numbered rule text is unchanged.
+- **Breaking for generated code:** a scalar subquery that always returns
+  one row (an aggregate with no `GROUP BY`, `HAVING`, `LIMIT`, `OFFSET`
+  or set operation) keeps its column's nullability, so
+  `(SELECT count(*) FROM passes)` and
+  `(SELECT coalesce(sum(x), 0)::bigint FROM …)` are `i64` where they were
+  `Option<i64>`. Any other scalar subquery, and one over a nullable
+  aggregate such as `sum(x)`, stays `Option`. A call site that unwrapped
+  such a column drops the unwrap.
 - **Breaking for Rust Client callers:** an integer is as wide as its
   contract `format`: `int32` is `i32` (utoipa writes it for `i16` too, so
   a `smallint` is `i32`), `int64` or no format stays `i64`. Every integer
@@ -62,6 +76,22 @@ the *generated* API count as breaking (see ADR 0012).
   runtime `Pages` read with `while let Some(page) = pages.next().await`.
   `Pager`, `Pages`, `pagers` and `nextPage` are names a schema may no
   longer take. The wire-standard guide says which shape a list answers.
+- Typed queries take a subquery in `FROM` (`(SELECT …) AS x`, with an
+  optional column list `x(a, b)`) and `LATERAL (SELECT …) x`, in a
+  `SELECT`, `UPDATE … FROM`, `DELETE … USING` and a data-modifying CTE.
+  Its columns are typed from its query, as a CTE's are; only a `LATERAL`
+  one sees the `FROM` tables beside it, and a reference to one from a
+  plain subquery fails naming it. This used to fail "only tables and
+  set-returning functions are supported in FROM (no subqueries)".
+- The Dart Client runtime has `poll(call, every:, until:)`, a
+  `Stream<T>` of `call`'s answers: one at once, then one every `every`
+  (counted from the previous answer), ending with the first that `until`
+  accepts; a failed call is an error event and polling goes on. It makes
+  no call while `AppLifecycle.foreground` is `false` (a Flutter App sets
+  it from `AppLifecycleListener`) or the subscription is paused, and one
+  at once on return. Both are exported from the library and documented in
+  its README; no per-operation code. The TypeScript Client's README
+  documents TanStack Query's `refetchInterval` for the same job.
 - A query's parameter shape no longer flips when it grows a fourth
   parameter, if you say so: `-- rok:params struct` (or `positional`)
   fixes one query's, and `query_params = "auto" | "struct" |

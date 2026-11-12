@@ -749,8 +749,12 @@ keeps the typed id, and arguments of one plain type under different
 typed ids take the plain type. It is never NULL when one of its arguments
 never is, such as a literal other than `NULL`, so a cast of it is not
 `Option` (`coalesce(sum(stock), 0)::bigint` is `i64`). A scalar subquery
-`(SELECT …)` takes the type of its one column and may be NULL; it sees
-the tables of the query around it, so
+`(SELECT …)` takes the type of its one column. It is never NULL when
+that column never is and the subquery always returns one row: an
+aggregate with no `GROUP BY`, `HAVING`, `LIMIT`, `OFFSET` or set
+operation, so `(SELECT count(*) FROM passes)` is `i64`. Any other
+scalar subquery may return no row, so it is `Option`. It sees the
+tables of the query around it, so
 `coalesce(p.cover_media_id, (SELECT ph.media_id FROM partner_photos ph
 WHERE ph.partner_id = p.id LIMIT 1))::uuid` is `Option<MediaId>`. A
 placeholder inside a subquery (scalar, `EXISTS` or `IN`) is typed from
@@ -895,6 +899,13 @@ pub async fn search_product_names<'e, E>(
   FROM partner_photos WHERE partner_id = $2
   ON CONFLICT DO NOTHING;
   ```
+- A subquery in `FROM`, `(SELECT …) AS x`, reads like a table whose
+  columns are typed from its query, as a CTE's are; a column list
+  renames them (`AS x(a, b)`). It works in a `SELECT`, an `UPDATE …
+  FROM`, a `DELETE … USING` and a data-modifying CTE. It sees the queries
+  around its own, but the `FROM` tables beside it (an `UPDATE`'s target
+  among them) only when written `LATERAL (SELECT …) x`; without
+  `LATERAL`, a reference to one fails naming it.
 - Set-returning functions in `FROM` are typed from their signatures and
   read like a table under their alias. A one-column function's column takes
   the alias's name (`AS week`), a column list renames it (`AS t(day)`),
