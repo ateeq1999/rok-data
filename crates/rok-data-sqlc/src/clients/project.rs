@@ -423,6 +423,7 @@ const ERROR_LINES: usize = 12;
 /// not compile a crate: its `error` line and the code it points at, up to
 /// its first note or help (or the blank line that ends it).
 fn first_compile_error(diagnostics: &str) -> Option<String> {
+    let diagnostics = &without_colours(diagnostics);
     let cargo_line = |line: &str| {
         line.starts_with("error: could not compile") || line.starts_with("error: aborting")
     };
@@ -448,6 +449,27 @@ fn first_compile_error(diagnostics: &str) -> Option<String> {
     (!lines.is_empty()).then(|| lines.join("\n"))
 }
 
+/// `text` without its terminal colour codes (`ESC [ … m` and the other
+/// `ESC [` sequences cargo writes when told to colour).
+fn without_colours(text: &str) -> String {
+    let mut plain = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' && chars.peek() == Some(&'[') {
+            chars.next();
+            // Parameters and intermediates, then one final byte in `@..=~`.
+            for c in chars.by_ref() {
+                if ('@'..='~').contains(&c) {
+                    break;
+                }
+            }
+        } else {
+            plain.push(c);
+        }
+    }
+    plain
+}
+
 #[cfg(test)]
 mod tests {
     use super::ClientKind;
@@ -459,5 +481,20 @@ mod tests {
             assert_eq!(kind.to_string(), kind.key());
         }
         assert_eq!(ClientKind::from_key("swift"), None);
+    }
+
+    /// Cargo colours its diagnostics when `CARGO_TERM_COLOR=always` (as CI
+    /// sets it); the summary still finds the error, without the escapes.
+    #[test]
+    fn a_coloured_compile_error_is_still_found() {
+        let diagnostics = "\u{1b}[1m\u{1b}[91merror[E0061]\u{1b}[0m\u{1b}[1m: this function takes 2 arguments but 1 argument was supplied\u{1b}[0m\n \
+             \u{1b}[1m\u{1b}[94m--> \u{1b}[0msrc/main.rs:6:20\n\n\
+             \u{1b}[1m\u{1b}[96mhelp\u{1b}[0m: provide the argument\n\
+             \u{1b}[1m\u{1b}[91merror\u{1b}[0m: could not compile `exporter` (bin \"exporter\") due to 1 previous error\n";
+        let error = super::first_compile_error(diagnostics).expect("the error is found");
+        assert_eq!(
+            error,
+            "error[E0061]: this function takes 2 arguments but 1 argument was supplied\n --> src/main.rs:6:20"
+        );
     }
 }

@@ -8,7 +8,7 @@ Every Karibu Pass test using storage failed on Node 25 with "Cannot read propert
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done (rok-templates PR #16)
 
-- [ ] The web App's tests pass on the current Node release in CI
-- [ ] A storage test (`session.test.ts`) passes on Node 25
+- [x] The web App's tests pass on the current Node release in CI
+- [x] A storage test (`session.test.ts`) passes on Node 25

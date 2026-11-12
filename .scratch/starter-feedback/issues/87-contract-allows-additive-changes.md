@@ -8,8 +8,8 @@ Karibu Pass added the Customer's language, home city and texts to `PATCH /users/
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done (rok-templates PR #16)
 
-- [ ] Adding an optional property to `PATCH /users/me`'s body passes the contract (test)
-- [ ] Adding a required property, or removing one, still fails, naming the operation
-- [ ] The same in actix, axum and the Monorepo API
+- [x] Adding an optional property to `PATCH /users/me`'s body passes the contract (test)
+- [x] Adding a required property, or removing one, still fails, naming the operation
+- [x] The same in actix, axum and the Monorepo API
