@@ -63,6 +63,19 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Added
 
+- **A pager per list in each Client:** the contract reader tells the
+  engine's two list shapes apart (`Document::paging`: page numbers,
+  `{items, page, per_page, total}` with `?page=`; cursors, `{items, next,
+  …}` with `?cursor=`), and each Client gives every list that pages a
+  pager beside its call. TypeScript: `pagers.<tag>.<operation>(query)`,
+  an `infiniteQueryOptions` factory whose `getNextPageParam` is the
+  runtime's new `nextPage` (either shape). Dart:
+  `api.<tag>.<operation>Pager(...)`, a runtime `Pager<T>` with `load()`,
+  `more()` (nothing after the last page), `items` and a
+  `Stream<List<T>>`. Rust: `client.<tag>().<operation>_pages(&query)`, a
+  runtime `Pages` read with `while let Some(page) = pages.next().await`.
+  `Pager`, `Pages`, `pagers` and `nextPage` are names a schema may no
+  longer take. The wire-standard guide says which shape a list answers.
 - Typed queries take a subquery in `FROM` (`(SELECT …) AS x`, with an
   optional column list `x(a, b)`) and `LATERAL (SELECT …) x`, in a
   `SELECT`, `UPDATE … FROM`, `DELETE … USING` and a data-modifying CTE.

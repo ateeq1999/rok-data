@@ -45,6 +45,12 @@ that it exists and won't ship a tag without it).
 
 **Added**
 
+- Every Client pages a list for you: TypeScript
+  `useInfiniteQuery(pagers.notes.list({ q }))`, Dart
+  `api.notes.listPager(q: q)` (a `Pager` with `load()`, `more()` and a
+  `stream` of the rows), Rust `client.notes().list_pages(&query)` (`while
+  let Some(page) = pages.next().await`). Both list shapes are read:
+  page numbers and `[api] cursor` cursors.
 - A contract operation whose answers are redirects (no `2xx`, a `3xx`),
   such as a sign-in's start and callback at an OpenID provider, is a
   Browser route: `rok gen` accepts it instead of failing with "no success

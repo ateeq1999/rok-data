@@ -391,3 +391,75 @@ where
 {
     Option::<T>::deserialize(deserializer).map(Some)
 }
+
+/// The pages of a list, read one at a time, each when asked for:
+///
+/// ```ignore
+/// let mut pages = client.users().list_pages(&query);
+/// while let Some(page) = pages.next().await {
+///     for user in page?.items { /* ... */ }
+/// }
+/// ```
+///
+/// A list paged by number ends after the page holding its last row, one
+/// paged by cursor after the page naming no `next`; a page that fails
+/// ends it too.
+pub struct Pages<'a, P> {
+    next: Option<ReadPage<'a, P>>,
+}
+
+/// Reads one page, and gives the reader of the page after it.
+struct ReadPage<'a, P>(Box<dyn FnOnce() -> std::pin::Pin<Box<PageFuture<'a, P>>> + Send + 'a>);
+
+/// What reading one page awaits.
+type PageFuture<'a, P> =
+    dyn std::future::Future<Output = Result<(P, Option<ReadPage<'a, P>>), ApiError>> + Send + 'a;
+
+impl<'a, P: Send + 'a> Pages<'a, P> {
+    /// The pages from `start` on: `read` reads the page at a start, and
+    /// gives the start of the page after it (`None` after the last).
+    #[doc(hidden)]
+    pub fn new<S, F, Fut>(start: S, read: F) -> Self
+    where
+        S: Send + 'a,
+        F: Fn(S) -> Fut + Send + 'a,
+        Fut: std::future::Future<Output = Result<(P, Option<S>), ApiError>> + Send + 'a,
+    {
+        Pages {
+            next: Some(read_page(start, read)),
+        }
+    }
+
+    /// The next page, or `None` after the last one (or one that failed).
+    pub async fn next(&mut self) -> Option<Result<P, ApiError>> {
+        let read = self.next.take()?;
+        Some((read.0)().await.map(|(page, next)| {
+            self.next = next;
+            page
+        }))
+    }
+}
+
+impl<P> fmt::Debug for Pages<'_, P> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Pages")
+            .field("done", &self.next.is_none())
+            .finish()
+    }
+}
+
+/// The reader of the page at `start`.
+fn read_page<'a, P, S, F, Fut>(start: S, read: F) -> ReadPage<'a, P>
+where
+    P: Send + 'a,
+    S: Send + 'a,
+    F: Fn(S) -> Fut + Send + 'a,
+    Fut: std::future::Future<Output = Result<(P, Option<S>), ApiError>> + Send + 'a,
+{
+    ReadPage(Box::new(move || {
+        Box::pin(async move {
+            let (page, next) = read(start).await?;
+            Ok((page, next.map(|start| read_page(start, read))))
+        })
+    }))
+}

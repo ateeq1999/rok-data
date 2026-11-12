@@ -451,6 +451,11 @@ impl<'d> Types<'d> {
         ));
     }
 
+    /// The document the types are read from.
+    pub fn document(&self) -> &'d Document {
+        self.document
+    }
+
     /// The struct of an operation's query parameters, named from `hint`
     /// (numbered when a schema has the name already): its name.
     pub fn define_query(&mut self, hint: &str, fallback: &str, properties: &[Property]) -> String {

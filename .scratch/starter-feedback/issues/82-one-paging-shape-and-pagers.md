@@ -18,6 +18,6 @@ Karibu Pass has three shapes across five list routes (`{items, has_more}`, `{ite
 
 **Status:** ready-for-agent
 
-- [ ] Each Client emits a pager for a page-number list and a cursor list (emission tests)
-- [ ] The Dart pager's `more()` stops at the last page; the TS factory's `getNextPageParam` reads both shapes
-- [ ] The guide's hand-written `:page` list compiles in a template gate
+- [x] Each Client emits a pager for a page-number list and a cursor list (emission tests: `a_paged_list_gets_a_pager_factory` (TS), `a_paged_list_gets_a_pager` (Dart), `a_paged_list_gets_a_pages_iterator` (Rust), over `tests/api-app`'s `notes` and `labels`; the reader's `a_list_pages_by_number_or_by_cursor`)
+- [x] The Dart pager's `more()` stops at the last page; the TS factory's `getNextPageParam` reads both shapes (`nextPage`, overloaded for both; checked by hand with `dart test` and `tsc` against zod 4 and TanStack Query 5, which CI has no toolchain for)
+- [ ] The guide's hand-written `:page` list compiles in a template gate. **Blocked:** the template guide and its gate live in rok-templates, whose projects generate with the released `rok`; they need a rok release carrying the pagers (and `:page`, already in 0.9.0). The engine side documents the rule in `crates/rok-data-sqlc/docs/guide/wire-standard.md`.

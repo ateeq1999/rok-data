@@ -267,3 +267,25 @@ export async function request<T>(
   }
   return checked.data as T
 }
+
+/**
+ * The page after `page`, for `useInfiniteQuery`'s `getNextPageParam`, or
+ * `undefined` on the last page. A list answers one of two shapes: page
+ * numbers (`page`, `per_page`, `total`), whose next page is `page + 1`
+ * while rows remain, or cursors, whose next page starts at `next`.
+ */
+export function nextPage(page: {
+  page: number
+  per_page: number
+  total: number
+}): number | undefined
+export function nextPage(page: { next?: string | null }): string | undefined
+export function nextPage(
+  page:
+    | { page: number; per_page: number; total: number }
+    | { next?: string | null }
+): number | string | undefined {
+  if ("total" in page)
+    return page.page * page.per_page < page.total ? page.page + 1 : undefined
+  return page.next ?? undefined
+}
