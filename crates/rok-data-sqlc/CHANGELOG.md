@@ -63,6 +63,11 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Added
 
+- A guide page, [What typed queries support](docs/guide/typed-queries.md):
+  each SQL form query typing understands, whether it is typed, the
+  override when it isn't (`-- column:`, `-- param:`, `-- rok:skip`) and
+  the test that proves it. A rok-data-cli test fails when a test the page
+  cites no longer exists.
 - **A pager per list in each Client:** the contract reader tells the
   engine's two list shapes apart (`Document::paging`: page numbers,
   `{items, page, per_page, total}` with `?page=`; cursors, `{items, next,

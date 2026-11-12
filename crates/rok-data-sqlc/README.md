@@ -544,6 +544,10 @@ taken from the schema, and `extractors = ["axum", "actix_web"]` (or
 
 ## Writing query files
 
+[What typed queries support](docs/guide/typed-queries.md) lists every SQL
+form the engine types, the override for each one it doesn't, and the test
+that proves it.
+
 A query file holds SQL statements, each starting with a `-- name:` line:
 
 ```text

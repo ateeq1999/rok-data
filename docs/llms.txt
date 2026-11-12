@@ -29,6 +29,7 @@
 - [Validating input](validation.md): `#[derive(Input)]`, field and database rules, context, nesting, messages, the 422 body, JSON Schema.
 - [Migrating to rok-data](migration-guide.md): per-repository notes (rok-db, rok-sqlc, rok-fluent, rok-orm) and the 0.9.0 / 0.8.0 / 0.7.0 / 0.6.0 / 0.5.0 / 0.4.0 / 0.3.0 upgrades.
 - [Benchmarks](benchmarks.md): the `Expr`/`Select` builder-effort bench, honestly scoped.
+- [What typed queries support](../crates/rok-data-sqlc/docs/guide/typed-queries.md): every SQL form `rok gen` types in a query file (computed columns, functions, CTEs, subqueries, set-returning functions, parameters), the `-- column:` / `-- param:` / `-- rok:skip` override for the rest, and the test proving each.
 
 ## Records (history; read, don't rewrite)
 

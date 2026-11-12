@@ -2041,3 +2041,26 @@ SELECT id FROM passes WHERE CASE WHEN $1 THEN revoked_at IS NULL ELSE true END;"
         [param(1, "param_1", "bool")]
     );
 }
+
+/// A function in `WHERE` is not typed, only read for its columns: a
+/// placeholder inside one is typed by a cast or a `-- param:` override,
+/// and a bare one fails with the `-- param:` hint.
+#[test]
+fn a_function_in_where_types_a_cast_or_declared_placeholder() {
+    let cast = one(
+        "-- name: Q :many\nSELECT id FROM products WHERE lower(name) = lower($1::text) AND abs(stock) > 0;",
+    );
+    assert_eq!(cast.params, [param(1, "param_1", "String")]);
+    let declared = one(
+        "-- name: Q :many\n-- param: $1 pattern String\nSELECT id FROM products WHERE lower(name) LIKE lower($1);",
+    );
+    assert_eq!(declared.params, [param(1, "pattern", "String")]);
+    assert!(
+        failure("-- name: Q :many\nSELECT id FROM products WHERE lower(name) = lower($1);")
+            .contains("cannot infer the type of `$1` from its context; add `-- param: $1")
+    );
+    assert!(
+        failure("-- name: Q :many\nSELECT id FROM products WHERE lower(colour) = 'x';")
+            .contains("column `colour` does not exist in `products`")
+    );
+}
