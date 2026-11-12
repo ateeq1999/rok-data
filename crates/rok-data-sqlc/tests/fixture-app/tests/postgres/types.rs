@@ -140,11 +140,11 @@ pub(super) async fn interval_bytea_and_timetz_round_trip(pool: &PgPool) {
     // `$1` adds its month too.
     assert_eq!(
         rows[0].extended,
-        Some(PgInterval {
+        PgInterval {
             months: 2,
             days: 3,
             microseconds: 0,
-        })
+        }
     );
     let opening = plain_db::queries::badge_opening(pool, time_tz(8, 0))
         .await
@@ -280,7 +280,7 @@ pub(super) async fn enums_keep_their_exact_labels(pool: &PgPool) {
     assert_eq!(in_states.len(), 1);
     assert_eq!(in_states[0].id, urgent.id);
     assert_eq!(in_states[0].state, Some(TicketState::Archived));
-    assert_eq!(in_states[0].wanted, Some(TicketPriority::Low));
+    assert_eq!(in_states[0].wanted, TicketPriority::Low);
 }
 
 /// `ticket_channel` is renamed to `contact_channel` by alter_schema.sql: the
