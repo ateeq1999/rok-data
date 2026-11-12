@@ -4,7 +4,7 @@
 //! header parameters (`if_match`, an `Option` when the header may be left
 //! out).
 
-use super::super::openapi::{Body, Parameter, Property, Response, Schema};
+use super::super::openapi::{Body, Paging, Parameter, Property, Response, Schema};
 use super::types::Types;
 use super::{Error, Named, call_name, check_groups, doc, group_method, group_type, ident};
 
@@ -141,10 +141,12 @@ fn call(named: &Named<'_>, types: &mut Types<'_>) -> Result<(String, bool), Erro
             parameter.name
         )));
     }
+    let mut query_type = None;
     if !op.query_params.is_empty() {
         let properties: Vec<Property> = op.query_params.iter().map(property).collect();
         let fallback = format!("The query of `{} {}`.", op.method.upper(), op.path);
         let name = types.define_query(&named.query_type(), &fallback, &properties);
+        query_type = Some(name.clone());
         arguments.push(format!("query: &types::{name}"));
         chain.push(".query(query)".to_owned());
     }
@@ -255,6 +257,7 @@ fn call(named: &Named<'_>, types: &mut Types<'_>) -> Result<(String, bool), Erro
         text.push_str("    ///\n");
         text.push_str(&line);
     }
+    let page_type = answer.clone();
     let (name, function) = if route {
         (format!("{}_url", call_name(named)), "fn")
     } else {
@@ -279,11 +282,158 @@ fn call(named: &Named<'_>, types: &mut Types<'_>) -> Result<(String, bool), Erro
         text.push_str(&format!("        {line}\n"));
     }
     text.push_str("    }\n");
+    if let (Some(paging), Some(query_type), true) = (
+        types.document().paging(op),
+        &query_type,
+        op.header_params.is_empty(),
+    ) {
+        text.push('\n');
+        text.push_str(&pages(
+            named, paging, types, &arguments, query_type, &page_type,
+        ));
+    }
     let typed = arguments
         .iter()
         .any(|argument| argument.contains("types::"))
         || answer.contains("types::");
     Ok((text, typed))
+}
+
+/// The integer type of the property `name` of the page schema `schema`
+/// (`i32` or `i64`).
+fn integer_of(types: &mut Types<'_>, schema: &Schema, name: &str) -> String {
+    let schema = match schema {
+        Schema::Ref(component) => types.document().schemas.get(component).cloned(),
+        other => Some(other.clone()),
+    };
+    let property = match schema {
+        Some(Schema::Object { properties, .. }) => properties
+            .into_iter()
+            .find(|property| property.name == name)
+            .map(|property| property.schema),
+        _ => None,
+    };
+    property.map_or_else(|| "i64".to_owned(), |schema| types.ty(&schema, "", ""))
+}
+
+/// `expr`, of the integer type `ty`, as an `i64`.
+fn wide(expr: &str, ty: &str) -> String {
+    if ty == "i64" {
+        expr.to_owned()
+    } else {
+        format!("i64::from({expr})")
+    }
+}
+
+/// `<call>_pages`: the call's pages, one at a time, from the query's page
+/// (or cursor) on. `arguments` are the call's, `&self` first.
+fn pages(
+    named: &Named<'_>,
+    paging: Paging,
+    types: &mut Types<'_>,
+    arguments: &[String],
+    query_type: &str,
+    page_type: &str,
+) -> String {
+    let op = named.op;
+    let call = call_name(named);
+    let query = format!("types::{query_type}");
+    // Each path parameter the call takes by reference is owned by the
+    // pages, and lent to each page's call.
+    let mut owned = Vec::new();
+    let mut passed = Vec::new();
+    for parameter in &op.path_params {
+        let name = argument(&parameter.name);
+        if matches!(parameter.schema, Schema::String(_)) {
+            owned.push(name.clone());
+            passed.push(format!("&{name}"));
+        } else {
+            passed.push(name);
+        }
+    }
+    passed.push("&query".to_owned());
+    let (next, start) = match paging {
+        Paging::Numbered => {
+            let Response::Json(schema) = &op.response else {
+                unreachable!("a paged list answers JSON")
+            };
+            let page = integer_of(types, schema, "page");
+            let per_page = integer_of(types, schema, "per_page");
+            let total = integer_of(types, schema, "total");
+            let asked = op
+                .query_params
+                .iter()
+                .find(|parameter| parameter.name == "page")
+                .map_or_else(|| "i64".to_owned(), |p| types.ty(&p.schema, "", ""));
+            let number = match (page.as_str(), asked.as_str()) {
+                (from, to) if from == to => "Some(page.page + 1)".to_owned(),
+                (_, "i64") => "Some(i64::from(page.page) + 1)".to_owned(),
+                (_, to) => format!("{to}::try_from(page.page + 1).ok()"),
+            };
+            (
+                format!(
+                    "let more = {} * {} < {};\n            \
+                     let next = more.then(|| {query} {{\n                \
+                     page: {number},\n                ..query\n            }});",
+                    wide("page.page", &page),
+                    wide("page.per_page", &per_page),
+                    wide("page.total", &total),
+                ),
+                "page",
+            )
+        }
+        Paging::Cursor => (
+            format!(
+                "let next = page.next.clone().map(|cursor| {query} {{\n                \
+                 cursor: Some(cursor),\n                ..query\n            }});"
+            ),
+            "cursor",
+        ),
+    };
+    let read_call = format!("calls.{call}({}).await?", passed.join(", "));
+    let body = format!(
+        "            let page = {read_call};\n            {next}\n            Ok((page, next))\n"
+    );
+    let mut text = format!(
+        "    /// Every page of [`Self::{call}`] from `query`'s {start} on (the first\n    \
+         /// page without one), read one at a time: `while let Some(page) =\n    \
+         /// pages.next().await`.\n"
+    );
+    let result = format!("crate::Pages<'_, {page_type}>");
+    let one_line = format!(
+        "    pub fn {call}_pages({}) -> {result} {{",
+        arguments.join(", ")
+    );
+    if one_line.len() <= MAX_WIDTH {
+        text.push_str(&one_line);
+        text.push('\n');
+    } else {
+        text.push_str(&format!("    pub fn {call}_pages(\n"));
+        for argument in arguments {
+            text.push_str(&format!("        {argument},\n"));
+        }
+        text.push_str(&format!("    ) -> {result} {{\n"));
+    }
+    text.push_str("        let calls = *self;\n");
+    for name in &owned {
+        text.push_str(&format!("        let {name} = {name}.to_owned();\n"));
+    }
+    if owned.is_empty() {
+        text.push_str(&format!(
+            "        let read = move |query: {query}| async move {{\n{body}        }};\n"
+        ));
+    } else {
+        text.push_str(&format!("        let read = move |query: {query}| {{\n"));
+        for name in &owned {
+            text.push_str(&format!("            let {name} = {name}.clone();\n"));
+        }
+        let body = body.replace("\n            ", "\n                ");
+        text.push_str(&format!(
+            "            async move {{\n    {body}            }}\n        }};\n"
+        ));
+    }
+    text.push_str("        crate::Pages::new(query.clone(), read)\n    }\n");
+    text
 }
 
 /// Whether a query parameter of `schema` is one value the query encoder

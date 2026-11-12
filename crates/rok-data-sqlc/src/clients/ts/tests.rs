@@ -134,7 +134,7 @@ fn query_and_mutation_factories_cover_the_operations() {
     let files = emitted(&monorepo());
     let queries = file(&files, "src/queries.ts");
     assert!(queries.starts_with(&format!(
-        "{HEADER}{ZOD}\nimport {{ mutationOptions, queryOptions }} from \"@tanstack/react-query\"\n"
+        "{HEADER}{ZOD}\nimport {{ infiniteQueryOptions, mutationOptions, queryOptions }} from \"@tanstack/react-query\"\n"
     )));
     assert!(queries.contains("  users: [\"users\"] as const,\n"));
     assert!(queries.contains(
@@ -411,6 +411,50 @@ fn the_runtime_checks_responses_with_the_calls_schema() {
     // A success with no body is still `undefined`, unchecked.
     assert!(runtime.contains(
         "  if (call.response === \"none\" || res.status === 204) return undefined as T\n"
+    ));
+}
+
+/// Every list that pages gets an `infiniteQueryOptions` factory under
+/// `pagers`, for `useInfiniteQuery`: a page-number list starts at the
+/// query's page (the first without one), a cursor list at the query's
+/// cursor, and both read the next page with the runtime's `nextPage`.
+#[test]
+fn a_paged_list_gets_a_pager_factory() {
+    let files = emitted(&api_app());
+    let queries = file(&files, "src/queries.ts");
+    assert!(queries.contains(
+        "import { infiniteQueryOptions, mutationOptions, queryOptions } from \"@tanstack/react-query\"\n"
+    ));
+    assert!(queries.contains("import { nextPage, type RequestOptions } from \"./runtime\"\n"));
+    assert!(queries.contains(
+        "/**\n * `infiniteQueryOptions` for every list that pages, by tag:\n \
+         * `useInfiniteQuery(pagers.users.list())`.\n */\nexport const pagers = {\n"
+    ));
+    assert!(
+        queries.contains(
+            "  notes: {\n    list: (query?: NotesListQuery) =>\n      infiniteQueryOptions({\n        \
+             queryKey: [\"notes\", \"list\", \"pages\", query ?? {}] as const,\n        \
+             queryFn: ({ pageParam, signal }) =>\n          \
+             api.notes.list({ ...query, page: pageParam }, { signal }),\n        \
+             initialPageParam: query?.page ?? 1,\n        \
+             getNextPageParam: (last) => nextPage(last),\n      }),\n  },\n"
+        ),
+        "{queries}"
+    );
+    assert!(queries.contains(
+        "  labels: {\n    list: (query?: LabelsListQuery) =>\n      infiniteQueryOptions({\n        \
+         queryKey: [\"labels\", \"list\", \"pages\", query ?? {}] as const,\n        \
+         queryFn: ({ pageParam, signal }) =>\n          \
+         api.labels.list({ ...query, cursor: pageParam }, { signal }),\n        \
+         initialPageParam: query?.cursor,\n        \
+         getNextPageParam: (last) => nextPage(last),\n      }),\n  },\n"
+    ));
+    let runtime = file(&files, "src/runtime.ts");
+    assert!(runtime.contains(
+        "export function nextPage(page: {\n  page: number\n  per_page: number\n  total: number\n}): number | undefined\n"
+    ));
+    assert!(runtime.contains(
+        "export function nextPage(page: { next?: string | null }): string | undefined\n"
     ));
 }
 

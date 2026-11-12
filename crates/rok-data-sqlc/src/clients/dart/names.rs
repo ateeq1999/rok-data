@@ -111,6 +111,9 @@ const RESERVED_TYPES: &[&str] = &[
     "Nullable",
     "Call",
     "Transport",
+    "Pager",
+    "Stream",
+    "StreamController",
 ];
 
 /// Whether a model may not take the type name `name`.
