@@ -109,6 +109,7 @@ fn path_argument(name: &str) -> String {
 pub(super) fn success_type(named: &Named<'_>, names: &TypeNames) -> String {
     match &named.op.response {
         Response::Empty => "void".to_owned(),
+        Response::Redirect => "string".to_owned(),
         Response::Binary => "Blob".to_owned(),
         Response::Json(schema) => render(schema, names, "    "),
     }
@@ -180,8 +181,19 @@ pub(super) fn file(operations: &[Named<'_>], names: &TypeNames) -> String {
     if checks.iter().any(|check| check.contains("z.")) {
         out.push_str("\nimport { z } from \"zod\"\n");
     }
-    out.push_str("\nimport { request } from \"./runtime\"\n");
-    out.push_str("import type { RequestOptions } from \"./runtime\"\n");
+    let routes = all.iter().any(|named| named.op.is_browser_route());
+    let fetched = !routes || all.iter().any(|named| !named.op.is_browser_route());
+    let runtime: Vec<&str> = [(routes, "apiUrl"), (fetched, "request")]
+        .into_iter()
+        .filter_map(|(used, name)| used.then_some(name))
+        .collect();
+    out.push_str(&format!(
+        "\nimport {{ {} }} from \"./runtime\"\n",
+        runtime.join(", ")
+    ));
+    if fetched {
+        out.push_str("import type { RequestOptions } from \"./runtime\"\n");
+    }
     out.push_str(&import_types(&used_types(&all, names, true)));
     let constants: BTreeSet<String> = all
         .iter()
@@ -208,9 +220,12 @@ pub(super) fn file(operations: &[Named<'_>], names: &TypeNames) -> String {
     out
 }
 
-/// One call of `api`.
+/// One call of `api`, or a Browser route's URL builder.
 fn call(named: &Named<'_>, names: &TypeNames) -> String {
     let op = named.op;
+    if op.is_browser_route() {
+        return url_builder(named, names);
+    }
     let summary = op
         .summary
         .clone()
@@ -257,7 +272,7 @@ fn call(named: &Named<'_>, names: &TypeNames) -> String {
     fields.push(format!(
         "response: {:?}",
         match op.response {
-            Response::Empty => "none",
+            Response::Empty | Response::Redirect => "none",
             Response::Binary => "blob",
             Response::Json(_) => "json",
         }
@@ -308,4 +323,32 @@ fn path_expression(path: &str, parameters: &[super::super::openapi::Parameter]) 
         );
     }
     format!("`{out}`")
+}
+
+/// A Browser route's URL builder: `<name>Url(path params..., query)`,
+/// the full URL on the configured base URL, for a browser to follow.
+fn url_builder(named: &Named<'_>, names: &TypeNames) -> String {
+    let op = named.op;
+    let summary = op.summary.clone().unwrap_or_else(|| {
+        format!(
+            "The URL of `{} {}`, which a browser follows.",
+            op.method.upper(),
+            op.path
+        )
+    });
+    let declarations: Vec<String> = arguments(named, names)
+        .iter()
+        .map(Argument::declaration)
+        .collect();
+    let mut url = vec![path_expression(&op.path, &op.path_params)];
+    if !op.query_params.is_empty() {
+        url.push("query".to_owned());
+    }
+    format!(
+        "{}    {}Url: ({}): string =>\n      apiUrl({}),\n",
+        doc(Some(&summary), "    "),
+        named.name,
+        declarations.join(", "),
+        url.join(", "),
+    )
 }

@@ -104,7 +104,7 @@ fn types_follow_the_schemas() {
     // A `POST`-only body's optional field is plain optional; a `PATCH`
     // body's keeps `null` apart from left out.
     assert!(types.contains("  scope: ApiKeyScopeSchema.optional(),\n"));
-    assert!(types.contains("  role: z.union([z.null(), RoleSchema]).optional(),\n"));
+    assert!(types.contains("  role: RoleSchema.nullable().optional(),\n"));
     // Formats, an intersection, a map.
     assert!(types.contains("  id: z.uuid(),\n"));
     assert!(types.contains("  created_at: z.iso.datetime({ offset: true, local: true }),\n"));
@@ -302,14 +302,14 @@ fn a_nullable_enum_field_keeps_its_comment() {
     assert!(
         types.contains(
             "  /** Where the payout is. */\n  \
-             status: z.union([z.null(), PayoutStatusSchema]).optional(),\n"
+             status: PayoutStatusSchema.nullable().optional(),\n"
         ),
         "{types}"
     );
     assert!(
         types.contains(
             "  /** The payout's own kind. */\n  \
-             kind: z.union([z.null(), PayoutStatusSchema]).optional(),\n"
+             kind: PayoutStatusSchema.nullable().optional(),\n"
         ),
         "{types}"
     );
@@ -456,4 +456,99 @@ fn a_paged_list_gets_a_pager_factory() {
     assert!(runtime.contains(
         "export function nextPage(page: { next?: string | null }): string | undefined\n"
     ));
+}
+
+/// A Browser route is a URL builder, not a call: its path and query
+/// parameters on the base URL, and no query or mutation factory.
+#[test]
+fn a_browser_route_is_a_url_builder() {
+    let files = emitted(&crate::clients::openapi::tests::browser_routes());
+    let calls = file(&files, "src/calls.ts");
+    assert!(
+        calls.contains("import { apiUrl, request } from \"./runtime\"\n"),
+        "{calls}"
+    );
+    assert!(
+        calls.contains(
+            "    /** Starts signing in at an OpenID provider. */\n    \
+         oidcStartUrl: (provider: string, query?: AuthOidcStartQuery): string =>\n      \
+         apiUrl(`/auth/oidc/${encodeURIComponent(String(provider))}/start`, query),\n"
+        ),
+        "{calls}"
+    );
+    assert!(
+        calls.contains(
+            "    /** The URL of `GET /auth/oidc/callback`, which a browser follows. */\n    \
+         oidcCallbackUrl: (query: AuthOidcCallbackQuery): string =>\n      \
+         apiUrl(\"/auth/oidc/callback\", query),\n"
+        ),
+        "{calls}"
+    );
+    assert!(!calls.contains("oidcStart:") && !calls.contains("\"GET /auth/oidc"));
+    let queries = file(&files, "src/queries.ts");
+    assert!(
+        queries.contains("    me: () =>") && !queries.contains("oidc"),
+        "{queries}"
+    );
+    let types = file(&files, "src/types.ts");
+    assert!(
+        types.contains("export type AuthOidcCallbackQuery = {"),
+        "{types}"
+    );
+    let runtime = file(&files, "src/runtime.ts");
+    assert!(runtime.contains("export function apiUrl(path: string, query?: Call[\"query\"]) {"));
+}
+
+/// The README names the URL builders when the document has a Browser
+/// route, and its example is a call.
+#[test]
+fn the_readme_names_browser_routes() {
+    let files = emitted(&crate::clients::openapi::tests::browser_routes());
+    let readme = file(&files, "README.md");
+    assert!(
+        readme.contains("api.<tag>.<operation>Url(...)` for a Browser route"),
+        "{readme}"
+    );
+    assert!(
+        readme.contains("const page = await api.auth.me("),
+        "{readme}"
+    );
+    assert!(!file(&emitted(&monorepo()), "README.md").contains("Browser route"));
+}
+
+/// `GET /me/tables/{id}/bill`: the table's bill, or `null` before the
+/// diner orders, as utoipa writes `body = Option<BillResponse>`.
+fn none_yet() -> Document {
+    let json = json!({
+        "openapi": "3.1.0", "info": {},
+        "paths": {"/me/tables/{id}/bill": {"get": {
+            "tags": ["tables"], "operationId": "bill",
+            "parameters": [{"name": "id", "in": "path", "required": true,
+                            "schema": {"type": "string"}}],
+            "responses": {"200": {"description": "", "content": {"application/json": {
+                "schema": {"oneOf": [
+                    {"type": "null"},
+                    {"$ref": "#/components/schemas/BillResponse"},
+                ]},
+            }}}},
+        }}},
+        "components": {"schemas": {"BillResponse": {
+            "type": "object", "required": ["total"],
+            "properties": {"total": {"type": "integer"}},
+        }}},
+    });
+    Document::parse(&json.to_string()).unwrap_or_else(|err| panic!("{err}"))
+}
+
+/// "None yet" is an answer: an `Option<T>` success is `T | null`, which
+/// the query's `data` carries instead of an error.
+#[test]
+fn a_nullable_success_answers_null() {
+    let files = emitted(&none_yet());
+    let calls = file(&files, "src/calls.ts");
+    assert!(calls.contains("request<BillResponse | null>("), "{calls}");
+    assert!(
+        calls.contains("schema: BillResponseSchema.nullable(),"),
+        "{calls}"
+    );
 }

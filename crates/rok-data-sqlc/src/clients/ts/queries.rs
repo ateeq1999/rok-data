@@ -13,7 +13,11 @@ use super::{Named, TypeNames, header_field};
 
 /// The text of `src/queries.ts` (after the header).
 pub(super) fn file(document: &Document, operations: &[Named<'_>], names: &TypeNames) -> String {
-    let all: Vec<&Named<'_>> = operations.iter().collect();
+    // A Browser route is followed by a browser, not fetched: no factory.
+    let all: Vec<&Named<'_>> = operations
+        .iter()
+        .filter(|named| !named.op.is_browser_route())
+        .collect();
     let reads: Vec<&Named<'_>> = all
         .iter()
         .copied()

@@ -354,6 +354,16 @@ impl Call {
     pub async fn empty_answer(self) -> Result<(), ApiError> {
         self.send().await.map(drop)
     }
+
+    /// Sends nothing: the request's full URL, its query included, for a
+    /// browser to follow (a Browser route, whose every answer is a
+    /// redirect).
+    pub fn url(self) -> Result<String, ApiError> {
+        self.builder
+            .build()
+            .map(|request| request.url().to_string())
+            .map_err(|err| ApiError::new(0, "invalid_url", err.to_string()))
+    }
 }
 
 /// `value` as one path segment: every byte but the unreserved ones

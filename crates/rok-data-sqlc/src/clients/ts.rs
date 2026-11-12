@@ -225,9 +225,15 @@ impl TypeNames {
 
 /// The client's `README.md`.
 fn readme(operations: &[Named<'_>]) -> String {
+    let routes = if operations.iter().any(|named| named.op.is_browser_route()) {
+        "- `api.<tag>.<operation>Url(...)` for a Browser route (an operation whose \n         every answer is a redirect): its full URL, with its path and query \n         parameters, for a browser to follow; it sends nothing.
+"
+    } else {
+        ""
+    };
     let example = operations
         .iter()
-        .find(|named| named.is_query())
+        .find(|named| named.is_query() && !named.op.is_browser_route())
         .map_or_else(String::new, |named| {
             format!(
                 "\n```ts\nimport {{ api, queries }} from \"<this directory>/src\"\n\n\
@@ -261,7 +267,7 @@ fn readme(operations: &[Named<'_>]) -> String {
          - The App depends on zod 4 (`zod@^4`).\n\
          - `configure({{ baseUrl, token, onUnauthorized }})` once, at start-up: the \
          session's bearer token goes to the operations that need it, and a `401` to \
-         one of them calls `onUnauthorized`.\n{example}"
+         one of them calls `onUnauthorized`.\n{routes}{example}"
     )
 }
 

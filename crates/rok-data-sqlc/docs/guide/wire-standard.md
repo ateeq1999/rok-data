@@ -241,6 +241,14 @@ content-type: application/json
 {"error":{"code":"not_found","message":"no `projects` row has this key"}}
 ```
 
+A 404 means the resource does not exist. A value that does not exist
+*yet* is an answer, not an error: a hand-written route whose current
+value may be absent (a table's bill before the diner orders) declares
+`body = Option<BillResponse>` and answers `200` with `null`. Each Client
+returns it as a nullable type: TypeScript `BillResponse | null` (a
+query's `data` is `null`, not an error), Dart `BillResponse?`, Rust
+`Option<BillResponse>`.
+
 ### 409: constraints
 
 ```http

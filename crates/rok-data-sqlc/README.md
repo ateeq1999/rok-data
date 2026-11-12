@@ -652,7 +652,9 @@ are:
   (see "More rules" below);
 - an explicit cast to a supported type, including an enum type
   (`$1::product_status` takes `types::ProductStatus`, and
-  `$1::product_status[]` a slice of them).
+  `$1::product_status[]` a slice of them);
+- a `CASE WHEN $n THEN` condition or `NOT $n` (`bool`), in `WHERE` or in
+  `ORDER BY`.
 
 A placeholder anywhere else fails generation. The error names the fix, a
 `-- param:` override.
@@ -672,6 +674,30 @@ comes in three forms:
 `!` is for a value written to a nullable column that the query always
 sets, as in `UPDATE offers SET reviewed_by = $2`. It can't go with a
 written type, which is used as is.
+
+**One query can serve both sides of a switch.** "Upcoming or past
+bookings" is one listing with a `bool` parameter, not two queries: cast it
+once (`$2::bool`), switch the filter with `CASE WHEN $2 THEN … ELSE … END`,
+and give each sort direction its own `CASE`, since a `CASE` can't switch
+`ASC`/`DESC` (the `CASE` that doesn't apply is `NULL` on every row and sorts
+nothing):
+
+<!-- source: docs/examples/api/queries.sql -->
+```sql
+-- name: ProjectsAround :many
+-- param: $2 after
+-- param: $3 at
+SELECT id, name, created_at FROM projects
+WHERE owner_id = $1
+  AND CASE WHEN $2::bool THEN created_at >= $3 ELSE created_at < $3 END
+ORDER BY CASE WHEN $2 THEN created_at END ASC,
+         CASE WHEN NOT $2 THEN created_at END DESC;
+```
+
+The function takes `after: bool`, and either side comes nearest first.
+A count beside the listing takes the same switch in its `WHERE`, and a
+second listing over the same columns (say, one page of each side) shares
+the row type with `-- returns: ProjectsAroundRow`.
 
 **Keys keep their typed ids.** A parameter typed by a primary key or foreign
 key column takes that table's typed id, and so does a result column taken
@@ -735,12 +761,18 @@ query.
 **Everyday expressions are typed, and NULL when an operand can be.** An
 expression is `Option` unless every operand is never NULL: a `NOT NULL`
 column off the outer side of a join, a literal, `count(…)`, a clock
-function, or such an expression itself. A parameter may be NULL.
+function, or such an expression itself. A parameter may be NULL. `sum`,
+`avg`, `min` and `max` may be NULL (no rows, or only NULLs), in a
+`SELECT`, a CTE or a subquery alike; `coalesce(sum(stock), 0)` is `i64`
+with no cast, and a cast still decides the type.
 
 | Expression | Type |
 | --- | --- |
 | `=`, `<>`, `<`, `<=`, `>`, `>=`, `BETWEEN`, `IN (…)`, `LIKE`, `ILIKE`, `~`, `AND`, `OR`, `NOT` | `bool` |
 | `IS [NOT] NULL`, `IS [NOT] DISTINCT FROM`, `IS [NOT] TRUE` | `bool`, never NULL |
+| `sum(…)` | `i64` for `smallint` or `integer`, `rust_decimal::Decimal` for `bigint` or `numeric`, the argument's float type for a float |
+| `avg(…)` | `rust_decimal::Decimal` for an integer or `numeric`, `f64` for a float |
+| `min(…)`, `max(…)` | the argument's type |
 | `EXISTS (…)`, `NOT EXISTS (…)` | `bool`, never NULL |
 | `x IN (SELECT …)` | `bool` |
 | `+`, `-`, `*`, `/`, `%` | the operands' shared type: integers widen to the larger, `numeric` wins over integers, floats over `numeric` |
@@ -948,6 +980,15 @@ again, and the error says why, with its line.
 
 ```sh
 rok sqlc query add OwnedMedia "SELECT * FROM media WHERE id = \$1 AND owner_id = \$2 LIMIT 1" --file media
+```
+
+The SQL argument works the way `-j` does: `@path` reads the SQL from that
+file, `-` reads it from stdin, and anything else is the SQL itself. Put
+anything with quotes in a file, and no shell quoting gets in the way on
+any OS:
+
+```sh
+rok sqlc query add MediaByKind @media_by_kind.sql --file media
 ```
 
 `--file` takes a stem (`media`) under the one configured `queries` directory,

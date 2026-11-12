@@ -430,3 +430,81 @@ fn a_paged_list_gets_a_pages_iterator() {
     let lib = file(&files, "src/lib.rs");
     assert!(lib.contains("pub use runtime::{ApiError, Client, FieldDetails, FieldIssue, Pages};"));
 }
+
+/// A Browser route is a URL builder, not a call: a plain `fn`, named
+/// `<operation>_url`, that takes its path and query parameters and gives
+/// the full URL, sending nothing.
+#[test]
+fn a_browser_route_is_a_url_builder() {
+    let files = emitted(&crate::clients::openapi::tests::browser_routes());
+    let calls = file(&files, "src/calls.rs");
+    assert!(
+        calls.contains(
+            "    /// Starts signing in at an OpenID provider.\n    \
+         pub fn oidc_start_url(\n        &self,\n        provider: &str,\n        \
+         query: &types::AuthOidcStartQuery,\n    ) -> Result<String, ApiError> {\n        \
+         let provider = crate::segment(provider);\n        \
+         let path = format!(\"/auth/oidc/{provider}/start\");\n        \
+         let call = self.client.call(Method::GET, &path, false)?;\n        \
+         call.query(query).url()\n    }\n"
+        ),
+        "{calls}"
+    );
+    assert!(
+        calls.contains(
+            "    /// The URL of `GET /auth/oidc/callback`, which a browser follows.\n    \
+         pub fn oidc_callback_url(\n"
+        ),
+        "{calls}"
+    );
+    assert!(!calls.contains("async fn oidc"), "{calls}");
+    assert!(calls.contains("    pub async fn me(&self) -> Result<(), ApiError> {\n"));
+    let runtime = file(&files, "src/runtime.rs");
+    assert!(runtime.contains("    pub fn url(self) -> Result<String, ApiError> {\n"));
+}
+
+/// The README names the URL builders when the document has a Browser
+/// route, and its example is a call.
+#[test]
+fn the_readme_names_browser_routes() {
+    let files = emitted(&crate::clients::openapi::tests::browser_routes());
+    let readme = file(&files, "README.md");
+    assert!(
+        readme.contains("client.<tag>().<operation>_url(...)` for a Browser route"),
+        "{readme}"
+    );
+    assert!(
+        readme.contains("let answer = client.auth().me().await?;"),
+        "{readme}"
+    );
+    assert!(!file(&emitted(&monorepo()), "README.md").contains("Browser route"));
+}
+
+/// "None yet" is an answer: an `Option<T>` success, as utoipa writes it
+/// (`oneOf` of `null` and the `$ref`), answers `Option<T>`.
+#[test]
+fn a_nullable_success_answers_none() {
+    let document = parsed(
+        json!({"/me/tables/{id}/bill": {"get": {
+            "tags": ["tables"], "operationId": "bill",
+            "parameters": [{"name": "id", "in": "path", "required": true,
+                            "schema": {"type": "string"}}],
+            "responses": {"200": {"description": "", "content": {"application/json": {
+                "schema": {"oneOf": [
+                    {"type": "null"},
+                    {"$ref": "#/components/schemas/BillResponse"},
+                ]},
+            }}}},
+        }}}),
+        json!({"BillResponse": {
+            "type": "object", "required": ["total"],
+            "properties": {"total": {"type": "integer"}},
+        }}),
+    );
+    let files = emitted(&document);
+    let calls = file(&files, "src/calls.rs");
+    assert!(
+        calls.contains("-> Result<Option<types::BillResponse>, ApiError> {"),
+        "{calls}"
+    );
+}

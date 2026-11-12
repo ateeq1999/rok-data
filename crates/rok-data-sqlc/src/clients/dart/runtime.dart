@@ -220,6 +220,10 @@ final class Transport {
   /// `path` on the API's origin.
   Uri url(String path) => Uri.parse('$_baseUrl$path');
 
+  /// `call`'s full URL, its query included, sent nowhere: a Browser
+  /// route's, for a browser to follow.
+  Uri urlOf(Call call) => _url(call);
+
   /// Sends `call`; its success's JSON body, read by `decode`.
   Future<T> json<T>(
     Call call,

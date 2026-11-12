@@ -154,6 +154,18 @@ fn without_null(schema: &Schema) -> Schema {
     }
 }
 
+/// The other branch of a `oneOf` of `null` and one schema, as utoipa writes
+/// an `Option<T>` of a component: read as `T | null`, the way a nullable
+/// type list is.
+fn null_or_one(schema: &Schema) -> Option<&Schema> {
+    match schema {
+        Schema::OneOf(variants) if variants.len() == 2 && variants.contains(&Schema::Null) => {
+            variants.iter().find(|variant| **variant != Schema::Null)
+        }
+        _ => None,
+    }
+}
+
 /// Renders zod schemas. `declared` holds the component schemas whose
 /// consts exist where the text goes: a reference to another one is
 /// deferred, by a getter in an object (which keeps a recursive type
@@ -179,6 +191,9 @@ impl Zod<'_> {
     /// The zod schema of `schema`, multi-line objects indented for a place
     /// at `indent`.
     pub fn render(&self, schema: &Schema, indent: &str) -> String {
+        if let Some(inner) = null_or_one(schema) {
+            return format!("{}.nullable()", self.render(inner, indent));
+        }
         match schema {
             Schema::Ref(name) => {
                 let constant = schema_const(&self.names.schema(name));
@@ -337,6 +352,9 @@ fn parameters(parameters: &[Parameter], names: &TypeNames, key: fn(&str) -> Stri
 /// and header types; a multi-line object type is indented for a place at
 /// `indent`.
 pub(super) fn render(schema: &Schema, names: &TypeNames, indent: &str) -> String {
+    if let Some(inner) = null_or_one(schema) {
+        return format!("{} | null", render(inner, names, indent));
+    }
     match schema {
         Schema::Ref(name) => names.schema(name),
         Schema::Any => "unknown".to_owned(),

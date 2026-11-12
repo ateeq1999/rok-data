@@ -143,3 +143,83 @@ fn names_must_be_new_and_pascal_case() -> Result<()> {
     assert!(!output.status.success());
     Ok(())
 }
+
+#[test]
+fn the_sql_is_read_from_a_file_named_with_an_at() -> Result<()> {
+    let dir = project()?;
+    // Quotes that a shell would fight over.
+    fs::write(
+        dir.path().join("q.sql"),
+        "SELECT * FROM users\nWHERE email = $1 AND email <> 'it''s'\nLIMIT 1;\n",
+    )?;
+    let output = run_binary_in(
+        dir.path(),
+        &["query", "add", "UserByEmail", "@q.sql", "--file", "users"],
+    );
+    assert_success(&output);
+    let file = fs::read_to_string(dir.path().join("queries").join("users.sql"))?;
+    assert!(
+        file.ends_with(
+            "-- name: UserByEmail :maybe_one\nSELECT * FROM users\nWHERE email = $1 AND email <> 'it''s'\nLIMIT 1;\n"
+        ),
+        "{file}"
+    );
+    let generated = fs::read_to_string(dir.path().join("out").join("queries").join("users.rs"))?;
+    assert!(
+        generated.contains("pub async fn user_by_email"),
+        "{generated}"
+    );
+    Ok(())
+}
+
+#[test]
+fn the_sql_is_read_from_stdin_with_a_dash() -> Result<()> {
+    use std::io::Write;
+    use std::process::Stdio;
+
+    let dir = project()?;
+    let mut child = Command::new(env!("CARGO_BIN_EXE_rok-data"))
+        .arg("sqlc")
+        .current_dir(dir.path())
+        .args(["query", "add", "AllEmails", "-", "--file", "users"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    child
+        .stdin
+        .take()
+        .expect("stdin is piped")
+        .write_all(b"SELECT email FROM users WHERE email <> 'x'\n")?;
+    let output = child.wait_with_output()?;
+    assert_success(&output);
+    let file = fs::read_to_string(dir.path().join("queries").join("users.sql"))?;
+    assert!(
+        file.ends_with("-- name: AllEmails :many\nSELECT email FROM users WHERE email <> 'x';\n"),
+        "{file}"
+    );
+    Ok(())
+}
+
+#[test]
+fn a_missing_sql_file_is_named() -> Result<()> {
+    let dir = project()?;
+    let path = dir.path().join("queries").join("users.sql");
+    let before = fs::read_to_string(&path)?;
+    let output = run_binary_in(
+        dir.path(),
+        &[
+            "query",
+            "add",
+            "UserByEmail",
+            "@nope.sql",
+            "--file",
+            "users",
+        ],
+    );
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("nope.sql"), "{stderr}");
+    assert_eq!(fs::read_to_string(&path)?, before);
+    Ok(())
+}

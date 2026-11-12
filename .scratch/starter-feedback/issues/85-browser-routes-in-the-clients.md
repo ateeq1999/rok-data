@@ -8,8 +8,8 @@ Karibu Pass left `GET /auth/oidc/start` and `GET /auth/oidc/callback` out of `op
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A `302`-only operation reads as a Browser route; one with no `2xx` and no `3xx` still fails (reader tests)
-- [ ] Each Client emits a URL builder with path and query parameters, and no call (emission tests)
-- [ ] Engine ADR 0027's Client sections name Browser routes
+- [x] A `302`-only operation reads as a Browser route; one with no `2xx` and no `3xx` still fails (reader tests)
+- [x] Each Client emits a URL builder with path and query parameters, and no call (emission tests)
+- [x] Engine ADR 0027's Client sections name Browser routes

@@ -14,6 +14,15 @@ the *generated* API count as breaking (see ADR 0012).
   a `smallint` is `i32`), `int64` or no format stays `i64`. Every integer
   was `i64` before. Dart and TypeScript are unchanged (engine ADR 0027,
   amended).
+- The TypeScript Client writes a `oneOf` of `null` and one schema (what
+  utoipa writes for an `Option<T>` of a component) as `T | null` and
+  `TSchema.nullable()`, instead of `null | T` and
+  `z.union([z.null(), TSchema])`; the types are the same. A nullable
+  success, such as an `Option<BillResponse>` answered `200` with `null`
+  before a value exists, returns `Promise<BillResponse | null>`; the
+  Dart (`Future<BillResponse?>`) and Rust
+  (`Result<Option<BillResponse>, ApiError>`) Clients already returned a
+  nullable type, and emission tests now hold all three.
 - **Breaking for Client callers:** a body field that may be left out and
   may be `null` is three-state only in a `PATCH` body, where the API
   tells "keep" from "clear". Elsewhere it is plain optional: Rust
@@ -61,6 +70,27 @@ the *generated* API count as breaking (see ADR 0012).
   default (arguments up to three, a struct from four). Each generated
   function's doc comment says which rule applied, so generated query
   modules change by one doc line per function with parameters.
+- **Browser routes in the Clients:** the contract reader reads an
+  operation with no success (`2xx`) but a redirect (`3xx`) as a Browser
+  route (`Response::Redirect`, `Operation::is_browser_route`) instead of
+  failing, and refuses one with a body or header parameter. Each Client
+  emits a URL builder for it in place of a call, taking its path and
+  query parameters: TypeScript `api.<tag>.<operation>Url(...)` (a
+  `string`, through `apiUrl(path, query)`, with no query or mutation
+  factory), Dart `<operation>Url(...)` (a `Uri`, through the transport's
+  new `urlOf`), Rust `<operation>_url(...)` (a plain `fn` giving
+  `Result<String, ApiError>`, through the runtime's new `Call::url`).
+  An operation with any `2xx` is unchanged (engine ADR 0027, amended).
+- `sum`, `avg`, `min` and `max` are typed by PostgreSQL's rules, in a
+  `SELECT`, a CTE and a subquery alike: `sum` of `smallint`/`integer` is
+  `i64`, of `bigint`/`numeric` `rust_decimal::Decimal`, of a float that
+  float; `avg` of an integer or `numeric` is `rust_decimal::Decimal`, of a
+  float `f64`; `min` and `max` keep the argument's type. Each is `Option`
+  unless wrapped in `coalesce(…, non-null)`; a cast still wins. Before,
+  they failed with "cannot infer the type" unless cast.
+- `rok sqlc query add NAME SQL` reads its SQL the way `-j` reads a
+  payload: `@path` from that file, `-` from stdin, anything else inline.
+  Scripted edits need no shell quoting on any OS.
 - `check-arch` checks that a feature's handler takes its caller extractor
   (`AuthUser`, `AdminUser`, or a struct the App marks `/// rok:caller`)
   before its body extractor (`ValidatedJson`, `Json`, `Form`), reported
@@ -130,6 +160,12 @@ the *generated* API count as breaking (see ADR 0012).
   copy-forward run in the fixture's PostgreSQL suite. Before, any
   function in `FROM` failed the query; other functions still do, naming
   the ones the engine types.
+- A `bool` switch types in a query: a placeholder used as a `CASE WHEN $n
+  THEN` condition or under `NOT` is a `bool`, and a cast or switch in
+  `ORDER BY` types its placeholder too (before, a placeholder only in
+  `ORDER BY` failed the query). One query serves "upcoming or past":
+  `CASE WHEN $2::bool THEN … ELSE … END` in `WHERE`, one `CASE` per
+  sort direction in `ORDER BY`; the README shows the pattern.
 
 ### Fixed
 
