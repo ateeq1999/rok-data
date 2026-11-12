@@ -15,7 +15,7 @@ For each: whether it's typed, the override when it isn't (`-- column:`, `-- para
 
 **Blocked by:** None (can start immediately; describes what main supports at the time)
 
-**Status:** ready-for-agent
+**Status:** done (`crates/rok-data-sqlc/docs/guide/typed-queries.md`; a rok-data-cli test checks every test it cites exists)
 
-- [ ] Every row links an existing test
-- [ ] Linked from the README and llms.txt
+- [x] Every row links an existing test
+- [x] Linked from the README and llms.txt

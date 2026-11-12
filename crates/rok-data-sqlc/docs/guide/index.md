@@ -34,6 +34,9 @@ How the code is organized:
   which are yours, and what regeneration does to each.
 - [Customizing the generated API](customizing.md): service overrides,
   state, ports, and hand-written features.
+- [What typed queries support](typed-queries.md): every SQL form query
+  typing understands, the `-- column:`, `-- param:` or `-- rok:skip` for
+  the ones it doesn't, and the test behind each.
 - [Accounts and sign-in](https://github.com/ateeq1999/rok-templates/blob/main/docs/guide/auth.md): the templates' sign-up,
   sign-in, password and email flows, two-factor sign-in, API keys,
   sessions, mail, and adding a flow.

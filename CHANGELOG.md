@@ -45,6 +45,12 @@ that it exists and won't ship a tag without it).
 
 **Added**
 
+- Docs: [What typed queries support](crates/rok-data-sqlc/docs/guide/typed-queries.md),
+  one table of every SQL form query typing understands (computed columns,
+  functions, CTEs, subqueries, set-returning functions, parameters,
+  `:page`), the `-- column:`, `-- param:` or `-- rok:skip` for the ones
+  it doesn't, and the test behind each row. Linked from the engine
+  README and `docs/llms.txt`.
 - Every Client pages a list for you: TypeScript
   `useInfiniteQuery(pagers.notes.list({ q }))`, Dart
   `api.notes.listPager(q: q)` (a `Pager` with `load()`, `more()` and a
