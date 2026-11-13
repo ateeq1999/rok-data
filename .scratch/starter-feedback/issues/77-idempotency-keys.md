@@ -14,7 +14,7 @@ Karibu Pass's mobile App gets `ApiException(0, network_error)` with no way to kn
 
 **Blocked by:** template tickets 44 and 11 landing (the template batch in progress)
 
-**Status:** blocked
+**Status:** ready-for-agent
 
 - [ ] A repeated `pay` with the same key starts one payment and returns the first answer (test against PostgreSQL)
 - [ ] The same key with another body is refused

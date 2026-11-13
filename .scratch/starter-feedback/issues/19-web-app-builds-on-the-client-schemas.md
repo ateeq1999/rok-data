@@ -8,7 +8,7 @@ Spec: `docs/specs/starter-feedback.md` (Typed web data)
 - **zod pin:** `zod` is pinned exactly, and the web gate fails if it disagrees with the zod major in the Client's header.
 - **Error:** callers that show errors handle `ContractError`.
 
-**Blocked by:** 18 (released in rok-data), grpc-api-template/08 (the gRPC Template shipped)
+**Blocked by:** a rok release carrying 18 (merged after v0.9.0); grpc-api-template/08 is done
 
 **Status:** blocked
 

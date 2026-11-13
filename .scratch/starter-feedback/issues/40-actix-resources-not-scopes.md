@@ -12,7 +12,7 @@ Karibu Pass met both: a `/partner` scope hiding `/partner/{id}/offers` (ticket 0
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** blocked
+**Status:** ready-for-agent
 
 - [ ] Two features under one prefix (`/partner` and `/partner/{id}/offers`) both answer, in either mount order (test)
 - [ ] A fixed path and a parameterised one in a feature both answer each method (test)

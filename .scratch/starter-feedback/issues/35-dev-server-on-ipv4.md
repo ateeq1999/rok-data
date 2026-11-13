@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** blocked
+**Status:** ready-for-agent
 
 - [ ] `curl http://127.0.0.1:3001` reaches the dev server on Windows
 - [ ] README updated

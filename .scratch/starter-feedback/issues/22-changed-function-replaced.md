@@ -8,7 +8,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** 21
 
-**Status:** blocked
+**Status:** ready-for-agent
 
 - [ ] Changing a trigger function's body stages one `CREATE OR REPLACE FUNCTION` and applies on a database where three triggers use it
 - [ ] Changing its argument types is refused, naming the triggers

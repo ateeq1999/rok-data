@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md`
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** blocked
+**Status:** ready-for-agent
 
 - [ ] The Monorepo scaffolds with each framework's API App, and each combination passes the gates
 - [ ] `-w` with `-t axum` (and the other single-app Templates) says why, naming the Template to use

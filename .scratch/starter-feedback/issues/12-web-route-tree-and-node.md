@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md`
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** blocked
+**Status:** ready-for-agent
 
 - [ ] `bun run routes` regenerates the tree without a build
 - [ ] The web tests pass on the pinned Node and on Node 26

@@ -14,7 +14,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** blocked
+**Status:** ready-for-agent
 
 - [ ] `SignedWebhook` accepts a correctly signed body and refuses a tampered one (tests)
 - [ ] The recipe's code compiles (doc test or fixture)

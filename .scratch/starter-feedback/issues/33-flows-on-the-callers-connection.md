@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** blocked
+**Status:** ready-for-agent
 
 - [ ] Another feature can invite and record an audit entry inside its own transaction, and a rollback undoes both (test)
 - [ ] Existing callers unchanged

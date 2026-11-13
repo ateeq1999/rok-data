@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** blocked
+**Status:** ready-for-agent
 
 - [ ] A unique and a foreign-key violation carry their kind and constraint name (tests)
 - [ ] The HTTP status and error body are unchanged (contract tests pass)

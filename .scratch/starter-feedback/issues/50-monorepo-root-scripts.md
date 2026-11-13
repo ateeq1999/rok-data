@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it) · workspace 
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** blocked
+**Status:** ready-for-agent
 
 - [ ] `bun run dev:web` from the root starts the web App
 - [ ] No `workspaces` key; ADR 0027's "plain bun inside `apps/web`" holds
