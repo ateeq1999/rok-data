@@ -8,8 +8,8 @@ Karibu Pass's recipe covered the browser only (ticket 26).
 
 **Blocked by:** 88
 
-**Status:** blocked
+**Status:** done (rok-templates PR #18, b8ec9fe; the Apps build the start URL by hand until a rok release adds `oidcStartUrl`)
 
-- [ ] The hand-over code works once and expires after a minute (API test)
-- [ ] The Flutter App signs in from the deep link (widget test with a fake link)
-- [ ] The web App's buttons follow the configured providers (component test)
+- [x] The hand-over code works once and expires after a minute (API test)
+- [x] The Flutter App signs in from the deep link (widget test with a fake link)
+- [x] The web App's buttons follow the configured providers (component test)
