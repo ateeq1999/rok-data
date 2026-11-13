@@ -15,8 +15,8 @@ Karibu Pass hand-wrote this in about 600 lines (ticket 26).
 
 **Blocked by:** 85
 
-**Status:** blocked
+**Status:** blocked (built in rok-templates PR #17, 626e327; only `--without oidc` waits on ticket 04)
 
-- [ ] Sign-in, sign-up and linking against the fake provider (API tests), including the refused email match and the 422 on the last unlink
-- [ ] A kept `totp` asks for the code after the provider
-- [ ] `--without oidc` builds and passes (the all-out gate); unconfigured, the routes answer 404
+- [x] Sign-in, sign-up and linking against the fake provider (API tests), including the refused email match and the 422 on the last unlink
+- [x] A kept `totp` asks for the code after the provider
+- [ ] `--without oidc` builds and passes (the all-out gate); unconfigured, the routes answer 404. Unconfigured 404 is done (`tests/oidc.rs`); `--without oidc` waits on the Module catalog and `--without` flag (ticket 04).
