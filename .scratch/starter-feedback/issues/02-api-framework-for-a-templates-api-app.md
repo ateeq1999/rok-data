@@ -2,13 +2,18 @@
 
 Spec: `docs/specs/starter-feedback.md`
 
-**What to build:** `rok init kp -t monorepo -w actix_web` (or `axum`, `grpc`) scaffolds the Monorepo with that framework's API App, drawn from the matching single-app Template, so no variant is kept by hand twice; the default stays `axum`. `-w` with a single-app Template is an error naming the Template to use instead.
+**What to build:** `rok init kp -t monorepo -w actix_web` (or `axum`) scaffolds the Monorepo with that framework's API App, drawn from the matching single-app Template, so no variant is kept by hand twice; the default stays `axum`. `-w` with a single-app Template is an error naming the Template to use instead.
 
-**Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
+**gRPC is left out of the Monorepo** (decided 2026-11-24). `-t monorepo -w grpc` is a usage error. It says the Monorepo's Apps talk to the API through its OpenAPI contract, and points to `-t grpc` for a gRPC API on its own.
 
-**Status:** needs-triage (rok-templates work and a gRPC decision come first; see below)
+**Order:** the rok-templates catalog work below comes first, for axum and actix. rok-data's side follows once a rok-templates release carries it. Box 2 and the gRPC refusal can be built in rok-data now.
 
-- [ ] The Monorepo scaffolds with each framework's API App, and each combination passes the gates
+**Blocked by:** grpc-api-template/08 (done)
+
+**Status:** ready-for-agent (rok-templates catalog first; see the order above)
+
+- [ ] The Monorepo scaffolds with axum's and actix's API App, and each combination passes the gates
+- [ ] `-t monorepo -w grpc` is refused, pointing to `-t grpc`
 - [ ] `-w` with `-t axum` (and the other single-app Templates) says why, naming the Template to use
 - [ ] CLI reference, examples and guide updated
 
@@ -23,8 +28,5 @@ Spec: `docs/specs/starter-feedback.md`
   2. Monorepo-only files per framework, including the manifest edits and the Dockerfile. actix has no `examples/openapi.rs`, no `tests/openapi_artifact.rs` and no `tests/client`.
   3. `rok.toml`'s `[contract].export` follows the framework; today it is hard-coded to `-p axum-api`.
   4. The Monorepo gate runs once per framework.
-- **Decision needed: gRPC.** `grpc-api` serves no OpenAPI document, but the Monorepo's contract and its TS, Dart and Rust Clients are generated from one. What do the web, mobile and desktop Apps talk to when the API is gRPC? Options:
-  - leave `-w grpc` out of the Monorepo;
-  - add a REST gateway;
-  - generate the Clients from the proto files.
-- **What rok-data can do afterwards:** let `-w` combine with `-t`. Today `crates/rok-cli/src/cli/mod.rs` declares `conflicts_with = "template"`. The single-app error (box 2) could be built now, but how it reads depends on the above.
+- **gRPC:** `grpc-api` serves no OpenAPI document, but the Monorepo's contract and its TS, Dart and Rust Clients are generated from one. Decided: gRPC is left out of the Monorepo (see the top of this ticket).
+- **What rok-data can do afterwards:** let `-w` combine with `-t`. Today `crates/rok-cli/src/cli/mod.rs` declares `conflicts_with = "template"`.

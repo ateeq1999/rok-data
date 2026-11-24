@@ -10,15 +10,14 @@ rok-templates `spec/starter-feedback` now has a third one, in `src/features/oidc
 
 Ticket 03 found this. Its test shows that `rok gen` reads the seed, but it can't show a successful run.
 
-**What to decide, then build:** one of these.
-- **Templates:** rename the DTOs so each schema name is unique (for example `TwoFactorTokenResponse`, `OidcTokenResponse`), then regenerate the contract and the Clients.
-- **Engine:** handle same-named schemas from different features, for example by qualifying them with the feature name or by refusing with a clearer message.
-
-Whichever is chosen, ticket 03's test should then show a successful `rok gen` on the seeded Monorepo.
+**What to build** (decided 2026-11-24: fix it in the templates, not the engine):
+- Rename the DTOs in rok-templates so every schema name is unique: auth keeps `TokenResponse`, and the others become for example `TwoFactorTokenResponse` and `OidcTokenResponse`.
+- Do this in every template that has these features (axum, actix, the Monorepo API), then regenerate the contract and the Clients.
+- Then ticket 03's test in rok-data (`rok_gen_reads_the_monorepo_seed`) should do a successful `rok gen` on the seeded Monorepo, once rok-data takes a rok-templates release with the rename.
 
 **Blocked by:** None (can start immediately)
 
-**Status:** needs-triage
+**Status:** ready-for-agent
 
 - [ ] `rok gen` succeeds on a freshly scaffolded Monorepo (test)
 - [ ] Ticket 03's seed test does a successful `rok gen` run
