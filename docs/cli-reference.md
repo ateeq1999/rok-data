@@ -436,6 +436,13 @@ directory `rok` ran in, and every path is relative to it.
 An `ALTER TABLE` the truth carries folds into the truth's tables when
 the model can represent it; a clause it cannot rides the pair as an
 extra step with the undo the truth's `-- rok:down` marker supplies.
+A `CREATE FUNCTION` whose text changed but whose name and argument
+types didn't is staged as `CREATE OR REPLACE FUNCTION`, and a changed
+`CREATE TRIGGER` (same name and table) as `CREATE OR REPLACE TRIGGER`
+(PostgreSQL 14+); the down step restores the old text the same way.
+A function whose argument types changed is refused, naming the
+triggers the schema shows using it: write that change as a hand-made
+migration.
 
 The run prints what it wrote, what it skipped and what it refused, and the
 numbered next steps. `--json` prints one object instead:
