@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md`
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** ready-for-agent
+**Status:** done (rok-templates `spec/starter-feedback`, PR #19)
 
-- [ ] The golden test passes in the mobile gate
-- [ ] The fonts' licences ship with them
+- [x] The golden test passes in the mobile gate
+- [x] The fonts' licences ship with them
