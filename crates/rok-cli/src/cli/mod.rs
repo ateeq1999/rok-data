@@ -99,7 +99,10 @@ pub(crate) enum Command {
             value_parser = ["actix_web", "axum"]
         )]
         api_framework: Option<String>,
-        /// Seed the schema directory with this file's content, as `schema/0001_init.sql`.
+        /// Seed the schema directory `rok gen` reads with this file's
+        /// content: as `schema/0001_init.sql`, or with a Monorepo template
+        /// into the `api` App's schema directory, numbered after its files
+        /// (`apps/api/schema/0006_seed.sql`). The summary prints the path.
         #[arg(short, long, value_name = "PATH")]
         schema: Option<PathBuf>,
     },

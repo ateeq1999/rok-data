@@ -444,3 +444,133 @@ fn the_offered_templates_are_the_engines() {
         );
     }
 }
+
+/// The seed files in a schema directory: its `NNNN_seed.sql` files.
+fn seeds(schema_dir: &Path) -> Result<Vec<String>> {
+    let mut seeds = Vec::new();
+    for entry in fs::read_dir(schema_dir)? {
+        let name = entry?.file_name().to_string_lossy().into_owned();
+        if name.ends_with("_seed.sql") {
+            seeds.push(name);
+        }
+    }
+    Ok(seeds)
+}
+
+/// In a Monorepo, `rok gen` reads the `api` App's schema directory, so
+/// that is where `--schema` seeds — numbered after the template's own
+/// files — and the summary says where it went.
+#[test]
+fn init_monorepo_seeds_the_schema_directory_rok_gen_reads() -> Result<()> {
+    let dir = TempDir::new()?;
+    let schema = dir.path().join("schema.sql");
+    fs::write(&schema, "CREATE TABLE gadgets (id UUID PRIMARY KEY);\n")?;
+
+    let output = run_in(
+        dir.path(),
+        &[
+            "init",
+            "shop",
+            "-t",
+            "monorepo",
+            "-s",
+            &schema.to_string_lossy(),
+        ],
+    )?;
+    assert_success(&output);
+
+    let project = dir.path().join("shop");
+    let schema_dir = project.join("apps/api/schema");
+    let seeds = seeds(&schema_dir)?;
+    assert_eq!(seeds.len(), 1, "{seeds:?}");
+    let seed = &seeds[0];
+    assert_eq!(
+        fs::read_to_string(schema_dir.join(seed))?,
+        "CREATE TABLE gadgets (id UUID PRIMARY KEY);\n"
+    );
+    // Numbered after the template's own truth files, so it comes last.
+    let mut truth: Vec<String> = fs::read_dir(&schema_dir)?
+        .map(|entry| Ok(entry?.file_name().to_string_lossy().into_owned()))
+        .collect::<Result<_>>()?;
+    truth.sort();
+    assert_eq!(truth.last(), Some(seed), "{truth:?}");
+    assert!(
+        !project.join("schema").exists(),
+        "a root schema/ nothing reads was seeded"
+    );
+    let stdout = stdout(&output);
+    assert!(
+        stdout.contains(&format!("seeded shop/apps/api/schema/{seed}")),
+        "the summary doesn't name the seed's path:\n{stdout}"
+    );
+    Ok(())
+}
+
+/// `rok gen` reads the Monorepo's seed: a seed it can't parse fails the
+/// run, naming the seed.
+#[test]
+fn rok_gen_reads_the_monorepo_seed() -> Result<()> {
+    let dir = TempDir::new()?;
+    let schema = dir.path().join("schema.sql");
+    fs::write(&schema, "CREATE TABLE gadgets (id UUID PRIMARY KEY,, );\n")?;
+    assert_success(&run_in(
+        dir.path(),
+        &[
+            "init",
+            "shop",
+            "-t",
+            "monorepo",
+            "-s",
+            &schema.to_string_lossy(),
+        ],
+    )?);
+    let seeds = seeds(&dir.path().join("shop/apps/api/schema"))?;
+    assert_eq!(seeds.len(), 1, "{seeds:?}");
+
+    let output = run_in(&dir.path().join("shop"), &["gen", "--dry-run"])?;
+    assert!(!output.status.success(), "the broken seed was not read");
+    let stderr = stderr(&output);
+    assert!(
+        stderr.contains(&format!("apps/api/schema/{}:1", seeds[0])),
+        "{stderr}"
+    );
+    Ok(())
+}
+
+/// The seed is written once: running `rok init -s` again keeps it.
+#[test]
+fn init_monorepo_keeps_its_seed() -> Result<()> {
+    let dir = TempDir::new()?;
+    let schema = dir.path().join("schema.sql");
+    fs::write(&schema, "CREATE TABLE gadgets (id UUID PRIMARY KEY);\n")?;
+    let args = [
+        "init",
+        "shop",
+        "-t",
+        "monorepo",
+        "-s",
+        &schema.to_string_lossy(),
+    ];
+    assert_success(&run_in(dir.path(), &args)?);
+    let output = run_in(dir.path(), &args)?;
+    assert_success(&output);
+    let seeds = seeds(&dir.path().join("shop/apps/api/schema"))?;
+    assert_eq!(seeds.len(), 1, "{seeds:?}");
+    let stdout = stdout(&output);
+    assert!(stdout.contains("kept "), "{stdout}");
+    assert!(!stdout.contains("seeded "), "{stdout}");
+    Ok(())
+}
+
+/// `--schema`'s help says where the seed goes.
+#[test]
+fn the_schema_help_says_where_the_seed_goes() -> Result<()> {
+    let dir = TempDir::new()?;
+    let output = run_in(dir.path(), &["init", "--help"])?;
+    assert_success(&output);
+    let stdout = stdout(&output);
+    for needle in ["schema/0001_init.sql", "`api` App"] {
+        assert!(stdout.contains(needle), "help lacks {needle}:\n{stdout}");
+    }
+    Ok(())
+}
