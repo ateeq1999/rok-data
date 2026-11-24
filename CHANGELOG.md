@@ -11,6 +11,11 @@ that it exists and won't ship a tag without it).
 
 **Changed**
 
+- `rok init -t monorepo -s schema.sql` seeds the schema directory `rok gen`
+  reads, the `api` App's (`apps/api/schema/0006_seed.sql`, numbered after
+  the template's own files), instead of a root `schema/` nothing reads.
+  The summary prints the path, and `--schema`'s help says where the seed
+  goes. Other projects keep `schema/0001_init.sql`.
 - actix-web features mount one `web::resource` per path through the new
   generated `shared::validation::resource`, never a `web::scope`, so a
   feature under another's prefix (`/partner` and `/partner/{id}/offers`)

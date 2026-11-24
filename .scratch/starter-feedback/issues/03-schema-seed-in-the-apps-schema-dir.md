@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md`
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Monorepo: the seed lands where `rok gen` reads it, and `rok gen` uses it
-- [ ] The summary names the path; the `--schema` help says where it goes
+- [x] Monorepo: the seed lands where `rok gen` reads it, and `rok gen` uses it
+- [x] The summary names the path; the `--schema` help says where it goes
