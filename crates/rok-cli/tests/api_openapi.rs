@@ -406,7 +406,10 @@ fn digest(text: &str) -> u64 {
 /// health's handlers, renamed `liveness` and `readiness` (milestone 2), and
 /// the milestone 2 review: plain backticks for doc links an OpenAPI
 /// description would show, and `PageQuery`, without `q`, for the lists of
-/// tables with no search columns. To rewrite it after another such change,
+/// tables with no search columns; and every `routes.rs` and
+/// `shared/validation.rs`, when the features moved from one scope to one
+/// resource per path (starter-feedback ticket 40). To rewrite it after
+/// another such change,
 /// run `ROK_DATA_SQLC_UPDATE_EXPECTED=1 cargo test --test api_openapi`, and diff
 /// the output against that commit's binary to check nothing else moved.
 #[test]

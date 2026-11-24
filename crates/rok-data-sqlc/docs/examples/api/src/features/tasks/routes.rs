@@ -5,18 +5,19 @@
 use actix_web::web;
 
 use super::handlers;
-use crate::shared::validation::{path_config, query_config};
+use crate::shared::validation::resource;
 
-/// Mounts every `tasks` endpoint under `/api/v1/tasks`.
+/// Mounts every `tasks` endpoint under `/api/v1/tasks`, one resource per path.
 pub fn routes(cfg: &mut web::ServiceConfig) {
     cfg.service(
-        web::scope("/api/v1/tasks")
-            .app_data(path_config())
-            .app_data(query_config())
-            .route("", web::get().to(handlers::list))
-            .route("", web::post().to(handlers::create))
-            .route("/{id}", web::get().to(handlers::get_one))
-            .route("/{id}", web::patch().to(handlers::update))
-            .route("/{id}", web::delete().to(handlers::remove)),
+        resource("/api/v1/tasks")
+            .route(web::get().to(handlers::list))
+            .route(web::post().to(handlers::create)),
+    );
+    cfg.service(
+        resource("/api/v1/tasks/{id}")
+            .route(web::get().to(handlers::get_one))
+            .route(web::patch().to(handlers::update))
+            .route(web::delete().to(handlers::remove)),
     );
 }

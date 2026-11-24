@@ -275,7 +275,8 @@ where
 /// `check-arch`: checks the project whose config file is `config`, or the
 /// project the one rule finds (`crate::Project`: the App started inside, or
 /// every App at a Monorepo's root), printing violations on stdout and, with
-/// `lenient`, layout violations as warnings on stderr; a pass says so on
+/// `lenient`, layout violations as warnings on stderr, as it always prints
+/// the warnings (`Rule::is_warning`); a pass says so on
 /// stdout ([`passed_line`]).
 fn check_arch(config: Option<PathBuf>, lenient: bool) -> Result<()> {
     let project = match config {
@@ -317,7 +318,7 @@ fn check_arch(config: Option<PathBuf>, lenient: bool) -> Result<()> {
         let checked = crate::check_arch::check(&project)?;
         features += checked.features;
         for violation in checked.violations {
-            if lenient && violation.rule.is_layout() {
+            if violation.rule.is_warning() || (lenient && violation.rule.is_layout()) {
                 warnings += 1;
                 eprintln!("warning: {violation}");
             } else {

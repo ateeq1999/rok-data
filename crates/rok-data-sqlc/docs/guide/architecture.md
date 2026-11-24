@@ -227,20 +227,46 @@ The feature for `tasks` serves `/api/v1/tasks`:
 
 <!-- source: docs/examples/api/src/features/tasks/routes.rs -->
 ```rust
-/// Mounts every `tasks` endpoint under `/api/v1/tasks`.
+/// Mounts every `tasks` endpoint under `/api/v1/tasks`, one resource per path.
 pub fn routes(cfg: &mut web::ServiceConfig) {
     cfg.service(
-        web::scope("/api/v1/tasks")
-            .app_data(path_config())
-            .app_data(query_config())
-            .route("", web::get().to(handlers::list))
-            .route("", web::post().to(handlers::create))
-            .route("/{id}", web::get().to(handlers::get_one))
-            .route("/{id}", web::patch().to(handlers::update))
-            .route("/{id}", web::delete().to(handlers::remove)),
+        resource("/api/v1/tasks")
+            .route(web::get().to(handlers::list))
+            .route(web::post().to(handlers::create)),
+    );
+    cfg.service(
+        resource("/api/v1/tasks/{id}")
+            .route(web::get().to(handlers::get_one))
+            .route(web::patch().to(handlers::update))
+            .route(web::delete().to(handlers::remove)),
     );
 }
 ```
+
+A feature mounts one resource per path, with `shared::validation::resource`
+(a `web::resource` answering a malformed path or query with the wire
+standard's `400`), never a `web::scope`. Two actix-web behaviours set this
+shape, and a hand-written feature follows the same rules:
+
+- **A scope answers for its whole prefix.** Once a request's path starts
+  with a scope's prefix, actix-web hands it to that scope, and a path the
+  scope doesn't route is a `404` from the scope: it never reaches a feature
+  mounted later. A `/partner` scope hides `/partner/{id}/offers` of another
+  feature. Resources sit side by side, so features sharing a prefix answer
+  in either mount order.
+- **A resource answers for its whole path.** actix-web picks the first
+  resource whose path matches, and a method it doesn't route is a `405`,
+  not a fall-through to a later resource. Behind `GET /checkout/{id}`,
+  `POST /checkout/tickets` is a `405`. So mount a fixed path before a
+  parameterised one that matches it: comparing segment by segment, a fixed
+  segment comes before a `{parameter}` (`/checkout/tickets` before
+  `/checkout/{id}`, `/notes/by-slug/{value}` before `/notes/{id}/restore`).
+  The generated routes are mounted in this order.
+
+`rok sqlc check-arch` warns about both (`covering-scope` and `route-order`;
+warnings never fail the run): a feature's `web::scope` whose prefix covers
+another feature's route, and a fixed path mounted after a parameterised one
+that matches it.
 
 A handler carries `#[utoipa::path]`, documenting exactly the statuses it
 can answer, then extracts the caller, the path, the query and a validated

@@ -6,21 +6,36 @@
 //!
 //! A handler takes [`ValidatedJson`], which checks the body's rules and
 //! answers a bad body with a [`BodyRejection`] in the wire standard's error
-//! body. Every feature's scope uses [`path_config`] and [`query_config`].
+//! body. Every feature mounts its paths with [`resource`], which uses
+//! [`path_config`] and [`query_config`].
 
 use std::future::{Ready, ready};
 use std::str::FromStr;
 
 use actix_web::dev::Payload;
 use actix_web::http::header;
-use actix_web::{FromRequest, HttpRequest, web};
+use actix_web::{FromRequest, HttpRequest, Resource, web};
 
 use crate::error::AppError;
 
 pub use crate::db::http::BodyRejection;
 pub use crate::db::http::actix_web::ValidatedJson;
 
-/// The `web::PathConfig` of every feature's scope: a path that doesn't
+/// A feature's resource at the full path `path`, answering a malformed path
+/// or query with the wire standard's `400`. Features mount resources, never
+/// a `web::scope`: a scope answers `404` for every path under its prefix it
+/// doesn't route, hiding another feature's routes there. Mount a fixed path
+/// (`/notes/search`) before a parameterised one that matches it
+/// (`/notes/{id}`): a resource that matches the path but not the method
+/// answers `405`.
+#[must_use]
+pub fn resource(path: &str) -> Resource {
+    web::resource(path)
+        .app_data(path_config())
+        .app_data(query_config())
+}
+
+/// The `web::PathConfig` of every feature's resource: a path that doesn't
 /// parse, such as `/notes/not-a-uuid`, is a `400` with `bad_request`.
 #[must_use]
 pub fn path_config() -> web::PathConfig {
@@ -28,7 +43,7 @@ pub fn path_config() -> web::PathConfig {
         .error_handler(|error, _| AppError::BadRequest(error.to_string()).into())
 }
 
-/// The `web::QueryConfig` of every feature's scope: a query string that
+/// The `web::QueryConfig` of every feature's resource: a query string that
 /// doesn't parse, such as `?page=abc`, is a `400` with `bad_request`.
 #[must_use]
 pub fn query_config() -> web::QueryConfig {

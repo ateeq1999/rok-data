@@ -124,7 +124,7 @@ d8a0ee7a9a48908e features/accounts/handlers.rs
 ebc9e785412882c7 features/accounts/mod.rs
 a54671c1d3b1d625 features/accounts/model.rs
 c7a52e460c07efbc features/accounts/repo.rs
-ff67fc65d268d9dd features/accounts/routes.rs
+384c5a647bab0ef1 features/accounts/routes.rs
 1961d1b0d021f8ea features/accounts/service.rs
 7c85a83fab536abf features/accounts/service_api.rs
 99b5adac08bf4a5c features/audit_events/dto.rs
@@ -132,7 +132,7 @@ b9b14cf385569f78 features/audit_events/handlers.rs
 17dcab0ae38fa2b5 features/audit_events/mod.rs
 a3e4a32d357fea57 features/audit_events/model.rs
 4e64f819d7a47ffd features/audit_events/repo.rs
-fd9509485dd8d2fc features/audit_events/routes.rs
+d82e083115338f64 features/audit_events/routes.rs
 ef3b23a897290ae0 features/audit_events/service.rs
 98d090cbffd0ef10 features/audit_events/service_api.rs
 680e733d451eed95 features/bookmarks/dto.rs
@@ -140,7 +140,7 @@ ef3b23a897290ae0 features/audit_events/service.rs
 75c1c2a5001f3ce6 features/bookmarks/mod.rs
 ce35dec273bca591 features/bookmarks/model.rs
 f24bec1cdeed70d5 features/bookmarks/repo.rs
-b2925dacec9cf5fa features/bookmarks/routes.rs
+69a1ea7ff0f3da66 features/bookmarks/routes.rs
 c7183e7bccb472b0 features/bookmarks/service.rs
 79c832439f0f2fce features/bookmarks/service_api.rs
 df0a4d1547aa1275 features/comments/dto.rs
@@ -148,7 +148,7 @@ df2c0a80efa73339 features/comments/handlers.rs
 3858297d6c1de9e1 features/comments/mod.rs
 8c19dee2ce82a969 features/comments/model.rs
 12d1ad09cdccedae features/comments/repo.rs
-1c796bc3d1c32add features/comments/routes.rs
+5e7213660de564fb features/comments/routes.rs
 ed54c34d0a31192a features/comments/service.rs
 346f4d151f1e2c6a features/comments/service_api.rs
 6d6a9a3a5a5d5f72 features/documents/dto.rs
@@ -156,7 +156,7 @@ ed54c34d0a31192a features/comments/service.rs
 938e761f7f133ab7 features/documents/mod.rs
 d216d30f932f55d9 features/documents/model.rs
 1dd390c00a9c6204 features/documents/repo.rs
-0761fe3b570d8d58 features/documents/routes.rs
+33dcd122e0aa123a features/documents/routes.rs
 5285ef83553451d6 features/documents/service.rs
 fa2b5adc63b3e523 features/documents/service_api.rs
 d1d01416efb3d2dd features/drafts/dto.rs
@@ -164,7 +164,7 @@ d1d01416efb3d2dd features/drafts/dto.rs
 b61113cc6e6a42cf features/drafts/mod.rs
 cdcc3b1e78845f85 features/drafts/model.rs
 509541e53366765d features/drafts/repo.rs
-911b93f647da9a5b features/drafts/routes.rs
+107925f49cb8b4f9 features/drafts/routes.rs
 2bb17ab1d8ab48da features/drafts/service.rs
 6539e7958256ad69 features/drafts/service_api.rs
 ba399a06af93d995 features/folders/dto.rs
@@ -172,7 +172,7 @@ ba399a06af93d995 features/folders/dto.rs
 8abb523c66373aa6 features/folders/mod.rs
 6953bcac7be225f1 features/folders/model.rs
 1edc4dafc199932d features/folders/repo.rs
-658ecf902043424e features/folders/routes.rs
+5ac9d9d7911e32ce features/folders/routes.rs
 7a6d9dd408559074 features/folders/service.rs
 5b406bc877c4886c features/folders/service_api.rs
 670e398d02abe0fc features/gadgets/dto.rs
@@ -180,7 +180,7 @@ ba399a06af93d995 features/folders/dto.rs
 b0d853f580c83822 features/gadgets/mod.rs
 865981a59cf58091 features/gadgets/model.rs
 368227003b123669 features/gadgets/repo.rs
-c3436c2bd1ad6896 features/gadgets/routes.rs
+30a8c2305eb59e42 features/gadgets/routes.rs
 f730beb76b0816f0 features/gadgets/service.rs
 ef64b24a2b46d482 features/gadgets/service_api.rs
 9d285a36da54a7b4 features/generated.rs
@@ -189,7 +189,7 @@ eca6e493249fa209 features/handles/dto.rs
 5fd0e936702f3820 features/handles/mod.rs
 24b737cc14079b41 features/handles/model.rs
 234f0cbb90b0b4dd features/handles/repo.rs
-37f84e901b26ca25 features/handles/routes.rs
+f08ed170f93c4580 features/handles/routes.rs
 c314adce98f5c568 features/handles/service.rs
 cc65ef47e0f724ab features/handles/service_api.rs
 f8b4b65458ca8b0d features/labels/dto.rs
@@ -197,7 +197,7 @@ f8b4b65458ca8b0d features/labels/dto.rs
 1595b020ce841f50 features/labels/mod.rs
 1bc34c39e3ec1f7f features/labels/model.rs
 793d200c92b1f223 features/labels/repo.rs
-16f773b5d5c97e57 features/labels/routes.rs
+ffb9482d3d6dc830 features/labels/routes.rs
 7162e08fab7aa2d6 features/labels/service.rs
 76eda6c1a5d3ac3b features/labels/service_api.rs
 14e45ae00b0afbd9 features/members/dto.rs
@@ -205,7 +205,7 @@ f8b4b65458ca8b0d features/labels/dto.rs
 aa6c04d86208e664 features/members/mod.rs
 b7d13c85055a7b01 features/members/model.rs
 6f568a9d688730ab features/members/repo.rs
-cbc697cf411ba823 features/members/routes.rs
+38282e39cf4e8bf7 features/members/routes.rs
 1eb074e0473779dc features/members/service.rs
 30ae5de570a93d3c features/members/service_api.rs
 fdf1fb232940fb65 features/notes/dto.rs
@@ -213,7 +213,7 @@ fdf1fb232940fb65 features/notes/dto.rs
 b130744e0a0941ba features/notes/mod.rs
 43bd14eb8a481b21 features/notes/model.rs
 476c1263e4560219 features/notes/repo.rs
-ee13d5f1cfe7880e features/notes/routes.rs
+c2f3d9d858d45833 features/notes/routes.rs
 6e94bfebe5972378 features/notes/service.rs
 ea5dd5e8d09de3e6 features/notes/service_api.rs
 ec2ca7311fcc465f features/profiles/dto.rs
@@ -221,7 +221,7 @@ e055684e93b0e10e features/profiles/handlers.rs
 8cf446a3a17fd6b1 features/profiles/mod.rs
 409f123ba2c89cf9 features/profiles/model.rs
 625a97198b32db21 features/profiles/repo.rs
-98c1d403c767004d features/profiles/routes.rs
+22a87a6b11273473 features/profiles/routes.rs
 28f5d305a4d88a32 features/profiles/service.rs
 122d739aeb8a3c73 features/profiles/service_api.rs
 c9868f710e4ccb1d features/tags/dto.rs
@@ -229,7 +229,7 @@ c9868f710e4ccb1d features/tags/dto.rs
 90c676db2205aa8e features/tags/mod.rs
 e1013a53b62f56f3 features/tags/model.rs
 de783d8fb56261a5 features/tags/repo.rs
-d3fcb5e46cce459a features/tags/routes.rs
+f3e5b85b486b21c9 features/tags/routes.rs
 fdc1ecf89301fbb6 features/tags/service.rs
 1809ac8617136050 features/tags/service_api.rs
 5ccde22208580662 features/tasks/dto.rs
@@ -237,11 +237,11 @@ fdc1ecf89301fbb6 features/tags/service.rs
 873a848b5fb0b4cb features/tasks/mod.rs
 944e3163a53c42e9 features/tasks/model.rs
 b63bc152d33da5e4 features/tasks/repo.rs
-5c5dd9ac72153e83 features/tasks/routes.rs
+9bb07716d0403502 features/tasks/routes.rs
 d4d71e214de43596 features/tasks/service.rs
 76ef2f0166bf10ab features/tasks/service_api.rs
 de188530f6cdb117 shared/health.rs
 f4faec9d07865da4 shared/pagination.rs
 86edd3ec4cf63bab shared/response.rs
 3da08c7ca07d8e4e shared/tenant.rs
-d3737d65a30164c7 shared/validation.rs
+d28d6cfa984e0960 shared/validation.rs
