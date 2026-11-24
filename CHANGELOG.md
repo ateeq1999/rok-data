@@ -118,6 +118,14 @@ that it exists and won't ship a tag without it).
 
 **Fixed**
 
+- A changed function is replaced, not dropped. Migration staging (`rok
+  gen --migration`) stages a `CREATE FUNCTION` whose text changed but
+  whose name and argument types didn't as `CREATE OR REPLACE FUNCTION`,
+  and a changed trigger as `CREATE OR REPLACE TRIGGER` (PostgreSQL 14+),
+  instead of its `-- rok:down` followed by its new text, which failed
+  while other triggers used the function. The down step restores the old
+  text. A changed signature is refused, naming the function and the
+  triggers the schema shows using it.
 - A result column that does arithmetic with a placeholder is typed like
   the column it is paired with: `price * $1 AS total` is `Decimal` on a
   `NOT NULL numeric` column and `Option<Decimal>` on a nullable one,

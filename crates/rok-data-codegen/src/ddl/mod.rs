@@ -5,6 +5,7 @@ use crate::naming;
 use crate::parse::quote;
 
 mod rename;
+mod replace;
 
 pub use rename::Rename;
 pub(crate) use rename::diff;
