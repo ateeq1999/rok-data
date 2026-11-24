@@ -9,6 +9,18 @@ the *generated* API count as breaking (see ADR 0012).
 
 ### Changed
 
+- actix-web features mount one `web::resource` per path through the new
+  generated `shared::validation::resource`, never a `web::scope`, so a
+  feature under another's prefix (`/partner` and `/partner/{id}/offers`)
+  answers in either mount order. A fixed path is mounted before a
+  parameterised one that matches it (`/checkout/tickets` before
+  `/checkout/{id}`), since an actix-web resource that matches the path but
+  not the method answers `405`. Regenerate to pick it up.
+- `check-arch` warns (`covering-scope`, `route-order`; warnings don't fail
+  the run) when an actix-web feature's `web::scope` covers another
+  feature's route, and when a fixed path is mounted after a parameterised
+  one that matches it. The architecture and customizing guides explain
+  both and the order rule for hand-written features.
 - `check-arch`'s rule-4 messages (`rule-4`, `cross-feature-write`,
   `cross-feature-query`) now say what a feature may do: "a feature's
   queries may join and read any table; writing another feature's table

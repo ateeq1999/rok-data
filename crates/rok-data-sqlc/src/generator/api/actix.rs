@@ -8,12 +8,15 @@ use super::relation_routes;
 use crate::ApiConfig;
 use crate::generator::{FN_CALL_WIDTH, HEADER, MAX_WIDTH, push_doc};
 
-/// Renders `routes.rs`: one scope under the feature's URL, which answers a
-/// malformed path or query with the wire standard's `400`. Fixed paths
-/// come before the key's, which would match them too.
+/// Renders `routes.rs`: one resource per path, never a scope, so a feature
+/// mounted under another's prefix still answers; each resource answers a
+/// malformed path or query with the wire standard's `400`. A fixed path
+/// comes before a parameterised one that would match it
+/// ([`mount_order`]): a resource that matches the path but not the method
+/// answers `405` instead of falling through.
 pub fn routes(feature: &Feature<'_>) -> String {
     let mut output = format!(
-        "{HEADER}\n//! The `{}` routes, under `{}`.\n\nuse actix_web::web;\n\nuse super::handlers;\nuse crate::shared::validation::{{path_config, query_config}};\n\n",
+        "{HEADER}\n//! The `{}` routes, under `{}`.\n\nuse actix_web::web;\n\nuse super::handlers;\nuse crate::shared::validation::resource;\n\n",
         feature.table.display_name(),
         feature.url
     );
@@ -21,16 +24,11 @@ pub fn routes(feature: &Feature<'_>) -> String {
         &mut output,
         0,
         &[&format!(
-            "Mounts every `{}` endpoint under `{}`.",
+            "Mounts every `{}` endpoint under `{}`, one resource per path.",
             feature.table.display_name(),
             feature.url
         )],
     );
-    output.push_str("pub fn routes(cfg: &mut web::ServiceConfig) {\n    cfg.service(\n");
-    output.push_str(&format!(
-        "        web::scope({})\n            .app_data(path_config())\n            .app_data(query_config())",
-        crate::generator::sql::str_literal(&feature.url)
-    ));
     let key_path = feature.key_path();
     let mut routes: Vec<(String, &str, String)> = Vec::new();
     for endpoint in &feature.endpoints {
@@ -41,24 +39,70 @@ pub fn routes(feature: &Feature<'_>) -> String {
         routes.push((lookup.path(), "get", lookup.function.clone()));
     }
     routes.extend(relation_routes::routes(feature));
-    // Fewer `{...}` segments first, so `/search` and `/by-...` come before
-    // `/{id}`; the order is otherwise kept.
-    routes.sort_by_key(|(path, _, _)| path.matches('{').count());
-    for (path, method, handler) in &routes {
+    // One resource per path, its routes in the order they came.
+    let mut resources: Vec<(String, Vec<String>)> = Vec::new();
+    for (path, method, handler) in routes {
+        let path = format!("{}{path}", feature.url);
         let to = format!("web::{method}().to(handlers::{handler})");
-        let one_line = format!("            .route(\"{path}\", {to})");
-        let args = format!("\"{path}\", {to}");
-        if one_line.len() <= MAX_WIDTH && args.len() <= FN_CALL_WIDTH {
+        match resources.iter_mut().find(|(seen, _)| *seen == path) {
+            Some((_, tos)) => tos.push(to),
+            None => resources.push((path, vec![to])),
+        }
+    }
+    resources.sort_by_key(|(path, _)| mount_order(path));
+    let cfg = if resources.is_empty() { "_cfg" } else { "cfg" };
+    output.push_str(&format!(
+        "pub fn routes({cfg}: &mut web::ServiceConfig) {{\n"
+    ));
+    for (path, tos) in &resources {
+        push_resource(&mut output, path, tos);
+    }
+    output.push_str("}\n");
+    output
+}
+
+/// Where a path mounts among its feature's: compared segment by segment, a
+/// fixed segment before a `{parameter}`, so `/notes/search` comes before
+/// `/notes/{id}` and `/notes/by-slug/{value}` before `/notes/{id}/restore`.
+/// Paths of different lengths never match each other's requests.
+pub(crate) fn mount_order(path: &str) -> Vec<bool> {
+    path.split('/')
+        .filter(|segment| !segment.is_empty())
+        .map(|segment| segment.starts_with('{'))
+        .collect()
+}
+
+/// One `cfg.service(resource("<path>").route(...)...)` statement, laid out
+/// as rustfmt lays it out.
+fn push_resource(output: &mut String, path: &str, tos: &[String]) {
+    let resource = format!("resource({})", crate::generator::sql::str_literal(path));
+    if let [to] = tos {
+        let chain = format!("{resource}.route({to})");
+        let line = format!("    cfg.service({chain});");
+        if line.len() <= MAX_WIDTH {
+            output.push_str(&line);
             output.push('\n');
-            output.push_str(&one_line);
+            return;
+        }
+        let arg = format!("        {chain},");
+        if arg.len() <= MAX_WIDTH {
+            output.push_str(&format!("    cfg.service(\n{arg}\n    );\n"));
+            return;
+        }
+    }
+    output.push_str(&format!("    cfg.service(\n        {resource}"));
+    for to in tos {
+        let line = format!("            .route({to})");
+        if line.len() <= MAX_WIDTH {
+            output.push('\n');
+            output.push_str(&line);
         } else {
             output.push_str(&format!(
-                "\n            .route(\n                \"{path}\",\n                {to},\n            )"
+                "\n            .route(\n                {to},\n            )"
             ));
         }
     }
-    output.push_str(",\n    );\n}\n");
-    output
+    output.push_str(",\n    );\n");
 }
 
 /// The `use` lines a handlers file needs.
