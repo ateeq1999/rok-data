@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md`
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** ready-for-agent
+**Status:** done (rok-templates `spec/starter-feedback`, PR #19)
 
-- [ ] The default issuer for `karibupass-api` is `karibupass` (test)
-- [ ] `TOTP_ISSUER` overrides it
+- [x] The default issuer for `karibupass-api` is `karibupass` (test)
+- [x] `TOTP_ISSUER` overrides it
