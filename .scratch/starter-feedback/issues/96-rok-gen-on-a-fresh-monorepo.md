@@ -17,7 +17,7 @@ Ticket 03 found this. Its test shows that `rok gen` reads the seed, but it can't
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** blocked (the rename is on rok-templates `spec/starter-feedback`, PR #19; the seed-test box waits on rok-data taking a rok-templates release with it)
 
-- [ ] `rok gen` succeeds on a freshly scaffolded Monorepo (test)
+- [x] `rok gen` succeeds on a freshly scaffolded Monorepo (test)
 - [ ] Ticket 03's seed test does a successful `rok gen` run
