@@ -5,7 +5,7 @@ use crate::parse::quote;
 
 use super::{
     Op, add_check, add_fk, add_unique, apply_rename, column_changes, column_def, columns,
-    create_enum, create_table, enum_changes, has_extra, index_name, pkey, render_type,
+    create_enum, create_table, enum_changes, has_extra, index_name, pkey, render_type, replace,
 };
 
 /// A rename the user asked for (`--rename`), applied before diffing.
@@ -57,8 +57,18 @@ pub(crate) fn diff(old: &Schema, new: &Schema, renames: &[Rename]) -> Result<Vec
     let mut old = old.clone();
     let mut ops = Vec::new();
 
+    // A changed function or trigger is replaced in place, not dropped.
+    let replaced = replace::pairs(&old, new)?;
+    let is_replaced_old = |i: usize| replaced.iter().any(|(o, _)| *o == i);
+
     // Removed extras go first (views may depend on columns that change).
-    for extra in old.extras.iter().rev().filter(|e| !has_extra(new, e)) {
+    for (_, extra) in old
+        .extras
+        .iter()
+        .enumerate()
+        .rev()
+        .filter(|(i, e)| !is_replaced_old(*i) && !has_extra(new, e))
+    {
         ops.push(Op::new(&extra.down, &extra.up).destructive_if(
             extra.down.trim().is_empty(),
             "removes a statement that has no down SQL",
@@ -279,12 +289,12 @@ pub(crate) fn diff(old: &Schema, new: &Schema, renames: &[Rename]) -> Result<Vec
                 .destructive(format!("drops enum type `{}`", e.name)),
         );
     }
-    for extra in new
-        .extras
-        .iter()
-        .filter(|e| !e.before_tables && !has_extra(&old, e))
-    {
-        ops.push(Op::new(&extra.up, &extra.down));
+    for (i, extra) in new.extras.iter().enumerate() {
+        if let Some((o, _)) = replaced.iter().find(|(_, n)| *n == i) {
+            ops.push(replace::replace(&old.extras[*o].up, &extra.up));
+        } else if !extra.before_tables && !has_extra(&old, extra) {
+            ops.push(Op::new(&extra.up, &extra.down));
+        }
     }
     Ok(ops)
 }

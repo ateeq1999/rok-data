@@ -126,10 +126,7 @@ fn an_api_section_adds_the_features_the_pool_and_the_shared_tools() -> Result<()
             .all(|dir| *dir == Path::new("users") || *dir == Path::new("posts"))
     );
     let routes = &features[Path::new("users/routes.rs")];
-    assert!(
-        routes.contains("web::scope(\"/api/v2/members\")"),
-        "{routes}"
-    );
+    assert!(routes.contains("resource(\"/api/v2/members\")"), "{routes}");
     let routes = &features[Path::new("posts/routes.rs")];
     assert!(!routes.contains("handlers::remove"), "{routes}");
     Ok(())

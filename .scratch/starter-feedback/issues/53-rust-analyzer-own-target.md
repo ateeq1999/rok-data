@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** blocked
+**Status:** done (rok-templates `spec/starter-feedback`, PR #19)
 
-- [ ] Each Template carries the settings file; the Monorepo at its root
-- [ ] README line for other editors
+- [x] Each Template carries the settings file; the Monorepo at its root
+- [x] README line for other editors

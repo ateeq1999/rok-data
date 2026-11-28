@@ -7,6 +7,7 @@
 //! test code is exempt from every rule.
 
 mod caller;
+mod mounts;
 mod rules;
 mod source;
 
@@ -89,12 +90,23 @@ pub(crate) enum Rule {
     CrossFeatureQuery,
     /// A handler takes its caller extractor before its body extractor.
     CallerFirst,
+    /// A warning (actix-web): a feature's `web::scope` covers another
+    /// feature's route ([`mounts`]).
+    CoveringScope,
+    /// A warning (actix-web): a fixed path is mounted after a parameterised
+    /// one that matches it ([`mounts`]).
+    RouteOrder,
 }
 
 impl Rule {
     /// Layout violations are warnings under `--lenient`.
     pub(crate) fn is_layout(self) -> bool {
         self == Rule::Layout
+    }
+
+    /// Always a warning: reported, never failing the check.
+    pub(crate) fn is_warning(self) -> bool {
+        matches!(self, Rule::CoveringScope | Rule::RouteOrder)
     }
 }
 
@@ -110,6 +122,8 @@ impl fmt::Display for Rule {
             Rule::CrossFeatureWrite => "cross-feature-write",
             Rule::CrossFeatureQuery => "cross-feature-query",
             Rule::CallerFirst => "caller-first",
+            Rule::CoveringScope => "covering-scope",
+            Rule::RouteOrder => "route-order",
         })
     }
 }
@@ -168,6 +182,17 @@ pub(crate) fn check(project: &Project) -> Result<Checked> {
     }
 
     let mut violations = Vec::new();
+    // How the features mount their routes: actix-web's scopes and resources.
+    if project.framework == ApiFramework::ActixWeb {
+        let mut features = Vec::new();
+        for (file, parsed) in &sources {
+            let rel = components(file.strip_prefix(&src)?);
+            if let Some(feature) = layout.feature_of(&rel) {
+                features.push((feature.to_owned(), format!("src/{}", rel.join("/")), parsed));
+            }
+        }
+        violations.extend(mounts::violations(&features));
+    }
     for file in &files {
         let rel = components(file.strip_prefix(&src)?);
         let shown = format!("src/{}", rel.join("/"));
@@ -587,7 +612,11 @@ impl Layout {
                  {READS_AND_WRITES} declare a port in its service.rs and implement it in app.rs",
                 self.feature_of(rel).unwrap_or_default()
             ),
-            Rule::Layout | Rule::Panics | Rule::CallerFirst => String::new(),
+            Rule::Layout
+            | Rule::Panics
+            | Rule::CallerFirst
+            | Rule::CoveringScope
+            | Rule::RouteOrder => String::new(),
         }
     }
 }

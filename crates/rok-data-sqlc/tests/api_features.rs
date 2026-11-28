@@ -285,6 +285,60 @@ fn stale_features_and_shared_tools_are_removed_but_never_the_users_files() -> Re
     Ok(())
 }
 
+/// Whether `routes` (a `routes.rs`) mounts `method path` on `handler`:
+/// the route is one of the resource's at `path`.
+fn serves(routes: &str, path: &str, method: &str, handler: &str) -> bool {
+    let Some((_, rest)) = routes.split_once(&format!("resource(\"{path}\")")) else {
+        return false;
+    };
+    let resource = rest.split("resource(").next().unwrap_or_default();
+    resource.contains(&format!("web::{method}().to(handlers::{handler})"))
+}
+
+/// Where `resource("<path>")` is mounted in `routes`.
+fn mounted_at(routes: &str, path: &str) -> usize {
+    routes
+        .find(&format!("resource(\"{path}\")"))
+        .unwrap_or_else(|| panic!("no resource at {path}:\n{routes}"))
+}
+
+/// A feature mounts one actix-web resource per path, never a scope, so a
+/// feature mounted under another's prefix still answers; and, at the first
+/// segment where two paths differ, the fixed one comes first, as a
+/// resource matching the path but not the method answers `405` instead of
+/// falling through.
+#[test]
+fn a_feature_mounts_resources_fixed_paths_first() -> Result<()> {
+    let project = Project::new(EXTENDED)?;
+    let mut config = extended(&project);
+    api(&mut config).search_endpoint = true;
+    rok_data_sqlc::generate(&config)?;
+    let routes = project.read("src/features/users/routes.rs")?;
+    assert!(!routes.contains("scope"), "{routes}");
+    let users = "/api/v1/users";
+    assert!(serves(&routes, users, "get", "list"), "{routes}");
+    assert!(serves(&routes, users, "post", "create"), "{routes}");
+    let one = format!("{users}/{{id}}");
+    for (method, handler) in [
+        ("get", "get_one"),
+        ("patch", "update"),
+        ("delete", "remove"),
+    ] {
+        assert!(serves(&routes, &one, method, handler), "{method}\n{routes}");
+    }
+    // `/search` before `/{id}`, and `/by-email/{value}` before
+    // `/{id}/restore`, which would match `/by-email/restore`.
+    let search = mounted_at(&routes, &format!("{users}/search"));
+    assert!(search < mounted_at(&routes, &one), "{routes}");
+    let by_email = mounted_at(&routes, &format!("{users}/by-email/{{value}}"));
+    let restore = mounted_at(&routes, &format!("{users}/{{id}}/restore"));
+    assert!(by_email < restore, "{routes}");
+    // Every path is one resource.
+    let resource = format!("resource(\"{one}\")");
+    assert_eq!(routes.matches(&resource).count(), 1, "{routes}");
+    Ok(())
+}
+
 /// Ticket 08's routes follow the schema: a `by-` route per unique column
 /// that isn't hidden, `restore` on a soft-delete table, `/search` only
 /// when `api.search_endpoint` is set, relationship routes to tables with a
@@ -295,18 +349,19 @@ fn extended_routes_follow_the_schema() -> Result<()> {
     let mut config = extended(&project);
     rok_data_sqlc::generate(&config)?;
     let routes = project.read("src/features/users/routes.rs")?;
-    for route in [
-        "\"/by-email/{value}\", web::get().to(handlers::get_by_email)",
-        "\"/{id}/restore\", web::post().to(handlers::restore)",
-        "\"/{id}/posts\", web::get().to(handlers::list_posts)",
+    for (path, method, handler) in [
+        ("/by-email/{value}", "get", "get_by_email"),
+        ("/{id}/restore", "post", "restore"),
+        ("/{id}/posts", "get", "list_posts"),
     ] {
-        assert!(routes.contains(route), "{routes}");
+        let path = format!("/api/v1/users{path}");
+        assert!(serves(&routes, &path, method, handler), "{routes}");
     }
     assert!(!routes.contains("by-token"), "{routes}");
     assert!(!routes.contains("/search"), "{routes}");
     let routes = project.read("src/features/posts/routes.rs")?;
     assert!(
-        routes.contains("\"/{id}/tags\", web::put().to(handlers::sync_tags)"),
+        serves(&routes, "/api/v1/posts/{id}/tags", "put", "sync_tags"),
         "{routes}"
     );
     let routes = project.read("src/features/tags/routes.rs")?;
@@ -328,7 +383,7 @@ fn extended_routes_follow_the_schema() -> Result<()> {
     rok_data_sqlc::generate(&config)?;
     let routes = project.read("src/features/users/routes.rs")?;
     assert!(
-        routes.contains("\"/search\", web::post().to(handlers::search)"),
+        serves(&routes, "/api/v1/users/search", "post", "search"),
         "{routes}"
     );
     let dto = project.read("src/features/users/dto.rs")?;

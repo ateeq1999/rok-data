@@ -13,7 +13,7 @@ Spec: `docs/specs/starter-feedback.md` · workspace ADR 0027 (amended 2026-11-03
 
 **Blocked by:** 16 (released in rok-data), grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** blocked
+**Status:** ready-for-agent
 
 - [ ] No root `clients/`; `rok gen` and `rok gen check` are clean on a fresh scaffold
 - [ ] The web, mobile, desktop and API gates pass

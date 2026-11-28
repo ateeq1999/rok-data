@@ -175,6 +175,10 @@ _Avoid_: constraint (that is the database's own check), validator
 The rejection of a body whose fields break validation rules, reported to the caller field by field with a stable code.
 _Avoid_: validation error (in user-facing text), 422
 
+**Request schema**:
+A Client's description of one request body or set of query parameters, carrying that request's validation rules as the API document states them.
+_Avoid_: feature schema (that meant this and a form schema), DTO schema
+
 **Update patch**:
 The `UpdateXxx` struct a caller passes to `update`; each field is optional, where `None` means "leave unchanged" and, for a nullable column, `Some(None)` means "set NULL".
 _Avoid_: update model, diff

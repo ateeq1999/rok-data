@@ -6,8 +6,8 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** blocked
+**Status:** done (rok-templates `spec/starter-feedback`, PR #19)
 
-- [ ] A unique and a foreign-key violation carry their kind and constraint name (tests)
-- [ ] The HTTP status and error body are unchanged (contract tests pass)
-- [ ] The Shared files stay identical across templates
+- [x] A unique and a foreign-key violation carry their kind and constraint name (tests)
+- [x] The HTTP status and error body are unchanged (contract tests pass)
+- [x] The Shared files stay identical across templates

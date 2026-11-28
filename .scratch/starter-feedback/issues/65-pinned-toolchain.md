@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** blocked
+**Status:** ready-for-agent
 
 - [ ] Each Template (and the Monorepo root) has `rust-toolchain.toml`
 - [ ] CI's gates use the pinned toolchain; the pin and CI agree (test)

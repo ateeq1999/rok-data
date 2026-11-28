@@ -387,3 +387,80 @@ fn rule_4_says_a_features_queries_may_read_any_table() -> Result<()> {
     );
     Ok(())
 }
+
+/// A hand-written feature's `web::scope` whose prefix covers another
+/// feature's route is a warning: actix-web answers `404` from the scope for
+/// every path under it the scope doesn't route, so the other feature never
+/// answers when the scope is mounted first.
+#[test]
+fn a_scope_covering_another_features_route_is_a_warning() -> Result<()> {
+    let files = [
+        (
+            "src/features/partner/routes.rs",
+            "pub fn routes(cfg: &mut web::ServiceConfig) {\n\
+             \x20   cfg.service(web::scope(\"/partner\").route(\"/{id}\", web::get().to(handlers::get_one)));\n\
+             }\n",
+        ),
+        (
+            "src/features/offers/routes.rs",
+            "pub fn routes(cfg: &mut web::ServiceConfig) {\n\
+             \x20   cfg.service(web::resource(\"/partner/{id}/offers\").route(web::get().to(handlers::list)));\n\
+             }\n",
+        ),
+    ];
+    assert_eq!(
+        violations(ApiFramework::ActixWeb, &files)?,
+        [
+            "src/features/partner/routes.rs:2: covering-scope: `web::scope(\"/partner\")` \
+          covers feature `offers`'s `/partner/{id}/offers`, which then answers 404 when \
+          this scope is mounted first: mount `web::resource`s, not a scope"
+        ],
+    );
+    // A scope covering only its own feature's routes is fine.
+    assert_eq!(
+        violations(ApiFramework::ActixWeb, &files[..1])?,
+        Vec::<String>::new()
+    );
+    Ok(())
+}
+
+/// A fixed path mounted after a parameterised one that matches it is a
+/// warning, in a scope or not: actix-web picks the first resource whose
+/// path matches, and answers `405` when that one doesn't route the method.
+#[test]
+fn a_fixed_path_after_a_matching_parameterised_one_is_a_warning() -> Result<()> {
+    let resources = "pub fn routes(cfg: &mut web::ServiceConfig) {\n\
+                     \x20   cfg.service(web::resource(\"/checkout/{id}\").route(web::get().to(handlers::get_one)));\n\
+                     \x20   cfg.service(web::resource(\"/checkout/tickets\").route(web::post().to(handlers::buy)));\n\
+                     }\n";
+    let scoped = "pub fn routes(cfg: &mut web::ServiceConfig) {\n\
+                  \x20   cfg.service(\n\
+                  \x20       web::scope(\"/checkout\")\n\
+                  \x20           .route(\"/{id}\", web::get().to(handlers::get_one))\n\
+                  \x20           .route(\"/tickets\", web::post().to(handlers::buy)),\n\
+                  \x20   );\n\
+                  }\n";
+    for (source, line, after) in [(resources, 3, 2), (scoped, 5, 4)] {
+        let files = [("src/features/checkout/routes.rs", source)];
+        assert_eq!(
+            violations(ApiFramework::ActixWeb, &files)?,
+            [format!(
+                "src/features/checkout/routes.rs:{line}: route-order: `/checkout/tickets` is \
+                 mounted after `/checkout/{{id}}` (line {after}), which matches it and answers \
+                 405 for a method it doesn't route: mount the fixed path first"
+            )],
+        );
+    }
+    // The order the generated routes use passes: the fixed path first,
+    // through the shared `resource` helper.
+    let generated = "pub fn routes(cfg: &mut web::ServiceConfig) {\n\
+                     \x20   cfg.service(resource(\"/checkout/tickets\").route(web::post().to(handlers::buy)));\n\
+                     \x20   cfg.service(resource(\"/checkout/{id}\").route(web::get().to(handlers::get_one)));\n\
+                     }\n";
+    let files = [("src/features/checkout/routes.rs", generated)];
+    assert_eq!(
+        violations(ApiFramework::ActixWeb, &files)?,
+        Vec::<String>::new()
+    );
+    Ok(())
+}

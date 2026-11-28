@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** blocked
+**Status:** done (rok-templates `spec/starter-feedback`, PR #19; `KNOWN_SCHEMAS` ships empty, since listing `UserResponse` would stop the parity check on the starter's own users routes)
 
-- [ ] A schema in `KNOWN_SCHEMAS` is skipped; one no longer differing fails as stale, like `KNOWN`
-- [ ] README updated
+- [x] A schema in `KNOWN_SCHEMAS` is skipped; one no longer differing fails as stale, like `KNOWN`
+- [x] README updated

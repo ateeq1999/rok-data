@@ -8,8 +8,8 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** 21
 
-**Status:** blocked
+**Status:** done
 
-- [ ] Changing a trigger function's body stages one `CREATE OR REPLACE FUNCTION` and applies on a database where three triggers use it
-- [ ] Changing its argument types is refused, naming the triggers
-- [ ] Changelog updated
+- [x] Changing a trigger function's body stages one `CREATE OR REPLACE FUNCTION` and applies on a database where three triggers use it (`crates/rok-data-codegen/src/ddl/replace/tests.rs`; `crates/rok-cli/tests/gen/replaced_function.rs` applies and reverts it with `rok migrate up`/`down`)
+- [x] Changing its argument types is refused, naming the triggers
+- [x] Changelog updated (and `docs/cli-reference.md`)

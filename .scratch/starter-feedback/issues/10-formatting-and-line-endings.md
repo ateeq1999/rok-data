@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md`
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** blocked
+**Status:** ready-for-agent
 
 - [ ] Running the formatters on a fresh project changes nothing
 - [ ] Each Template has the `.gitattributes`

@@ -129,8 +129,8 @@ fn the_actix_backend_is_the_default() -> Result<()> {
     for expected in [
         "use actix_web::web;",
         "pub fn routes(cfg: &mut web::ServiceConfig) {",
-        "        web::scope(\"/api/v1/users\")",
-        "            .route(\"\", web::get().to(handlers::list))",
+        "        resource(\"/api/v1/users\")",
+        "            .route(web::get().to(handlers::list))",
     ] {
         assert!(routes.contains(expected), "{expected}\n{routes}");
     }

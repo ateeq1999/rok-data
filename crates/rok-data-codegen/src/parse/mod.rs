@@ -12,7 +12,7 @@ mod comments;
 mod statements;
 
 pub(crate) mod alter;
-pub(crate) use check::quote;
+pub(crate) use check::{object_name, quote};
 
 /// One input file.
 #[derive(Debug, Clone)]

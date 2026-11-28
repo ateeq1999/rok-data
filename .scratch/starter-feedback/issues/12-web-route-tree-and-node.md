@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md`
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** blocked
+**Status:** done (rok-templates `spec/starter-feedback`, PR #19; Node 22.23.4 first runs in CI)
 
-- [ ] `bun run routes` regenerates the tree without a build
-- [ ] The web tests pass on the pinned Node and on Node 26
+- [x] `bun run routes` regenerates the tree without a build
+- [x] The web tests pass on the pinned Node and on Node 26

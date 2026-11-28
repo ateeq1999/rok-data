@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** blocked
+**Status:** ready-for-agent
 
 - [ ] `flutter build apk --debug` passes in the mobile gate in CI
 - [ ] Secure screens still block screenshots (method channel tested where it can be)

@@ -11,6 +11,23 @@ that it exists and won't ship a tag without it).
 
 **Changed**
 
+- `rok init -t monorepo -s schema.sql` seeds the schema directory `rok gen`
+  reads, the `api` App's (`apps/api/schema/0006_seed.sql`, numbered after
+  the template's own files), instead of a root `schema/` nothing reads.
+  The summary prints the path, and `--schema`'s help says where the seed
+  goes. Other projects keep `schema/0001_init.sql`.
+- actix-web features mount one `web::resource` per path through the new
+  generated `shared::validation::resource`, never a `web::scope`, so a
+  feature under another's prefix (`/partner` and `/partner/{id}/offers`)
+  answers in either mount order. A fixed path is mounted before a
+  parameterised one that matches it (`/checkout/tickets` before
+  `/checkout/{id}`), since an actix-web resource that matches the path but
+  not the method answers `405`. Regenerate to pick it up.
+- `check-arch` warns (`covering-scope`, `route-order`; warnings don't fail
+  the run) when an actix-web feature's `web::scope` covers another
+  feature's route, and when a fixed path is mounted after a parameterised
+  one that matches it. The architecture and customizing guides explain
+  both and the order rule for hand-written features.
 - `check-arch`'s rule-4 messages (`rule-4`, `cross-feature-write`,
   `cross-feature-query`) say that a feature's queries may join and read
   any table, and that writing another feature's table goes through that
@@ -118,6 +135,14 @@ that it exists and won't ship a tag without it).
 
 **Fixed**
 
+- A changed function is replaced, not dropped. Migration staging (`rok
+  gen --migration`) stages a `CREATE FUNCTION` whose text changed but
+  whose name and argument types didn't as `CREATE OR REPLACE FUNCTION`,
+  and a changed trigger as `CREATE OR REPLACE TRIGGER` (PostgreSQL 14+),
+  instead of its `-- rok:down` followed by its new text, which failed
+  while other triggers used the function. The down step restores the old
+  text. A changed signature is refused, naming the function and the
+  triggers the schema shows using it.
 - A result column that does arithmetic with a placeholder is typed like
   the column it is paired with: `price * $1 AS total` is `Decimal` on a
   `NOT NULL numeric` column and `Option<Decimal>` on a nullable one,

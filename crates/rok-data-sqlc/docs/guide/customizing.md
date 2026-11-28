@@ -229,11 +229,21 @@ pub async fn summary(
 
 <!-- source: docs/examples/api/src/features/stats/routes.rs -->
 ```rust
-/// Mounts `GET /api/v1/stats`.
+/// Mounts `GET /api/v1/stats`: a resource, not a scope, so the generated
+/// features' routes under `/api/v1` keep answering.
 pub fn routes(cfg: &mut web::ServiceConfig) {
-    cfg.service(web::scope("/api/v1/stats").route("", web::get().to(handlers::summary)));
+    cfg.service(resource("/api/v1/stats").route(web::get().to(handlers::summary)));
 }
 ```
+
+Mount a hand-written feature as the generated ones are: one
+`shared::validation::resource` per path, never a `web::scope`, and a fixed
+path before a parameterised one that matches it (`/checkout/tickets`
+before `/checkout/{id}`). A scope answers `404` for every path under its
+prefix it doesn't route, hiding other features' routes there; a resource
+answers `405` for a method it doesn't route, rather than letting a later
+resource try. [The architecture guide](architecture.md#5-a-feature-file-by-file)
+explains both, and `rok sqlc check-arch` warns about each.
 
 Three of your scaffolded files wire it in. `features/mod.rs` declares it:
 

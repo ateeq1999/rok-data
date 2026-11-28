@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md` · workspace ADR 0033
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** blocked
+**Status:** ready-for-agent
 
 - [ ] `--without api-keys` scaffolds a project that compiles and passes its tests
 - [ ] Unknown and needed-by-another Modules are usage errors naming them

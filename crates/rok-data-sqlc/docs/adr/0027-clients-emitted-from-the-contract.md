@@ -235,3 +235,18 @@ or without them, and the server checks them.
   An operation with any `2xx` stays a call, whatever redirects it also
   documents. No `x-rok-client` extension marks either: the responses
   say which it is.
+
+## Amended 2026-11-28
+
+The 2026-11-03 amendment made the TypeScript Client read the server's rules, but none reached the contract. A hand-written body's `#[rok(validate(…))]` rules never did. A generated body got only lengths, formats and patterns, through a second `#[schema(…)]` copy, with no messages, no transforms and no bounds. So a Client emitted `password: z.string()` for a password the server holds to 8–128 characters.
+
+- **One way into the contract.** `rok_data::Input` publishes each field's rules, and the API document applies them through a `utoipa::Modify`, the same hook that adds the bearer scheme. This covers every body and query-parameter struct, generated or hand-written. The generator stops writing its own `#[schema(…)]` copy, so a rule is written once, on the struct.
+  - The rules with a keyword go in as that keyword: `length` → `minLength`/`maxLength`, `range` → `minimum`/`maximum`, `email`/`url`/`uuid`/`ip` → `format`, `one_of` → `enum`, and `starts_with`/`ends_with`/`alpha`/`ascii`/`hex_code` → `pattern`.
+  - The rest stay on the server: `iban`, `credit_card`, `jwt`, `coordinates`, `validate_with` and the database checks. A form learns of them from the validation failure the server returns.
+- **Messages and transforms travel as extensions.** OpenAPI has no field for a rule's message or for a transform.
+  - `x-rok-messages` maps each keyword to the server's message for it.
+  - `x-rok-transforms` lists `trim` and `lowercase` in the order applied.
+  - The TypeScript Client emits them as `z.string().trim().toLowerCase().min(8, "…")`, so a form built on a request schema checks the value the server checks and, by default, says what the server says.
+- **Unchanged:** request bodies are still sent unchecked at runtime, since the type checks a body's shape at compile time and the server checks its values. The Dart and Rust Clients still read past the rules; the contract now carries them for when they adopt them.
+
+**Considered:** hand-written `#[schema(min_length = …)]` beside each `#[rok(validate(…))]`, and the generator keeping its copy with the missing keywords added. Both write every rule twice, in two places that drift apart.

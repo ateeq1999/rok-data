@@ -48,7 +48,7 @@ fn is_marked(attrs: &[Attribute]) -> bool {
 }
 
 /// `#[cfg(test)]` or `#[test]`.
-fn is_test(attrs: &[Attribute]) -> bool {
+pub(super) fn is_test(attrs: &[Attribute]) -> bool {
     attrs.iter().any(|attr| {
         attr.path().is_ident("test")
             || (attr.path().is_ident("cfg")
