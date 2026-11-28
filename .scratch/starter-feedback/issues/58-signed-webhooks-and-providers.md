@@ -14,8 +14,8 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** ready-for-agent
+**Status:** done (rok-templates `spec/starter-feedback`, PR #19; gRPC gets the verifier and `WebhookSecret` but no extractor, since it serves no plain HTTP routes)
 
-- [ ] `SignedWebhook` accepts a correctly signed body and refuses a tampered one (tests)
-- [ ] The recipe's code compiles (doc test or fixture)
-- [ ] The Shared files stay identical across templates
+- [x] `SignedWebhook` accepts a correctly signed body and refuses a tampered one (tests)
+- [x] The recipe's code compiles (doc test or fixture)
+- [x] The Shared files stay identical across templates

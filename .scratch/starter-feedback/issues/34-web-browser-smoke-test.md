@@ -6,7 +6,7 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it)
 
 **Blocked by:** 11 (the dev seed), grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** ready-for-agent
+**Status:** done (rok-templates `spec/starter-feedback`, PR #19)
 
-- [ ] The smoke flow passes in the web gate in CI
-- [ ] `bun run e2e` documented in the web README
+- [x] The smoke flow passes in the web gate in CI
+- [x] `bun run e2e` documented in the web README

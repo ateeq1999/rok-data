@@ -6,8 +6,8 @@ Spec: `docs/specs/starter-feedback.md` (Bugs found building on it) · workspace 
 
 **Blocked by:** grpc-api-template/08 (the gRPC Template shipped)
 
-**Status:** ready-for-agent
+**Status:** done (rok-templates `spec/starter-feedback`, PR #19)
 
-- [ ] `bun run dev:web` from the root starts the web App
-- [ ] No `workspaces` key; ADR 0027's "plain bun inside `apps/web`" holds
-- [ ] A bare `cargo run` at the root starts the API; `cargo test --workspace` still covers every member
+- [x] `bun run dev:web` from the root starts the web App
+- [x] No `workspaces` key; ADR 0027's "plain bun inside `apps/web`" holds
+- [x] A bare `cargo run` at the root starts the API; `cargo test --workspace` still covers every member
